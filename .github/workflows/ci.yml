@@ -1,0 +1,132 @@
+# Continuous Integration for the KFD monorepo.
+#
+# Runs on every pull request targeting `main` and on every push to `main`.
+# The pipeline checks the affected apps only (see the `changes` job).
+#
+# Flow:
+#   feature/* branch -> pull request -> lint / typecheck / build -> merge -> main
+
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Detect which parts of the monorepo changed so we only run the
+  # relevant checks instead of building everything on every PR.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      admin: ${{ steps.filter.outputs.admin }}
+      mobile: ${{ steps.filter.outputs.mobile }}
+      backend: ${{ steps.filter.outputs.backend }}
+      shared: ${{ steps.filter.outputs.shared }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Detect changed paths
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            admin:
+              - 'admin/**'
+            mobile:
+              - 'mobile/**'
+            backend:
+              - 'backend/**'
+            shared:
+              - '.github/**'
+              - '.gitignore'
+              - 'README.md'
+
+  # ---- Admin (Next.js) ------------------------------------------------
+  admin:
+    name: Admin — lint, typecheck, build
+    needs: changes
+    if: needs.changes.outputs.admin == 'true' || needs.changes.outputs.shared == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: admin
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: admin/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Production build
+        run: npm run build
+
+  # ---- Mobile (Expo / React Native) -----------------------------------
+  mobile:
+    name: Mobile — typecheck
+    needs: changes
+    if: needs.changes.outputs.mobile == 'true' || needs.changes.outputs.shared == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npm run typecheck
+
+  # ---- Backend (NestJS) ------------------------------------------------
+  # This job is intentionally dormant until a `backend/` directory exists.
+  # When the NestJS app is added, `dorny/paths-filter` will start triggering
+  # it automatically. Lint/typecheck/test/build steps will be added then.
+  backend:
+    name: Backend — install
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
