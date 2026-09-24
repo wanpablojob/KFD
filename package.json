@@ -1,0 +1,13 @@
+{
+  "name": "kfd",
+  "version": "0.0.0",
+  "private": true,
+  "description": "KFD monorepo — root tooling (commit linting, release automation)",
+  "scripts": {
+    "commitlint": "commitlint"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^19.6.1",
+    "@commitlint/config-conventional": "^19.6.0"
+  }
+}

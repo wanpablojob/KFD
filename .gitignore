@@ -1,6 +1,9 @@
 # ---- Dependencies ----
 node_modules/
 
+# ---- Graphify knowledge graph (regenerated output) ----
+graphify-out/
+
 # ---- Environment files (never commit secrets) ----
 .env
 .env.*

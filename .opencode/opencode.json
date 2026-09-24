@@ -1,0 +1,13 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": [
+    ".opencode/plugins/graphify.js"
+  ],
+  "mcp": {
+    "graphify": {
+      "type": "local",
+      "command": ["/Users/alexagracegeogangco/.local/bin/graphify-mcp", "/Users/alexagracegeogangco/KFD/graphify-out/graph.json"],
+      "enabled": true
+    }
+  }
+}

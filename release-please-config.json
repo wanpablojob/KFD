@@ -1,0 +1,17 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "release-type": "node",
+  "include-component-in-tag": true,
+  "separate-pull-requests": false,
+  "pull-request-title-pattern": "chore: release ${component} ${version}",
+  "packages": {
+    "admin": {
+      "package-name": "kfd-admin",
+      "component": "admin"
+    },
+    "mobile": {
+      "package-name": "kfd-mobile",
+      "component": "mobile"
+    }
+  }
+}
