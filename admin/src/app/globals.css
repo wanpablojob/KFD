@@ -1,26 +1,162 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/* ============================================================================
+   Kabankalan City Proper — Food Delivery Dashboard Theme
+   Tailwind v4: colors mapped into @theme inline for utilities like
+   `bg-primary` / `text-primary-foreground` across every page.
+
+   • Primary: #0891b2 (Kabankalan City proper blue)
+   • Primary-hover: #0e7490
+   • Facebook‑only food delivery service (no web/app).
+
+   –––––––––––––––––––––––––––––––––––––––––––––––––––
+   Kabankalan City, Negros Occidental, Philippines
+   • Population: ~190k (2025 est.)
+   • Geography: Central portion of Southern Negros Island
+   • 81k + followers on official City Government Facebook page
+   • Food‑delivery service operates exclusively via Facebook Messenger/
+     post — no standalone app or website.
+   –––––––––––––––––––––––––––––––––––––––––––––––––––
+   */
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-hover: var(--primary-hover);
+
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, "SF Mono", Menlo, Consolas,
+    monospace;
+
+  --radius-card: 0.75rem;
+  --radius-input: 0.5rem;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+:root {
+  /* Brand */
+--primary: #0891b2;
+--primary-hover: #0e7490;
+  --primary-foreground: #ffffff;
+  --secondary: #f4f4f5;
+  --secondary-foreground: #27272a;
+
+  /* Surfaces */
+  --background: #fafafa;
+  --foreground: #18181b;
+  --muted: #f4f4f5;
+  --muted-foreground: #71717a;
+  --card: #ffffff;
+  --card-foreground: #18181b;
+
+  /* Lines & focus */
+  --border: #e4e4e7;
+  --input: #e4e4e7;
+  --ring: #0e7490;
+
+  /* Semantic status */
+  --success: #059669;
+  --success-foreground: #ffffff;
+  --warning: #d97706;
+  --warning-foreground: #ffffff;
+  --destructive: #e11d48;
+  --destructive-foreground: #ffffff;
+
+  /* Radius */
+  --radius-card: 0.75rem; /* 12px */
+  --radius-input: 0.5rem; /* 8px */
+}
+
+html {
+  background-color: var(--background);
 }
 
 body {
-  background: var(--background);
+  background-color: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* ============================================================================
+   Typography — sensible module defaults. Pages can still size text with
+   utilities; these provide consistent, non-overstyled baseline headings.
+   ========================================================================== */
+
+h1 {
+  font-size: 1.5rem; /* 24px */
+  line-height: 1.25;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+h2 {
+  font-size: 1.25rem;
+  line-height: 1.3;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+h3 {
+  font-size: 1.125rem;
+  line-height: 1.35;
+  font-weight: 600;
+}
+
+h4 {
+  font-size: 1rem;
+  line-height: 1.4;
+  font-weight: 600;
+}
+
+p {
+  line-height: 1.6;
+}
+
+small {
+  font-size: 0.875rem;
+}
+
+/* ============================================================================
+   Accessibility — visible focus indicator driven by the ring token.
+   ========================================================================== */
+
+:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+::selection {
+  background-color: color-mix(in srgb, var(--primary) 22%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
