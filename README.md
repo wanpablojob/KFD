@@ -2,6 +2,10 @@
 
 KFD is a food-delivery platform modeled after Foodpanda, consisting of an admin web dashboard, a customer mobile app, and (planned) a backend API.
 
+[![CI](https://github.com/wanpablojob/KFD/actions/workflows/ci.yml/badge.svg)](https://github.com/wanpablojob/KFD/actions/workflows/ci.yml)
+[![Deploy Admin](https://github.com/wanpablojob/KFD/actions/workflows/deploy-admin.yml/badge.svg)](https://github.com/wanpablojob/KFD/actions/workflows/deploy-admin.yml)
+[![Release Please](https://github.com/wanpablojob/KFD/actions/workflows/release-please.yml/badge.svg)](https://github.com/wanpablojob/KFD/actions/workflows/release-please.yml)
+
 ## Project structure
 
 ```
@@ -85,27 +89,69 @@ Steps apply from the repository root.
 
 ## CI/CD
 
-Every pull request and every push to `main` is checked by GitHub Actions
-(`.github/workflows/ci.yml`).
+All automation lives in `.github/workflows/`. Every pull request and every
+push to `main` runs the pipeline below.
 
 ```
 feature/* branch
       │
       ▼
-Pull request → GitHub Actions
-      │            │
-      │    lint / typecheck / build
-      │            │
-      ▼            ▼
-    merge  ←  all checks pass
+Pull request ──► CI (lint / typecheck / audit / test / build)
+      │              │
+      │              └──► Deploy Admin → Vercel Preview (staging)
+      ▼
+    merge  ←  required checks pass (CI OK)
       │
       ▼
-    main → deployment
+    main ──► CI ──► Deploy Admin → Vercel Production (approval required)
+              │
+              └──► Release Please opens/updates a release PR
 ```
+
+### Workflows
+
+| Workflow | Trigger | Purpose |
+| --- | --- | --- |
+| `ci.yml` | PRs to `main`, pushes to `main` | Monorepo-aware lint, typecheck, `npm audit`, test, build. `CI OK` is the aggregate gate. |
+| `deploy-admin.yml` | PRs to `main`; successful `CI` on `main`; manual | Deploy admin to Vercel (preview for PRs, production for `main`). |
+| `deploy-backend.yml` | pushes touching `backend/**`; manual | Deploy the backend to Render (dormant until `backend/` exists). |
+| `commitlint.yml` | PRs to `main` | Enforce conventional commit messages. |
+| `release-please.yml` | pushes to `main` | Version bumps, changelogs, and GitHub Releases per app. |
 
 - **Branch strategy**: `main` with short-lived `feature/*` branches.
 - **Monorepo-aware**: only the apps whose files changed (plus shared config) run their checks.
 - **Caching**: dependencies are cached via `actions/setup-node` using each app's `package-lock.json`.
+- **Concurrency**: superseded runs on the same ref are cancelled automatically.
+- **Tests**: test steps run with `--if-present`, so they no-op until a `test` script is added.
+
+### Environments and secrets
+
+| Name | Type | Used by | Notes |
+| --- | --- | --- | --- |
+| `staging` | Environment | Admin preview deploys | No protection rules. |
+| `production` | Environment | Admin + backend deploys | Add **required reviewers** to gate production. |
+| `VERCEL_TOKEN` | Secret | `deploy-admin.yml` | Vercel account token. |
+| `VERCEL_ORG_ID` | Secret | `deploy-admin.yml` | Vercel team/user id. |
+| `VERCEL_PROJECT_ID` | Secret | `deploy-admin.yml` | Vercel project id (root directory `admin`). |
+| `RENDER_DEPLOY_HOOK_URL` | Secret | `deploy-backend.yml` | Render deploy hook (added when the backend exists). |
+| `BACKEND_URL` | Variable | `deploy-backend.yml` | Public backend URL, shown in the GitHub UI. |
+
+### Branch protection
+
+Require the **CI OK** status check (plus **Lint commit messages** and, once
+configured, Release Please) before merging to `main`. With the GitHub CLI:
+
+```sh
+gh api -X PUT repos/wanpablojob/KFD/branches/main/protection \
+  -f required_status_checks.strict=true \
+  -f required_status_checks.contexts[]='CI OK' \
+  -f enforce_admins=false \
+  -f required_pull_request_reviews.required_approving_review_count=1 \
+  -f restrictions=
+```
+
+> Release Please requires `Settings → Actions → General → Workflow
+> permissions → Allow GitHub Actions to create and approve pull requests`.
 
 ### Commit style
 
@@ -125,22 +171,44 @@ ci: add GitHub Actions pipeline
 
 ### Admin → Vercel
 
-The Next.js app deploys from `admin/` as the root directory. In the Vercel project
-settings, set **Root Directory** to `admin` and add environment variables from
-`admin/.env.example`. Next.js is auto-detected; no extra config file is required.
+The admin Next.js app deploys via GitHub Actions (`.github/workflows/deploy-admin.yml`).
+Two environments are supported:
+
+- **Preview / Staging**: on every pull request, a Vercel Preview is deployed
+  to the `staging` GitHub Environment. The preview URL is commented on the PR.
+- **Production**: on every successful `CI` run on `main` that touches `admin/`,
+  the admin is deployed to the `production` GitHub Environment. A
+  required-reviewer approval gate can be configured in the GitHub UI.
+
+Required secrets (add in `Settings → Secrets and variables → Actions`):
+
+- `VERCEL_TOKEN` – Vercel account token.
+- `VERCEL_ORG_ID` – Vercel organization or user id.
+- `VERCEL_PROJECT_ID` – Vercel project id (root directory must be `admin`).
+
+See `.github/workflows/deploy-admin.yml` for the deployment steps, or run
+`npm run build` locally and then `vercel deploy` manually.
 
 ### Backend → Render (planned)
 
-When the `backend/` NestJS service is created, it will be deployed from `backend/`
-as the root directory. No deployment runs until that app exists.
+When the `backend/` NestJS service is created, it will be deployed from
+`backend/` as the root directory via a deploy hook. Until then, the
+`deploy-backend.yml` workflow remains dormant.
 
-### Database → Supabase PostgreSQL (planned)
+### Release Please
 
-Connection details will be provided via environment variables. Never commit
-`DATABASE_URL` or `SUPABASE_*` keys.
+On push to `main`, `Release Please` opens or updates a pull request that
+bumps the per‑app version (`admin`, `mobile`) and regenerates the
+corresponding `CHANGELOG.md`. Merging that PR creates a GitHub Release and
+tags the release. See `.github/workflows/release-please.yml` and the config
+files at the repo root.
 
 ## Security
 
 - Never commit secrets or `.env` files.
 - Server-side secrets stay out of the browser/client bundles.
-- Required GitHub Secrets for CI/CD are added in the repository settings when a job needs them.
+- Required GitHub Secrets for CI/CD are added in the repository settings when
+  a job needs them.
+- **Branch protection**: require the **CI OK** status check (plus **Lint
+  commit messages** and, once configured, **Release Please**) before merging to
+  `main`. See the "Branch protection" subsection above.
