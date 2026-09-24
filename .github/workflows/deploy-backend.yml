@@ -1,0 +1,73 @@
+# Continuous Deployment for the KFD backend (NestJS) service.
+#
+# Dormant until `backend/` exists: the workflow only triggers when files
+# under `backend/` (or this workflow) change, and the deploy step no-ops
+# with a warning if the Render deploy hook secret is not configured yet.
+#
+# Required repository secret (once the service exists):
+#   RENDER_DEPLOY_HOOK_URL
+# Optional repository variable:
+#   BACKEND_URL  (shown as the deployment URL in the GitHub UI)
+
+name: Deploy Backend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - ".github/workflows/deploy-backend.yml"
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Deployment target
+        type: choice
+        options: [staging, production]
+        default: staging
+
+permissions:
+  contents: read
+  deployments: write
+
+concurrency:
+  group: deploy-backend-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy backend
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ github.event.inputs.target || 'production' }}
+      url: ${{ vars.BACKEND_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check whether the backend exists
+        id: guard
+        run: |
+          if [ -d backend ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::backend/ does not exist yet; skipping deploy."
+          fi
+
+      - name: Build
+        if: steps.guard.outputs.exists == 'true'
+        working-directory: backend
+        run: |
+          npm ci
+          npm run build --if-present
+
+      - name: Trigger Render deploy
+        if: steps.guard.outputs.exists == 'true'
+        env:
+          DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$DEPLOY_HOOK" ]; then
+            echo "::warning::RENDER_DEPLOY_HOOK_URL is not set; skipping deploy."
+            exit 0
+          fi
+          curl -fsS -X POST "$DEPLOY_HOOK"
+          echo "Render deploy triggered."

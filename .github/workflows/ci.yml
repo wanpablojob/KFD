@@ -1,10 +1,13 @@
 # Continuous Integration for the KFD monorepo.
 #
 # Runs on every pull request targeting `main` and on every push to `main`.
-# The pipeline checks the affected apps only (see the `changes` job).
+# Only the affected apps are checked (see the `changes` job), and the
+# aggregate `ci-ok` job is the single status check to require in branch
+# protection.
 #
 # Flow:
-#   feature/* branch -> pull request -> lint / typecheck / build -> merge -> main
+#   feature/* branch -> pull request -> lint / typecheck / test / build
+#                    -> all checks pass -> merge -> main -> deploy
 
 name: CI
 
@@ -13,6 +16,7 @@ on:
     branches: [main]
   push:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -47,8 +51,14 @@ jobs:
               - 'backend/**'
             shared:
               - '.github/**'
+              - '.vscode/**'
               - '.gitignore'
               - 'README.md'
+              - 'package.json'
+              - 'package-lock.json'
+              - 'commitlint.config.js'
+              - 'release-please-config.json'
+              - '.release-please-manifest.json'
 
   # ---- Admin (Next.js) ------------------------------------------------
   admin:
@@ -72,18 +82,24 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high || true
+
       - name: Lint
         run: npm run lint
 
       - name: Type check
         run: npm run typecheck
 
+      - name: Test
+        run: npm run test --if-present
+
       - name: Production build
         run: npm run build
 
   # ---- Mobile (Expo / React Native) -----------------------------------
   mobile:
-    name: Mobile — typecheck
+    name: Mobile — lint, typecheck
     needs: changes
     if: needs.changes.outputs.mobile == 'true' || needs.changes.outputs.shared == 'true'
     runs-on: ubuntu-latest
@@ -106,12 +122,15 @@ jobs:
       - name: Type check
         run: npm run typecheck
 
+      - name: Test
+        run: npm run test --if-present
+        continue-on-error: true
+
   # ---- Backend (NestJS) ------------------------------------------------
-  # This job is intentionally dormant until a `backend/` directory exists.
-  # When the NestJS app is added, `dorny/paths-filter` will start triggering
-  # it automatically. Lint/typecheck/test/build steps will be added then.
+  # Dormant until a `backend/` directory exists. Because this job is gated
+  # on `backend/**` changes, it only runs once the service is added.
   backend:
-    name: Backend — install
+    name: Backend — lint, typecheck, test, build
     needs: changes
     if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
@@ -130,3 +149,35 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Lint
+        run: npm run lint --if-present
+
+      - name: Type check
+        run: npm run typecheck --if-present
+
+      - name: Test
+        run: npm run test --if-present
+
+      - name: Build
+        run: npm run build --if-present
+
+  # ---- Aggregate gate --------------------------------------------------
+  # Always runs, so branch protection can require just this single check.
+  # It fails only if a job that actually ran failed or was cancelled;
+  # skipped jobs (unaffected apps) are fine.
+  ci-ok:
+    name: CI OK
+    if: always()
+    needs: [changes, admin, mobile, backend]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify required jobs succeeded
+        run: |
+          results='${{ join(needs.*.result, ',') }}'
+          echo "Job results: $results"
+          if printf '%s' "$results" | grep -Eq 'failure|cancelled'; then
+            echo "::error::One or more CI jobs failed"
+            exit 1
+          fi
+          echo "All required CI jobs passed."

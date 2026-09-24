@@ -1,0 +1,31 @@
+# Automated releases and changelogs for the KFD monorepo.
+# Merges to `main` open/update a release PR; merging that PR tags a release
+# and updates per-app CHANGELOG.md files.
+#
+# Requires the repository setting:
+#   Settings -> Actions -> General -> Workflow permissions -> "Allow GitHub
+#   Actions to create and approve pull requests".
+
+name: Release Please
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: release-please-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    name: Update release PR
+    runs-on: ubuntu-latest
+    steps:
+      - uses: googleapis/release-please-action@v4
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json

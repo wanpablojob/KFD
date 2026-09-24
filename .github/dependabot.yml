@@ -1,0 +1,58 @@
+# Dependency update automation for the KFD monorepo.
+# Docs: https://docs.github.com/code-security/dependabot/dependabot-version-updates
+
+version: 2
+updates:
+  # ---- Admin (Next.js) -------------------------------------------------
+  - package-ecosystem: npm
+    directory: /admin
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      admin-minor-patch:
+        patterns: ["*"]
+        update-types: [minor, patch]
+    commit-message:
+      prefix: "chore(deps)"
+      include: scope
+
+  # ---- Mobile (Expo / React Native) -----------------------------------
+  - package-ecosystem: npm
+    directory: /mobile
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      mobile-minor-patch:
+        patterns: ["*"]
+        update-types: [minor, patch]
+    commit-message:
+      prefix: "chore(deps)"
+      include: scope
+
+  # ---- Root tooling (commitlint) --------------------------------------
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "chore(deps)"
+      include: scope
+
+  # ---- GitHub Actions --------------------------------------------------
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      github-actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: "ci(deps)"
