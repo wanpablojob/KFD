@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* ============================================================================
    Kabankalan City Proper — Food Delivery Dashboard Theme
    Tailwind v4: colors mapped into @theme inline for utilities like
@@ -56,9 +58,11 @@
 }
 
 :root {
+  color-scheme: light;
+
   /* Brand */
---primary: #0891b2;
---primary-hover: #0e7490;
+  --primary: #b90e1f;
+  --primary-hover: #9c0c1b;
   --primary-foreground: #ffffff;
   --secondary: #f4f4f5;
   --secondary-foreground: #27272a;
@@ -74,7 +78,7 @@
   /* Lines & focus */
   --border: #e4e4e7;
   --input: #e4e4e7;
-  --ring: #0e7490;
+  --ring: #f2a007;
 
   /* Semantic status */
   --success: #059669;
@@ -87,6 +91,38 @@
   /* Radius */
   --radius-card: 0.75rem; /* 12px */
   --radius-input: 0.5rem; /* 8px */
+}
+
+.dark {
+  color-scheme: dark;
+
+  /* Brand */
+  --primary: #b90e1f;
+  --primary-hover: #de0f24;
+  --primary-foreground: #ffffff;
+  --secondary: #27272a;
+  --secondary-foreground: #fafafa;
+
+  /* Surfaces */
+  --background: #110c0d;
+  --foreground: #f4f4f5;
+  --muted: #241d1d;
+  --muted-foreground: #a1a1a7;
+  --card: #1a1314;
+  --card-foreground: #f4f4f5;
+
+  /* Lines & focus */
+  --border: #33292a;
+  --input: #3a3031;
+  --ring: #f2a007;
+
+  /* Semantic status */
+  --success: #34d399;
+  --success-foreground: #052e16;
+  --warning: #fbbf24;
+  --warning-foreground: #451a03;
+  --destructive: #f87171;
+  --destructive-foreground: #450a0a;
 }
 
 html {

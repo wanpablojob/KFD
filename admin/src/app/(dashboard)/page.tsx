@@ -9,12 +9,12 @@ import { Card, CardHeader } from "@/components/ui/card";
 import { RevenueChart } from "@/components/charts/revenue-chart";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Badge } from "@/components/ui/badge";
-import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { Avatar } from "@/components/ui/avatar";
 import { ArrowRightIcon } from "@/components/ui/icons";
 import { LoadingState, EmptyState } from "@/components/ui/status";
 import { useAsyncData } from "@/lib/use-async-data";
-import type { Order } from "@/lib/types";
+import type { Order, Restaurant } from "@/lib/types";
 
 function useDashboardData() {
   const orders = useAsyncData(() => fetchOrders());
@@ -24,9 +24,50 @@ function useDashboardData() {
   return { orders, restaurants, riders };
 }
 
-function formatDelta(orders: Order[]) {
-  const delivered = orders.filter((o) => o.status === "delivered").length;
-  return orders.length === 0 ? 0 : Math.round((delivered / orders.length) * 100);
+const PERIOD_DAYS = 7;
+
+/**
+ * Percent change from the previous period. Returns 0 when there is no prior
+ * data to compare against rather than a misleading infinity.
+ */
+function periodDelta(current: number, previous: number): number {
+  if (previous === 0) return 0;
+  return ((current - previous) / previous) * 100;
+}
+
+function splitPeriods(orders: Order[], restaurants: Restaurant[]) {
+  const now = Date.now();
+  const window = PERIOD_DAYS * 24 * 60 * 60 * 1000;
+  const currentStart = now - window;
+  const previousStart = now - window * 2;
+
+  const inRange = (iso: string, start: number, end: number) => {
+    const t = new Date(iso).getTime();
+    return t >= start && t < end;
+  };
+
+  const currentOrders = orders.filter((o) => inRange(o.placedAt, currentStart, now));
+  const previousOrders = orders.filter((o) =>
+    inRange(o.placedAt, previousStart, currentStart),
+  );
+
+  return {
+    revenue: {
+      current: currentOrders.reduce((s, o) => s + o.total, 0),
+      previous: previousOrders.reduce((s, o) => s + o.total, 0),
+    },
+    orders: { current: currentOrders.length, previous: previousOrders.length },
+    restaurants: {
+      current: restaurants.filter(
+        (r) => r.status === "active" && inRange(r.joinedAt, currentStart, now),
+      ).length,
+      previous: restaurants.filter(
+        (r) =>
+          r.status === "active" &&
+          inRange(r.joinedAt, previousStart, currentStart),
+      ).length,
+    },
+  };
 }
 
 export default function OverviewPage() {
@@ -64,26 +105,33 @@ export default function OverviewPage() {
   const activeRestaurants = restaurantRows.filter((r) => r.status === "active").length;
   const onlineRiders = riderRows.filter((r) => r.status === "online").length;
   const grossRevenue = orderRows.reduce((sum, o) => sum + o.total, 0);
-  const deliveredRate = formatDelta(orderRows);
+
+  const deltas = splitPeriods(orderRows, restaurantRows);
+  const delivered = orderRows.filter((o) => o.status === "delivered").length;
+  const deliveredRate =
+    orderRows.length === 0 ? 0 : Math.round((delivered / orderRows.length) * 100);
 
   const kpis = [
     {
       label: "Gross Revenue",
       value: formatCurrency(grossRevenue),
-      delta: 12.4,
-      hint: "vs last week",
+      delta: periodDelta(deltas.revenue.current, deltas.revenue.previous),
+      hint: "vs prev 7 days",
     },
     {
       label: "Total Orders",
       value: orderRows.length.toLocaleString(),
-      delta: 7.1,
-      hint: "vs last week",
+      delta: periodDelta(deltas.orders.current, deltas.orders.previous),
+      hint: "vs prev 7 days",
     },
     {
       label: "Active Restaurants",
       value: activeRestaurants.toString(),
-      delta: 2.0,
-      hint: "vs last week",
+      delta: periodDelta(
+        deltas.restaurants.current,
+        deltas.restaurants.previous,
+      ),
+      hint: "new vs prev 7 days",
     },
     {
       label: "Riders Online",
@@ -106,11 +154,6 @@ export default function OverviewPage() {
       <PageHeader
         title="Overview"
         description="Live operations summary for KFD across Kabankalan City Proper."
-        actions={
-          <Button asChild size="sm">
-            <Link href="/orders">View all orders</Link>
-          </Button>
-        }
       />
 
       <Stack gap={6}>

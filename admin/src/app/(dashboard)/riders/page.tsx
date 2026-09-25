@@ -1,19 +1,24 @@
 "use client";
 
-import { fetchRiders } from "@/lib/supabase/queries";
+import { useState } from "react";
+import { fetchRiders, setRiderStatus, upsertRider } from "@/lib/supabase/queries";
 import { formatCurrency } from "@/lib/format";
 import { PageContainer, PageHeader, Section } from "@/components/layout/page";
-import { Button } from "@/components/ui/button";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Card } from "@/components/ui/card";
-import { DataTable, type Column } from "@/components/ui/data-table";
-import { LoadingState, EmptyState } from "@/components/ui/status";
+import { PaginatedDataTable } from "@/components/ui/paginated-data-table";
+import { EntityDialog, type DialogField } from "@/components/ui/entity-dialog";
+import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
+import { PlusIcon } from "@/components/ui/icons";
+import type { Column } from "@/components/ui/data-table";
 import { useAsyncData } from "@/lib/use-async-data";
+import { TableBoundary } from "@/components/ui/table-boundary";
 import type { Rider } from "@/lib/types";
 
-const columns: Column<Rider>[] = [
+const baseColumns: Column<Rider>[] = [
   {
     key: "name",
     header: "Rider",
@@ -72,8 +77,43 @@ const columns: Column<Rider>[] = [
   },
 ];
 
+const FIELDS: DialogField[] = [
+  { key: "name", label: "Name", required: true },
+  { key: "email", label: "Email", required: true },
+  { key: "phone", label: "Phone" },
+  { key: "city", label: "City" },
+  { key: "vehicle", label: "Vehicle", options: ["bicycle", "scooter", "motorcycle", "car"] },
+  { key: "status", label: "Status", options: ["online", "busy", "offline"] },
+];
+
 export default function RidersPage() {
-  const { data, loading, error } = useAsyncData(() => fetchRiders());
+  const { data, loading, error, refetch } = useAsyncData(() => fetchRiders());
+  const [editing, setEditing] = useState<Rider | null>(null);
+  const [open, setOpen] = useState(false);
+
+  const columns: Column<Rider>[] = [
+    ...baseColumns,
+    {
+      key: "statusToggle",
+      header: "Toggle",
+      cell: (row) => (
+        <Select
+          value={row.status}
+          aria-label={`Set status for ${row.name}`}
+          className="h-8 w-32"
+          onClick={(e) => e.stopPropagation()}
+          onChange={async (e) => {
+            await setRiderStatus(row.id, e.target.value as Rider["status"]);
+            refetch();
+          }}
+        >
+          <option value="online">Online</option>
+          <option value="busy">Busy</option>
+          <option value="offline">Offline</option>
+        </Select>
+      ),
+    },
+  ];
 
   return (
     <PageContainer>
@@ -81,22 +121,88 @@ export default function RidersPage() {
         title="Riders"
         description="Fleet of active delivery partners."
         actions={
-          <Button variant="outline" size="sm" disabled>
-            Invite rider
+          <Button
+            onClick={() => {
+              setEditing(null);
+              setOpen(true);
+            }}
+          >
+            <PlusIcon className="h-4 w-4" />
+            Add Rider
           </Button>
         }
       />
       <Section aria-label="Rider list">
-        {loading ? (
-          <LoadingState label="Loading riders…" />
-        ) : error ? (
-          <EmptyState title="Could not load riders" description={error} />
-        ) : (
+        <TableBoundary
+          loading={loading}
+          error={error}
+          onRetry={refetch}
+          errorTitle="Could not load riders"
+          skeletonRows={8}
+          skeletonColumns={8}
+        >
           <Card className="overflow-hidden">
-            <DataTable columns={columns} rows={data ?? []} />
+            <PaginatedDataTable<Rider>
+              columns={columns}
+              rows={data ?? []}
+              searchFields={["name", "email", "phone", "city", "id"]}
+              onRowClick={(row) => {
+                setEditing(row);
+                setOpen(true);
+              }}
+              emptyTitle="No riders found"
+              exportName="riders"
+              exportColumns={[
+                { key: "name", header: "Rider" },
+                { key: "email", header: "Email" },
+                { key: "city", header: "City" },
+                { key: "vehicle", header: "Vehicle" },
+                { key: "deliveries", header: "Deliveries" },
+                { key: "rating", header: "Rating" },
+                { key: "earnings", header: "Earnings" },
+                { key: "status", header: "Status" },
+              ]}
+            />
           </Card>
-        )}
+        </TableBoundary>
       </Section>
+
+      <EntityDialog
+        key={editing?.id ?? "new"}
+        open={open}
+        title={editing ? `Edit ${editing.name}` : "Add Rider"}
+        fields={FIELDS}
+        initial={
+          editing
+            ? {
+                name: editing.name,
+                email: editing.email,
+                phone: editing.phone,
+                city: editing.city,
+                vehicle: editing.vehicle,
+                status: editing.status,
+              }
+            : { city: "", vehicle: "scooter", status: "offline" }
+        }
+        onClose={() => setOpen(false)}
+        onSave={async (v) => {
+          await upsertRider(
+            {
+              name: v.name,
+              email: v.email,
+              phone: v.phone,
+              city: v.city,
+              vehicle: v.vehicle as Rider["vehicle"],
+              status: v.status as Rider["status"],
+              deliveries: editing?.deliveries,
+              rating: editing?.rating,
+              earnings: editing?.earnings,
+            },
+            editing?.id,
+          );
+          refetch();
+        }}
+      />
     </PageContainer>
   );
 }

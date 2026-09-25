@@ -2,15 +2,21 @@
 
 import { useState, useMemo } from "react";
 import type { Order } from "@/lib/types";
-import { formatCurrency, formatShortDate } from "@/lib/format";
+import { formatCurrency } from "@/lib/format";
 import { Avatar } from "./ui/avatar";
 import { Badge } from "./ui/badge";
 import { DataTable, type Column } from "./ui/data-table";
+import { Pagination } from "./ui/pagination";
 import { StatusBadge } from "./ui/status-badge";
+import { Dialog } from "./ui/dialog";
+import { OrderDetail } from "./order-detail";
 import { Toolbar, ToolbarSpacer, ToolbarSearch } from "./toolbar";
 import { Select } from "./ui/select";
+import { matchesQuery, useGlobalSearch } from "@/lib/global-search";
 
 type OrderStatus = Order["status"];
+
+const PAGE_SIZE = 10;
 
 const columns: Column<Order>[] = [
   {
@@ -61,9 +67,7 @@ const columns: Column<Order>[] = [
     key: "placedAt",
     header: "Placed",
     cell: (row) => (
-      <span className="whitespace-nowrap text-muted-foreground">
-        {formatShortDate(row.placedAt)}
-      </span>
+      <span className="whitespace-nowrap text-muted-foreground">{row.placedAt}</span>
     ),
   },
   {
@@ -90,6 +94,9 @@ const ALL_STATUSES: OrderStatus[] = [
 export function OrderList({ orders }: { orders: Order[] }) {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<OrderStatus | "all">("all");
+  const [page, setPage] = useState(1);
+  const [selected, setSelected] = useState<Order | null>(null);
+  const globalQuery = useGlobalSearch();
 
   const filtered = useMemo(() => {
     return orders.filter((order) => {
@@ -101,9 +108,19 @@ export function OrderList({ orders }: { orders: Order[] }) {
         order.customer.toLowerCase().includes(q) ||
         order.restaurant.toLowerCase().includes(q) ||
         order.rider.toLowerCase().includes(q);
-      return matchesStatus && matchesSearch;
+      const matchesGlobal = matchesQuery(
+        order as unknown as Record<string, unknown>,
+        globalQuery,
+        ["reference", "customer", "restaurant", "rider"],
+      );
+      return matchesStatus && matchesSearch && matchesGlobal;
     });
-  }, [orders, search, status]);
+  }, [orders, search, status, globalQuery]);
+
+  const pageRows = useMemo(
+    () => filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
+    [filtered, page],
+  );
 
   return (
     <div className="space-y-4">
@@ -133,8 +150,26 @@ export function OrderList({ orders }: { orders: Order[] }) {
       </Toolbar>
 
       <div className="rounded-(--radius-card) border border-border bg-card shadow-sm overflow-hidden">
-        <DataTable columns={columns} rows={filtered} />
+        <DataTable
+          columns={columns}
+          rows={pageRows}
+          onRowClick={setSelected}
+        />
+        <Pagination
+          page={page}
+          pageSize={PAGE_SIZE}
+          total={filtered.length}
+          onPageChange={setPage}
+        />
       </div>
+
+      <Dialog
+        open={selected !== null}
+        onClose={() => setSelected(null)}
+        title={selected ? `Order ${selected.reference}` : "Order"}
+      >
+        {selected ? <OrderDetail order={selected} /> : null}
+      </Dialog>
     </div>
   );
 }

@@ -5,10 +5,11 @@ import { formatCurrency } from "@/lib/format";
 import { PageContainer, PageHeader, Section } from "@/components/layout/page";
 import { Avatar } from "@/components/ui/avatar";
 import { Card } from "@/components/ui/card";
-import { DataTable, type Column } from "@/components/ui/data-table";
+import { PaginatedDataTable } from "@/components/ui/paginated-data-table";
+import type { Column } from "@/components/ui/data-table";
 import { Badge } from "@/components/ui/badge";
-import { LoadingState, EmptyState } from "@/components/ui/status";
 import { useAsyncData } from "@/lib/use-async-data";
+import { TableBoundary } from "@/components/ui/table-boundary";
 import type { Customer } from "@/lib/types";
 
 const gold = (row: Customer) => row.totalSpend >= 400;
@@ -70,7 +71,9 @@ const columns: Column<Customer>[] = [
 ];
 
 export default function CustomersPage() {
-  const { data, loading, error } = useAsyncData(() => fetchCustomers());
+  const { data, loading, error, refetch } = useAsyncData(() =>
+    fetchCustomers(),
+  );
 
   return (
     <PageContainer>
@@ -79,15 +82,39 @@ export default function CustomersPage() {
         description="Registered customers and their order activity."
       />
       <Section aria-label="Customer list">
-        {loading ? (
-          <LoadingState label="Loading customers…" />
-        ) : error ? (
-          <EmptyState title="Could not load customers" description={error} />
-        ) : (
+        <TableBoundary
+          loading={loading}
+          error={error}
+          onRetry={refetch}
+          errorTitle="Could not load customers"
+          skeletonRows={8}
+          skeletonColumns={6}
+        >
           <Card className="overflow-hidden">
-            <DataTable columns={columns} rows={data ?? []} />
+            <PaginatedDataTable<Customer>
+              columns={columns}
+              rows={data ?? []}
+              searchFields={["name", "email", "phone", "city", "id"]}
+              
+              emptyTitle="No customers found"
+              exportName="customers"
+              exportColumns={[
+                { key: "name", header: "Customer" },
+                { key: "email", header: "Email" },
+                { key: "city", header: "City" },
+                {
+                  key: "totalSpend",
+                  header: "Tier",
+                  format: (row) =>
+                    gold(row) ? "Gold" : silver(row) ? "Silver" : "Standard",
+                },
+                { key: "ordersCount", header: "Orders" },
+                { key: "totalSpend", header: "Total spent" },
+                { key: "joinedAt", header: "Joined" },
+              ]}
+            />
           </Card>
-        )}
+        </TableBoundary>
       </Section>
     </PageContainer>
   );

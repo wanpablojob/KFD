@@ -1,16 +1,23 @@
 "use client";
 
-import { fetchRestaurants } from "@/lib/supabase/queries";
+import { useState } from "react";
+import {
+  fetchRestaurants,
+  upsertRestaurant,
+} from "@/lib/supabase/queries";
 import { formatCurrency } from "@/lib/format";
 import { PageContainer, PageHeader, Section } from "@/components/layout/page";
-import { Button } from "@/components/ui/button";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Card } from "@/components/ui/card";
-import { DataTable, type Column } from "@/components/ui/data-table";
-import { LoadingState, EmptyState } from "@/components/ui/status";
+import { PaginatedDataTable } from "@/components/ui/paginated-data-table";
+import { EntityDialog, type DialogField } from "@/components/ui/entity-dialog";
+import { Button } from "@/components/ui/button";
+import { PlusIcon } from "@/components/ui/icons";
+import type { Column } from "@/components/ui/data-table";
 import { useAsyncData } from "@/lib/use-async-data";
+import { TableBoundary } from "@/components/ui/table-boundary";
 import type { Restaurant } from "@/lib/types";
 
 const columns: Column<Restaurant>[] = [
@@ -75,8 +82,19 @@ const columns: Column<Restaurant>[] = [
   },
 ];
 
+const FIELDS: DialogField[] = [
+  { key: "name", label: "Name", required: true },
+  { key: "cuisine", label: "Cuisine", required: true },
+  { key: "city", label: "City", required: true },
+  { key: "status", label: "Status", options: ["active", "approval", "suspended"] },
+];
+
 export default function RestaurantsPage() {
-  const { data, loading, error } = useAsyncData(() => fetchRestaurants());
+  const { data, loading, error, refetch } = useAsyncData(() =>
+    fetchRestaurants(),
+  );
+  const [editing, setEditing] = useState<Restaurant | null>(null);
+  const [open, setOpen] = useState(false);
 
   return (
     <PageContainer>
@@ -84,22 +102,85 @@ export default function RestaurantsPage() {
         title="Restaurants"
         description="Partner restaurants on the KFD network."
         actions={
-          <Button variant="outline" size="sm" disabled>
-            Add restaurant
+          <Button
+            onClick={() => {
+              setEditing(null);
+              setOpen(true);
+            }}
+          >
+            <PlusIcon className="h-4 w-4" />
+            Add Restaurant
           </Button>
         }
       />
       <Section aria-label="Restaurant list">
-        {loading ? (
-          <LoadingState label="Loading restaurants…" />
-        ) : error ? (
-          <EmptyState title="Could not load restaurants" description={error} />
-        ) : (
+        <TableBoundary
+          loading={loading}
+          error={error}
+          onRetry={refetch}
+          errorTitle="Could not load restaurants"
+          skeletonRows={8}
+          skeletonColumns={7}
+        >
           <Card className="overflow-hidden">
-            <DataTable columns={columns} rows={data ?? []} />
+            <PaginatedDataTable<Restaurant>
+              columns={columns}
+              rows={data ?? []}
+              searchFields={["name", "cuisine", "city", "id"]}
+              onRowClick={(row) => {
+                setEditing(row);
+                setOpen(true);
+              }}
+              emptyTitle="No restaurants found"
+              exportName="restaurants"
+              exportColumns={[
+                { key: "name", header: "Restaurant" },
+                { key: "cuisine", header: "Cuisine" },
+                { key: "city", header: "City" },
+                { key: "rating", header: "Rating" },
+                { key: "ordersCount", header: "Orders" },
+                { key: "revenue", header: "Revenue" },
+                { key: "status", header: "Status" },
+                { key: "joinedAt", header: "Joined" },
+              ]}
+            />
           </Card>
-        )}
+        </TableBoundary>
       </Section>
+
+      <EntityDialog
+        key={editing?.id ?? "new"}
+        open={open}
+        title={editing ? `Edit ${editing.name}` : "Add Restaurant"}
+        fields={FIELDS}
+        initial={
+          editing
+            ? {
+                name: editing.name,
+                cuisine: editing.cuisine,
+                city: editing.city,
+                status: editing.status,
+              }
+            : { status: "active" }
+        }
+        onClose={() => setOpen(false)}
+        onSave={async (v) => {
+          await upsertRestaurant(
+            {
+              name: v.name,
+              cuisine: v.cuisine,
+              city: v.city,
+              status: v.status as Restaurant["status"],
+              rating: editing?.rating,
+              ordersCount: editing?.ordersCount,
+              revenue: editing?.revenue,
+              joinedAt: editing?.joinedAt,
+            },
+            editing?.id,
+          );
+          refetch();
+        }}
+      />
     </PageContainer>
   );
 }

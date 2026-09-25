@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import {
   BikeIcon,
   LayoutDashboardIcon,
@@ -11,10 +11,9 @@ import {
   UsersIcon,
   UtensilsIcon,
   XIcon,
-  LogOutIcon,
 } from "./ui/icons";
 import { cn } from "@/lib/utils";
-import { signOut, useSessionUser } from "@/lib/auth";
+import { useSessionUser } from "@/lib/auth";
 
 const navItems = [
   { href: "/", label: "Overview", icon: LayoutDashboardIcon },
@@ -33,15 +32,9 @@ export function Sidebar({
   onClose: () => void;
 }) {
   const pathname = usePathname();
-  const router = useRouter();
   const { user } = useSessionUser();
   const displayName =
     user?.user_metadata?.name ?? user?.email ?? "Admin";
-
-  async function handleSignOut() {
-    await signOut();
-    router.replace("/login");
-  }
 
   return (
     <>
@@ -118,7 +111,7 @@ export function Sidebar({
           </p>
         </div>
 
-        <div className="flex items-center justify-between gap-3 border-t border-border px-5 py-3">
+        <div className="flex items-center gap-3 border-t border-border px-5 py-3">
           <span className="min-w-0">
             <span className="block truncate text-sm font-medium text-card-foreground">
               {displayName}
@@ -127,15 +120,6 @@ export function Sidebar({
               {user?.user_metadata?.role ?? "Super admin"}
             </span>
           </span>
-          <button
-            type="button"
-            onClick={handleSignOut}
-            className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-destructive"
-            aria-label="Sign out"
-            title="Sign out"
-          >
-            <LogOutIcon className="h-4.5 w-4.5" />
-          </button>
         </div>
       </aside>
     </>

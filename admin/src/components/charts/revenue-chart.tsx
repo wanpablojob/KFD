@@ -7,7 +7,7 @@ export function RevenueChart({ data }: { data: RevenuePoint[] }) {
 
   return (
     <div className="px-5 pb-5">
-      <div className="flex h-[220px] items-end justify-between gap-3">
+      <div className="flex h-55 items-end justify-between gap-3">
         {data.map((point) => {
           const height = Math.max((point.revenue / max) * chartHeight, 6);
           return (

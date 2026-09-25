@@ -19,7 +19,7 @@ const variantClasses = {
   destructive:
     "bg-destructive/10 text-destructive ring-destructive/20",
   info:
-    "bg-blue-50 text-blue-700 ring-blue-600/20",
+    "bg-blue-50 text-blue-700 ring-blue-600/20 dark:bg-blue-500/15 dark:text-blue-300 dark:ring-blue-400/30",
   neutral:
     "bg-muted text-muted-foreground ring-border",
   outline:

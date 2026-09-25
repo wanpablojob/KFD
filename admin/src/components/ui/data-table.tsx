@@ -16,9 +16,11 @@ export type Column<T> = {
 export function DataTable<T>({
   columns,
   rows,
+  onRowClick,
 }: {
   columns: Column<T>[];
   rows: T[];
+  onRowClick?: (row: T) => void;
 }) {
   return (
     <div className="overflow-x-auto">
@@ -42,7 +44,11 @@ export function DataTable<T>({
           {rows.map((row, rowIndex) => (
             <tr
               key={rowIndex}
-              className="transition-colors hover:bg-muted/50"
+              onClick={onRowClick ? () => onRowClick(row) : undefined}
+              className={cn(
+                "transition-colors hover:bg-muted/50",
+                onRowClick && "cursor-pointer",
+              )}
             >
               {columns.map((col) => (
                 <td

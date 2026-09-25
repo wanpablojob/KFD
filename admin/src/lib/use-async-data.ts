@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 interface AsyncState<T> {
   data: T | null;
@@ -8,7 +8,11 @@ interface AsyncState<T> {
   error: string | null;
 }
 
-export function useAsyncData<T>(fetcher: () => Promise<T>): AsyncState<T> {
+export interface AsyncDataResult<T> extends AsyncState<T> {
+  refetch: () => void;
+}
+
+export function useAsyncData<T>(fetcher: () => Promise<T>): AsyncDataResult<T> {
   const [state, setState] = useState<AsyncState<T>>({
     data: null,
     loading: true,
@@ -16,6 +20,7 @@ export function useAsyncData<T>(fetcher: () => Promise<T>): AsyncState<T> {
   });
 
   const [runner] = useState(() => ({ current: fetcher }));
+  const [tick, setTick] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -39,7 +44,9 @@ export function useAsyncData<T>(fetcher: () => Promise<T>): AsyncState<T> {
     return () => {
       active = false;
     };
-  }, [runner]);
+  }, [runner, tick]);
 
-  return state;
+  const refetch = useCallback(() => setTick((t) => t + 1), []);
+
+  return { ...state, refetch };
 }

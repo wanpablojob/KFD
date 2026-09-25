@@ -1,13 +1,22 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { BellIcon, SearchIcon, LogOutIcon, MapPinIcon } from "./ui/icons";
+import { SearchIcon, LogOutIcon, MapPinIcon, XIcon } from "./ui/icons";
+import { ThemeToggle } from "./theme-toggle";
 import { initials } from "@/lib/format";
 import { signOut, useSessionUser } from "@/lib/auth";
+import { useGlobalSearch, setGlobalSearch } from "@/lib/global-search";
 
-export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
+export function Topbar({
+  onMenuClick,
+  bell,
+}: {
+  onMenuClick: () => void;
+  bell?: React.ReactNode;
+}) {
   const router = useRouter();
   const { user } = useSessionUser();
+  const globalQuery = useGlobalSearch();
   const displayName =
     user?.user_metadata?.name ?? user?.email ?? "Admin";
   const avatarInitials = initials(displayName) || "AD";
@@ -41,9 +50,21 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
         <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <input
           type="search"
+          value={globalQuery}
+          onChange={(e) => setGlobalSearch(e.target.value)}
           placeholder="Search orders, restaurants, riders…"
-          className="w-full rounded-lg border border-input bg-background py-2 pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground outline-none transition-colors focus:border-ring focus:ring-2 focus:ring-ring/25"
+          className="w-full rounded-lg border border-input bg-background py-2 pl-9 pr-9 text-sm text-foreground placeholder:text-muted-foreground outline-none transition-colors focus:border-ring focus:ring-2 focus:ring-ring/25"
         />
+        {globalQuery ? (
+          <button
+            type="button"
+            onClick={() => setGlobalSearch("")}
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+            aria-label="Clear search"
+          >
+            <XIcon className="h-4 w-4" />
+          </button>
+        ) : null}
       </div>
 
       <div className="ml-auto flex items-center gap-3">
@@ -52,14 +73,9 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
           Kabankalan City Proper
         </span>
 
-        <button
-          type="button"
-          className="relative rounded-md p-2 text-muted-foreground hover:bg-muted hover:text-foreground"
-          aria-label="Notifications"
-        >
-          <BellIcon className="h-5 w-5" />
-          <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-primary" />
-        </button>
+        <ThemeToggle />
+
+        {bell}
 
         <div className="flex items-center gap-2.5 border-l border-border pl-3">
           <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">

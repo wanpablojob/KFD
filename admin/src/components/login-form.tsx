@@ -7,11 +7,14 @@ import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Checkbox } from "./ui/checkbox";
 import { Label } from "./ui/field";
+import { EyeIcon, EyeOffIcon, LockIcon, MailIcon, ShieldIcon } from "./ui/icons";
+import { cn } from "@/lib/utils";
 
 export function LoginForm() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
   const [form, setForm] = useState({ email: "", password: "", remember: false });
 
   function handleChange(event: React.ChangeEvent<HTMLInputElement>) {
@@ -47,16 +50,20 @@ export function LoginForm() {
     <form onSubmit={handleSubmit} className="space-y-5">
       <div>
         <Label htmlFor="email">Email address</Label>
-        <Input
-          id="email"
-          name="email"
-          type="email"
-          autoComplete="username"
-          placeholder="you@kfd.ph"
-          value={form.email}
-          onChange={handleChange}
-          error={Boolean(error)}
-        />
+        <div className="relative">
+          <MailIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            id="email"
+            name="email"
+            type="email"
+            autoComplete="username"
+            placeholder="you@kfd.ph"
+            className="h-11 pl-9"
+            value={form.email}
+            onChange={handleChange}
+            error={Boolean(error)}
+          />
+        </div>
       </div>
 
       <div>
@@ -70,24 +77,37 @@ export function LoginForm() {
             Forgot password?
           </a>
         </div>
-        <Input
-          id="password"
-          name="password"
-          type="password"
-          autoComplete="current-password"
-          placeholder="••••••••"
-          value={form.password}
-          onChange={handleChange}
-          error={Boolean(error)}
-        />
+        <div className="relative">
+          <LockIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            id="password"
+            name="password"
+            type={showPassword ? "text" : "password"}
+            autoComplete="current-password"
+            placeholder="••••••••"
+            className="h-11 pl-9 pr-10"
+            value={form.password}
+            onChange={handleChange}
+            error={Boolean(error)}
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword((v) => !v)}
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground"
+            aria-label={showPassword ? "Hide password" : "Show password"}
+            aria-pressed={showPassword}
+          >
+            {showPassword ? (
+              <EyeOffIcon className="h-4 w-4" />
+            ) : (
+              <EyeIcon className="h-4 w-4" />
+            )}
+          </button>
+        </div>
       </div>
 
       <label className="flex cursor-pointer items-center gap-2.5 text-sm text-muted-foreground">
-        <Checkbox
-          name="remember"
-          checked={form.remember}
-          onChange={handleChange}
-        />
+        <Checkbox name="remember" checked={form.remember} onChange={handleChange} />
         Keep me signed in
       </label>
 
@@ -100,9 +120,16 @@ export function LoginForm() {
         </p>
       ) : null}
 
-      <Button type="submit" className="w-full" size="lg" loading={loading}>
-        {loading ? "Signing in…" : "Sign in"}
+      <Button type="submit" className="h-11 w-full" size="lg" loading={loading}>
+        {loading ? "Signing in…" : "Sign in to console"}
       </Button>
+
+      <p className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground/80">
+        <ShieldIcon
+          className={cn("h-3.5 w-3.5", loading ? "animate-pulse" : "")}
+        />
+        Credentials are verified by Supabase Auth
+      </p>
     </form>
   );
 }

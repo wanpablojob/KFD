@@ -2,12 +2,12 @@ import { initials } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 const palettes = [
-  { bg: "bg-primary/10", text: "text-primary" },
-  { bg: "bg-success/10", text: "text-success" },
-  { bg: "bg-warning/10", text: "text-warning" },
-  { bg: "bg-blue-100", text: "text-blue-700" },
-  { bg: "bg-violet-100", text: "text-violet-700" },
-  { bg: "bg-emerald-100", text: "text-emerald-700" },
+  "bg-primary/10 text-primary",
+  "bg-success/10 text-success",
+  "bg-warning/10 text-warning",
+  "bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300",
+  "bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300",
+  "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300",
 ];
 
 const sizes = {
@@ -38,8 +38,7 @@ export function Avatar({
     <span
       className={cn(
         "inline-flex shrink-0 items-center justify-center rounded-full font-semibold",
-        palette.bg,
-        palette.text,
+        palette,
         sizes[size],
         className,
       )}
