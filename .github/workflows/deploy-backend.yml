@@ -41,7 +41,7 @@ jobs:
       name: ${{ github.event.inputs.target || 'production' }}
       url: ${{ vars.BACKEND_URL }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Check whether the backend exists
         id: guard
