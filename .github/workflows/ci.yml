@@ -30,6 +30,9 @@ jobs:
   # relevant checks instead of building everything on every PR.
   changes:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
     outputs:
       admin: ${{ steps.filter.outputs.admin }}
       mobile: ${{ steps.filter.outputs.mobile }}
