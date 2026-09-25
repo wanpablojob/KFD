@@ -22,7 +22,11 @@ export function Topbar({
   const avatarInitials = initials(displayName) || "AD";
 
   async function handleSignOut() {
-    await signOut();
+    try {
+      await signOut();
+    } catch {
+      // Session may already be gone; the redirect below still must happen.
+    }
     router.replace("/login");
   }
 
