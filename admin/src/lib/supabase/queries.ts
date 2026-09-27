@@ -132,7 +132,7 @@ export async function setRiderStatus(
   if (error) throw new Error(error.message);
 }
 
-type DbRecord<T> = T & Record<string, unknown>;
+export type DbRecord<T> = T & Record<string, unknown>;
 
 function mapItems(raw: unknown): OrderItem[] {
   if (Array.isArray(raw)) return raw as OrderItem[];
