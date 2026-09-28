@@ -73,6 +73,13 @@ if (!ws) { console.error("Could not reach Chrome over CDP."); bye(); process.exi
 let seq = 0;
 const pending = new Map();
 const consoleErrors = [];
+/**
+ * Failed responses with their URL. "Failed to load resource: 400" on its own
+ * is unactionable -- there is no way to tell which of five parallel search
+ * requests was rejected, or why. The URL carries the filter string, which is
+ * exactly what is wrong.
+ */
+const failedResponses = [];
 
 ws.addEventListener("message", (e) => {
   const m = JSON.parse(e.data);
@@ -82,6 +89,14 @@ ws.addEventListener("message", (e) => {
   }
   if (m.method === "Runtime.exceptionThrown") {
     consoleErrors.push(m.params.exceptionDetails.text ?? "exception");
+  }
+  if (m.method === "Network.responseReceived" && m.params.response.status >= 400) {
+    failedResponses.push({
+      status: m.params.response.status,
+      // Path and query only: the origin is public, the query holds the filter
+      // that is actually failing.
+      url: `${new URL(m.params.response.url).pathname}${new URL(m.params.response.url).search}`,
+    });
   }
 });
 
@@ -200,6 +215,7 @@ mkdirSync(ART, { recursive: true });
 await send("Page.enable");
 await send("Runtime.enable");
 await send("Log.enable");
+await send("Network.enable");
 
 console.log(`\nVerifying ${BASE}\n`);
 
@@ -580,7 +596,10 @@ for (const [path, label, noun] of [
 // -- console hygiene -------------------------------------------------------
 await check("hygiene", "no console errors during the sweep", async () => {
   const real = consoleErrors.filter((t) => !/favicon|Download the React DevTools/i.test(t));
-  must(real.length === 0, real.slice(0, 3).join(" | ").slice(0, 300));
+  const withUrl = failedResponses.length
+    ? ` -- ${failedResponses.slice(0, 3).map((r) => `${r.status} ${r.url}`).join(" | ").slice(0, 400)}`
+    : "";
+  must(real.length === 0, `${real.slice(0, 3).join(" | ").slice(0, 200)}${withUrl}`);
   return `${consoleErrors.length} raw, all benign`;
 });
 
