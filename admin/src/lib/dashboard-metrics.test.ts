@@ -50,6 +50,7 @@ function restaurant(joinedDaysAgo: number, status: Restaurant["status"] = "activ
     revenue: 0,
     status,
     joinedAt: new Date(NOW - joinedDaysAgo * DAY_MS).toISOString(),
+    archivedAt: null,
   };
 }
 

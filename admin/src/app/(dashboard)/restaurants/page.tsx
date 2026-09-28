@@ -3,6 +3,7 @@
 import { useState } from "react";
 import {
   fetchRestaurants,
+  setRestaurantArchived,
   upsertRestaurant,
 } from "@/lib/supabase/queries";
 import { formatCurrency } from "@/lib/format";
@@ -13,6 +14,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { Card } from "@/components/ui/card";
 import { PaginatedDataTable } from "@/components/ui/paginated-data-table";
 import { EntityDialog, type DialogField } from "@/components/ui/entity-dialog";
+import { ArchiveButton } from "@/components/ui/archive-button";
 import { Button } from "@/components/ui/button";
 import { PlusIcon } from "@/components/ui/icons";
 import type { Column } from "@/components/ui/data-table";
@@ -20,7 +22,7 @@ import { useAsyncData } from "@/lib/use-async-data";
 import { TableBoundary } from "@/components/ui/table-boundary";
 import type { Restaurant } from "@/lib/types";
 
-const columns: Column<Restaurant>[] = [
+const baseColumns: Column<Restaurant>[] = [
   {
     key: "name",
     header: "Restaurant",
@@ -69,7 +71,16 @@ const columns: Column<Restaurant>[] = [
   {
     key: "status",
     header: "Status",
-    cell: (row) => <StatusBadge status={row.status} />,
+    cell: (row) => (
+      <span className="flex items-center gap-1.5">
+        <StatusBadge status={row.status} />
+        {row.archivedAt ? (
+          <Badge variant="secondary" size="sm">
+            Archived
+          </Badge>
+        ) : null}
+      </span>
+    ),
   },
   {
     key: "joinedAt",
@@ -95,6 +106,29 @@ export default function RestaurantsPage() {
   );
   const [editing, setEditing] = useState<Restaurant | null>(null);
   const [open, setOpen] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
+
+  const rows = (data ?? []).filter((r) => showArchived || !r.archivedAt);
+  const archivedCount = (data ?? []).length - rows.length;
+
+  const columns: Column<Restaurant>[] = [
+    ...baseColumns,
+    {
+      key: "archive",
+      header: "",
+      align: "right",
+      cell: (row) => (
+        <ArchiveButton
+          name={row.name}
+          archived={Boolean(row.archivedAt)}
+          onChange={async (archived) => {
+            await setRestaurantArchived(row.id, archived);
+            refetch();
+          }}
+        />
+      ),
+    },
+  ];
 
   return (
     <PageContainer>
@@ -102,15 +136,28 @@ export default function RestaurantsPage() {
         title="Restaurants"
         description="Partner restaurants on the KFD network."
         actions={
-          <Button
-            onClick={() => {
-              setEditing(null);
-              setOpen(true);
-            }}
-          >
-            <PlusIcon className="h-4 w-4" />
-            Add Restaurant
-          </Button>
+          <span className="flex items-center gap-2">
+            {archivedCount > 0 ? (
+              <Button
+                variant="outline"
+                aria-pressed={showArchived}
+                onClick={() => setShowArchived((v) => !v)}
+              >
+                {showArchived
+                  ? "Hide archived"
+                  : `Show archived (${archivedCount})`}
+              </Button>
+            ) : null}
+            <Button
+              onClick={() => {
+                setEditing(null);
+                setOpen(true);
+              }}
+            >
+              <PlusIcon className="h-4 w-4" />
+              Add Restaurant
+            </Button>
+          </span>
         }
       />
       <Section aria-label="Restaurant list">
@@ -120,12 +167,12 @@ export default function RestaurantsPage() {
           onRetry={refetch}
           errorTitle="Could not load restaurants"
           skeletonRows={8}
-          skeletonColumns={7}
+          skeletonColumns={8}
         >
           <Card className="overflow-hidden">
             <PaginatedDataTable<Restaurant>
               columns={columns}
-              rows={data ?? []}
+              rows={rows}
               searchFields={["name", "cuisine", "city", "id"]}
               onRowClick={(row) => {
                 setEditing(row);

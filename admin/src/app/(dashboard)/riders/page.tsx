@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { fetchRiders, setRiderStatus, upsertRider } from "@/lib/supabase/queries";
+import { fetchRiders, setRiderArchived, setRiderStatus, upsertRider } from "@/lib/supabase/queries";
 import { formatCurrency } from "@/lib/format";
 import { PageContainer, PageHeader, Section } from "@/components/layout/page";
 import { Avatar } from "@/components/ui/avatar";
@@ -10,6 +10,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { Card } from "@/components/ui/card";
 import { PaginatedDataTable } from "@/components/ui/paginated-data-table";
 import { EntityDialog, type DialogField } from "@/components/ui/entity-dialog";
+import { ArchiveButton } from "@/components/ui/archive-button";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { PlusIcon } from "@/components/ui/icons";
@@ -73,7 +74,16 @@ const baseColumns: Column<Rider>[] = [
   {
     key: "status",
     header: "Status",
-    cell: (row) => <StatusBadge status={row.status} />,
+    cell: (row) => (
+      <span className="flex items-center gap-1.5">
+        <StatusBadge status={row.status} />
+        {row.archivedAt ? (
+          <Badge variant="secondary" size="sm">
+            Archived
+          </Badge>
+        ) : null}
+      </span>
+    ),
   },
 ];
 
@@ -90,6 +100,10 @@ export default function RidersPage() {
   const { data, loading, error, refetch } = useAsyncData(() => fetchRiders());
   const [editing, setEditing] = useState<Rider | null>(null);
   const [open, setOpen] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
+
+  const rows = (data ?? []).filter((r) => showArchived || !r.archivedAt);
+  const archivedCount = (data ?? []).length - rows.length;
 
   const columns: Column<Rider>[] = [
     ...baseColumns,
@@ -113,6 +127,21 @@ export default function RidersPage() {
         </Select>
       ),
     },
+    {
+      key: "archive",
+      header: "",
+      align: "right",
+      cell: (row) => (
+        <ArchiveButton
+          name={row.name}
+          archived={Boolean(row.archivedAt)}
+          onChange={async (archived) => {
+            await setRiderArchived(row.id, archived);
+            refetch();
+          }}
+        />
+      ),
+    },
   ];
 
   return (
@@ -121,15 +150,28 @@ export default function RidersPage() {
         title="Riders"
         description="Fleet of active delivery partners."
         actions={
-          <Button
-            onClick={() => {
-              setEditing(null);
-              setOpen(true);
-            }}
-          >
-            <PlusIcon className="h-4 w-4" />
-            Add Rider
-          </Button>
+          <span className="flex items-center gap-2">
+            {archivedCount > 0 ? (
+              <Button
+                variant="outline"
+                aria-pressed={showArchived}
+                onClick={() => setShowArchived((v) => !v)}
+              >
+                {showArchived
+                  ? "Hide archived"
+                  : `Show archived (${archivedCount})`}
+              </Button>
+            ) : null}
+            <Button
+              onClick={() => {
+                setEditing(null);
+                setOpen(true);
+              }}
+            >
+              <PlusIcon className="h-4 w-4" />
+              Add Rider
+            </Button>
+          </span>
         }
       />
       <Section aria-label="Rider list">
@@ -139,12 +181,12 @@ export default function RidersPage() {
           onRetry={refetch}
           errorTitle="Could not load riders"
           skeletonRows={8}
-          skeletonColumns={8}
+          skeletonColumns={9}
         >
           <Card className="overflow-hidden">
             <PaginatedDataTable<Rider>
               columns={columns}
-              rows={data ?? []}
+              rows={rows}
               searchFields={["name", "email", "phone", "city", "id"]}
               onRowClick={(row) => {
                 setEditing(row);

@@ -132,6 +132,33 @@ export async function setRiderStatus(
   if (error) throw new Error(error.message);
 }
 
+/**
+ * Archive / restore, for Prompt 3.2.
+ *
+ * `archived` sets `archived_at` to now; unsetting it restores the row. A hard
+ * delete is deliberately not offered for either entity -- see migration
+ * 0010_archive.sql for what deleting a restaurant would actually do to its
+ * order history, menu and merchant login.
+ *
+ * The timestamp comes from the client, matching the existing `joinedAt` handling
+ * in `upsertRestaurant`. It is only ever read back for display -- nothing sorts
+ * or filters on it -- so a skewed device clock is not worth a database round
+ * trip to avoid.
+ */
+async function setArchived(table: "restaurants" | "riders", id: string, archived: boolean): Promise<void> {
+  const { error } = await supabase
+    .from(table)
+    .update({ archived_at: archived ? new Date().toISOString() : null })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
+export const setRestaurantArchived = (id: string, archived: boolean): Promise<void> =>
+  setArchived("restaurants", id, archived);
+
+export const setRiderArchived = (id: string, archived: boolean): Promise<void> =>
+  setArchived("riders", id, archived);
+
 export type DbRecord<T> = T & Record<string, unknown>;
 
 function mapItems(raw: unknown): OrderItem[] {
@@ -172,6 +199,7 @@ export async function fetchRestaurants(): Promise<Restaurant[]> {
     revenue: Number(r.revenue),
     status: r.status,
     joinedAt: String(r.joined_at).slice(0, 10),
+    archivedAt: r.archived_at ? String(r.archived_at) : null,
   }));
 }
 
@@ -194,6 +222,7 @@ export async function fetchRiders(): Promise<Rider[]> {
     deliveries: Number(r.deliveries),
     rating: Number(r.rating),
     earnings: Number(r.earnings),
+    archivedAt: r.archived_at ? String(r.archived_at) : null,
   }));
 }
 

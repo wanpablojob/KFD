@@ -117,8 +117,13 @@ export default function OverviewPage() {
   // subtitle says "all time" rather than the "this month" it used to claim.
   // The "Live" badge sits on the revenue *chart*, which is genuinely computed
   // from live order rows for the last 7 days.
+  //
+  // Archived restaurants are excluded. Their lifetime revenue stays exactly
+  // where it is -- archiving is reversible and destroys nothing -- but
+  // "top restaurants" is a shortlist of who to watch, and a row someone
+  // deliberately removed from the restaurant list has no business leading it.
   const topRestaurants = restaurantRows
-    .slice()
+    .filter((r) => !r.archivedAt)
     .sort((a, b) => b.revenue - a.revenue)
     .slice(0, 5);
 

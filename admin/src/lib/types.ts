@@ -47,6 +47,12 @@ export interface Restaurant {
   revenue: number;
   status: RestaurantStatus;
   joinedAt: string;
+  /**
+   * Set when the row is archived instead of deleted (migration 0010). Kept
+   * separate from `status`: archiving is data hygiene, `status` is whether the
+   * restaurant is trading.
+   */
+  archivedAt: string | null;
 }
 
 export interface Rider {
@@ -60,6 +66,8 @@ export interface Rider {
   deliveries: number;
   rating: number;
   earnings: number;
+  /** See `Restaurant.archivedAt`. */
+  archivedAt: string | null;
 }
 
 export interface Customer {
