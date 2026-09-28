@@ -656,6 +656,7 @@ jobs:
           print("::notice::All 3 provisioning functions refuse a non-admin caller.")
           print("::notice::Public tracking: anon has no grant on orders; track_order refuses a sequential reference to an unentitled caller.")
           print("::notice::Function grants: anon can execute only the 2 public-tracking functions; mark_notifications_seen is a no-op without a session.")
+          print("::notice::RLS: a merchant reads only its restaurant's rows and a linked customer only their own; impersonated transactions are rolled back.")
           print("::notice::Customer link: %d of %d orders matched a backfill; %d carry a high-entropy reference."
                 % (link["linked"], link["total"], link["trackable"]))
           PY
