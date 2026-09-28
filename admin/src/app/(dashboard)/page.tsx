@@ -14,7 +14,13 @@ import { Avatar } from "@/components/ui/avatar";
 import { ArrowRightIcon } from "@/components/ui/icons";
 import { LoadingState, EmptyState } from "@/components/ui/status";
 import { useAsyncData } from "@/lib/use-async-data";
-import type { Order, Restaurant } from "@/lib/types";
+import {
+  buildRevenueSeries,
+  periodDelta,
+  splitPeriods,
+  PERIOD_DAYS,
+} from "@/lib/dashboard-metrics";
+import type { Kpi } from "@/lib/types";
 
 function useDashboardData() {
   const orders = useAsyncData(() => fetchOrders());
@@ -22,52 +28,6 @@ function useDashboardData() {
   const riders = useAsyncData(() => fetchRiders());
 
   return { orders, restaurants, riders };
-}
-
-const PERIOD_DAYS = 7;
-
-/**
- * Percent change from the previous period. Returns 0 when there is no prior
- * data to compare against rather than a misleading infinity.
- */
-function periodDelta(current: number, previous: number): number {
-  if (previous === 0) return 0;
-  return ((current - previous) / previous) * 100;
-}
-
-function splitPeriods(orders: Order[], restaurants: Restaurant[]) {
-  const now = Date.now();
-  const window = PERIOD_DAYS * 24 * 60 * 60 * 1000;
-  const currentStart = now - window;
-  const previousStart = now - window * 2;
-
-  const inRange = (iso: string, start: number, end: number) => {
-    const t = new Date(iso).getTime();
-    return t >= start && t < end;
-  };
-
-  const currentOrders = orders.filter((o) => inRange(o.placedAt, currentStart, now));
-  const previousOrders = orders.filter((o) =>
-    inRange(o.placedAt, previousStart, currentStart),
-  );
-
-  return {
-    revenue: {
-      current: currentOrders.reduce((s, o) => s + o.total, 0),
-      previous: previousOrders.reduce((s, o) => s + o.total, 0),
-    },
-    orders: { current: currentOrders.length, previous: previousOrders.length },
-    restaurants: {
-      current: restaurants.filter(
-        (r) => r.status === "active" && inRange(r.joinedAt, currentStart, now),
-      ).length,
-      previous: restaurants.filter(
-        (r) =>
-          r.status === "active" &&
-          inRange(r.joinedAt, previousStart, currentStart),
-      ).length,
-    },
-  };
 }
 
 export default function OverviewPage() {
@@ -102,45 +62,61 @@ export default function OverviewPage() {
   const restaurantRows = restaurants.data ?? [];
   const riderRows = riders.data ?? [];
 
-  const activeRestaurants = restaurantRows.filter((r) => r.status === "active").length;
   const onlineRiders = riderRows.filter((r) => r.status === "online").length;
-  const grossRevenue = orderRows.reduce((sum, o) => sum + o.total, 0);
 
   const deltas = splitPeriods(orderRows, restaurantRows);
   const delivered = orderRows.filter((o) => o.status === "delivered").length;
   const deliveredRate =
     orderRows.length === 0 ? 0 : Math.round((delivered / orderRows.length) * 100);
 
+  // Window policy (Prompt 2.1): every KPI's value and delta describe the SAME
+  // period. A flow metric (revenue, order count) is windowed to the last 7 days
+  // so the number and its "vs prev 7 days" arrow agree. A stock metric (riders
+  // online) reports the current level and carries no delta at all, because
+  // `riders` has no timestamp on status changes and therefore no derivable
+  // previous value to compare against.
+  const WINDOW_LABEL = `(${PERIOD_DAYS}d)`;
+
   const kpis = [
     {
-      label: "Gross Revenue",
-      value: formatCurrency(grossRevenue),
+      label: `Gross Revenue ${WINDOW_LABEL}`,
+      value: formatCurrency(deltas.revenue.current),
       delta: periodDelta(deltas.revenue.current, deltas.revenue.previous),
       hint: "vs prev 7 days",
     },
     {
-      label: "Total Orders",
-      value: orderRows.length.toLocaleString(),
+      label: `Orders ${WINDOW_LABEL}`,
+      value: deltas.orders.current.toLocaleString(),
       delta: periodDelta(deltas.orders.current, deltas.orders.previous),
       hint: "vs prev 7 days",
     },
     {
-      label: "Active Restaurants",
-      value: activeRestaurants.toString(),
+      // Renamed from "Active Restaurants": the value shown here is restaurants
+      // that *became active* inside the window, so the old label was claiming a
+      // standing total the number did not represent. See splitPeriods.
+      label: `New Restaurants ${WINDOW_LABEL}`,
+      value: deltas.restaurants.current.toLocaleString(),
       delta: periodDelta(
         deltas.restaurants.current,
         deltas.restaurants.previous,
       ),
-      hint: "new vs prev 7 days",
+      hint: "vs prev 7 days",
     },
     {
+      // No delta: a headcount is a level, and the delivery success rate that
+      // used to sit in this trend slot is unrelated to the number above it
+      // (Prompt 2.3). The rate is surfaced as neutral hint text, not an arrow.
       label: "Riders Online",
-      value: onlineRiders.toString(),
-      delta: deliveredRate,
-      hint: "delivery success rate",
+      value: onlineRiders.toLocaleString(),
+      hint: `delivery success ${deliveredRate}%`,
     },
-  ] as const;
+  ] satisfies readonly Kpi[];
 
+  // `revenue` is live since migration 0008 (recomputed on every order change,
+  // cancelled orders excluded) but it is a lifetime total, which is why the
+  // subtitle says "all time" rather than the "this month" it used to claim.
+  // The "Live" badge sits on the revenue *chart*, which is genuinely computed
+  // from live order rows for the last 7 days.
   const topRestaurants = restaurantRows
     .slice()
     .sort((a, b) => b.revenue - a.revenue)
@@ -230,7 +206,7 @@ export default function OverviewPage() {
             <Card>
               <CardHeader
                 title="Top restaurants"
-                subtitle="By gross revenue this month"
+                subtitle="By gross revenue, all time"
                 action={
                   <Button variant="ghost" size="sm" asChild>
                     <Link href="/restaurants">
@@ -279,30 +255,5 @@ export default function OverviewPage() {
         </div>
       </Stack>
     </PageContainer>
-  );
-}
-
-function buildRevenueSeries(orders: Order[]) {
-  const days = new Map<string, { label: string; orders: number; revenue: number }>();
-  const formatter = new Intl.DateTimeFormat("en", { weekday: "short" });
-
-  for (const o of orders) {
-    const date = new Date(o.placedAt);
-    const key = date.toDateString();
-    const entry = days.get(key) ?? { label: formatter.format(date), orders: 0, revenue: 0 };
-    entry.orders += 1;
-    entry.revenue += o.total;
-    days.set(key, entry);
-  }
-
-  const points = Array.from(days.values());
-  const labels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-  for (const label of labels) {
-    if (!points.some((p) => p.label === label)) {
-      points.push({ label, orders: 0, revenue: 0 });
-    }
-  }
-  return points.sort(
-    (a, b) => labels.indexOf(a.label) - labels.indexOf(b.label),
   );
 }

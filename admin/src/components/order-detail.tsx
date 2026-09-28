@@ -134,8 +134,23 @@ export function OrderDetail({ order }: { order: Order }) {
           Timeline
         </p>
         {order.status === "cancelled" ? (
-          <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">
-            Order cancelled
+          <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm">
+            <p className="font-medium text-destructive">Order cancelled</p>
+            {/* The merchant's stated reason, persisted as of Prompt 2.5. Orders
+                cancelled before that column existed have none, and no reason is
+                ever fabricated to fill the gap -- the absence is stated so a
+                reviewer can see that nothing was recorded rather than reading
+                silence as "no reason given". */}
+            <p className="mt-1.5 text-muted-foreground">
+              {order.rejectionReason ? (
+                <>
+                  <span className="font-medium text-card-foreground">Reason: </span>
+                  {order.rejectionReason}
+                </>
+              ) : (
+                "No reason recorded"
+              )}
+            </p>
           </div>
         ) : (
           <ol className="space-y-0">

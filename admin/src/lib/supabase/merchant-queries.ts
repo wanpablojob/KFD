@@ -44,6 +44,12 @@ export async function fetchMerchantOrders(): Promise<Order[]> {
     payment: o.payment,
     placedAt: String(o.placed_at),
     rider: o.rider,
+    // Mapped on both the merchant and admin paths. A field present in one
+    // mapper and missing from the other is how this drifts (Prompt 2.5).
+    // Coerced explicitly: DbRecord types unmapped columns as `unknown`, and
+    // orders cancelled before the column existed come back null.
+    rejectionReason:
+      typeof o.rejection_reason === "string" ? o.rejection_reason : null,
   }));
 }
 
@@ -91,9 +97,23 @@ export function allowedTransitions(
 
 export async function setOrderStatus(
   id: string,
-  status: MerchantOrderStatus
+  status: MerchantOrderStatus,
+  reason?: string,
 ): Promise<void> {
-  const { error } = await supabase.from("orders").update({ status }).eq("id", id);
+  // The reason is written in the SAME statement as the status change. Two round
+  // trips would let the status succeed while the reason was lost, which is
+  // precisely the bug Prompt 2.5 exists to close.
+  //
+  // The reason is set only when cancelling, and is explicitly cleared for every
+  // other transition, so an order that was cancelled with a reason and later
+  // moved on does not keep a stale justification attached.
+  const patch: { status: MerchantOrderStatus; rejection_reason: string | null } = {
+    status,
+    rejection_reason:
+      status === "cancelled" ? (reason?.trim() || null) : null,
+  };
+
+  const { error } = await supabase.from("orders").update(patch).eq("id", id);
   if (error) throw new Error(error.message);
 }
 

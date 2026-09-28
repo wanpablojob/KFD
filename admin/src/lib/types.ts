@@ -33,6 +33,8 @@ export interface Order {
   payment: PaymentMethod;
   placedAt: string;
   rider: string;
+  /** Merchant's stated reason for a cancellation. Null on other statuses. */
+  rejectionReason: string | null;
 }
 
 export interface Restaurant {
@@ -83,7 +85,13 @@ export interface MenuItem {
 export interface Kpi {
   label: string;
   value: string;
-  delta: number;
+  /**
+   * Optional period-over-period change, as a percentage. Absent means the
+   * metric is a level with no meaningful comparison (Prompt 2.3): a success
+   * rate has no "previous" and rendering a trend arrow beside it is
+   * misleading, so the card omits the trend block entirely.
+   */
+  delta?: number;
   hint: string;
 }
 

@@ -34,7 +34,7 @@ const columns: Column<Customer>[] = [
   { key: "city", header: "City", cell: (row) => row.city },
   {
     key: "tier",
-    header: "Tier",
+    header: "Tier (sample)",
     cell: (row) => (
       <Badge variant={gold(row) ? "warning" : silver(row) ? "secondary" : "outline"} size="sm">
         {gold(row) ? "Gold" : silver(row) ? "Silver" : "Standard"}
@@ -43,7 +43,7 @@ const columns: Column<Customer>[] = [
   },
   {
     key: "ordersCount",
-    header: "Orders",
+    header: "Orders (sample)",
     align: "right",
     cell: (row) => (
       <span className="text-card-foreground">{row.ordersCount}</span>
@@ -51,7 +51,7 @@ const columns: Column<Customer>[] = [
   },
   {
     key: "totalSpend",
-    header: "Total spent",
+    header: "Total spent (sample)",
     align: "right",
     cell: (row) => (
       <span className="font-medium text-card-foreground">
@@ -91,6 +91,24 @@ export default function CustomersPage() {
           skeletonColumns={6}
         >
           <Card className="overflow-hidden">
+            {/* Prompt 2.4, customer half. `orders.customer` is free text with
+                no foreign key to `customers`, so a correct per-customer
+                aggregate cannot be maintained -- the only available join is on
+                a name string, which silently misattributes orders between
+                same-named customers. The restaurant aggregates WERE made real
+                (0008_aggregate_refresh.sql); these were not.
+
+                So the Orders, Total spent and Tier columns below are seed-time
+                constants, not live figures. They are labelled as sample data
+                rather than quietly presented as a leaderboard. */}
+            <p
+              className="border-b border-border bg-muted/40 px-4 py-2.5 text-xs text-muted-foreground"
+              role="note"
+            >
+              Orders, Total spent and Tier are sample values from the seed data,
+              not live aggregates. A customer cannot yet be linked to their
+              orders by id, so these figures do not update.
+            </p>
             <PaginatedDataTable<Customer>
               columns={columns}
               rows={data ?? []}
@@ -104,12 +122,12 @@ export default function CustomersPage() {
                 { key: "city", header: "City" },
                 {
                   key: "totalSpend",
-                  header: "Tier",
+                  header: "Tier (sample)",
                   format: (row) =>
                     gold(row) ? "Gold" : silver(row) ? "Silver" : "Standard",
                 },
-                { key: "ordersCount", header: "Orders" },
-                { key: "totalSpend", header: "Total spent" },
+                { key: "ordersCount", header: "Orders (sample)" },
+                { key: "totalSpend", header: "Total spent (sample)" },
                 { key: "joinedAt", header: "Joined" },
               ]}
             />

@@ -1,6 +1,20 @@
 "use client";
 
 import { supabase } from "./supabase/client";
+import {
+  classifyNotifyStatus,
+  notifyTransportFailure,
+  type NotifyFailureCode,
+} from "./notify-errors";
+
+export interface NotifyResult {
+  ok: boolean;
+  detail: string;
+  /** Absent on success. Lets callers branch instead of matching on prose. */
+  code?: NotifyFailureCode;
+  /** Whether a later attempt could plausibly succeed. */
+  retryable?: boolean;
+}
 
 /**
  * Ask the server to email the customer about a status change.
@@ -14,12 +28,16 @@ import { supabase } from "./supabase/client";
  * for the operator and replaced with a human-readable message here. A merchant
  * can act on the message but not on a JSON blob, and a response body can carry
  * provider names or configuration detail that has no business in a browser.
+ *
+ * Failures also come back as a `code` and a `retryable` flag so the UI can
+ * distinguish a permission problem from a rate limit from a dead network
+ * instead of pattern-matching on the sentence.
  */
 export async function notifyOrder(
   orderId: string,
   event: "placed" | "status_changed",
   reason?: string
-): Promise<{ ok: boolean; detail: string }> {
+): Promise<NotifyResult> {
   try {
     const { data } = await supabase.auth.getSession();
     const token = data.session?.access_token;
@@ -42,7 +60,7 @@ export async function notifyOrder(
         status: res.status,
         body: body.slice(0, 500),
       });
-      return { ok: false, detail: messageFor(res.status) };
+      return { ok: false, ...classifyNotifyStatus(res.status) };
     }
 
     return { ok: true, detail: "Email sent." };
@@ -52,28 +70,7 @@ export async function notifyOrder(
       event,
       error: err instanceof Error ? err.message : String(err),
     });
-    return {
-      ok: false,
-      detail:
-        "Order saved, but we could not reach the email service. Ask an administrator to check the email settings.",
-    };
+    const failure = notifyTransportFailure();
+    return { ok: false, ...failure };
   }
-}
-
-/**
- * Different failures need different words, because they need different people
- * to act. Credentials problems and rate limits are operator configuration;
- * anything else is more likely a transient server fault.
- */
-function messageFor(status: number): string {
-  if (status === 401 || status === 403) {
-    return "Order saved, but the customer was not emailed because email is not set up correctly. Ask an administrator to check the email settings.";
-  }
-  if (status === 429) {
-    return "Order saved, but too many emails were sent just now, so the customer was not notified. Try again in a few minutes.";
-  }
-  if (status >= 500) {
-    return "Order saved, but the email service had a problem, so the customer was not notified. Ask an administrator to check the email settings.";
-  }
-  return "Order saved, but the customer was not emailed. Ask an administrator to check the email settings.";
 }

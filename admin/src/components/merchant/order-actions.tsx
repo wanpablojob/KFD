@@ -51,9 +51,10 @@ const REASON_MAX = 280;
  * never unexplained, so an empty reason must not be sendable -- `reason.trim()`
  * is falsy when blank, which previously produced an unexplained rejection.
  *
- * The reason is still NOT persisted: `orders` has no column for it, so it
- * exists only in the email. Storing it is Prompt 2.5's migration; until then a
- * later read of this file should not assume the reason can be recovered.
+ * The reason is now persisted to `orders.rejection_reason` in the same UPDATE
+ * that changes the status (Prompt 2.5), so an administrator reviewing a
+ * disputed order can see what the restaurant actually said. Before that it
+ * existed only in the email and was lost.
  */
 export function OrderActions({
   orderId,
@@ -95,7 +96,13 @@ export function OrderActions({
 
     setPending(target);
     try {
-      await setOrderStatus(orderId, target);
+      // One statement: status and reason together, so a failure cannot leave a
+      // changed status with a lost explanation.
+      await setOrderStatus(
+        orderId,
+        target,
+        target === "cancelled" ? trimmed : undefined,
+      );
 
       // The customer is emailed after the status is durably saved. A failed
       // email is reported but does not roll the status back.

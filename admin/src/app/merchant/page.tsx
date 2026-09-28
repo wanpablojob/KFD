@@ -20,13 +20,18 @@ import { useOrderRealtime } from "@/lib/use-order-realtime";
 import { formatCurrency, formatDateTime } from "@/lib/format";
 import type { Order, Kpi } from "@/lib/types";
 
-function stat(
-  label: string,
-  value: string,
-  hint: string,
-  delta = 0
-): Kpi {
-  return { label, value, hint, delta };
+/**
+ * Builds a level metric for <StatCard>.
+ *
+ * There is deliberately no `delta` argument. Every card on this screen is a
+ * level (orders today, revenue today, needs action, menu live) and none has a
+ * previous period to compare against, so the old default of `delta = 0` made
+ * every card render a green "↑0%" trend arrow -- asserting "unchanged" about
+ * something that was never measured. Omitting `delta` renders the hint alone
+ * (Prompt 2.3).
+ */
+function stat(label: string, value: string, hint: string): Kpi {
+  return { label, value, hint };
 }
 
 function orderLineTotal(order: Order): string {

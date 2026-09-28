@@ -241,7 +241,7 @@ that a merchant sees "Nothing waiting" — visually identical to genuinely havin
 During an outage a merchant would reasonably believe they are safe. This is the highest
 impact merchant bug in the codebase.
 
-AFFECTED FILES (all four):
+AFFECTED FILES (all three):
   - src/app/merchant/page.tsx        (dashboard: 2 fetches, orders + menu)
   - src/app/merchant/orders/page.tsx (1 fetch)
   - src/app/merchant/menu/page.tsx   (fetches menu items)

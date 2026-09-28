@@ -243,3 +243,37 @@ accident:
 - **The notify route re-checks ownership explicitly**, because it reads orders
   with the service role, which bypasses RLS. That check is the only thing
   stopping one merchant from emailing another restaurant's customers.
+
+## Known data limitations
+
+Read this before treating any number in the console as a business metric.
+
+- **`customers.orders_count` and `customers.total_spend` are frozen seed
+  values.** They were written once by the insert in `0001_init.sql` and are
+  never recomputed. The Gold / Silver / Standard tiers on the Customers page are
+  derived from `total_spend`, so they are sample data too. The page labels all
+  three columns `(sample)` for this reason.
+
+  They cannot be made real without schema work: `orders.customer` is free text
+  with no foreign key to `customers`, so the only available join is on a name
+  string, which would misattribute orders between same-named customers. The
+  fix is to add `orders.customer_id uuid references auth.users(id)`, backfill by
+  name match, and report the rows that do not match. That is a data-migration
+  decision, not a UI change. See Prompt 2.4 in `REVIEW_FIX_PROMPTS.md`.
+
+- **`restaurants.orders_count` and `restaurants.revenue` ARE live.** Migration
+  `0008_aggregate_refresh.sql` added a trigger that recomputes them on every
+  order INSERT, UPDATE and DELETE, excluding cancelled orders. They are
+  lifetime totals, not "this month".
+
+- **`riders` has no status history.** There is no timestamp on a rider's status
+  change, so no historical online count is derivable. The dashboard's "Riders
+  Online" card therefore shows a level with no period-over-period arrow.
+
+- **The revenue chart is the last 7 days only**, matching its subtitle. It
+  previously plotted every order that had ever existed.
+
+- **Email delivery is best-effort and unconfigured.** Without `SUPABASE_SERVICE_ROLE_KEY`,
+  `RESEND_API_KEY` and `ORDER_EMAIL_FROM`, the `/api/orders/notify` route fails
+  and the merchant sees "Order saved, but the customer was not emailed". The
+  order status and rejection reason are still saved. See step 2 above.

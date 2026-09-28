@@ -146,6 +146,14 @@ function mapItems(raw: unknown): OrderItem[] {
   return [];
 }
 
+/**
+ * `orders_count` and `revenue` here are LIVE, maintained by the trigger in
+ * migration 0008_aggregate_refresh.sql (recomputed on every order INSERT,
+ * UPDATE and DELETE, excluding cancelled orders).
+ *
+ * Compare `fetchCustomers` below, whose equivalent columns are still frozen
+ * seed values.
+ */
 export async function fetchRestaurants(): Promise<Restaurant[]> {
   const { data, error } = await supabase
     .from("restaurants")
@@ -189,6 +197,23 @@ export async function fetchRiders(): Promise<Rider[]> {
   }));
 }
 
+/**
+ * WARNING -- `ordersCount` and `totalSpend` are SEED-TIME CONSTANTS, not live
+ * aggregates. They were written once by the insert in 0001_init.sql:182 and are
+ * never recomputed. Prompt 2.4 investigated making them real and concluded it
+ * is not possible today: `orders.customer` is free text with no foreign key to
+ * `customers`, so the only available join is on a name string, which
+ * misattributes orders between same-named customers.
+ *
+ * Unlike `restaurants.orders_count` / `restaurants.revenue`, which migration
+ * 0008 made live, these two must not be treated as business metrics, and the
+ * Gold/Silver/Standard tiers derived from `totalSpend` in the Customers page
+ * are therefore also sample data. The UI labels them as such.
+ *
+ * Making them real requires giving orders a `customer_id uuid references
+ * auth.users(id)` and backfilling by name match with a report of unmatched
+ * rows -- a schema and data-migration decision, not a UI fix.
+ */
 export async function fetchCustomers(): Promise<Customer[]> {
   const { data, error } = await supabase
     .from("customers")
@@ -248,5 +273,11 @@ export async function fetchOrders(): Promise<Order[]> {
     payment: o.payment,
     placedAt: String(o.placed_at),
     rider: o.rider,
+    // Mapped on both the merchant and admin paths. A field present in one
+    // mapper and missing from the other is how this drifts (Prompt 2.5).
+    // Coerced explicitly: DbRecord types unmapped columns as `unknown`, and
+    // orders cancelled before the column existed come back null.
+    rejectionReason:
+      typeof o.rejection_reason === "string" ? o.rejection_reason : null,
   }));
 }
