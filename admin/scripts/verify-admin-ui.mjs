@@ -123,14 +123,18 @@ async function waitFor(expression, { timeout = 30_000, label = expression } = {}
 // deployment yet, so probing the bare base URL is not enough -- that returned
 // 200 while /login was still missing. Probe the route we actually need and
 // insist on 2xx.
-const reachable = async () => {
+let lastProbe = "never attempted";
+const probe = async () => {
   try {
     const r = await fetch(`${BASE}/login`, { redirect: "follow" });
+    lastProbe = `HTTP ${r.status} ${r.statusText}`;
     return r.status >= 200 && r.status < 300;
-  } catch {
+  } catch (e) {
+    lastProbe = `threw ${e.cause?.code ?? ""} ${e.message}`.trim();
     return false;
   }
 };
+const reachable = probe;
 
 async function goto(path, { attempts = 4 } = {}) {
   let last;
@@ -204,12 +208,12 @@ console.log(`\nVerifying ${BASE}\n`);
 // -- sign in ---------------------------------------------------------------
 // Wait out a deployment in flight. Dispatching this straight after a push used
 // to catch the site mid-rollout and produce a baffling timeout.
-for (let i = 0; i < 30 && !(await reachable()); i++) {
-  if (i === 0) console.log(`  ${BASE} is not answering yet; waiting for the deployment...`);
+for (let i = 0; i < 30 && !(await probe()); i++) {
+  if (i === 0) console.log(`  ${BASE}/login is not answering yet (${lastProbe}); waiting...`);
   await sleep(2000);
 }
-if (!(await reachable())) {
-  console.error(`${BASE}/login never returned 2xx. Aborting before touching a browser.`);
+if (!(await probe())) {
+  console.error(`${BASE}/login never returned 2xx. Last probe: ${lastProbe}. Aborting.`);
   bye();
   process.exit(2);
 }
