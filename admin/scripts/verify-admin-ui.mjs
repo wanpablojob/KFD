@@ -536,6 +536,171 @@ await check("3.1", "Escape closes the results without clearing the query", async
   return `closed with "${r.value}" intact`;
 });
 
+// -- Prompt 3.3: merchant access, without writing anything -----------------
+// The provisioning rules themselves (admin only, no archived restaurant, never
+// rewrite an admin row) are enforced in SQL and asserted against the database
+// by the migration workflow, because a browser check cannot reach them. What is
+// left to check here is the surface: is the page reachable, does it show
+// something an operator can act on, and do the dialogs say what will happen.
+await check("3.3", "Merchant access is in the admin navigation", async () => {
+  const r = await ev(`(() => {
+    const links = [...document.querySelectorAll('nav a')].map(a => a.textContent.trim());
+    return { links, has: links.includes("Merchant access") };
+  })()`);
+  must(r.has, `nav shows [${r.links.join(", ")}]`);
+  return `"${r.links.find((l) => l === "Merchant access")}"`;
+});
+
+await goto("/merchants");
+await waitFor(`document.querySelector('tbody tr')`, { label: "the merchant access table" });
+
+await check("3.3", "provisioned accounts are listed by email, not by uuid", async () => {
+  const r = await ev(`(() => {
+    const rows = [...document.querySelectorAll('tbody tr')];
+    const cells = rows.map(r => [...r.querySelectorAll('td')].map(td => td.innerText.trim()));
+    return {
+      rows: rows.length,
+      emails: cells.map(c => c[0] ?? ""),
+      adminsProtected: cells.filter(c => /not attached to a restaurant/i.test(c.join(" "))).length,
+      uuidLeak: cells.filter(c => /\\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\b/.test(c.join(" "))).length,
+    };
+  })()`);
+  must(r.rows > 0, "no accounts listed");
+  must(r.uuidLeak === 0, `${r.uuidLeak} rows show a raw uuid instead of an email`);
+  must(
+    r.emails.some((e) => e.includes("@")),
+    `no email address in the account column: [${r.emails.join(", ")}]`,
+  );
+  // app_users stores no address, so the email only appears because
+  // merchant_access_list joins auth.users in SQL. A missing join would leave
+  // this column blank rather than wrong.
+  must(
+    r.adminsProtected > 0,
+    "an admin row offers no reassign/revoke -- the lockout guard is not in the UI",
+  );
+  return `${r.rows} accounts, e.g. ${r.emails.find((e) => e.includes("@"))}, ${r.adminsProtected} admin row protected`;
+});
+
+await check("3.3", "attaching asks for an existing account and a restaurant", async () => {
+  const opened = await ev(`(() => {
+    const btn = [...document.querySelectorAll('button')].find(b => /attach merchant/i.test(b.textContent));
+    if (!btn) return "no-button";
+    btn.click();
+    return "ok";
+  })()`);
+  must(opened === "ok", `could not open the attach dialog: ${opened}`);
+  await waitFor(`document.querySelector('[role="dialog"]')`, { label: "the attach dialog" });
+  await sleepIn(400);
+
+  const r = await ev(`(() => {
+    const d = document.querySelector('[role="dialog"]');
+    const email = d.querySelector('#f-email');
+    const select = d.querySelector('#f-restaurantId');
+    return {
+      hasEmail: !!email,
+      emailLabel: (d.querySelector('label[for="f-email"]')?.textContent ?? '').trim(),
+      options: select ? [...select.options].map(o => o.value) : [],
+      optionLabels: select ? [...select.options].map(o => o.textContent.trim()) : [],
+      text: d.innerText,
+    };
+  })()`);
+  must(r.hasEmail, "no email field");
+  must(/email/i.test(r.emailLabel), `the account field is labelled "${r.emailLabel}"`);
+  must(r.options.length > 0, "the restaurant picker is empty");
+  must(
+    r.options.every((v) => v.trim().length > 0),
+    "a restaurant option has an empty value",
+  );
+  must(
+    r.optionLabels.every((l) => l.length > 0),
+    "a restaurant option has no visible label",
+  );
+  // The page does not create accounts, and that has to be visible: an operator
+  // who assumes otherwise types a new address and gets a bare "no account
+  // exists" with no idea why.
+  must(/does not create accounts|create the account/i.test(r.text), "the dialog does not say accounts are not created here");
+
+  await ev(`(() => {
+    const d = document.querySelector('[role="dialog"]');
+    [...d.querySelectorAll('button')].find(b => /cancel/i.test(b.textContent))?.click();
+  })()`);
+  await sleepIn(400);
+  const closed = await ev(`document.querySelectorAll('[role="dialog"]').length`);
+  must(closed === 0, "Cancel did not close the attach dialog");
+  return `${r.options.length} restaurants offered, e.g. "${r.optionLabels[0]}"`;
+});
+
+await check("3.3", "revoking says the login survives, and cancels cleanly", async () => {
+  const opened = await ev(`(() => {
+    const btn = document.querySelector('tbody tr button[data-action="revoke"]') ||
+      [...document.querySelectorAll('tbody tr button')].find(b => /revoke/i.test(b.textContent));
+    if (!btn) return "no-button";
+    btn.click();
+    return "ok";
+  })()`);
+  must(opened === "ok", `could not open the revoke dialog: ${opened}`);
+  await waitFor(`document.querySelector('[role="dialog"]')`, { label: "the revoke dialog" });
+  await sleepIn(400);
+
+  const r = await ev(`(() => {
+    const d = document.querySelector('[role="dialog"]');
+    return { title: d.getAttribute('aria-label') ?? '', text: d.innerText };
+  })()`);
+  must(/revoke access/i.test(r.title), `dialog title is "${r.title}"`);
+  must(/sign-in itself is not deleted|can be undone/i.test(r.text), "the dialog does not say the login survives");
+  must(/orders and menu are untouched/i.test(r.text), "the dialog does not say what is preserved");
+
+  await ev(`(() => {
+    const d = document.querySelector('[role="dialog"]');
+    [...d.querySelectorAll('button')].find(b => /cancel/i.test(b.textContent))?.click();
+  })()`);
+  await sleepIn(400);
+  const closed = await ev(`document.querySelectorAll('[role="dialog"]').length`);
+  must(closed === 0, "Cancel did not close the revoke dialog");
+  return `${r.title} -- confirmed, then cancelled`;
+});
+
+await check("3.3", "reassigning offers a restaurant picker, pre-set to the current one", async () => {
+  const opened = await ev(`(() => {
+    const btn = [...document.querySelectorAll('tbody tr button')].find(b => /reassign/i.test(b.textContent));
+    if (!btn) return "no-button";
+    btn.click();
+    return "ok";
+  })()`);
+  must(opened === "ok", `could not open the reassign dialog: ${opened}`);
+  await waitFor(`document.querySelector('[role="dialog"]')`, { label: "the reassign dialog" });
+  await sleepIn(400);
+
+  const r = await ev(`(() => {
+    const d = document.querySelector('[role="dialog"]');
+    const select = d.querySelector('#f-restaurantId');
+    const current = document.querySelector('tbody tr td:nth-child(3)')?.innerText.trim() ?? '';
+    return {
+      options: select ? [...select.options].map(o => ({ value: o.value, label: o.textContent.trim() })) : [],
+      selected: select ? select.value : '',
+      selectedLabel: select && select.selectedOptions[0] ? select.selectedOptions[0].textContent.trim() : '',
+      current,
+    };
+  })()`);
+  must(r.options.length > 0, "the restaurant picker is empty");
+  must(r.selected, "no restaurant is preselected, so reassign would silently move the merchant");
+  // If the preselect is wrong, saving reassigns them somewhere they did not ask
+  // for -- the whole point of the dialog is lost.
+  must(
+    r.selectedLabel === r.current,
+    `preselected "${r.selectedLabel}" but the row shows "${r.current}"`,
+  );
+
+  await ev(`(() => {
+    const d = document.querySelector('[role="dialog"]');
+    [...d.querySelectorAll('button')].find(b => /cancel/i.test(b.textContent))?.click();
+  })()`);
+  await sleepIn(400);
+  const closed = await ev(`document.querySelectorAll('[role="dialog"]').length`);
+  must(closed === 0, "Cancel did not close the reassign dialog");
+  return `${r.options.length} restaurants, preselected "${r.selectedLabel}"`;
+});
+
 // -- Prompt 3.2: archive, without writing anything -------------------------
 // Deliberately non-mutating: the check opens the confirmation, reads its copy
 // and cancels. Round-tripping a real production row is not worth the risk of a
