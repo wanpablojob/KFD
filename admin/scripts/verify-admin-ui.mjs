@@ -273,10 +273,6 @@ await check("1.5", "role label survives a full page load, not just client naviga
 // with no code change in between, which is the harness's fault: it asserted on
 // content that had not necessarily arrived. Wait for the content, not just the
 // page.
-await waitFor(
-  `[...document.querySelectorAll('div.grid')].some(g => g.textContent.includes('Gross Revenue'))`,
-  { label: "the KPI grid to populate" },
-);
 await goto("/");
 await waitFor(
   `[...document.querySelectorAll('div.grid')].some(g => g.textContent.includes('Gross Revenue'))`,
