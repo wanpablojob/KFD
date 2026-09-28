@@ -134,7 +134,6 @@ const probe = async () => {
     return false;
   }
 };
-const reachable = probe;
 
 async function goto(path, { attempts = 4 } = {}) {
   let last;
