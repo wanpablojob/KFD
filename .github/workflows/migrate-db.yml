@@ -67,6 +67,15 @@ jobs:
       run:
         working-directory: admin
 
+    # Both tokens must be exported as env vars, not just passed to
+    # `setup-cli`. That action runs `supabase login`, but each `run:` step
+    # starts a fresh shell that does not inherit the login -- so `supabase
+    # link` fails with "Access token not provided" unless the token is also
+    # in the environment.
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -92,13 +101,9 @@ jobs:
         # Ref is hard-coded on purpose. A workflow that accepts a project ref
         # as input could be pointed at a different database by anyone who can
         # dispatch it.
-        env:
-          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: supabase link --project-ref ijeqwbrrgfsmymsektih
 
       - name: Report migration status
-        env:
-          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: |
           echo "::group::Migration status (local | remote)"
           supabase migration list || true
@@ -123,16 +128,12 @@ jobs:
 
       - name: Preview migrations
         if: ${{ inputs.dry_run }}
-        env:
-          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: |
           echo "Dry run: no changes will be made."
           supabase db push --linked --dry-run
 
       - name: Apply migrations
         if: ${{ !inputs.dry_run }}
-        env:
-          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: |
           supabase db push --linked
           echo "::notice::Migrations applied."
