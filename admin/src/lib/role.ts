@@ -1,6 +1,7 @@
 import { supabase } from "./supabase/client";
+import { roleTargetPath, type AppRole } from "./role-routing";
 
-export type AppRole = "admin" | "merchant" | null;
+export type { AppRole } from "./role-routing";
 
 export interface UserRole {
   role: AppRole;
@@ -76,9 +77,7 @@ export async function resolveRoleTarget(target: string | null): Promise<{
 }> {
   const { role, restaurantId } = await fetchUserRole();
 
-  if (role === "admin") return { path: target ?? "/", role, restaurantId };
-  if (role === "merchant" && restaurantId) {
-    return { path: target ?? "/merchant", role, restaurantId };
-  }
-  return { path: null, role, restaurantId };
+  const path = roleTargetPath(role, restaurantId, target);
+
+  return { path, role, restaurantId };
 }
