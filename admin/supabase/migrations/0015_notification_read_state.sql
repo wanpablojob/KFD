@@ -70,4 +70,9 @@ end;
 $$;
 
 revoke all on function public.mark_notifications_seen() from public;
+-- Per role, not just from public. Supabase's default privileges grant EXECUTE
+-- on every new function in this schema to anon, and revoking from PUBLIC leaves
+-- that grant in place -- see 0016, which is the migration that actually withdrew
+-- it. Written here as well so a fresh database never has the window.
+revoke all on function public.mark_notifications_seen() from anon;
 grant execute on function public.mark_notifications_seen() to authenticated;

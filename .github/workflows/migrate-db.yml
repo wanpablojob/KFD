@@ -475,20 +475,42 @@ jobs:
           #    user-id parameter to point elsewhere, and this connection has
           #    auth.uid() = null, so calling it must be a no-op that neither
           #    updates nor creates a row.
+          # Supabase's default privileges grant EXECUTE on every new function in
+          # schema public to anon, so `revoke ... from public` leaves the anon
+          # grant intact -- which is how 0011's provisioning functions ended up
+          # callable with the public key. They refused anyway, because they
+          # re-check is_platform_admin() internally, but that left the database
+          # relying on a check inside a function instead of on the permission to
+          # call it. Asserted per function, so a new function that forgets the
+          # explicit revoke is caught here rather than in a pentest.
+          for sig, why in [
+              ("public.mark_notifications_seen()", "notification read marker"),
+              ("public.set_merchant_access(text, text)", "merchant provisioning"),
+              ("public.revoke_merchant_access(text)", "merchant revocation"),
+              ("public.merchant_access_list()", "account listing"),
+              ("public.is_platform_admin()", "role helper used by RLS policies"),
+              ("public.current_merchant_restaurant()", "tenant helper used by RLS policies"),
+          ]:
+              if query(
+                  "select has_function_privilege('anon', '%s', 'EXECUTE') as ok" % sig
+              )[0]["ok"]:
+                  failures.append("anon can execute %s (%s)" % (sig, why))
+
+          # ...and the two the public tracking page genuinely needs stay open.
+          for sig in ["public.track_order(text)", "public.mint_order_reference()"]:
+              if not query(
+                  "select has_function_privilege('anon', '%s', 'EXECUTE') as ok" % sig
+              )[0]["ok"]:
+                  failures.append(
+                      "anon cannot execute %s; the signed-out tracking page "
+                      "would stop working" % sig
+                  )
+
           if not query(
               "select has_function_privilege("
               "'authenticated', 'public.mark_notifications_seen()', 'EXECUTE') as ok"
           )[0]["ok"]:
               failures.append("authenticated cannot call mark_notifications_seen")
-
-          # anon has no console to acknowledge anything in, and a writable anon
-          # path here would be a foothold on app_users that 0011 was written to
-          # close.
-          if query(
-              "select has_function_privilege("
-              "'anon', 'public.mark_notifications_seen()', 'EXECUTE') as ok"
-          )[0]["ok"]:
-              failures.append("anon can call mark_notifications_seen")
 
           before = query("select count(*) as n from app_users")[0]["n"]
           marked = query("select public.mark_notifications_seen() as at")
