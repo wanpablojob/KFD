@@ -105,15 +105,32 @@ jobs:
 
       - name: Report migration status
         run: |
-          echo "::group::Migration status (local | remote)"
+          echo "::group::Migration status"
           supabase migration list || true
           echo "::endgroup::"
 
-          pending=$(supabase migration list 2>/dev/null \
-            | awk -F'|' '$3 ~ /^\s*[0-9]+\s*$/ { c++ } END { print c+0 }')
+          # Count pending migrations as (files on disk) - (rows the CLI reports
+          # as applied). Do NOT try to parse which column is which: the CLI
+          # renders versions backtick-wrapped (`` `0001` ``) and the column
+          # layout has changed between releases. Counting the local files is
+          # deterministic and cannot silently drift into reporting 0.
+          local_count=$(ls -1 supabase/migrations/*.sql 2>/dev/null | wc -l | tr -d ' ')
+          applied=$(supabase migration list 2>/dev/null \
+            | grep -cE '^[[:space:]]*`[0-9]+`[[:space:]]*\|[[:space:]]*`[0-9]+`' || true)
+          applied=${applied:-0}
+          pending=$(( local_count - applied ))
 
-          echo "Pending migrations: ${pending}"
+          echo "Local migration files : ${local_count}"
+          echo "Reported as applied   : ${applied}"
+          echo "Pending               : ${pending}"
           limit=${{ inputs.max_pending }}
+
+          if [ "$applied" -gt "$local_count" ]; then
+            echo "::error::The remote database reports more applied migrations than"
+            echo "::error::exist on disk (${applied} > ${local_count}). Refusing to"
+            echo "::error::continue -- local history has diverged from remote."
+            exit 1
+          fi
 
           if [ "$pending" -gt "$limit" ]; then
             echo "::error::${pending} migrations are pending but max_pending is ${limit}."
