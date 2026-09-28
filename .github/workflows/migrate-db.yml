@@ -383,6 +383,79 @@ jobs:
               else:
                   failures.append("%s succeeded for a non-admin caller" % label)
 
+          # 4. The public tracking boundary from 0012. This is the one that
+          #    matters most, because the anon key is public: if `anon` can
+          #    select from orders, then `supabase.from('orders').select('*')`
+          #    returns customer names, rider assignments and rejection reasons
+          #    for every order in the database, and the tracking page rendering
+          #    a subset of columns changes nothing -- the API answers the
+          #    request either way. RLS filters rows, never columns, so the
+          #    guarantee has to be the absence of a grant.
+          if query(
+              "select has_table_privilege('anon', 'public.orders', 'SELECT') as ok"
+          )[0]["ok"]:
+              failures.append(
+                  "anon can select from orders; the public tracking path is a "
+                  "column-exposure hole, not a safe one"
+              )
+
+          for role, label in [("anon", "anon"), ("authenticated", "authenticated")]:
+              if not query(
+                  "select has_function_privilege('%s', "
+                  "'public.track_order(text)', 'EXECUTE') as ok" % role
+              )[0]["ok"]:
+                  failures.append("%s cannot call track_order" % label)
+
+          # The function must actually refuse, not merely be un-granted. This
+          # connection is an unentitled caller (no JWT), and every seeded
+          # reference is a legacy sequential one, so a row here means the
+          # entropy check is not being enforced.
+          legacy = query(
+              "select reference from orders order by placed_at limit 1"
+          )
+          if legacy:
+              leaked = query(
+                  "select * from public.track_order(%s)"
+                  % ("'" + legacy[0]["reference"].replace("'", "''") + "'")
+              )
+              if leaked:
+                  failures.append(
+                      "track_order returned a row for the sequential reference %s "
+                      "to an unentitled caller" % legacy[0]["reference"]
+                  )
+
+          # The reference has to carry the entropy the public path depends on.
+          # A silent change here -- a shorter suffix, a sequential generator --
+          # would turn the tracking page into an enumeration oracle without any
+          # other check noticing. Two calls, to catch a generator that ignores
+          # its random source.
+          pair = query(
+              "select public.mint_order_reference() as a, "
+              "public.mint_order_reference() as b"
+          )[0]
+          for label, minted in (("first", pair["a"]), ("second", pair["b"])):
+              if not re.match(r"^#KFD-[0-9A-F]{12}$", minted or ""):
+                  failures.append(
+                      "mint_order_reference() %s call returned %r, which is not "
+                      "the 48-bit pattern the tracking path relies on"
+                      % (label, minted)
+                  )
+          if pair["a"] == pair["b"]:
+              failures.append("mint_order_reference() returned the same value twice")
+
+          # Reported, not asserted. A null customer_user_id is correct for a
+          # walk-in order and cannot be asserted away; but the count is the
+          # honest answer to "how much of the order book can be aggregated per
+          # customer", which no other check answers, and it is the number the
+          # 0012 backfill reported.
+          link = query("""
+          select
+            count(*) as total,
+            count(*) filter (where customer_user_id is not null) as linked,
+            count(*) filter (where reference ~ '^#KFD-[0-9A-F]{12}$') as trackable
+          from orders
+          """)[0]
+
           if failures:
               for f in failures:
                   print("::error::" + f)
@@ -391,6 +464,9 @@ jobs:
           print("::notice::All %d columns present." % len(expected))
           print("::notice::app_users is read-only over PostgREST; %d SELECT policies." % len(readable))
           print("::notice::All 3 provisioning functions refuse a non-admin caller.")
+          print("::notice::Public tracking: anon has no grant on orders; track_order refuses a sequential reference to an unentitled caller.")
+          print("::notice::Customer link: %d of %d orders matched a backfill; %d carry a high-entropy reference."
+                % (link["linked"], link["total"], link["trackable"]))
           PY
 
       - name: Report applied migrations
