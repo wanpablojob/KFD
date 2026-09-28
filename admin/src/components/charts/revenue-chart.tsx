@@ -2,7 +2,10 @@ import { formatCurrency, formatCompact } from "@/lib/format";
 import type { RevenuePoint } from "@/lib/types";
 
 export function RevenueChart({ data }: { data: RevenuePoint[] }) {
-  const max = Math.max(...data.map((d) => d.revenue));
+  // Guarded: an empty 7-day window makes the true maximum 0, and
+  // `revenue / 0` is NaN, which React silently drops -- leaving bars with no
+  // height and no explanation. The floor keeps the empty chart flat and finite.
+  const max = Math.max(1, ...data.map((d) => d.revenue));
   const chartHeight = 220;
 
   return (
