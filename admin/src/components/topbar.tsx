@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { SearchIcon, LogOutIcon, MapPinIcon, XIcon } from "./ui/icons";
+import { SearchIcon, LogOutIcon, MapPinIcon, MenuIcon, XIcon } from "./ui/icons";
 import { ThemeToggle } from "./theme-toggle";
 import { initials } from "@/lib/format";
 import { signOut, useSessionUser } from "@/lib/auth";
@@ -41,16 +41,7 @@ export function Topbar({
         className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground lg:hidden"
         aria-label="Open navigation"
       >
-        <svg
-          className="h-5 w-5"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.8"
-          strokeLinecap="round"
-        >
-          <path d="M4 6h16M4 12h16M4 18h16" />
-        </svg>
+        <MenuIcon className="h-5 w-5" />
       </button>
 
       <div className="relative hidden max-w-md flex-1 sm:block">
