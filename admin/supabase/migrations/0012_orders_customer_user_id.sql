@@ -95,7 +95,10 @@ begin
   with name_map as (
     select
       lower(btrim(raw_user_meta_data ->> 'name')) as name,
-      min(id) as user_id,
+      -- Postgres has no min(uuid) aggregate, so take the first element of the
+      -- ordered array. Which row that is does not matter: this branch is only
+      -- reached when holders = 1, so there is exactly one candidate.
+      (array_agg(id order by id))[1] as user_id,
       count(*) as holders
     from auth.users
     where coalesce(btrim(raw_user_meta_data ->> 'name'), '') <> ''
