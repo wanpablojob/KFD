@@ -496,7 +496,8 @@ jobs:
                         (select restaurant_id from app_users
                           where user_id = auth.uid())
                     ) as foreign_rows,
-                    min(reference is not null)::int as has_reference
+                    (count(*) filter (where reference is not null) > 0)::int
+                      as has_reference
                   from orders;
                   rollback;
                   """
