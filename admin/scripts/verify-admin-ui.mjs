@@ -763,6 +763,94 @@ for (const [path, label, noun] of [
   });
 }
 
+// -- 3.4 customer tracking, signed out ------------------------------------
+// The reference as it is printed on a receipt: no leading '#', which also
+// checks that the page normalises the shapes a reference is copied in.
+const TRACK_REF = "KFD-7A3F9C1E5B20";
+
+await check("3.4", "the tracking page needs no account", async () => {
+  // Sign out for real. The session lives in localStorage, so clearing it and
+  // navigating is enough -- and it matters that this runs signed out, because
+  // the whole claim is that the reference alone grants access.
+  await ev(`(() => { localStorage.clear(); sessionStorage.clear(); return true; })()`);
+  await goto(`/track/${TRACK_REF}`);
+  await waitFor(`document.querySelector('[data-tracking-state]')`, {
+    label: "the tracking view to settle",
+  });
+  const state = await ev(`document.querySelector('[data-tracking-state]').dataset.trackingState`);
+  must(state === "ready", `the page settled in "${state}" rather than showing the order`);
+
+  const r = await ev(`(() => {
+    const text = document.body.innerText;
+    return {
+      text,
+      items: document.querySelectorAll('ul li').length,
+      total: document.querySelector('[data-tracking-total]')?.textContent?.trim() ?? '',
+      badge: document.querySelector('[data-tracking-state="ready"]')?.innerText ?? '',
+    };
+  })()`);
+
+  must(/D & D Food Hub/.test(r.text), "the restaurant is not named");
+  must(r.items > 0, "no line items were rendered");
+  must(/22\\.40|₱\\s*22\\.40/.test(r.total) || r.total.length > 0, "no total was rendered");
+  must(/preparing/i.test(r.badge), `no status badge was rendered: ${r.badge.slice(0, 120)}`);
+
+  // The order row does contain all of this. track_order() does not return it,
+  // and anon's grant on orders is revoked, so none of it can reach a signed-out
+  // browser -- checked here because "the page does not render it" would pass
+  // just as well if the page were the only thing keeping it out.
+  must(
+    !/Rowela|Villanueva/i.test(r.text),
+    "the customer's name reached the public page",
+  );
+  must(!/Unassigned|rider/i.test(r.text), "the rider assignment reached the public page");
+  must(!/rst_0/i.test(r.text), "an internal restaurant id reached the public page");
+  must(!/reject/i.test(r.text), "internal order fields reached the public page");
+
+  return `${r.items} items, total ${r.total}, status shown, no customer/rider/id in the DOM`;
+});
+
+await check("3.4", "a wrong reference and the internal id both read as not found", async () => {
+  const probe = async (path) => {
+    await goto(path);
+    await waitFor(`document.querySelector('[data-tracking-state]')`, {
+      label: `the tracking view to settle for ${path}`,
+    });
+    return ev(`(() => {
+      const el = document.querySelector('[data-tracking-state]');
+      return { state: el.dataset.trackingState, text: el.innerText };
+    })()`);
+  };
+
+  const guessed = await probe("/track/KFD-000000000000");
+  must(guessed.state === "missing", `a guessed reference returned "${guessed.state}"`);
+
+  // ord_1008 is the row's primary key, not its reference. The page has to look
+  // the order up by the human reference, or the internal id becomes the
+  // enumeration key and the 48-bit reference buys nothing.
+  const byId = await probe("/track/ord_1008");
+  must(byId.state === "missing", `the internal id returned "${byId.state}"`);
+
+  return "guessed reference and internal id are both indistinguishable from not-found";
+});
+
+await check("3.4", "a legacy sequential reference is not publicly trackable", async () => {
+  await goto("/track/KFD-1001");
+  await waitFor(`document.querySelector('[data-tracking-state]')`, {
+    label: "the tracking view to settle",
+  });
+  const r = await ev(`(() => {
+    const el = document.querySelector('[data-tracking-state]');
+    return { state: el.dataset.trackingState, text: el.innerText };
+  })()`);
+  // #KFD-1001 exists and is a real order. It is refused only because its
+  // reference is guessable, which is the whole reason 0012 gates on the shape
+  // of the reference instead of on a flag.
+  must(r.state === "missing", `a sequential reference returned "${r.state}"`);
+  must(!/Maria|Santos/.test(r.text), "the legacy order leaked its contents");
+  return "KFD-1001 exists but is refused to a signed-out caller";
+});
+
 // -- console hygiene -------------------------------------------------------
 await check("hygiene", "no console errors during the sweep", async () => {
   const real = consoleErrors.filter((t) => !/favicon|Download the React DevTools/i.test(t));
