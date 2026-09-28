@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Sidebar } from "./sidebar";
 import { Topbar } from "./topbar";
 import { NotificationBell } from "./notification-bell";
+import { GlobalSearchSeed } from "./global-search-seed";
 import { fetchOrders } from "@/lib/supabase/queries";
 import { useAsyncData } from "@/lib/use-async-data";
 import { useUserRole } from "@/lib/use-user-role";
@@ -34,6 +35,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
+      {/* Makes ?q= in a search result URL filter the page it lands on. */}
+      <GlobalSearchSeed />
       <Sidebar
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}

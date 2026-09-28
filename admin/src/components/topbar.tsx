@@ -1,11 +1,11 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { SearchIcon, LogOutIcon, MapPinIcon, MenuIcon, XIcon } from "./ui/icons";
+import { LogOutIcon, MapPinIcon, MenuIcon } from "./ui/icons";
 import { ThemeToggle } from "./theme-toggle";
 import { initials } from "@/lib/format";
 import { signOut, useSessionUser } from "@/lib/auth";
-import { useGlobalSearch, setGlobalSearch } from "@/lib/global-search";
+import { GlobalSearch } from "./global-search";
 
 export function Topbar({
   onMenuClick,
@@ -19,7 +19,6 @@ export function Topbar({
 }) {
   const router = useRouter();
   const { user } = useSessionUser();
-  const globalQuery = useGlobalSearch();
   const displayName =
     user?.user_metadata?.name ?? user?.email ?? "Admin";
   const avatarInitials = initials(displayName) || "AD";
@@ -44,26 +43,7 @@ export function Topbar({
         <MenuIcon className="h-5 w-5" />
       </button>
 
-      <div className="relative hidden max-w-md flex-1 sm:block">
-        <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <input
-          type="search"
-          value={globalQuery}
-          onChange={(e) => setGlobalSearch(e.target.value)}
-          placeholder="Search orders, restaurants, riders…"
-          className="w-full rounded-lg border border-input bg-background py-2 pl-9 pr-9 text-sm text-foreground placeholder:text-muted-foreground outline-none transition-colors focus:border-ring focus:ring-2 focus:ring-ring/25"
-        />
-        {globalQuery ? (
-          <button
-            type="button"
-            onClick={() => setGlobalSearch("")}
-            className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-            aria-label="Clear search"
-          >
-            <XIcon className="h-4 w-4" />
-          </button>
-        ) : null}
-      </div>
+      <GlobalSearch />
 
       <div className="ml-auto flex items-center gap-3">
         <span className="hidden items-center gap-1.5 rounded-full border border-border bg-muted/60 px-2.5 py-1 text-xs font-medium text-muted-foreground md:inline-flex">

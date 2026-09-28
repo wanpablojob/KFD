@@ -1,4 +1,5 @@
 import { supabase } from "./client";
+import { anyIlikeFilter } from "./ilike-filter";
 import type {
   Customer,
   MenuItem,
@@ -309,4 +310,196 @@ export async function fetchOrders(): Promise<Order[]> {
     rejectionReason:
       typeof o.rejection_reason === "string" ? o.rejection_reason : null,
   }));
+}
+
+// ---------------------------------------------------------------------------
+// Global search (Prompt 3.1)
+// ---------------------------------------------------------------------------
+
+export type SearchEntity =
+  | "order"
+  | "restaurant"
+  | "rider"
+  | "customer"
+  | "menu_item";
+
+/**
+ * One row of the search popover. `entity` is a discriminant so the UI can
+ * label and group without string-matching the subtitle.
+ *
+ * Every field except `entity` is a string on purpose: the popover renders
+ * rows from five different tables with five different shapes, and a union of
+ * five object types would only move the `!` around.
+ */
+export type SearchResult = {
+  entity: SearchEntity;
+  id: string;
+  title: string;
+  subtitle: string;
+  href: string;
+};
+
+export const SEARCH_ENTITY_LABELS: Record<SearchEntity, string> = {
+  order: "Order",
+  restaurant: "Restaurant",
+  rider: "Rider",
+  customer: "Customer",
+  menu_item: "Menu item",
+};
+
+/** Per entity, not overall: a search for "a" should not drown in orders. */
+const PER_ENTITY = 5;
+
+/** Below this, `ilike '%x%'` matches most of the table and returns noise. */
+const MIN_TERM_LENGTH = 2;
+
+function listHref(path: string, term: string): string {
+  return `${path}?q=${encodeURIComponent(term)}`;
+}
+
+/**
+ * One search across every table the admin can see, issued as five parallel
+ * requests. No index and no database search function: the spec forbids both,
+ * and at this table size a sequential `ilike` scan per table is not the
+ * bottleneck.
+ *
+ * Authorization is not applied here and must not be. Every request goes
+ * through the same session-scoped client as the rest of the app, so the
+ * `select` policies decide what a merchant can see exactly as they do for the
+ * list pages. Adding a filter that trusts a role from the client would be
+ * strictly weaker than what the database already enforces.
+ */
+export async function searchEverything(
+  term: string,
+): Promise<SearchResult[]> {
+  const trimmed = term.trim();
+  if (trimmed.length < MIN_TERM_LENGTH) return [];
+
+
+  const [orders, restaurants, riders, customers, menuItems] = await Promise.all([
+    supabase
+      .from("orders")
+      .select("id, reference, customer, restaurant, status, total, placed_at")
+      .or(anyIlikeFilter(["reference", "customer", "restaurant"], trimmed))
+      .order("placed_at", { ascending: false })
+      .limit(PER_ENTITY),
+    supabase
+      .from("restaurants")
+      .select("id, name, cuisine, city, status")
+      .or(anyIlikeFilter(["name", "cuisine", "city"], trimmed))
+      .is("archived_at", null)
+      .order("name")
+      .limit(PER_ENTITY),
+    supabase
+      .from("riders")
+      .select("id, name, email, phone, vehicle, status")
+      .or(anyIlikeFilter(["name", "email", "phone", "city"], trimmed))
+      .is("archived_at", null)
+      .order("name")
+      .limit(PER_ENTITY),
+    supabase
+      .from("customers")
+      .select("id, name, email, phone, city")
+      .or(anyIlikeFilter(["name", "email", "phone", "city"], trimmed))
+      .order("name")
+      .limit(PER_ENTITY),
+    supabase
+      .from("menu_items")
+      .select("id, name, category, restaurant, price")
+      .or(anyIlikeFilter(["name", "category", "restaurant"], trimmed))
+      .order("name")
+      .limit(PER_ENTITY),
+  ]);
+
+  const responses = [orders, restaurants, riders, customers, menuItems];
+  const failures = responses.filter((r) => r.error);
+
+  // Partial results are worth showing; five failures are an outage, and
+  // rendering that as "no matches for X" would be a lie.
+  if (failures.length === responses.length) {
+    throw new Error(failures[0]?.error?.message ?? "Search failed.");
+  }
+
+  const results: SearchResult[] = [];
+
+  for (const { data } of responses) {
+    if (!data) continue;
+    for (const raw of data as Record<string, unknown>[]) {
+      const row = raw as DbRecord<Record<string, unknown>>;
+      results.push(toSearchResult(row, trimmed));
+    }
+  }
+
+  return results;
+}
+
+function text(value: unknown): string {
+  return value == null ? "" : String(value);
+}
+
+/**
+ * Normalizes the five differently-shaped rows into one shape. Kept as a
+ * `switch` on the entity so a new entity cannot be added without deciding what
+ * its title and subtitle are: an unmapped entity throws instead of rendering
+ * a blank row.
+ */
+function toSearchResult(
+  row: Record<string, unknown>,
+  label: string,
+): SearchResult {
+  const id = text(row.id);
+
+  if ("reference" in row) {
+    return {
+      entity: "order",
+      id,
+      title: text(row.reference),
+      subtitle: [text(row.customer), text(row.restaurant), text(row.status)]
+        .filter(Boolean)
+        .join(" · "),
+      href: listHref("/orders", label),
+    };
+  }
+  if ("cuisine" in row) {
+    return {
+      entity: "restaurant",
+      id,
+      title: text(row.name),
+      subtitle: [text(row.cuisine), text(row.city), text(row.status)]
+        .filter(Boolean)
+        .join(" · "),
+      href: listHref("/restaurants", label),
+    };
+  }
+  if ("vehicle" in row) {
+    return {
+      entity: "rider",
+      id,
+      title: text(row.name),
+      subtitle: [text(row.vehicle), text(row.status), text(row.phone)]
+        .filter(Boolean)
+        .join(" · "),
+      href: listHref("/riders", label),
+    };
+  }
+  if ("price" in row) {
+    return {
+      entity: "menu_item",
+      id,
+      title: text(row.name),
+      subtitle: [text(row.restaurant), text(row.category)]
+        .filter(Boolean)
+        .join(" · "),
+      href: listHref("/menu", label),
+    };
+  }
+  return {
+    entity: "customer",
+    id,
+    title: text(row.name),
+    subtitle: [text(row.email), text(row.phone), text(row.city)]
+      .filter(Boolean)
+      .join(" · "),
+    href: listHref("/customers", label),
+  };
 }

@@ -409,6 +409,115 @@ await check("2.5", "order detail renders the reason branch that matches the stat
   return "non-cancelled order: no reason branch, as intended (the cancelled branch is not exercised: production holds no cancelled orders)";
 });
 
+// -- Prompt 3.1: global search ---------------------------------------------
+// Read-only: every step here types, focuses and navigates, and nothing is
+// written. The point is to exercise the real debounced, RLS-scoped search
+// against production data rather than assert on the component's internals.
+const SEARCH_TERM = "Food";
+const COMBOBOX = '[role="combobox"]';
+
+async function press(key, code, keyCode) {
+  await send("Input.dispatchKeyEvent", { type: "keyDown", key, code, windowsVirtualKeyCode: keyCode });
+  await send("Input.dispatchKeyEvent", { type: "keyUp", key, code, windowsVirtualKeyCode: keyCode });
+  await sleepIn(120);
+}
+
+await goto("/");
+await check("3.1", "the search box is a labelled combobox", async () => {
+  const r = await ev(`(() => {
+    const el = document.querySelector(${JSON.stringify(COMBOBOX)});
+    if (!el) return null;
+    return {
+      expanded: el.getAttribute("aria-expanded"),
+      autocomplete: el.getAttribute("aria-autocomplete"),
+      label: el.getAttribute("aria-label") ?? "",
+      described: !!document.getElementById(el.getAttribute("aria-describedby") ?? ""),
+    };
+  })()`);
+  must(r, "no element with role=combobox");
+  must(r.expanded === "false", `aria-expanded is ${r.expanded}, expected false while empty`);
+  must(r.autocomplete === "list", `aria-autocomplete is "${r.autocomplete}"`);
+  must(/orders/i.test(r.label) && /riders/i.test(r.label), `aria-label does not name what is searchable: "${r.label}"`);
+  must(r.described, "aria-describedby does not point at the live region");
+  return `aria-expanded=false, aria-autocomplete=list, live region wired`;
+});
+
+await check("3.1", "a search returns results across more than one entity", async () => {
+  const typed = await ev(`(() => {
+    const el = document.querySelector(${JSON.stringify(COMBOBOX)});
+    if (!el) return "missing";
+    el.focus();
+    return ${JSON.stringify(setInput(COMBOBOX, SEARCH_TERM))};
+  })()`);
+  must(typed === '"ok"', `could not type into the search box: ${typed}`);
+  await waitFor(`document.querySelector('[role="listbox"] [role="option"]')`, {
+    timeout: 30_000,
+    label: "search results",
+  });
+
+  const r = await ev(`(() => {
+    const options = [...document.querySelectorAll('[role="listbox"] [role="option"]')];
+    const input = document.querySelector(${JSON.stringify(COMBOBOX)});
+    return {
+      total: options.length,
+      entities: [...new Set(options.map(o => o.dataset.entity))].sort(),
+      activeDescendant: input.getAttribute("aria-activedescendant"),
+      selected: options.filter(o => o.getAttribute("aria-selected") === "true").length,
+      titles: options.map(o => o.textContent.split('·')[0].trim()).slice(0, 3),
+    };
+  })()`);
+  must(r.total > 0, "the listbox opened with no options");
+  must(r.entities.length >= 2, `only one entity matched "${SEARCH_TERM}": ${r.entities.join(", ")}`);
+  must(r.selected === 1, `${r.selected} options are aria-selected, expected exactly 1`);
+  must(!!r.activeDescendant, "the first result is not pointed at by aria-activedescendant");
+  return `${r.total} results across ${r.entities.join(", ")}, e.g. ${r.titles.join(" / ")}`;
+});
+
+await check("3.1", "ArrowDown moves the active option and Enter follows it", async () => {
+  const before = await ev(`document.querySelector(${JSON.stringify(COMBOBOX)}).getAttribute("aria-activedescendant")`);
+  await press("ArrowDown", "ArrowDown", 40);
+  const after = await ev(`document.querySelector(${JSON.stringify(COMBOBOX)}).getAttribute("aria-activedescendant")`);
+  must(after && after !== before, `aria-activedescendant did not move (still ${after})`);
+
+  // Focus must stay in the input: that is the whole point of
+  // aria-activedescendant over moving focus into the list.
+  const focused = await ev(`document.activeElement?.getAttribute("role") ?? ""`);
+  must(focused === "combobox", `focus left the input after ArrowDown (now on "${focused}")`);
+
+  await press("Enter", "Enter", 13);
+  await waitFor(`location.search.includes("q=")`, { label: "the destination to carry the query" });
+  const landed = await ev(`({ path: location.pathname, search: location.search })`);
+  must(
+    ["/orders", "/restaurants", "/riders", "/customers", "/menu"].includes(landed.path),
+    `landed on ${landed.path}, which is not a list page`,
+  );
+
+  // The URL is the handoff: ?q= must reach the store that the tables filter on.
+  await waitFor(
+    `document.querySelector(${JSON.stringify(COMBOBOX)})?.value === ${JSON.stringify(SEARCH_TERM)}`,
+    { label: "the destination list to adopt the query" },
+  );
+  const count = await ev(`(document.querySelector('p[role="status"]')?.textContent ?? '').trim()`);
+  return `ArrowDown kept focus in the input; Enter went to ${landed.path}${landed.search}, table shows "${count}"`;
+});
+
+await check("3.1", "Escape closes the results without clearing the query", async () => {
+  await waitFor(`document.querySelector('[role="listbox"]')`, { label: "search results" });
+  await press("Escape", "Escape", 27);
+  const r = await ev(`(() => {
+    const input = document.querySelector(${JSON.stringify(COMBOBOX)});
+    return {
+      listboxes: document.querySelectorAll('[role="listbox"]').length,
+      value: input.value,
+      expanded: input.getAttribute("aria-expanded"),
+    };
+  })()`);
+  must(r.listboxes === 0, "Escape left the listbox open");
+  must(r.expanded === "false", `aria-expanded is still ${r.expanded}`);
+  must(r.value === SEARCH_TERM, `Escape also cleared the text: "${r.value}"`);
+  return `closed with "${r.value}" intact`;
+});
+
 // -- Prompt 3.2: archive, without writing anything -------------------------
 // Deliberately non-mutating: the check opens the confirmation, reads its copy
 // and cancels. Round-tripping a real production row is not worth the risk of a
