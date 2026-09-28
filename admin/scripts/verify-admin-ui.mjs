@@ -107,15 +107,52 @@ async function waitFor(expression, { timeout = 30_000, label = expression } = {}
     if (await ev(`!!(${expression})`)) return true;
     await sleepIn(400);
   }
-  throw new Error(`timed out waiting for ${label}`);
+  // Say what was actually on screen. Without this a "timed out waiting for X"
+  // is indistinguishable from "the server returned an error page", which is
+  // exactly the mistake that made the first run of this script fail silently.
+  let seen = "no page";
+  try {
+    const t = await ev("document.title");
+    const b = await ev("document.body ? document.body.innerText.slice(0, 160) : ''");
+    seen = `title=${JSON.stringify(t)} body=${JSON.stringify(b)}`;
+  } catch { /* page may be gone */ }
+  throw new Error(`timed out waiting for ${label}; page showed ${seen}`);
 }
 
-async function goto(path) {
-  await send("Page.navigate", { url: `${BASE}${path}` });
-  await sleepIn(700);
-  // Let the page paint and any entry animation settle before asserting.
-  await waitFor(`document.body && document.body.innerText.trim().length > 0`, { label: `${path} to render` });
-  await sleepIn(1200);
+// A Vercel rollout briefly answers 404 for routes that are not on the new
+// deployment yet, so probing the bare base URL is not enough -- that returned
+// 200 while /login was still missing. Probe the route we actually need and
+// insist on 2xx.
+const reachable = async () => {
+  try {
+    const r = await fetch(`${BASE}/login`, { redirect: "follow" });
+    return r.status >= 200 && r.status < 300;
+  } catch {
+    return false;
+  }
+};
+
+async function goto(path, { attempts = 4 } = {}) {
+  let last;
+  for (let i = 1; i <= attempts; i++) {
+    await send("Page.navigate", { url: `${BASE}${path}` });
+    await sleepIn(700);
+    await waitFor(`document.body && document.body.innerText.trim().length > 0`, {
+      timeout: 15_000,
+      label: `${path} to render`,
+    }).catch((e) => { last = e; });
+    // A page that rendered *something* is not the same as the app having loaded:
+    // Chrome's own error page also has body text. Require a real app root.
+    const ok = await ev(`!!document.querySelector('#email, main, [role="dialog"], [data-reveal]')`);
+    if (ok) {
+      await sleepIn(1200);
+      return;
+    }
+    last = new Error(`${path} loaded without the app`);
+    console.log(`  retrying ${path} (attempt ${i}/${attempts}) -- the app root was absent`);
+    await sleep(3000);
+  }
+  throw last ?? new Error(`could not load ${path}`);
 }
 
 /** Set a React-controlled input so the framework actually sees the change. */
@@ -162,6 +199,18 @@ await send("Log.enable");
 console.log(`\nVerifying ${BASE}\n`);
 
 // -- sign in ---------------------------------------------------------------
+// Wait out a deployment in flight. Dispatching this straight after a push used
+// to catch the site mid-rollout and produce a baffling timeout.
+for (let i = 0; i < 30 && !(await reachable()); i++) {
+  if (i === 0) console.log(`  ${BASE} is not answering yet; waiting for the deployment...`);
+  await sleep(2000);
+}
+if (!(await reachable())) {
+  console.error(`${BASE}/login never returned 2xx. Aborting before touching a browser.`);
+  bye();
+  process.exit(2);
+}
+
 await goto("/login");
 await waitFor(`document.querySelector('#email')`, { label: "the login form" });
 
