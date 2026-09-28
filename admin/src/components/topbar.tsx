@@ -10,9 +10,12 @@ import { useGlobalSearch, setGlobalSearch } from "@/lib/global-search";
 export function Topbar({
   onMenuClick,
   bell,
+  roleLabel,
 }: {
   onMenuClick: () => void;
   bell?: React.ReactNode;
+  /** Resolved from app_users by AppShell. Never derived from user_metadata. */
+  roleLabel: string;
 }) {
   const router = useRouter();
   const { user } = useSessionUser();
@@ -90,7 +93,7 @@ export function Topbar({
               {displayName}
             </span>
             <span className="block text-xs text-muted-foreground">
-              {user?.user_metadata?.role ?? "Super admin"}
+              {roleLabel}
             </span>
           </span>
           <button

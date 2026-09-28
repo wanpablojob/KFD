@@ -27,9 +27,12 @@ const navItems = [
 export function Sidebar({
   open,
   onClose,
+  roleLabel,
 }: {
   open: boolean;
   onClose: () => void;
+  /** Resolved from app_users by AppShell. Never derived from user_metadata. */
+  roleLabel: string;
 }) {
   const pathname = usePathname();
   const { user } = useSessionUser();
@@ -117,7 +120,7 @@ export function Sidebar({
               {displayName}
             </span>
             <span className="block text-xs text-muted-foreground">
-              {user?.user_metadata?.role ?? "Super admin"}
+              {roleLabel}
             </span>
           </span>
         </div>
