@@ -15,7 +15,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/field";
 import { Dialog } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
-import { EmptyState, LoadingState } from "@/components/ui/status";
+import { EmptyState } from "@/components/ui/status";
+import { TableBoundary } from "@/components/ui/table-boundary";
 import { PlusIcon, PencilIcon, DownloadIcon } from "@/components/ui/icons";
 import { formatCurrency } from "@/lib/format";
 import type { MenuItem } from "@/lib/types";
@@ -133,75 +134,86 @@ export default function MerchantMenuPage() {
         </p>
       ) : null}
 
-      {menu.loading ? (
-        <LoadingState label="Loading your menu…" />
-      ) : rows.length === 0 ? (
-        <EmptyState
-          title="No menu items yet"
-          description="Add your first dish so customers can order it."
-          action={
-            <Button size="sm" onClick={() => setDraft({ ...EMPTY })}>
-              <PlusIcon className="h-4 w-4" />
-              Add item
-            </Button>
-          }
-        />
-      ) : (
-        <ul className="space-y-2">
-          {rows.map((item) => (
-            <li key={item.id}>
-              <Card>
-                <div className="px-5 pb-5">
-                  <div className="flex items-center gap-3">
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold text-card-foreground">
-                        {item.name}
-                      </p>
-                      <p className="truncate text-xs text-muted-foreground">
-                        {item.category} · {formatCurrency(item.price)}
-                      </p>
+      {/* `error` below is the local form/save error and is unrelated. The fetch
+          failure is menu.error, and it must reach TableBoundary: previously the
+          page fell through to EmptyState, so an outage looked like an empty
+          menu. */}
+      <TableBoundary
+        loading={menu.loading}
+        error={menu.error}
+        onRetry={menu.refetch}
+        errorTitle="Could not load your menu"
+        skeletonRows={4}
+        skeletonColumns={2}
+      >
+        {rows.length === 0 ? (
+          <EmptyState
+            title="No menu items yet"
+            description="Add your first dish so customers can order it."
+            action={
+              <Button size="sm" onClick={() => setDraft({ ...EMPTY })}>
+                <PlusIcon className="h-4 w-4" />
+                Add item
+              </Button>
+            }
+          />
+        ) : (
+          <ul className="space-y-2">
+            {rows.map((item) => (
+              <li key={item.id}>
+                <Card>
+                  <div className="px-5 pb-5">
+                    <div className="flex items-center gap-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold text-card-foreground">
+                          {item.name}
+                        </p>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {item.category} · {formatCurrency(item.price)}
+                        </p>
+                      </div>
+
+                      <Switch
+                        checked={item.available}
+                        onCheckedChange={(checked) => onToggle(item, checked)}
+                        aria-label={`${item.name} availability`}
+                      />
+
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={`Edit ${item.name}`}
+                        onClick={() =>
+                          setDraft({
+                            id: item.id,
+                            name: item.name,
+                            category: item.category,
+                            price: String(item.price),
+                            available: item.available,
+                          })
+                        }
+                      >
+                        <PencilIcon className="h-4 w-4" />
+                      </Button>
+
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={`Delete ${item.name}`}
+                        onClick={() => setConfirmDelete(item)}
+                      >
+                        <span aria-hidden className="text-xs">
+                          ✕
+                        </span>
+                      </Button>
                     </div>
-
-                    <Switch
-                      checked={item.available}
-                      onCheckedChange={(checked) => onToggle(item, checked)}
-                      aria-label={`${item.name} availability`}
-                    />
-
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      aria-label={`Edit ${item.name}`}
-                      onClick={() =>
-                        setDraft({
-                          id: item.id,
-                          name: item.name,
-                          category: item.category,
-                          price: String(item.price),
-                          available: item.available,
-                        })
-                      }
-                    >
-                      <PencilIcon className="h-4 w-4" />
-                    </Button>
-
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      aria-label={`Delete ${item.name}`}
-                      onClick={() => setConfirmDelete(item)}
-                    >
-                      <span aria-hidden className="text-xs">
-                        ✕
-                      </span>
-                    </Button>
                   </div>
-                </div>
-              </Card>
-            </li>
-          ))}
-        </ul>
-      )}
+                </Card>
+              </li>
+            ))}
+          </ul>
+        )}
+      </TableBoundary>
 
       <Dialog
         open={draft !== null}

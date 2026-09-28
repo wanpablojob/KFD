@@ -11,7 +11,8 @@ import { PageContainer, PageHeader, StatGrid } from "@/components/layout/page";
 import { StatCard } from "@/components/ui/stat-card";
 import { Card, CardHeader } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { EmptyState, LoadingState } from "@/components/ui/status";
+import { EmptyState } from "@/components/ui/status";
+import { TableBoundary } from "@/components/ui/table-boundary";
 import { Button } from "@/components/ui/button";
 import { OrderActions } from "@/components/merchant/order-actions";
 import { NewOrderBanner } from "@/components/merchant/new-order-banner";
@@ -45,13 +46,10 @@ export default function MerchantTodayPage() {
     orders.refetch
   );
 
-  if (orders.loading || menu.loading) {
-    return (
-      <PageContainer>
-        <LoadingState label="Loading your orders…" />
-      </PageContainer>
-    );
-  }
+  // Both fetches feed this page, so both must be covered. Previously an
+  // `if (loading)` early return meant a failure fell through to the empty
+  // states below, which during an outage look exactly like a quiet day.
+  const loadError = orders.error ?? menu.error;
 
   const rows = orders.data ?? [];
   const stats = deriveStats(rows, menu.data ?? []);
@@ -69,99 +67,111 @@ export default function MerchantTodayPage() {
         description="Orders that need you, and what is in the kitchen."
       />
 
-      <StatGrid className="mb-6">
-        <StatCard kpi={stat("Orders today", String(stats.today), "Excludes rejected")} />
-        <StatCard
-          kpi={stat("Revenue today", formatCurrency(stats.todayRevenue), "Order totals")}
-        />
-        <StatCard
-          kpi={stat("Needs action", String(stats.pending), "Waiting on you")}
-        />
-        <StatCard
-          kpi={stat(
-            "Menu live",
-            `${stats.menuLive}/${stats.menuTotal}`,
-            "Available items"
-          )}
-        />
-      </StatGrid>
-
-      <div className="space-y-6">
-        <Card>
-          <CardHeader title="Needs your decision" />
-          <div className="px-5 pb-5">
-            {needsAction.length === 0 ? (
-              <EmptyState
-                title="Nothing waiting"
-                description="New orders appear here the moment they are placed."
-              />
-            ) : (
-              <ul className="divide-y divide-border">
-                {needsAction.map((order) => (
-                  <li key={order.id} className="py-3 first:pt-0 last:pb-0">
-                    <OrderRow order={order} onChanged={orders.refetch} />
-                  </li>
-                ))}
-              </ul>
+      <TableBoundary
+        loading={orders.loading || menu.loading}
+        error={loadError}
+        onRetry={() => {
+          orders.refetch();
+          menu.refetch();
+        }}
+        errorTitle="Could not load your dashboard"
+        skeletonRows={4}
+        skeletonColumns={3}
+      >
+        <StatGrid className="mb-6">
+          <StatCard kpi={stat("Orders today", String(stats.today), "Excludes rejected")} />
+          <StatCard
+            kpi={stat("Revenue today", formatCurrency(stats.todayRevenue), "Order totals")}
+          />
+          <StatCard
+            kpi={stat("Needs action", String(stats.pending), "Waiting on you")}
+          />
+          <StatCard
+            kpi={stat(
+              "Menu live",
+              `${stats.menuLive}/${stats.menuTotal}`,
+              "Available items"
             )}
-          </div>
-        </Card>
+          />
+        </StatGrid>
 
-        <Card>
-          <CardHeader title="In the kitchen" />
-          <div className="px-5 pb-5">
-            {inFlight.length === 0 ? (
-              <EmptyState title="Nothing cooking" />
-            ) : (
-              <ul className="divide-y divide-border">
-                {inFlight.map((order) => (
-                  <li key={order.id} className="py-3 first:pt-0 last:pb-0">
-                    <OrderRow order={order} onChanged={orders.refetch} />
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </Card>
-
-        <Card>
-          <CardHeader title="Recent orders" />
-          <div className="px-5 pb-5">
-            {recent.length === 0 ? (
-              <EmptyState title="No orders yet" />
-            ) : (
-              <ul className="divide-y divide-border">
-                {recent.map((order) => (
-                  <li
-                    key={order.id}
-                    className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0"
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium">
-                        {order.reference} · {order.customer}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {formatDateTime(order.placedAt)}
-                      </p>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-3">
-                      <span className="text-sm font-medium">
-                        {orderLineTotal(order)}
-                      </span>
-                      <StatusBadge status={order.status} />
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-            <div className="mt-4">
-              <Button variant="outline" size="sm" asChild>
-                <Link href="/merchant/orders">See all orders</Link>
-              </Button>
+        <div className="space-y-6">
+          <Card>
+            <CardHeader title="Needs your decision" />
+            <div className="px-5 pb-5">
+              {needsAction.length === 0 ? (
+                <EmptyState
+                  title="Nothing waiting"
+                  description="New orders appear here the moment they are placed."
+                />
+              ) : (
+                <ul className="divide-y divide-border">
+                  {needsAction.map((order) => (
+                    <li key={order.id} className="py-3 first:pt-0 last:pb-0">
+                      <OrderRow order={order} onChanged={orders.refetch} />
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
-          </div>
-        </Card>
-      </div>
+          </Card>
+
+          <Card>
+            <CardHeader title="In the kitchen" />
+            <div className="px-5 pb-5">
+              {inFlight.length === 0 ? (
+                <EmptyState title="Nothing cooking" />
+              ) : (
+                <ul className="divide-y divide-border">
+                  {inFlight.map((order) => (
+                    <li key={order.id} className="py-3 first:pt-0 last:pb-0">
+                      <OrderRow order={order} onChanged={orders.refetch} />
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </Card>
+
+          <Card>
+            <CardHeader title="Recent orders" />
+            <div className="px-5 pb-5">
+              {recent.length === 0 ? (
+                <EmptyState title="No orders yet" />
+              ) : (
+                <ul className="divide-y divide-border">
+                  {recent.map((order) => (
+                    <li
+                      key={order.id}
+                      className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium">
+                          {order.reference} · {order.customer}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {formatDateTime(order.placedAt)}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-3">
+                        <span className="text-sm font-medium">
+                          {orderLineTotal(order)}
+                        </span>
+                        <StatusBadge status={order.status} />
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <div className="mt-4">
+                <Button variant="outline" size="sm" asChild>
+                  <Link href="/merchant/orders">See all orders</Link>
+                </Button>
+              </div>
+            </div>
+          </Card>
+        </div>
+      </TableBoundary>
 
       <NewOrderBanner alert={newOrder} onDismiss={dismissNewOrder} />
     </PageContainer>

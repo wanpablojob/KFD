@@ -8,8 +8,9 @@ import { PageContainer, PageHeader } from "@/components/layout/page";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { SearchIcon } from "@/components/ui/icons";
-import { EmptyState, LoadingState } from "@/components/ui/status";
+import { EmptyState } from "@/components/ui/status";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { TableBoundary } from "@/components/ui/table-boundary";
 import { OrderActions } from "@/components/merchant/order-actions";
 import { NewOrderBanner } from "@/components/merchant/new-order-banner";
 import { useOrderRealtime } from "@/lib/use-order-realtime";
@@ -94,70 +95,80 @@ export default function MerchantOrdersPage() {
         ))}
       </div>
 
-      {orders.loading ? (
-        <LoadingState label="Loading orders…" />
-      ) : rows.length === 0 ? (
-        <EmptyState
-          title="No matching orders"
-          description={
-            query || status !== "all"
-              ? "Try a different filter or search term."
-              : "Orders will show up here once customers start ordering."
-          }
-        />
-      ) : (
-        <ul className="space-y-3">
-          {rows.map((order) => (
-            <li key={order.id}>
-              <Card>
-                <div className="px-5 pb-5">
-                  <div className="space-y-3">
-                    <div className="flex flex-wrap items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-card-foreground">
-                          {order.reference}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {order.customer} · {formatDateTime(order.placedAt)} ·{" "}
-                          {order.payment.replace("_", " ")}
-                        </p>
+      {/* TableBoundary owns loading and error. An earlier `if (loading)` early
+          return meant a failed fetch looked identical to "no orders yet", so a
+          merchant during an outage would believe they were safe. */}
+      <TableBoundary
+        loading={orders.loading}
+        error={orders.error}
+        onRetry={orders.refetch}
+        errorTitle="Could not load your orders"
+        skeletonRows={5}
+        skeletonColumns={3}
+      >
+        {rows.length === 0 ? (
+          <EmptyState
+            title="No matching orders"
+            description={
+              query || status !== "all"
+                ? "Try a different filter or search term."
+                : "Orders will show up here once customers start ordering."
+            }
+          />
+        ) : (
+          <ul className="space-y-3">
+            {rows.map((order) => (
+              <li key={order.id}>
+                <Card>
+                  <div className="px-5 pb-5">
+                    <div className="space-y-3">
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-card-foreground">
+                            {order.reference}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {order.customer} · {formatDateTime(order.placedAt)} ·{" "}
+                            {order.payment.replace("_", " ")}
+                          </p>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-2">
+                          <span className="text-sm font-semibold">
+                            {formatCurrency(order.total)}
+                          </span>
+                          <StatusBadge status={order.status} />
+                        </div>
                       </div>
-                      <div className="flex shrink-0 items-center gap-2">
-                        <span className="text-sm font-semibold">
-                          {formatCurrency(order.total)}
-                        </span>
-                        <StatusBadge status={order.status} />
-                      </div>
+
+                      <ul className="space-y-1 rounded-lg bg-muted/50 px-3 py-2">
+                        {order.items.map((item, i) => (
+                          <li
+                            key={`${order.id}-${i}`}
+                            className="flex items-center justify-between text-xs"
+                          >
+                            <span>
+                              {item.quantity}× {item.name}
+                            </span>
+                            <span className="text-muted-foreground">
+                              {formatCurrency(item.price * item.quantity)}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+
+                      <OrderActions
+                        orderId={order.id}
+                        status={order.status}
+                        onChanged={orders.refetch}
+                      />
                     </div>
-
-                    <ul className="space-y-1 rounded-lg bg-muted/50 px-3 py-2">
-                      {order.items.map((item, i) => (
-                        <li
-                          key={`${order.id}-${i}`}
-                          className="flex items-center justify-between text-xs"
-                        >
-                          <span>
-                            {item.quantity}× {item.name}
-                          </span>
-                          <span className="text-muted-foreground">
-                            {formatCurrency(item.price * item.quantity)}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-
-                    <OrderActions
-                      orderId={order.id}
-                      status={order.status}
-                      onChanged={orders.refetch}
-                    />
                   </div>
-                </div>
-              </Card>
-            </li>
-          ))}
-        </ul>
-      )}
+                </Card>
+              </li>
+            ))}
+          </ul>
+        )}
+      </TableBoundary>
 
       <NewOrderBanner alert={newOrder} onDismiss={dismissNewOrder} />
     </PageContainer>
