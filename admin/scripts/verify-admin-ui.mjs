@@ -443,13 +443,15 @@ await check("3.1", "the search box is a labelled combobox", async () => {
 });
 
 await check("3.1", "a search returns results across more than one entity", async () => {
-  const typed = await ev(`(() => {
+  const focused = await ev(`(() => {
     const el = document.querySelector(${JSON.stringify(COMBOBOX)});
     if (!el) return "missing";
     el.focus();
-    return ${JSON.stringify(setInput(COMBOBOX, SEARCH_TERM))};
+    return document.activeElement === el ? "ok" : "focus-refused";
   })()`);
-  must(typed === '"ok"', `could not type into the search box: ${typed}`);
+  must(focused === "ok", `could not focus the search box: ${focused}`);
+  const typed = await ev(setInput(COMBOBOX, SEARCH_TERM));
+  must(typed === "ok", `could not type into the search box: ${typed}`);
   await waitFor(`document.querySelector('[role="listbox"] [role="option"]')`, {
     timeout: 30_000,
     label: "search results",
