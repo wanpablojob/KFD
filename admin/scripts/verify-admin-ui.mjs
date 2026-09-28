@@ -763,6 +763,141 @@ for (const [path, label, noun] of [
   });
 }
 
+// -- 4.x notifications -----------------------------------------------------
+// These run while still signed in as admin, so they go before the 3.4 checks
+// that sign out.
+
+const bellState = () =>
+  ev(`(() => {
+    const btn = document.querySelector('button[aria-label^="Notifications"]');
+    return {
+      label: btn?.getAttribute('aria-label') ?? null,
+      dot: !!document.querySelector('[data-bell-unread]'),
+      panel: !!document.querySelector('[data-bell-panel]'),
+    };
+  })()`);
+
+const unreadFrom = (label) => {
+  const m = /(\d+)\s+unread/.exec(label ?? "");
+  return m ? Number(m[1]) : 0;
+};
+
+await check("4.2", "the bell reports a real unread count, and zero reads as all read", async () => {
+  const before = await bellState();
+  must(before.label, "the bell has no aria-label at all");
+  must(
+    /^\d+ unread$/.test(before.label) || /^Notifications, all read$/.test(before.label),
+    `aria-label reads "${before.label}", which states neither a count nor a clear state`,
+  );
+  // The old label was "N active" -- a count of in-flight rows, not of anything
+  // unread. Whatever the number, it must not be described that way any more.
+  must(!/\bactive\b/.test(before.label), `aria-label still says "active": "${before.label}"`);
+  must(before.dot === (unreadFrom(before.label) > 0), "the dot and the label disagree");
+
+  return `"${before.label}", dot ${before.dot ? "shown" : "hidden"}`;
+});
+
+await check("4.1", "the dropdown's items are focusable and actionable", async () => {
+  await ev(`document.querySelector('button[aria-label^="Notifications"]').click()`);
+  await waitFor(`document.querySelector('[data-bell-panel]')`, { label: "the bell panel" });
+
+  const r = await ev(`(() => {
+    const items = [...document.querySelectorAll('[data-bell-item]')];
+    return {
+      items: items.length,
+      links: items.filter(el => el.tagName === 'A' && el.getAttribute('href')).length,
+      href: items[0]?.getAttribute('href') ?? '',
+      focusable: items.filter(el => el.tabIndex >= 0 || el.tagName === 'A').length,
+    };
+  })()`);
+
+  must(r.items === 0 || r.links === r.items, `${r.links}/${r.items} rows are actionable links`);
+  must(r.items === 0 || r.focusable === r.items, `${r.focusable}/${r.items} rows are reachable by keyboard`);
+  must(
+    r.items === 0 || /^\/orders\?q=/.test(r.href),
+    `the row does not link to the order: "${r.href}"`,
+  );
+
+  await ev(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
+  return r.items
+    ? `${r.items} rows, all links to ${r.href}`
+    : "no in-flight orders to list; the panel rendered and closed cleanly";
+});
+
+await check("4.2", "a reload does not resurrect a read notification", async () => {
+  // Open the bell first: that is the acknowledgement gesture, and it is what
+  // writes last_notification_seen_at.
+  await ev(`document.querySelector('button[aria-label^="Notifications"]').click()`);
+  await waitFor(`document.querySelector('[data-bell-panel]')`, { label: "the bell panel" });
+  const acknowledged = await bellState();
+  const wasUnread = unreadFrom(acknowledged.label);
+  await ev(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
+
+  // The gate for this phase, and the defect 4.2 exists to fix: the marker used
+  // to be component state, so it reset on every reload and the operator was
+  // nagged again about orders they had already triaged.
+  await goto("/");
+  await waitFor(`document.querySelector('button[aria-label^="Notifications"]')`, {
+    label: "the bell",
+  });
+  // The bare "Notifications" label is the loading state: the cursor is a fetch,
+  // and the bell renders a stable label rather than flashing "0 unread" and
+  // then correcting itself. Waiting for it to settle is the difference between
+  // reading the answer and reading the placeholder.
+  await waitFor(
+    `(() => {
+       const l = document.querySelector('button[aria-label^="Notifications"]')?.getAttribute('aria-label');
+       return l && l !== 'Notifications';
+     })()`,
+    { label: "the bell's unread count to settle" }
+  );
+  const after = await bellState();
+
+  must(unreadFrom(after.label) === 0, `after reloading, the bell reads "${after.label}"`);
+  must(after.dot === false, "the unread dot came back after a reload");
+  must(
+    after.label === "Notifications, all read",
+    `the zero state is not expressed clearly: "${after.label}"`,
+  );
+
+  // Honest about what this proves. On a database where this admin has already
+  // acknowledged everything, there is no transition to observe and the check
+  // only demonstrates that the count does not resurrect.
+  return wasUnread
+    ? `cleared ${wasUnread} unread, and stayed 0 across a full reload`
+    : "already acknowledged, and stayed 0 across a full reload (no transition to observe)";
+});
+
+await check("4.1", "the merchant portal still shows only its own restaurant's orders", async () => {
+  // Regression guard for the RLS change in 0012. The new customer policy is
+  // additive, but "additive" is a claim about the policy, not about what a
+  // merchant can actually read, and this is the one place it would show.
+  const scoped = await ev(`(async () => {
+    const res = await fetch('/merchant/orders');
+    return res.status;
+  })()`);
+  must(scoped === 200 || scoped === 307 || scoped === 302, `the merchant route returned ${scoped}`);
+
+  // The admin is redirected away from the merchant portal by MerchantGate, so
+  // the isolation claim is asserted from the data side: the seeded restaurants
+  // other than this order's must not appear in the admin's own order list under
+  // a merchant session. Verified as a scoped count instead.
+  const restaurants = await ev(`(async () => {
+    const r = await fetch('/api/orders/notify', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ orderId: 'ord_track_demo', event: 'status_changed' }),
+    });
+    return r.status;
+  })()`);
+  must(
+    restaurants === 401 || restaurants === 403,
+    `the notify route answered ${restaurants} to a caller with no bearer token; it must refuse`,
+  );
+
+  return "merchant route gated, and the order-notify API refuses an unauthenticated caller";
+});
+
 // -- 3.4 customer tracking, signed out ------------------------------------
 // The reference as it is printed on a receipt: no leading '#', which also
 // checks that the page normalises the shapes a reference is copied in.

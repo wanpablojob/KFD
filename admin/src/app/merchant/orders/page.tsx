@@ -13,7 +13,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { TableBoundary } from "@/components/ui/table-boundary";
 import { OrderActions } from "@/components/merchant/order-actions";
 import { NewOrderBanner } from "@/components/merchant/new-order-banner";
-import { useOrderRealtime } from "@/lib/use-order-realtime";
+import { useOrderNotifications } from "@/lib/use-order-notifications";
 import { useUserRole } from "@/lib/use-user-role";
 import { formatCurrency, formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -34,7 +34,10 @@ export default function MerchantOrdersPage() {
   const [status, setStatus] = useState<OrderStatus | "all">("all");
   const [query, setQuery] = useState("");
 
-  const { newOrder, dismissNewOrder } = useOrderRealtime(isMerchant, orders.refetch);
+  const { newOrder, dismissNewOrder } = useOrderNotifications(
+    isMerchant,
+    orders.refetch
+  );
 
   const rows = useMemo(() => {
     const all = orders.data ?? [];

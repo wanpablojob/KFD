@@ -469,6 +469,42 @@ jobs:
                   "probably a no-op on an id that already exists"
               )
 
+          # 5. The notification read marker. It writes app_users, which 0011
+          #    closed to writes on purpose, so the interesting property is that
+          #    it can only ever touch the caller's own row. There is no
+          #    user-id parameter to point elsewhere, and this connection has
+          #    auth.uid() = null, so calling it must be a no-op that neither
+          #    updates nor creates a row.
+          if not query(
+              "select has_function_privilege("
+              "'authenticated', 'public.mark_notifications_seen()', 'EXECUTE') as ok"
+          )[0]["ok"]:
+              failures.append("authenticated cannot call mark_notifications_seen")
+
+          # anon has no console to acknowledge anything in, and a writable anon
+          # path here would be a foothold on app_users that 0011 was written to
+          # close.
+          if query(
+              "select has_function_privilege("
+              "'anon', 'public.mark_notifications_seen()', 'EXECUTE') as ok"
+          )[0]["ok"]:
+              failures.append("anon can call mark_notifications_seen")
+
+          before = query("select count(*) as n from app_users")[0]["n"]
+          marked = query("select public.mark_notifications_seen() as at")
+          after = query("select count(*) as n from app_users")[0]["n"]
+
+          if marked and marked[0].get("at") is not None:
+              failures.append(
+                  "mark_notifications_seen returned a timestamp for a caller "
+                  "with no auth.uid()"
+              )
+          if after != before:
+              failures.append(
+                  "mark_notifications_seen created an app_users row for a "
+                  "caller with no auth.uid() (%d -> %d)" % (before, after)
+              )
+
           if failures:
               for f in failures:
                   print("::error::" + f)

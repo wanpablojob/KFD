@@ -16,7 +16,7 @@ import { TableBoundary } from "@/components/ui/table-boundary";
 import { Button } from "@/components/ui/button";
 import { OrderActions } from "@/components/merchant/order-actions";
 import { NewOrderBanner } from "@/components/merchant/new-order-banner";
-import { useOrderRealtime } from "@/lib/use-order-realtime";
+import { useOrderNotifications } from "@/lib/use-order-notifications";
 import { formatCurrency, formatDateTime } from "@/lib/format";
 import type { Order, Kpi } from "@/lib/types";
 
@@ -46,7 +46,7 @@ export default function MerchantTodayPage() {
   // isMerchant is false until the role resolves, which keeps the subscription
   // from opening early. orders.refetch is a stable useCallback, so passing it
   // directly does not re-subscribe on every render.
-  const { newOrder, dismissNewOrder } = useOrderRealtime(
+  const { newOrder, dismissNewOrder } = useOrderNotifications(
     isMerchant,
     orders.refetch
   );

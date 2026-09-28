@@ -18,12 +18,12 @@ const ROLE_LABELS: Record<NonNullable<AppRole>, string> = {
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { data: orders } = useAsyncData(() => fetchOrders());
+  const orders = useAsyncData(() => fetchOrders());
 
   // The role is resolved here, once, and passed down. useAsyncData has no
   // cache, so calling useUserRole() in both Sidebar and Topbar would fire two
   // identical fetchUserRole requests on every page load.
-  const { role, loading: roleLoading } = useUserRole();
+  const { role, loading: roleLoading, isAdmin } = useUserRole();
 
   // `user_metadata` is writable by the user through auth.updateUser(), so it
   // is not an authority and can never label a role. app_users is. An
@@ -45,7 +45,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <div className="flex min-h-screen flex-col lg:pl-60">
         <Topbar
           onMenuClick={() => setSidebarOpen(true)}
-          bell={<NotificationBell orders={orders ?? []} />}
+          // refetch rather than the cached value: the bell's own realtime
+          // channel is what asks for a re-read, which is the same
+          // trigger-to-refetch contract the merchant banner uses.
+          bell={
+            <NotificationBell
+              orders={orders.data ?? []}
+              onOrdersChange={orders.refetch}
+              enabled={isAdmin}
+            />
+          }
           roleLabel={roleLabel}
         />
         <main className="flex-1">{children}</main>

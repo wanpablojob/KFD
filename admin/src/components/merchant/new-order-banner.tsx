@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import type { NewOrderAlert } from "@/lib/use-order-realtime";
+import type { NewOrderAlert } from "@/lib/use-order-notifications";
 import { formatCurrency } from "@/lib/format";
 
 /**
