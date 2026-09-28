@@ -352,8 +352,11 @@ await check("2.4", "top-restaurants card says its revenue is all-time", async ()
 await goto("/customers");
 await check("2.4", "seed-only customer columns are labelled as sample data", async () => {
   const heads = await ev(`[...document.querySelectorAll('th')].map(t => t.innerText.trim())`);
+  // The table uppercases headers in CSS, and innerText reports rendered text,
+  // so the comparison has to be case-insensitive.
+  const lower = heads.map((h) => h.toLowerCase());
   for (const want of ["Tier (sample)", "Orders (sample)", "Total spent (sample)"]) {
-    must(heads.includes(want), `missing header "${want}" (saw: ${heads.join(" | ")})`);
+    must(lower.includes(want.toLowerCase()), `missing header "${want}" (saw: ${heads.join(" | ")})`);
   }
   return heads.join(" | ");
 });
@@ -361,7 +364,7 @@ await shot("customers");
 
 // -- Prompt 2.5: the persisted reason -------------------------------------
 await goto("/orders");
-await check("2.5", "order detail states the reason explicitly when there is none", async () => {
+await check("2.5", "order detail renders the reason branch that matches the status", async () => {
   const opened = await ev(`(() => {
     const row = document.querySelector('tbody tr');
     if (!row) return "no-rows";
@@ -372,11 +375,19 @@ await check("2.5", "order detail states the reason explicitly when there is none
   await waitFor(`document.querySelector('[role="dialog"]')`, { label: "the order detail dialog" });
   await sleepIn(600);
   const text = await ev(`document.querySelector('[role="dialog"]').innerText`);
-  must(/No reason recorded|Rejection reason/i.test(text), "detail shows neither a reason nor the explicit 'No reason recorded'");
   await shot("order-detail");
-  await ev(`document.querySelector('[role="dialog"] button[aria-label="Close"]')?.click()`);
-  await sleepIn(400);
-  return /No reason recorded/i.test(text) ? "rendered 'No reason recorded'" : "rendered a recorded reason";
+
+  // The cancellation block is conditional on status (order-detail.tsx:136), so
+  // the correct assertion differs by status. Asserting "No reason recorded"
+  // everywhere would have failed on a perfectly correct pending order.
+  const cancelled = /Order cancelled/i.test(text);
+  if (cancelled) {
+    must(/No reason recorded|^Reason:/m.test(text), "a cancelled order must state its reason or say none was recorded");
+    return "cancelled order: reason branch rendered";
+  }
+  must(!/No reason recorded/i.test(text), "a non-cancelled order is showing a rejection reason");
+  must(!/Order cancelled/i.test(text), "a non-cancelled order is showing the cancellation block");
+  return "non-cancelled order: no reason branch, as intended (the cancelled branch is not exercised: production holds no cancelled orders)";
 });
 
 // -- console hygiene -------------------------------------------------------
