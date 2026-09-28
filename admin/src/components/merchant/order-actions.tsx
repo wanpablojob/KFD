@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/field";
 import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
 
 const LABELS: Record<MerchantOrderStatus, string> = {
   pending: "Pending",
@@ -39,13 +40,20 @@ const HELP: Record<MerchantOrderStatus, string> = {
   cancelled: "You rejected this order",
 };
 
+/** Matches the server-side cap in /api/orders/notify so UI and API agree. */
+const REASON_MAX = 280;
+
 /**
  * Accept / reject controls for a single order.
  *
- * Rejecting opens a dialog asking for a reason. The reason is not persisted
- * (orders has no column for it) but is shown to the customer in the email, so
- * a rejected order is never unexplained. That is the whole reason the dialog
- * exists rather than a bare button.
+ * Rejecting opens a dialog that requires a reason, because the reason is what
+ * the customer sees in the email. The dialog text promises a rejection is
+ * never unexplained, so an empty reason must not be sendable -- `reason.trim()`
+ * is falsy when blank, which previously produced an unexplained rejection.
+ *
+ * The reason is still NOT persisted: `orders` has no column for it, so it
+ * exists only in the email. Storing it is Prompt 2.5's migration; until then a
+ * later read of this file should not assume the reason can be recovered.
  */
 export function OrderActions({
   orderId,
@@ -74,16 +82,30 @@ export function OrderActions({
 
   async function apply(target: MerchantOrderStatus) {
     setError(null);
+
+    // Enforced here as well as on the button. A disabled button is a UI
+    // affordance, not a guarantee: this function is reachable from other call
+    // sites later, and an empty string is falsy, so the previous code happily
+    // emailed a rejection with no explanation.
+    const trimmed = reason.trim();
+    if (target === "cancelled" && !trimmed) {
+      setError("Add a reason before rejecting this order.");
+      return;
+    }
+
     setPending(target);
     try {
       await setOrderStatus(orderId, target);
 
       // The customer is emailed after the status is durably saved. A failed
       // email is reported but does not roll the status back.
-      const rejection = target === "cancelled" ? reason.trim() : undefined;
-      const notice = await notifyOrder(orderId, "status_changed", rejection);
+      const notice = await notifyOrder(
+        orderId,
+        "status_changed",
+        target === "cancelled" ? trimmed : undefined,
+      );
       if (!notice.ok) {
-        setError(`Saved, but the customer email failed: ${notice.detail}`);
+        setError(notice.detail);
       }
 
       setConfirmReject(false);
@@ -96,6 +118,21 @@ export function OrderActions({
     }
   }
 
+  function openReject() {
+    setError(null);
+    setReason("");
+    setConfirmReject(true);
+  }
+
+  function closeReject() {
+    setError(null);
+    setReason("");
+    setConfirmReject(false);
+  }
+
+  const reasonLength = reason.trim().length;
+  const canReject = reasonLength > 0 && pending === null;
+
   return (
     <>
       <div className={compact ? "flex items-center gap-2" : "space-y-2"}>
@@ -106,7 +143,7 @@ export function OrderActions({
               size="sm"
               variant="destructive"
               disabled={pending !== null}
-              onClick={() => setConfirmReject(true)}
+              onClick={openReject}
             >
               {LABELS[target]}
             </Button>
@@ -126,30 +163,52 @@ export function OrderActions({
         {error ? <p className="text-xs text-destructive">{error}</p> : null}
       </div>
 
-      <Dialog
-        open={confirmReject}
-        onClose={() => setConfirmReject(false)}
-        title="Reject this order?"
-      >
+      <Dialog open={confirmReject} onClose={closeReject} title="Reject this order?">
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">
             The customer is emailed right away. Give a reason so the rejection
             is not unexplained.
           </p>
           <div>
-            <Label htmlFor="reject-reason">Reason</Label>
+            <div className="flex items-baseline justify-between gap-2">
+              <Label htmlFor="reject-reason">Reason</Label>
+              <span
+                className={cn(
+                  "text-xs tabular-nums",
+                  reason.length > REASON_MAX
+                    ? "text-destructive"
+                    : "text-muted-foreground",
+                )}
+              >
+                {reason.length}/{REASON_MAX}
+              </span>
+            </div>
             <Textarea
               id="reject-reason"
               rows={3}
               value={reason}
+              maxLength={REASON_MAX}
               onChange={(e) => setReason(e.target.value)}
               placeholder="Kitchen is too busy, item unavailable…"
+              aria-describedby="reject-reason-help"
             />
+            {/* A bare disabled button with no explanation is its own UX
+                failure, so say what is missing and why. */}
+            <p
+              id="reject-reason-help"
+              className="mt-1.5 text-xs text-muted-foreground"
+              aria-live="polite"
+            >
+              {reasonLength === 0
+                ? "Add a reason to continue. The customer sees this."
+                : "The customer will see this reason in their email."}
+            </p>
           </div>
+          {error ? <p className="text-xs text-destructive">{error}</p> : null}
           <div className="flex justify-end gap-2">
             <Button
               variant="outline"
-              onClick={() => setConfirmReject(false)}
+              onClick={closeReject}
               disabled={pending !== null}
             >
               Keep order
@@ -157,7 +216,7 @@ export function OrderActions({
             <Button
               variant="destructive"
               onClick={() => apply("cancelled")}
-              disabled={pending !== null}
+              disabled={!canReject}
             >
               {pending === "cancelled" ? "Rejecting…" : "Reject order"}
             </Button>
