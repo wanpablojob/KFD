@@ -44,6 +44,11 @@ on:
         type: number
         required: false
         default: 1
+      verify_only:
+        description: "Check the schema without applying anything"
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: read
@@ -150,7 +155,78 @@ jobs:
           supabase db push --linked --dry-run
 
       - name: Apply migrations
-        if: ${{ !inputs.dry_run }}
+        if: ${{ !inputs.dry_run && !inputs.verify_only }}
         run: |
           supabase db push --linked
           echo "::notice::Migrations applied."
+
+      # The migration run reporting success is not proof the schema changed.
+      # `supabase db push` can exit 0 against a database the app does not
+      # actually talk to, and `select *` happily returns a row with a missing
+      # column simply undefined -- so a migration that never landed is
+      # invisible until a filter names the column, at which point PostgREST
+      # answers 400 and the only symptom is a search box that quietly drops
+      # two of its five tables.
+      #
+      # This asserts the columns the app filters on, so that failure mode is
+      # loud and immediate. Uses the management API rather than the CLI, so it
+      # needs only the access token and cannot apply anything.
+      - name: Assert expected schema
+        if: ${{ always() && !inputs.dry_run }}
+        run: |
+          python3 - <<'PY'
+          import json, os, sys, urllib.request
+
+          ref = "ijeqwbrrgfsmymsektih"
+          token = os.environ["SUPABASE_ACCESS_TOKEN"]
+
+          # (table, column, why the app depends on it)
+          expected = [
+              ("restaurants", "archived_at", "archive filter + archive write"),
+              ("riders", "archived_at", "archive filter + archive write"),
+              ("orders", "rejection_reason", "admin order detail read"),
+              ("orders", "items", "order line items read"),
+              ("restaurants", "revenue", "live aggregate trigger target"),
+              ("restaurants", "orders_count", "live aggregate trigger target"),
+          ]
+
+          sql = """
+          select table_name, column_name
+          from information_schema.columns
+          where table_schema = 'public'
+            and (table_name, column_name) in (
+              %s
+            )
+          """ % ", ".join(
+              "('%s', '%s')" % (t, c) for t, c, _ in expected
+          )
+
+          body = json.dumps({"query": sql}).encode()
+          req = urllib.request.Request(
+              "https://api.supabase.com/v1/projects/%s/database/query" % ref,
+              data=body,
+              headers={
+                  "Authorization": "Bearer " + token,
+                  "Content-Type": "application/json",
+              },
+          )
+          with urllib.request.urlopen(req, timeout=60) as resp:
+              found = {(r["table_name"], r["column_name"]) for r in json.load(resp)}
+
+          missing = [(t, c, why) for t, c, why in expected if (t, c) not in found]
+          if missing:
+              for t, c, why in missing:
+                  print("::error::missing column %s.%s -- %s" % (t, c, why))
+              print("::error::The app filters on these columns. A missing one is a")
+              print("::error::400 from PostgREST, not a visible schema error.")
+              sys.exit(1)
+
+          print("::notice::All %d expected columns are present." % len(expected))
+          PY
+
+      - name: Report applied migrations
+        if: ${{ inputs.verify_only }}
+        run: |
+          echo "::group::Migration status"
+          supabase migration list || true
+          echo "::endgroup::"
