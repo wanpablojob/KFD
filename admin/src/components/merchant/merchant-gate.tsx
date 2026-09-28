@@ -5,7 +5,7 @@ import { useEffect } from "react";
 import { signOut, useSessionUser } from "@/lib/auth";
 import { useUserRole } from "@/lib/use-user-role";
 import { LoadingState } from "@/components/ui/status";
-import { MerchantNav } from "./merchant-nav";
+import { MerchantShell } from "./merchant-shell";
 
 const MERCHANT_HOME = "/merchant";
 
@@ -68,9 +68,8 @@ export function MerchantGate({ children }: { children: React.ReactNode }) {
   if (!user || (!isAdmin && !isMerchant)) return null;
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <MerchantNav />
-      <main>{children}</main>
-    </div>
+    <MerchantShell>
+      {children}
+    </MerchantShell>
   );
 }
