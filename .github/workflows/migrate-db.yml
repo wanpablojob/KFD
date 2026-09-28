@@ -1,0 +1,138 @@
+# Apply Supabase database migrations to the linked project.
+#
+# This workflow exists because migrations can only be applied with a direct
+# Postgres connection, which needs `SUPABASE_DB_PASSWORD`. Without it, nobody
+# (including CI and the Supabase CLI) can apply a migration -- every schema
+# change has to be copy-pasted by hand into the dashboard SQL Editor, which is
+# unauditable and easy to get wrong.
+#
+# Deliberate design decisions:
+#   * `workflow_dispatch` ONLY. There is no `push`/`schedule` trigger. A
+#     migration must never be applied as a side effect of a commit landing.
+#   * `environment: production` gates every run behind required reviewers
+#     (configure under Settings -> Environments). This is the actual
+#     permission boundary: it means an unreviewed change cannot reach the
+#     live database without a human approving it.
+#   * `max_pending` defaults to 1. Applying a pile of migrations that nobody
+#     intended to ship is the classic way to break a production database, so
+#     bulk application is opt-in and must be requested deliberately.
+#   * The CLI version is pinned. An unpinned CLI silently pulls new major
+#     versions, which can change migration semantics between runs.
+#
+# Required repository secrets:
+#   SUPABASE_DB_PASSWORD    -- direct Postgres password (dashboard -> Settings -> Database)
+#   SUPABASE_ACCESS_TOKEN   -- personal access token (dashboard -> account -> Access Tokens)
+#
+# Usage:
+#   1. Run with `dry_run: true` first. This prints the SQL without applying it.
+#   2. Re-run with `dry_run: false` to apply.
+
+name: Migrate Database
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Preview only -- print the SQL, apply nothing"
+        type: boolean
+        required: true
+        default: true
+      max_pending:
+        description: >-
+          Refuse to run if more than this many migrations are pending.
+          Raise deliberately, never reflexively.
+        type: number
+        required: false
+        default: 1
+
+permissions:
+  contents: read
+
+concurrency:
+  # Never let two migration runs overlap.
+  group: migrate-db
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    name: Apply migrations
+    runs-on: ubuntu-latest
+
+    # The approval gate. `environment` is only honoured on a job, never at
+    # workflow level -- a top-level key is silently ignored, which would run
+    # migrations against production with no human in the loop.
+    # Configure required reviewers: Settings -> Environments -> production.
+    environment: production
+    defaults:
+      run:
+        working-directory: admin
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: 2.117.0
+          token: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+
+      - name: Initialise local Supabase config
+        # `config.toml` is gitignored, so it is absent on a fresh runner.
+        # `init` only writes the file; it does not touch existing migrations.
+        run: |
+          if [ ! -f supabase/config.toml ]; then
+            echo "config.toml missing -- running supabase init"
+            supabase init
+          else
+            echo "config.toml already present"
+          fi
+
+      - name: Link to project
+        # Ref is hard-coded on purpose. A workflow that accepts a project ref
+        # as input could be pointed at a different database by anyone who can
+        # dispatch it.
+        env:
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: supabase link --project-ref ijeqwbrrgfsmymsektih
+
+      - name: Report migration status
+        env:
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          echo "::group::Migration status (local | remote)"
+          supabase migration list || true
+          echo "::endgroup::"
+
+          pending=$(supabase migration list 2>/dev/null \
+            | awk -F'|' '$3 ~ /^\s*[0-9]+\s*$/ { c++ } END { print c+0 }')
+
+          echo "Pending migrations: ${pending}"
+          limit=${{ inputs.max_pending }}
+
+          if [ "$pending" -gt "$limit" ]; then
+            echo "::error::${pending} migrations are pending but max_pending is ${limit}."
+            echo "::error::Either re-run with a higher max_pending, or investigate why"
+            echo "::error::unexpected migrations are pending before applying anything."
+            exit 1
+          fi
+
+          if [ "$pending" -eq 0 ]; then
+            echo "::warning::Nothing to apply -- the database is already up to date."
+          fi
+
+      - name: Preview migrations
+        if: ${{ inputs.dry_run }}
+        env:
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          echo "Dry run: no changes will be made."
+          supabase db push --linked --dry-run
+
+      - name: Apply migrations
+        if: ${{ !inputs.dry_run }}
+        env:
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          supabase db push --linked
+          echo "::notice::Migrations applied."
