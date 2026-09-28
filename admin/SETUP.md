@@ -69,6 +69,47 @@ customer email was not sent".
 
 ---
 
+## 1a. Getting `NEXT_PUBLIC_SUPABASE_URL` right  (this one bites)
+
+This has to be the **Project URL**, with nothing after the host:
+
+```
+https://ijeqwbrrgfsmymsektih.supabase.co        correct
+https://ijeqwbrrgfsmymsektih.supabase.co/rest/v1   wrong
+```
+
+Supabase's API settings page shows both, and the wrong one is the one quoted
+in most of their documentation and quickstart snippets. If you copy the REST
+URL, the Supabase client appends its own paths to it and every request is
+built twice over:
+
+| You set | The app requests |
+| --- | --- |
+| Project URL | `/auth/v1/token`, `/rest/v1/app_users` |
+| REST URL | `/rest/v1/auth/v1/token`, `/rest/v1/rest/v1/app_users` |
+
+The symptom is a **404** on sign-in, and PostgREST's
+`Invalid path specified in request URL`. It is easy to misread as a bad API
+key or a broken session, because nothing about it points at the URL.
+
+The tell: it works locally and fails in production. `.env.local` and the
+GitHub secret are two separate settings, and only one of them gets fixed.
+
+To tell the two apart in a live build, the value is public, so you can read
+it straight out of the shipped JavaScript:
+
+```sh
+curl -s https://kfd-one.vercel.app/login \
+  | grep -oE 'src="[^"]+\.js"' | sed 's/src="//;s/"//' | sort -u \
+  | while read -r c; do curl -s "https://kfd-one.vercel.app$c"; done \
+  | grep -oE '"https://ijeqwbrrgfsmymsektih\.supabase\.co[^"]*"' | sort -u
+```
+
+Exactly one match, ending at the host, is correct. A match containing
+`/rest/v1` means the secret needs correcting.
+
+---
+
 ## 3. Confirm your admin login  (do this soon)
 
 Tightening the RLS policies meant every account needed a row in `app_users`.
