@@ -9,6 +9,15 @@
 # value and delta describe different periods) are invisible to typecheck, lint,
 # `next build` and unit tests. Only a rendered page shows them.
 #
+# Why it serves the app itself rather than pointing at the deployment: three
+# consecutive runs failed because the runner got a persistent HTTP 404 for the
+# whole site while the same URLs returned 200 from another region. That is
+# GitHub's runner IP ranges being refused at Vercel's edge, not a deploy
+# problem, and it made the workflow a coin flip. Building and serving here keeps
+# it deterministic while still exercising the real components, the real RLS
+# policies and a real admin sign-in -- the app talks to the same Supabase
+# project either way. Pass `base_url` to run against a deployment instead.
+#
 # The script drives Chrome over CDP using the WebSocket built into Node 22, so
 # this adds no dependency to admin/package.json.
 
@@ -18,9 +27,9 @@ on:
   workflow_dispatch:
     inputs:
       base_url:
-        description: Deployment to verify
+        description: Verify this deployment instead of a locally served build
         required: false
-        default: https://kfd-one.vercel.app
+        default: ""
 
 permissions:
   contents: read
@@ -32,13 +41,15 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
 
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
+          cache-dependency-path: admin/package-lock.json
 
       # ubuntu-latest ships Chrome; fail loudly rather than silently skipping if
       # that ever stops being true.
@@ -55,7 +66,7 @@ jobs:
           echo "No Chrome or Chromium binary on the runner." >&2
           exit 1
 
-      - name: Keep the password out of the log
+      - name: Keep the credentials out of the log
         env:
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
           ADMIN_USER: ${{ secrets.ADMIN_USER }}
@@ -65,14 +76,50 @@ jobs:
           echo "::add-mask::${ADMIN_PASSWORD}"
           echo "::add-mask::${ADMIN_USER}"
           test -n "${ADMIN_PASSWORD}" || { echo "ADMIN_PASSWORD secret is empty." >&2; exit 1; }
+          test -n "${ADMIN_USER}" || { echo "ADMIN_USER secret is empty." >&2; exit 1; }
+
+      - name: Install dependencies
+        working-directory: admin
+        run: npm ci
+
+      - name: Build
+        working-directory: admin
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+        run: npm run build
+
+      - name: Serve the build
+        working-directory: admin
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          set -euo pipefail
+          nohup npm start -- --port 3111 > "$RUNNER_TEMP/kfd-serve.log" 2>&1 &
+          echo "SERVER_PID=$!" >> "$GITHUB_ENV"
+          for i in $(seq 1 60); do
+            if curl -fsS -o /dev/null "http://localhost:3111/login"; then
+              echo "serving on 3111"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "server never came up:" >&2
+          cat "$RUNNER_TEMP/kfd-serve.log" >&2
+          exit 1
 
       - name: Drive the admin UI
         env:
           ADMIN_USER: ${{ secrets.ADMIN_USER }}
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
-          BASE_URL: ${{ inputs.base_url }}
+          BASE_URL: ${{ inputs.base_url || 'http://localhost:3111' }}
           CHROME_BIN: ${{ env.CHROME_BIN }}
         run: node admin/scripts/verify-admin-ui.mjs
+
+      - name: Stop the server
+        if: always()
+        run: kill "$SERVER_PID" 2>/dev/null || true
 
       - name: Upload screenshots
         if: always()
