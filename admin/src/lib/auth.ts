@@ -9,12 +9,30 @@ export interface SessionState {
   user: User | null;
 }
 
+/**
+ * Supabase reports "no such account" and "wrong password" as distinguishable
+ * messages in some responses. Echoing that back turns the login form into an
+ * account-enumeration oracle, so collapse them into one reply that reveals
+ * nothing about which half was wrong.
+ */
+const CREDENTIAL_FAILURES = ["invalid login credentials", "email not confirmed"];
+
 export async function signInWithPassword(email: string, password: string) {
   const { data, error } = await supabase.auth.signInWithPassword({
     email,
     password,
   });
-  if (error) throw error;
+
+  if (error) {
+    const detail = error.message.toLowerCase();
+
+    if (CREDENTIAL_FAILURES.some((failure) => detail.includes(failure))) {
+      throw new Error("Incorrect email or password.");
+    }
+
+    throw error;
+  }
+
   return data;
 }
 

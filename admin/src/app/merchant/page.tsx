@@ -5,7 +5,7 @@ import {
   fetchMerchantMenu,
   fetchMerchantOrders,
 } from "@/lib/supabase/merchant-queries";
-import { useMerchantAccess } from "@/lib/use-merchant-access";
+import { useUserRole } from "@/lib/use-user-role";
 import { useAsyncData } from "@/lib/use-async-data";
 import { PageContainer, PageHeader, StatGrid } from "@/components/layout/page";
 import { StatCard } from "@/components/ui/stat-card";
@@ -31,7 +31,7 @@ function orderLineTotal(order: Order): string {
 }
 
 export default function MerchantTodayPage() {
-  const { restaurantName } = useMerchantAccess();
+  const { restaurantName } = useUserRole();
   const orders = useAsyncData(() => fetchMerchantOrders());
   const menu = useAsyncData(() => fetchMerchantMenu());
 

@@ -12,13 +12,24 @@ export interface AsyncDataResult<T> extends AsyncState<T> {
   refetch: () => void;
 }
 
-export function useAsyncData<T>(fetcher: () => Promise<T>): AsyncDataResult<T> {
+/**
+ * `key` re-runs the fetcher when it changes, without spreading a variable
+ * length array into the dependency list. Use it when the fetcher closes over
+ * something that resolves late, such as the session user id.
+ */
+export function useAsyncData<T>(
+  fetcher: () => Promise<T>,
+  key: string | number = 0,
+): AsyncDataResult<T> {
   const [state, setState] = useState<AsyncState<T>>({
     data: null,
     loading: true,
     error: null,
   });
 
+  // Captured once: the fetcher is a stable inline arrow in every caller, and
+  // `key` is what re-runs it. Reading .current during render is also a lint
+  // error under the React compiler rules.
   const [runner] = useState(() => ({ current: fetcher }));
   const [tick, setTick] = useState(0);
 
@@ -44,7 +55,7 @@ export function useAsyncData<T>(fetcher: () => Promise<T>): AsyncDataResult<T> {
     return () => {
       active = false;
     };
-  }, [runner, tick]);
+  }, [key, tick, runner]);
 
   const refetch = useCallback(() => setTick((t) => t + 1), []);
 

@@ -9,7 +9,13 @@ import { DirectionsIcon } from "@/components/ui/icons";
 
 gsap.registerPlugin(useGSAP);
 
-export function LoginPage() {
+export function LoginPage({
+  next,
+  message,
+}: {
+  next: string | null;
+  message: string | null;
+}) {
   const scope = useRef<HTMLDivElement>(null);
 
   useGSAP(
@@ -160,7 +166,7 @@ export function LoginPage() {
             className="h-11 w-11 rounded-xl bg-white/90 object-contain p-1 shadow-lg shadow-black/50"
           />
           <span className="text-xl font-bold tracking-tight text-white">
-            KFD <span className="font-medium text-amber-300">Admin</span>
+            KFD <span className="font-medium text-amber-300">Portal</span>
           </span>
         </div>
 
@@ -168,18 +174,18 @@ export function LoginPage() {
           <div className="rounded-2xl border border-border/80 bg-white/95 p-8 shadow-[0_24px_60px_-24px_rgba(0,0,0,0.5)] backdrop-blur-xl xl:p-9">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-foreground/[0.04] px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               <DirectionsIcon className="h-3 w-3 text-[#b90e1f]" />
-              Staff portal
+              Admin &amp; merchant
             </span>
             <h1 className="mt-4 text-2xl font-bold tracking-tight text-foreground">
               Welcome back
             </h1>
             <p className="mt-2 text-sm text-muted-foreground">
-              Sign in to access the Kabankalan Food Delivery operations
-              console.
+              Sign in to the Kabankalan Food Delivery console. You will land on
+              the dashboard that matches your account.
             </p>
 
             <div className="mt-8">
-              <LoginForm />
+              <LoginForm next={next} message={message} />
             </div>
 
             <div className="mt-6 flex items-center gap-3">

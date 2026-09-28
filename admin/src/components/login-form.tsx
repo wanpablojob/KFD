@@ -2,27 +2,44 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { signInWithPassword } from "@/lib/auth";
+import { signInWithPassword, signOut } from "@/lib/auth";
+import { safeNextPath } from "@/lib/safe-next";
+import { fetchUserRole } from "@/lib/role";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
-import { Checkbox } from "./ui/checkbox";
 import { Label } from "./ui/field";
 import { EyeIcon, EyeOffIcon, LockIcon, MailIcon, ShieldIcon } from "./ui/icons";
-import { cn } from "@/lib/utils";
 
-export function LoginForm() {
+const NOT_PROVISIONED =
+  "This account is not linked to an admin or a restaurant yet. Contact the KFD team.";
+const NO_RESTAURANT =
+  "Your merchant account has no restaurant attached. Contact the KFD team.";
+
+/**
+ * One sign-in form for both roles. After the password is accepted it resolves
+ * app_users and sends the user to the console their role actually permits,
+ * rather than dropping everyone at / and letting the gates bounce half of
+ * them. Both gates still re-check the role, so this routing is convenience
+ * rather than the access control.
+ */
+export function LoginForm({
+  next,
+  message,
+}: {
+  next: string | null;
+  message: string | null;
+}) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
-  const [form, setForm] = useState({ email: "", password: "", remember: false });
+  const [form, setForm] = useState({ email: "", password: "" });
+
+  const target = safeNextPath(next);
 
   function handleChange(event: React.ChangeEvent<HTMLInputElement>) {
-    const { name, value, type, checked } = event.target;
-    setForm((f) => ({
-      ...f,
-      [name]: type === "checkbox" ? checked : value,
-    }));
+    const { name, value } = event.target;
+    setForm((f) => ({ ...f, [name]: value }));
   }
 
   async function handleSubmit(event: React.FormEvent) {
@@ -35,9 +52,27 @@ export function LoginForm() {
     }
 
     setLoading(true);
+
     try {
       await signInWithPassword(form.email, form.password);
-      router.replace("/");
+      const { role, restaurantId } = await fetchUserRole();
+
+      if (role === "admin") {
+        router.replace(target ?? "/");
+        return;
+      }
+
+      if (role === "merchant" && restaurantId) {
+        router.replace(target ?? "/merchant");
+        return;
+      }
+
+      // The password was valid but the account has no permitted surface. Drop
+      // the session so the browser is not left holding credentials that can
+      // only ever fail.
+      await signOut().catch(() => {});
+      setError(role === "merchant" ? NO_RESTAURANT : NOT_PROVISIONED);
+      setLoading(false);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Unable to sign in. Please try again.",
@@ -106,10 +141,14 @@ export function LoginForm() {
         </div>
       </div>
 
-      <label className="flex cursor-pointer items-center gap-2.5 text-sm text-muted-foreground">
-        <Checkbox name="remember" checked={form.remember} onChange={handleChange} />
-        Keep me signed in
-      </label>
+      {message && !error ? (
+        <p
+          role="status"
+          className="rounded-lg border border-warning/30 bg-warning/5 px-3 py-2 text-sm text-foreground"
+        >
+          {message}
+        </p>
+      ) : null}
 
       {error ? (
         <p
@@ -121,12 +160,12 @@ export function LoginForm() {
       ) : null}
 
       <Button type="submit" className="h-11 w-full" size="lg" loading={loading}>
-        {loading ? "Signing in…" : "Sign in to console"}
+        {loading ? "Signing in…" : "Sign in"}
       </Button>
 
       <p className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground/80">
         <ShieldIcon
-          className={cn("h-3.5 w-3.5", loading ? "animate-pulse" : "")}
+          className={`h-3.5 w-3.5 ${loading ? "animate-pulse" : ""}`}
         />
         Credentials are verified by Supabase Auth
       </p>

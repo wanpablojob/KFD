@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import { signOut, useSessionUser } from "@/lib/auth";
-import { useMerchantAccess } from "@/lib/use-merchant-access";
+import { useUserRole } from "@/lib/use-user-role";
 import { Button } from "@/components/ui/button";
 import {
   LayoutDashboardIcon,
@@ -29,7 +29,7 @@ export function MerchantNav() {
   const pathname = usePathname();
   const router = useRouter();
   const { user } = useSessionUser();
-  const { restaurantName } = useMerchantAccess();
+  const { restaurantName } = useUserRole();
   const [busy, setBusy] = useState(false);
 
   const isActive = (href: string) =>
@@ -45,7 +45,7 @@ export function MerchantNav() {
       // A failed sign-out must still send the user away; the AuthGate on the
       // next page will resolve the real session state.
     }
-    router.replace("/merchant/login");
+    router.replace("/login");
   }
 
   return (

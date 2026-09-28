@@ -2,39 +2,62 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
-import { useSessionUser } from "@/lib/auth";
-import { useMerchantAccess } from "@/lib/use-merchant-access";
+import { signOut, useSessionUser } from "@/lib/auth";
+import { useUserRole } from "@/lib/use-user-role";
 import { LoadingState } from "@/components/ui/status";
 import { MerchantNav } from "./merchant-nav";
 
+const MERCHANT_HOME = "/merchant";
+
 /**
  * Gates the merchant area on two conditions: a live session, and a role that
- * is allowed here. An authenticated user with no app_users row is signed out
- * rather than shown an empty dashboard, because a merchant with no restaurant
- * can do nothing and the empty state would just look broken.
+ * is allowed here. Admins are let through so the portal can be reviewed from
+ * the operations console.
+ *
+ * An account with no app_users row, or a merchant row with no restaurant
+ * attached, is signed out rather than shown an empty dashboard, because there
+ * is nothing that account can do and the empty state would just look broken.
+ *
+ * Failed lookups are not treated as "no access": a network blip should not
+ * sign a merchant out mid-shift.
  */
 export function MerchantGate({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { user, loading: authLoading } = useSessionUser();
-  const access = useMerchantAccess();
+  const {
+    loading: roleLoading,
+    isAdmin,
+    isMerchant,
+    provisioned,
+    error,
+  } = useUserRole();
 
   useEffect(() => {
-    if (authLoading || access.loading) return;
+    if (authLoading) return;
 
     if (!user) {
-      router.replace("/merchant/login");
+      router.replace(`/login?next=${encodeURIComponent(MERCHANT_HOME)}`);
       return;
     }
 
-    if (!access.granted) {
-      // Valid session, no provisioned access. Sign out so the browser does not
-      // keep a session that can only ever render an error.
-      void import("@/lib/auth").then(({ signOut }) => signOut().catch(() => {}));
-      router.replace("/merchant/login?error=no-access");
-    }
-  }, [authLoading, access.loading, access.granted, user, router]);
+    if (roleLoading) return;
 
-  if (authLoading || access.loading) {
+    if (error) {
+      router.replace(`/login?error=lookup-failed&next=${encodeURIComponent(MERCHANT_HOME)}`);
+      return;
+    }
+
+    if (isAdmin || isMerchant) return;
+
+    void signOut().catch(() => {});
+    router.replace(
+      provisioned
+        ? `/login?error=no-restaurant&next=${encodeURIComponent(MERCHANT_HOME)}`
+        : `/login?error=not-provisioned&next=${encodeURIComponent(MERCHANT_HOME)}`
+    );
+  }, [authLoading, user, roleLoading, isAdmin, isMerchant, provisioned, error, router]);
+
+  if (authLoading || (user && roleLoading)) {
     return (
       <div className="min-h-screen bg-background">
         <LoadingState label="Checking merchant access…" />
@@ -42,7 +65,7 @@ export function MerchantGate({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!user || !access.granted) return null;
+  if (!user || (!isAdmin && !isMerchant)) return null;
 
   return (
     <div className="min-h-screen bg-background text-foreground">

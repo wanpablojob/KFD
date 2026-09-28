@@ -1,4 +1,5 @@
 import { supabase } from "./client";
+import { fetchUserRole } from "@/lib/role";
 import type { MenuItem, Order, OrderItem } from "@/lib/types";
 import type { DbRecord } from "./queries";
 
@@ -17,52 +18,9 @@ export type { DbRecord };
 
 export type { Order, MenuItem } from "@/lib/types";
 
-export interface MerchantProfile {
-  role: "admin" | "merchant";
-  restaurantId: string | null;
-  restaurantName: string | null;
-}
-
 function mapItems(raw: unknown): OrderItem[] {
   if (!Array.isArray(raw)) return [];
   return raw as OrderItem[];
-}
-
-/** The signed-in user's role and the restaurant they are attached to. */
-export async function fetchMerchantProfile(): Promise<MerchantProfile> {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) return { role: "merchant", restaurantId: null, restaurantName: null };
-
-  const { data, error } = await supabase
-    .from("app_users")
-    .select("role, restaurant_id")
-    .eq("user_id", user.id)
-    .maybeSingle();
-
-  if (error) throw new Error(error.message);
-
-  if (!data) {
-    // Authenticated but not provisioned. Treat as a merchant with no
-    // restaurant so the UI shows "no access" rather than an error.
-    return { role: "merchant", restaurantId: null, restaurantName: null };
-  }
-
-  const restaurantId = (data.restaurant_id as string | null) ?? null;
-  let restaurantName: string | null = null;
-
-  if (restaurantId) {
-    const { data: restaurant } = await supabase
-      .from("restaurants")
-      .select("name")
-      .eq("id", restaurantId)
-      .maybeSingle();
-    restaurantName = (restaurant?.name as string | null) ?? null;
-  }
-
-  return { role: data.role as "admin" | "merchant", restaurantId, restaurantName };
 }
 
 export async function fetchMerchantOrders(): Promise<Order[]> {
@@ -159,7 +117,7 @@ export async function saveMenuItem(
   id: string | null,
   input: MerchantMenuItemInput
 ): Promise<void> {
-  const profile = await fetchMerchantProfile();
+  const profile = await fetchUserRole();
   if (!profile.restaurantId) {
     throw new Error("Your account is not attached to a restaurant yet.");
   }

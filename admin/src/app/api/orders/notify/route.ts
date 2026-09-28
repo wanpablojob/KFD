@@ -52,7 +52,7 @@ function serviceClient() {
 
 export async function POST(req: Request) {
   const body = (await req.json().catch(() => ({}))) as NotifyBody;
-  const { orderId, event, reason } = body;
+  const { orderId, event } = body;
 
   if (!orderId || !event) {
     return NextResponse.json(
@@ -60,6 +60,11 @@ export async function POST(req: Request) {
       { status: 400 }
     );
   }
+
+  // The reason is written into the email body, so cap it here as well as
+  // escaping it downstream: a bound on length is cheaper than letting an
+  // authenticated caller push arbitrary bulk through the mail provider.
+  const reason = typeof body.reason === "string" ? body.reason.slice(0, 280) : undefined;
 
   const authHeader = req.headers.get("authorization") ?? "";
   const token = authHeader.replace(/^Bearer\s+/i, "");
@@ -139,6 +144,15 @@ export async function POST(req: Request) {
   };
 
   if (event === "placed") {
+    // Only an admin may assert that a new order exists. A merchant already
+    // attached to the restaurant passes the check above, and letting them
+    // call this would let them fabricate "new order" mail to their own
+    // customers. The real caller is the (future) customer app, which will
+    // place the insert and this notification in one server-side call.
+    if (!isAdmin) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     if (!order.restaurant_id) {
       return NextResponse.json(
         { skipped: "order has no restaurant_id" },
