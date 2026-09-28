@@ -288,3 +288,32 @@ export function UserCogIcon(props: IconProps) {
     </svg>
   );
 }
+
+/**
+ * The Google brand mark. Deliberately not stroke-based like the rest of this
+ * set: it renders the brand's own four-colour G, which is how users recognise
+ * the button, not as a monochrome glyph. viewBox is overridden to the brand's
+ * 18x18 grid.
+ */
+export function GoogleIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 18 18" aria-hidden="true" {...props}>
+      <path
+        fill="#4285F4"
+        d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84c-.21 1.14-.85 2.1-1.81 2.75v2.29h2.93c1.72-1.58 2.7-3.9 2.7-6.68z"
+      />
+      <path
+        fill="#34A853"
+        d="M9 18c2.43 0 4.46-.8 5.96-2.18l-2.93-2.29c-.81.54-1.85.86-3.03.86-2.33 0-4.3-1.57-5-3.69H.96v2.36A8.96 8.96 0 0 0 9 18z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M4 10.7a5.38 5.38 0 0 1 0-3.4V4.94H.96a8.99 8.99 0 0 0 0 8.12z"
+      />
+      <path
+        fill="#EA4335"
+        d="M9 3.58c1.32 0 2.51.45 3.44 1.35l2.58-2.58C13.44.89 11.43 0 9 0A8.96 8.96 0 0 0 .96 4.94L4 7.3C5 5.15 6.67 3.58 9 3.58z"
+      />
+    </svg>
+  );
+}

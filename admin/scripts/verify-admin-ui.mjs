@@ -957,7 +957,39 @@ await check("3.4", "a legacy sequential reference is not publicly trackable", as
   return "KFD-1001 exists but is refused to a signed-out caller";
 });
 
-// -- console hygiene -------------------------------------------------------
+await check("auth", "the login page offers Google sign-in alongside email", async () => {
+  // 3.4 left us signed out, which is exactly the state /login is for.
+  await goto("/login");
+  await waitFor(`document.querySelector('button[type="submit"]')`, {
+    label: "the login form",
+  });
+
+  const login = await ev(`(() => {
+    const buttons = [...document.querySelectorAll('form button')];
+    const google = buttons.find((b) => b.textContent.trim().toLowerCase().includes('google'));
+    const email = document.querySelector('input[type="email"]');
+    const password = document.querySelector('input[type="password"]');
+    return {
+      google: !!google,
+      googleLabel: google?.textContent.trim() ?? '',
+      googleSubmittable: !!google && google.tagName === 'BUTTON' && google.tabIndex >= 0,
+      emailPresent: !!email,
+      passwordPresent: !!password,
+    };
+  })()`);
+
+  must(login.google, "no Continue-with-Google button rendered");
+  must(
+    /continue with google/i.test(login.googleLabel),
+    `the Google control does not identify itself: "${login.googleLabel}"`,
+  );
+  // Email sign-in must survive: Google is an addition, not a replacement.
+  must(login.googleSubmittable, "the Google control is not a focusable button");
+  must(login.emailPresent && login.passwordPresent, "email sign-in disappeared from the login page");
+
+  return `Google button present, focusable, and the password form is still there`;
+});
+
 await check("hygiene", "no console errors during the sweep", async () => {
   const real = consoleErrors.filter((t) => !/favicon|Download the React DevTools/i.test(t));
   const withUrl = failedResponses.length

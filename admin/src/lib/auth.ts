@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "./supabase/client";
+import { safeNextPath } from "./safe-next";
 
 export type AuthUser = User;
 
@@ -32,6 +33,39 @@ export async function signInWithPassword(email: string, password: string) {
 
     throw error;
   }
+
+  return data;
+}
+
+/**
+ * Start the Google OAuth exchange using the default implicit flow.
+ *
+ * The provider redirects the browser to the callback page with the session
+ * tokens in the URL hash; the browser client's `detectSessionInUrl` (on by
+ * default) picks them up, and that page routes the user by role the same way
+ * the password form does. The `?next=` param rides along in the query string
+ * so a deep link survives the round trip, and is run through safeNextPath on
+ * arrival like every other post-login redirect.
+ *
+ * `redirectTo` has to be absolute and must be listed in the project's Supabase
+ * Auth redirect allowlist, alongside the local dev origin.
+ */
+export async function signInWithGoogle(next: string | null) {
+  if (typeof window === "undefined") {
+    throw new Error("Google sign-in is not available during server rendering.");
+  }
+
+  const target = safeNextPath(next);
+  const query = target ? `?next=${encodeURIComponent(target)}` : "";
+
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: "google",
+    options: {
+      redirectTo: `${window.location.origin}/auth/callback${query}`,
+    },
+  });
+
+  if (error) throw error;
 
   return data;
 }

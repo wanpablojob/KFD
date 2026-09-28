@@ -2,13 +2,13 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { signInWithPassword, signOut } from "@/lib/auth";
+import { signInWithGoogle, signInWithPassword, signOut } from "@/lib/auth";
 import { safeNextPath } from "@/lib/safe-next";
-import { fetchUserRole } from "@/lib/role";
+import { resolveRoleTarget } from "@/lib/role";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/field";
-import { EyeIcon, EyeOffIcon, LockIcon, MailIcon, ShieldIcon } from "./ui/icons";
+import { EyeIcon, EyeOffIcon, GoogleIcon, LockIcon, MailIcon, ShieldIcon } from "./ui/icons";
 
 const NOT_PROVISIONED =
   "This account is not linked to an admin or a restaurant yet. Contact the KFD team.";
@@ -42,6 +42,24 @@ export function LoginForm({
     setForm((f) => ({ ...f, [name]: value }));
   }
 
+  async function handleGoogle() {
+    setError(null);
+    setLoading(true);
+
+    try {
+      // signInWithOAuth navigates the browser to the provider; there is no
+      // success to await on this side beyond starting the exchange.
+      await signInWithGoogle(target);
+      // If no navigation happened, the provider rejected the request (e.g.
+      // Google is not enabled in Supabase Auth yet) and the call threw.
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Unable to start Google sign-in.",
+      );
+      setLoading(false);
+    }
+  }
+
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     setError(null);
@@ -55,15 +73,10 @@ export function LoginForm({
 
     try {
       await signInWithPassword(form.email, form.password);
-      const { role, restaurantId } = await fetchUserRole();
+      const { path, role } = await resolveRoleTarget(target);
 
-      if (role === "admin") {
-        router.replace(target ?? "/");
-        return;
-      }
-
-      if (role === "merchant" && restaurantId) {
-        router.replace(target ?? "/merchant");
+      if (path) {
+        router.replace(path);
         return;
       }
 
@@ -83,6 +96,28 @@ export function LoginForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
+      <div className="space-y-6">
+        <Button
+          type="button"
+          variant="outline"
+          size="lg"
+          className="h-11 w-full gap-2.5"
+          loading={loading}
+          onClick={handleGoogle}
+        >
+          <GoogleIcon className="h-4.5 w-4.5" />
+          Continue with Google
+        </Button>
+
+        <div className="flex items-center gap-3" aria-hidden="true">
+          <span className="h-px flex-1 bg-border" />
+          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground/70">
+            or
+          </span>
+          <span className="h-px flex-1 bg-border" />
+        </div>
+      </div>
+
       <div>
         <Label htmlFor="email">Email address</Label>
         <div className="relative">

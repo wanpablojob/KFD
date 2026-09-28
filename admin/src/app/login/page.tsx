@@ -17,6 +17,8 @@ const MESSAGES: Record<string, string> = {
     "Your merchant account has no restaurant attached. Contact the KFD team.",
   "lookup-failed":
     "We could not verify your access just now. Check your connection and try again.",
+  "oauth-failed":
+    "Google sign-in was cancelled or could not be completed. Use your email and password to sign in instead.",
 };
 
 export default async function LoginPage({ searchParams }: PageProps<"/login">) {
