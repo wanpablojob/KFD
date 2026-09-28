@@ -14,6 +14,8 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { EmptyState, LoadingState } from "@/components/ui/status";
 import { Button } from "@/components/ui/button";
 import { OrderActions } from "@/components/merchant/order-actions";
+import { NewOrderBanner } from "@/components/merchant/new-order-banner";
+import { useOrderRealtime } from "@/lib/use-order-realtime";
 import { formatCurrency, formatDateTime } from "@/lib/format";
 import type { Order, Kpi } from "@/lib/types";
 
@@ -31,9 +33,17 @@ function orderLineTotal(order: Order): string {
 }
 
 export default function MerchantTodayPage() {
-  const { restaurantName } = useUserRole();
+  const { restaurantName, isMerchant } = useUserRole();
   const orders = useAsyncData(() => fetchMerchantOrders());
   const menu = useAsyncData(() => fetchMerchantMenu());
+
+  // isMerchant is false until the role resolves, which keeps the subscription
+  // from opening early. orders.refetch is a stable useCallback, so passing it
+  // directly does not re-subscribe on every render.
+  const { newOrder, dismissNewOrder } = useOrderRealtime(
+    isMerchant,
+    orders.refetch
+  );
 
   if (orders.loading || menu.loading) {
     return (
@@ -83,7 +93,7 @@ export default function MerchantTodayPage() {
             {needsAction.length === 0 ? (
               <EmptyState
                 title="Nothing waiting"
-                description="New orders will appear here and email you."
+                description="New orders appear here the moment they are placed."
               />
             ) : (
               <ul className="divide-y divide-border">
@@ -152,6 +162,8 @@ export default function MerchantTodayPage() {
           </div>
         </Card>
       </div>
+
+      <NewOrderBanner alert={newOrder} onDismiss={dismissNewOrder} />
     </PageContainer>
   );
 }

@@ -11,6 +11,9 @@ import { SearchIcon } from "@/components/ui/icons";
 import { EmptyState, LoadingState } from "@/components/ui/status";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { OrderActions } from "@/components/merchant/order-actions";
+import { NewOrderBanner } from "@/components/merchant/new-order-banner";
+import { useOrderRealtime } from "@/lib/use-order-realtime";
+import { useUserRole } from "@/lib/use-user-role";
 import { formatCurrency, formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -25,9 +28,12 @@ const FILTERS: { value: OrderStatus | "all"; label: string }[] = [
 ];
 
 export default function MerchantOrdersPage() {
+  const { isMerchant } = useUserRole();
   const orders = useAsyncData(() => fetchMerchantOrders());
   const [status, setStatus] = useState<OrderStatus | "all">("all");
   const [query, setQuery] = useState("");
+
+  const { newOrder, dismissNewOrder } = useOrderRealtime(isMerchant, orders.refetch);
 
   const rows = useMemo(() => {
     const all = orders.data ?? [];
@@ -152,6 +158,8 @@ export default function MerchantOrdersPage() {
           ))}
         </ul>
       )}
+
+      <NewOrderBanner alert={newOrder} onDismiss={dismissNewOrder} />
     </PageContainer>
   );
 }
