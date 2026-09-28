@@ -268,7 +268,20 @@ await check("1.5", "role label survives a full page load, not just client naviga
 });
 
 // -- Prompt 2.1 / 2.3: the KPI row ----------------------------------------
+// The dashboard fires three async queries after mount, so a rendered page is not
+// the same as a populated one. These passed on one run and failed on the next
+// with no code change in between, which is the harness's fault: it asserted on
+// content that had not necessarily arrived. Wait for the content, not just the
+// page.
+await waitFor(
+  `[...document.querySelectorAll('div.grid')].some(g => g.textContent.includes('Gross Revenue'))`,
+  { label: "the KPI grid to populate" },
+);
 await goto("/");
+await waitFor(
+  `[...document.querySelectorAll('div.grid')].some(g => g.textContent.includes('Gross Revenue'))`,
+  { label: "the KPI grid to populate" },
+);
 
 await check("2.1", "every KPI names its own window", async () => {
   const cards = await ev(`(() => {
@@ -328,6 +341,9 @@ await check("2.3", "the three flow KPIs do show a trend", async () => {
 await shot("overview");
 
 // -- Prompt 2.2: the revenue chart ----------------------------------------
+await waitFor(`[...document.querySelectorAll('p')].some(p => p.textContent.includes('revenue this week'))`, {
+  label: "the revenue chart",
+});
 await check("2.2", "chart plots exactly 7 chronological, uniquely-labelled points", async () => {
   const r = await ev(`(() => {
     const peak = [...document.querySelectorAll('p')].find(p => p.textContent.includes('revenue this week'));
@@ -355,6 +371,7 @@ await check("2.4", "top-restaurants card says its revenue is all-time", async ()
 });
 
 await goto("/customers");
+await waitFor(`document.querySelector('th')`, { label: "the customers table" });
 await check("2.4", "seed-only customer columns are labelled as sample data", async () => {
   const heads = await ev(`[...document.querySelectorAll('th')].map(t => t.innerText.trim())`);
   // The table uppercases headers in CSS, and innerText reports rendered text,
@@ -369,6 +386,7 @@ await shot("customers");
 
 // -- Prompt 2.5: the persisted reason -------------------------------------
 await goto("/orders");
+await waitFor(`document.querySelector('tbody tr')`, { label: "the orders table" });
 await check("2.5", "order detail renders the reason branch that matches the status", async () => {
   const opened = await ev(`(() => {
     const row = document.querySelector('tbody tr');
@@ -404,6 +422,7 @@ for (const [path, label, noun] of [
   ["/riders", "riders", "rider"],
 ]) {
   await goto(path);
+  await waitFor(`document.querySelector('tbody tr')`, { label: `the ${label} table` });
   await check("3.2", `${label}: every row offers Archive, named for the row`, async () => {
     const r = await ev(`(() => {
       const rows = [...document.querySelectorAll('tbody tr')];
