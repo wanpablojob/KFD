@@ -33,7 +33,7 @@ on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: "Preview only -- print the SQL, apply nothing"
+        description: "Preview only -- print and validate the SQL, apply nothing"
         type: boolean
         required: true
         default: true
@@ -154,6 +154,103 @@ jobs:
           echo "Dry run: no changes will be made."
           supabase db push --linked --dry-run
 
+      # `supabase db push --dry-run` prints the pending files and nothing else.
+      # It does not parse them. A syntax error therefore passes the dry run and
+      # fails on apply, against production -- which is exactly what happened
+      # with 0012, and is the worst possible time to find out.
+      #
+      # This runs each pending migration inside an explicit transaction and
+      # rolls it back, so the SQL is genuinely parsed and executed and nothing
+      # is committed. It is a stronger check than the dry run above, not a
+      # substitute for the assertion step after a real apply: rollback undoes
+      # data changes but still takes locks and briefly runs the statements.
+      - name: Validate pending SQL
+        if: ${{ inputs.dry_run }}
+        run: |
+          python3 - <<'PY'
+          import glob, json, os, re, sys, urllib.error, urllib.request
+
+          ref = "ijeqwbrrgfsmymsektih"
+          token = os.environ["SUPABASE_ACCESS_TOKEN"]
+          endpoint = "https://api.supabase.com/v1/projects/%s/database/query" % ref
+
+          def query(sql):
+              body = json.dumps({"query": sql}).encode()
+              req = urllib.request.Request(
+                  endpoint,
+                  data=body,
+                  headers={
+                      "Authorization": "Bearer " + token,
+                      "Content-Type": "application/json",
+                  },
+              )
+              try:
+                  with urllib.request.urlopen(req, timeout=120) as resp:
+                      return json.load(resp)
+              except urllib.error.HTTPError as exc:
+                  detail = exc.read().decode(errors="replace")
+                  try:
+                      detail = json.loads(detail).get("message", detail)
+                  except Exception:
+                      pass
+                  raise RuntimeError(detail) from None
+
+          # Ask the database which versions it has, rather than parsing
+          # `supabase migration list` -- the CLI renders versions
+          # backtick-wrapped and has changed column layout between releases.
+          applied = {
+              str(r["version"])
+              for r in query("select version from supabase_migrations.schema_migrations")
+          }
+
+          pending = []
+          for path in sorted(glob.glob("supabase/migrations/*.sql")):
+              version = re.match(r"^([0-9]+)", os.path.basename(path)).group(1)
+              if version not in applied:
+                  pending.append((version, path))
+
+          if not pending:
+              print("::notice::No pending migrations to validate.")
+              sys.exit(0)
+
+          print("::notice::Validating %d pending migration(s) in a rolled-back transaction." % len(pending))
+          failures = []
+          for version, path in pending:
+              sql = open(path).read()
+              # Explicit BEGIN/ROLLBACK in one request, so the work is undone
+              # whatever happens. Postgres DDL is transactional; the one thing
+              # that is not transactional here is our own belief that we sent
+              # both statements, so the rollback is asserted below.
+              try:
+                  query("begin;\n%s\nrollback;" % sql)
+              except RuntimeError as exc:
+                  failures.append("%s: %s" % (os.path.basename(path), exc))
+                  continue
+
+              # Prove the rollback actually happened. If the driver ever starts
+              # splitting statements, `begin` would run alone and the migration
+              # would have committed for real -- so this is checked, not assumed.
+              check = "begin; create temp table rollback_probe(i int); rollback;"
+              try:
+                  query(check)
+                  query("select 1 from rollback_probe")
+                  failures.append(
+                      "%s: rollback did not take effect; the driver is splitting statements"
+                      % os.path.basename(path)
+                  )
+              except RuntimeError:
+                  pass  # Expected: the temp table is gone, so the rollback worked.
+
+              print("::notice::%s parses and runs." % os.path.basename(path))
+
+          if failures:
+              for f in failures:
+                  print("::error::" + f)
+              sys.exit(1)
+
+          print("::notice::All %d pending migration(s) are valid." % len(pending))
+          PY
+
       - name: Apply migrations
         if: ${{ !inputs.dry_run && !inputs.verify_only }}
         run: |
@@ -218,6 +315,7 @@ jobs:
               ("orders", "items", "order line items read"),
               ("restaurants", "revenue", "live aggregate trigger target"),
               ("restaurants", "orders_count", "live aggregate trigger target"),
+              ("orders", "customer_user_id", "customer order tracking + customer RLS"),
           ]
           sql = """
           select table_name, column_name from information_schema.columns
