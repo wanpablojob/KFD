@@ -272,7 +272,7 @@ jobs:
         if: ${{ always() && (!inputs.dry_run || inputs.verify_only) }}
         run: |
           python3 - <<'PY'
-          import json, os, sys, urllib.error, urllib.request
+          import json, os, re, sys, urllib.error, urllib.request
 
           ref = "ijeqwbrrgfsmymsektih"
           token = os.environ["SUPABASE_ACCESS_TOKEN"]
