@@ -175,12 +175,42 @@ jobs:
         if: ${{ always() && (!inputs.dry_run || inputs.verify_only) }}
         run: |
           python3 - <<'PY'
-          import json, os, sys, urllib.request
+          import json, os, sys, urllib.error, urllib.request
 
           ref = "ijeqwbrrgfsmymsektih"
           token = os.environ["SUPABASE_ACCESS_TOKEN"]
+          endpoint = "https://api.supabase.com/v1/projects/%s/database/query" % ref
 
-          # (table, column, why the app depends on it)
+          def query(sql):
+              """Returns parsed rows, or raises RuntimeError carrying the
+              database's own message. PostgREST puts a plpgsql RAISE in the
+              error body, which is the whole point here."""
+              body = json.dumps({"query": sql}).encode()
+              req = urllib.request.Request(
+                  endpoint,
+                  data=body,
+                  headers={
+                      "Authorization": "Bearer " + token,
+                      "Content-Type": "application/json",
+                  },
+              )
+              try:
+                  with urllib.request.urlopen(req, timeout=60) as resp:
+                      return json.load(resp)
+              except urllib.error.HTTPError as exc:
+                  detail = exc.read().decode(errors="replace")
+                  try:
+                      detail = json.loads(detail).get("message", detail)
+                  except Exception:
+                      pass
+                  raise RuntimeError(detail) from None
+
+          failures = []
+
+          # 1. The columns the app filters on must exist. A migration that
+          #    never landed is invisible until something names a column in a
+          #    filter, at which point PostgREST answers 400 and the only
+          #    symptom is a search box quietly missing two of its five tables.
           expected = [
               ("restaurants", "archived_at", "archive filter + archive write"),
               ("riders", "archived_at", "archive filter + archive write"),
@@ -189,39 +219,80 @@ jobs:
               ("restaurants", "revenue", "live aggregate trigger target"),
               ("restaurants", "orders_count", "live aggregate trigger target"),
           ]
-
           sql = """
-          select table_name, column_name
-          from information_schema.columns
-          where table_schema = 'public'
-            and (table_name, column_name) in (
-              %s
-            )
-          """ % ", ".join(
-              "('%s', '%s')" % (t, c) for t, c, _ in expected
-          )
+          select table_name, column_name from information_schema.columns
+          where table_schema = 'public' and (table_name, column_name) in (%s)
+          """ % ", ".join("('%s', '%s')" % (t, c) for t, c, _ in expected)
+          found = {(r["table_name"], r["column_name"]) for r in query(sql)}
+          for t, c, why in expected:
+              if (t, c) not in found:
+                  failures.append("missing column %s.%s -- %s" % (t, c, why))
 
-          body = json.dumps({"query": sql}).encode()
-          req = urllib.request.Request(
-              "https://api.supabase.com/v1/projects/%s/database/query" % ref,
-              data=body,
-              headers={
-                  "Authorization": "Bearer " + token,
-                  "Content-Type": "application/json",
-              },
+          # 2. app_users must be read-only over PostgREST. The provisioning
+          #    functions in 0011 are SECURITY DEFINER, so a direct insert would
+          #    bypass every rule they enforce -- no archived-restaurant check,
+          #    no protection against rewriting an admin row into a merchant
+          #    row. That is the whole reason the FOR ALL policy was replaced.
+          policies = query("""
+          select policyname, cmd from pg_policies
+          where schemaname = 'public' and tablename = 'app_users'
+          """)
+          writable = sorted(
+              (p["policyname"], p["cmd"]) for p in policies
+              if p["cmd"] in ("INSERT", "UPDATE", "DELETE", "ALL")
           )
-          with urllib.request.urlopen(req, timeout=60) as resp:
-              found = {(r["table_name"], r["column_name"]) for r in json.load(resp)}
+          if writable:
+              failures.append(
+                  "app_users is writable over PostgREST, bypassing the "
+                  "provisioning functions: %s" % writable
+              )
+          readable = sorted(
+              p["cmd"] for p in policies if p["cmd"] == "SELECT"
+          )
+          if len(readable) < 2:
+              failures.append(
+                  "app_users should have two SELECT policies (own row, admin); "
+                  "found %s" % readable
+              )
 
-          missing = [(t, c, why) for t, c, why in expected if (t, c) not in found]
-          if missing:
-              for t, c, why in missing:
-                  print("::error::missing column %s.%s -- %s" % (t, c, why))
-              print("::error::The app filters on these columns. A missing one is a")
-              print("::error::400 from PostgREST, not a visible schema error.")
+          # 3. The SECURITY DEFINER functions must refuse a caller that is not
+          #    a platform admin. This connection IS such a caller: it runs as
+          #    the table owner with no JWT, so auth.uid() is null and
+          #    is_platform_admin() is false. A SECURITY DEFINER function that
+          #    trusts its caller instead of checking would happily return
+          #    every account's email address here, which is why the functions
+          #    re-check rather than relying on the grant.
+          for sql, label in [
+              ("select * from public.merchant_access_list()", "merchant_access_list"),
+              ("select public.set_merchant_access('a@b.co', 'rst_01')", "set_merchant_access"),
+              ("select public.revoke_merchant_access('a@b.co')", "revoke_merchant_access"),
+          ]:
+              try:
+                  rows = query(sql)
+              except RuntimeError as exc:
+                  if label == "merchant_access_list":
+                      # Returns no rows rather than erroring, which is fine.
+                      failures.append("%s raised instead of returning nothing: %s" % (label, exc))
+                  elif "Only a platform admin" not in str(exc):
+                      failures.append("%s failed for the wrong reason: %s" % (label, exc))
+                  continue
+              if label == "merchant_access_list":
+                  if rows:
+                      failures.append(
+                          "merchant_access_list returned %d rows to a non-admin"
+                          % len(rows)
+                      )
+              else:
+                  failures.append("%s succeeded for a non-admin caller" % label)
+
+          if failures:
+              for f in failures:
+                  print("::error::" + f)
               sys.exit(1)
 
-          print("::notice::All %d expected columns are present." % len(expected))
+          print("::notice::All %d columns present." % len(expected))
+          print("::notice::app_users is read-only over PostgREST; %d SELECT policies." % len(readable))
+          print("::notice::All 3 provisioning functions refuse a non-admin caller.")
           PY
 
       - name: Report applied migrations
