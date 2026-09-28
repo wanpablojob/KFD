@@ -395,6 +395,62 @@ await check("2.5", "order detail renders the reason branch that matches the stat
   return "non-cancelled order: no reason branch, as intended (the cancelled branch is not exercised: production holds no cancelled orders)";
 });
 
+// -- Prompt 3.2: archive, without writing anything -------------------------
+// Deliberately non-mutating: the check opens the confirmation, reads its copy
+// and cancels. Round-tripping a real production row is not worth the risk of a
+// run dying between archive and restore.
+for (const [path, label, noun] of [
+  ["/restaurants", "restaurants", "restaurant"],
+  ["/riders", "riders", "rider"],
+]) {
+  await goto(path);
+  await check("3.2", `${label}: every row offers Archive, named for the row`, async () => {
+    const r = await ev(`(() => {
+      const rows = [...document.querySelectorAll('tbody tr')];
+      const labels = rows.map(r => (r.querySelector('button[aria-label^="Archive"]') || {}).ariaLabel);
+      return { rows: rows.length, labels };
+    })()`);
+    must(r.rows > 0, "no rows to check");
+    const missing = r.labels.filter((l) => !l);
+    must(missing.length === 0, `${missing.length} of ${r.rows} rows have no Archive button`);
+    return `${r.rows} rows, e.g. "${r.labels[0]}"`;
+  });
+
+  await check("3.2", `${noun}: archiving asks first and explains it is reversible`, async () => {
+    const opened = await ev(`(() => {
+      const btn = document.querySelector('tbody tr button[aria-label^="Archive"]');
+      if (!btn) return "no-button";
+      btn.click();
+      return "ok";
+    })()`);
+    must(opened === "ok", `could not click Archive: ${opened}`);
+    await waitFor(`document.querySelector('[role="dialog"]')`, { label: "the archive confirmation" });
+    await sleepIn(500);
+
+    // The row is a click target that opens the edit dialog. The Archive button
+    // stops propagation, so exactly one dialog may be open here.
+    const r = await ev(`(() => {
+      const dialogs = [...document.querySelectorAll('[role="dialog"]')];
+      const t = dialogs[0] ? dialogs[0].innerText : '';
+      return { count: dialogs.length, title: dialogs[0]?.getAttribute('aria-label') ?? '', text: t };
+    })()`);
+    must(r.count === 1, `${r.count} dialogs open; the row click leaked through to the edit dialog`);
+    must(/^Archive .+\?$/.test(r.title), `dialog title is "${r.title}", expected "Archive <name>?"`);
+    must(/nothing is deleted|brought back/i.test(r.text), "the dialog does not say the action is reversible");
+    must(/orders|history|history stay/i.test(r.text), "the dialog does not say what is preserved");
+
+    await ev(`(() => {
+      const d = document.querySelector('[role="dialog"]');
+      const btn = [...d.querySelectorAll('button')].find(b => /Cancel/i.test(b.textContent));
+      if (btn) btn.click();
+    })()`);
+    await sleepIn(500);
+    const closed = await ev(`document.querySelectorAll('[role="dialog"]').length`);
+    must(closed === 0, "Cancel did not close the dialog");
+    return `${r.title} -- confirmed, then cancelled`;
+  });
+}
+
 // -- console hygiene -------------------------------------------------------
 await check("hygiene", "no console errors during the sweep", async () => {
   const real = consoleErrors.filter((t) => !/favicon|Download the React DevTools/i.test(t));
