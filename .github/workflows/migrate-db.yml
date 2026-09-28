@@ -443,11 +443,17 @@ jobs:
           if pair["a"] == pair["b"]:
               failures.append("mint_order_reference() returned the same value twice")
 
-          # Reported, not asserted. A null customer_user_id is correct for a
-          # walk-in order and cannot be asserted away; but the count is the
-          # honest answer to "how much of the order book can be aggregated per
-          # customer", which no other check answers, and it is the number the
-          # 0012 backfill reported.
+          # Reported, and partly asserted. A null customer_user_id is correct
+          # for a walk-in order and cannot be asserted away; but the count is
+          # the honest answer to "how much of the order book can be aggregated
+          # per customer", which no other check answers.
+          #
+          # A trackable order, though, IS asserted. 0013 inserted the fixture
+          # and did nothing: its id collided with a seeded row, `on conflict do
+          # nothing` swallowed it, and the run went green with the public
+          # tracking page unable to show anything. "Applied successfully" and
+          # "the row is there" are different claims and only one was being
+          # checked.
           link = query("""
           select
             count(*) as total,
@@ -455,6 +461,13 @@ jobs:
             count(*) filter (where reference ~ '^#KFD-[0-9A-F]{12}$') as trackable
           from orders
           """)[0]
+
+          if link["trackable"] < 1:
+              failures.append(
+                  "no order carries a high-entropy reference, so the public "
+                  "tracking page cannot be exercised; the fixture insert is "
+                  "probably a no-op on an id that already exists"
+              )
 
           if failures:
               for f in failures:
