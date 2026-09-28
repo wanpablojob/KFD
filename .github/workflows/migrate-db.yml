@@ -550,6 +550,18 @@ jobs:
           cust_rows = query(
               """
               begin;
+              -- customer_user_id references auth.users(id), so the fake
+              -- customer has to exist there before we can link an order to
+              -- them. Inserted and rolled back with everything else; an
+              -- address no row of any other table will ever resolve to.
+              insert into auth.users (id, email, aud, role, email_confirmed_at)
+                values (
+                  '99999999-9999-9999-9999-999999999999',
+                  'rls-probe@kfd.invalid',
+                  'authenticated',
+                  'authenticated',
+                  now()
+                );
               update orders
                  set customer_user_id = '99999999-9999-9999-9999-999999999999'
                where reference = '#KFD-7A3F9C1E5B20';
