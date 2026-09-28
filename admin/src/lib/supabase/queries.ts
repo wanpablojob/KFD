@@ -503,3 +503,70 @@ function toSearchResult(
     href: listHref("/customers", label),
   };
 }
+// ---------------------------------------------------------------------------
+// Merchant access (Prompt 3.3)
+// ---------------------------------------------------------------------------
+
+/**
+ * One row of the Merchant access page. `email` and `restaurantName` are joined
+ * in SQL rather than fetched here: `auth.users` is not exposed to the
+ * authenticated role, and `app_users` stores no address, so the browser cannot
+ * assemble this row itself.
+ */
+export type MerchantAccess = {
+  userId: string;
+  email: string;
+  role: "admin" | "merchant";
+  restaurantId: string | null;
+  restaurantName: string | null;
+  createdAt: string;
+};
+
+function requireOk<T>(error: { message: string } | null, value: T): T {
+  if (error) throw new Error(error.message);
+  return value;
+}
+
+export async function fetchMerchantAccess(): Promise<MerchantAccess[]> {
+  const { data, error } = await supabase.rpc("merchant_access_list");
+
+  return requireOk(error, ((data ?? []) as Record<string, unknown>[]).map((row) => ({
+    userId: String(row.user_id),
+    email: String(row.email),
+    role: row.role === "admin" ? ("admin" as const) : ("merchant" as const),
+    restaurantId: row.restaurant_id == null ? null : String(row.restaurant_id),
+    restaurantName:
+      row.restaurant_name == null ? null : String(row.restaurant_name),
+    createdAt: String(row.created_at),
+  })));
+}
+
+/**
+ * Attach an existing account to a restaurant, or move it to another one.
+ *
+ * The email is the only identifier an operator has, and it is resolved to a
+ * user_id in the database: this cannot create an account, and if the address
+ * does not exist the function says so instead of silently doing nothing.
+ */
+export async function setMerchantAccess(
+  email: string,
+  restaurantId: string,
+): Promise<void> {
+  const { error } = await supabase.rpc("set_merchant_access", {
+    p_email: email,
+    p_restaurant_id: restaurantId,
+  });
+  requireOk(error, undefined);
+}
+
+/**
+ * Remove merchant access. The auth account survives: revoking console access is
+ * a provisioning decision, and destroying the login is a separate, deliberate
+ * one.
+ */
+export async function revokeMerchantAccess(email: string): Promise<void> {
+  const { error } = await supabase.rpc("revoke_merchant_access", {
+    p_email: email,
+  });
+  requireOk(error, undefined);
+}

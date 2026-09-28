@@ -10,10 +10,12 @@ import {
   StoreIcon,
   UsersIcon,
   UtensilsIcon,
+  UserCogIcon,
   XIcon,
 } from "./ui/icons";
 import { cn } from "@/lib/utils";
 import { useSessionUser } from "@/lib/auth";
+import { useUserRole } from "@/lib/use-user-role";
 
 const navItems = [
   { href: "/", label: "Overview", icon: LayoutDashboardIcon },
@@ -22,6 +24,11 @@ const navItems = [
   { href: "/riders", label: "Riders", icon: BikeIcon },
   { href: "/customers", label: "Customers", icon: UsersIcon },
   { href: "/menu", label: "Menu Items", icon: UtensilsIcon },
+  // Admin only, because attaching a restaurant to an account is the one nav
+  // item that grants access to anything. The link is hidden for merchants, and
+  // 0011_merchant_provisioning.sql refuses the write for them regardless --
+  // the page existing is not the permission.
+  { href: "/merchants", label: "Merchant access", icon: UserCogIcon, adminOnly: true },
 ] as const;
 
 export function Sidebar({
@@ -36,6 +43,7 @@ export function Sidebar({
 }) {
   const pathname = usePathname();
   const { user } = useSessionUser();
+  const { isAdmin } = useUserRole();
   const displayName =
     user?.user_metadata?.name ?? user?.email ?? "Admin";
 
@@ -82,6 +90,7 @@ export function Sidebar({
 
         <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
           {navItems.map((item) => {
+            if ("adminOnly" in item && item.adminOnly && !isAdmin) return null;
             const isActive =
               item.href === "/"
                 ? pathname === "/"

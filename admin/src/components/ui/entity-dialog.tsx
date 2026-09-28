@@ -7,11 +7,19 @@ import { Input } from "./input";
 import { Select } from "./select";
 import { Label } from "./field";
 
+/**
+ * A select option. A plain string still works and is used as both value and
+ * label; the object form exists for the cases where the two differ, which is
+ * every id-to-name case -- a restaurant picker has to submit `rst_05` while
+ * showing "D & D Food Hub".
+ */
+export type DialogOption = string | { value: string; label: string };
+
 export type DialogField = {
   key: string;
   label: string;
   type?: "text" | "number";
-  options?: readonly string[];
+  options?: readonly DialogOption[];
   required?: boolean;
   placeholder?: string;
 };
@@ -83,11 +91,17 @@ export function EntityDialog({
                 onChange={(e) => set(f.key)(e.target.value)}
                 disabled={saving}
               >
-                {f.options.map((o) => (
-                  <option key={o} value={o}>
-                    {o}
-                  </option>
-                ))}
+                {f.options.map((o) =>
+                  typeof o === "string" ? (
+                    <option key={o} value={o}>
+                      {o}
+                    </option>
+                  ) : (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ),
+                )}
               </Select>
             ) : (
               <Input

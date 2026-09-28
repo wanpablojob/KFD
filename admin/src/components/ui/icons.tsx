@@ -274,3 +274,17 @@ export function DownloadIcon(props: IconProps) {
     </svg>
   );
 }
+/**
+ * A person with a gear. Distinct from UsersIcon at 20px, which matters: the
+ * two sit one nav row apart and mean "customers" versus "who may sign in".
+ */
+export function UserCogIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <circle cx="10" cy="8" r="3.2" />
+      <path d="M3.8 20a6.4 6.4 0 0 1 12.4 0" />
+      <path d="M18.2 13.4v3.2M16.6 15h3.2" />
+      <circle cx="18.2" cy="15" r="1.5" />
+    </svg>
+  );
+}
