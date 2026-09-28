@@ -141,15 +141,18 @@ async function goto(path, { attempts = 4 } = {}) {
       timeout: 15_000,
       label: `${path} to render`,
     }).catch((e) => { last = e; });
-    // A page that rendered *something* is not the same as the app having loaded:
-    // Chrome's own error page also has body text. Require a real app root.
-    const ok = await ev(`!!document.querySelector('#email, main, [role="dialog"], [data-reveal]')`);
-    if (ok) {
+    // "Rendered something" is not the same as "the app is up": Chrome's own
+    // error pages and Vercel's 404 both carry body text. Retry only on those,
+    // and never treat a legitimate access-denied screen as a failure to load.
+    const broke = await ev(
+      `/404|NOT_FOUND|This site can.t be reached|doesn.t exist|Internal Server Error/i.test(document.title + ' ' + document.body.innerText.slice(0, 300))`,
+    );
+    if (!broke) {
       await sleepIn(1200);
       return;
     }
-    last = new Error(`${path} loaded without the app`);
-    console.log(`  retrying ${path} (attempt ${i}/${attempts}) -- the app root was absent`);
+    last = new Error(`${path} returned an error page`);
+    console.log(`  retrying ${path} (attempt ${i}/${attempts}) -- got an error page`);
     await sleep(3000);
   }
   throw last ?? new Error(`could not load ${path}`);
