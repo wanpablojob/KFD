@@ -135,7 +135,7 @@ const probe = async () => {
   }
 };
 
-async function goto(path, { attempts = 4 } = {}) {
+async function goto(path, { attempts = 8 } = {}) {
   let last;
   for (let i = 1; i <= attempts; i++) {
     await send("Page.navigate", { url: `${BASE}${path}` });
@@ -156,7 +156,7 @@ async function goto(path, { attempts = 4 } = {}) {
     }
     last = new Error(`${path} returned an error page`);
     console.log(`  retrying ${path} (attempt ${i}/${attempts}) -- got an error page`);
-    await sleep(3000);
+    await sleep(5000);
   }
   throw last ?? new Error(`could not load ${path}`);
 }
@@ -207,18 +207,23 @@ console.log(`\nVerifying ${BASE}\n`);
 // -- sign in ---------------------------------------------------------------
 // Wait out a deployment in flight. Dispatching this straight after a push used
 // to catch the site mid-rollout and produce a baffling timeout.
-for (let i = 0; i < 30 && !(await probe()); i++) {
-  if (i === 0) console.log(`  ${BASE}/login is not answering yet (${lastProbe}); waiting...`);
-  await sleep(2000);
+// Pre-flight only, and deliberately non-fatal. A Vercel deploy does not reach
+// every edge at once: the local machine saw 200 while the US-east runner still
+// got 404 on /login for over a minute. Treating that as fatal made this workflow
+// a coin flip on whenever it was dispatched. goto() already retries error pages,
+// so a slow region recovers on its own; this just reports what was seen.
+for (let i = 0; i < 6 && !(await probe()); i++) {
+  if (i === 0) console.log(`  /login not 2xx yet (${lastProbe}); goto() will retry`);
+  await sleep(3000);
 }
 if (!(await probe())) {
-  console.error(`${BASE}/login never returned 2xx. Last probe: ${lastProbe}. Aborting.`);
-  bye();
-  process.exit(2);
+  let root = "unreachable";
+  try { root = `HTTP ${(await fetch(BASE, { redirect: "follow" })).status}`; } catch {}
+  console.log(`  warning: /login was ${lastProbe} while / was ${root} -- looks like a rollout in progress, continuing anyway`);
 }
 
 await goto("/login");
-await waitFor(`document.querySelector('#email')`, { label: "the login form" });
+await waitFor(`document.querySelector('#email')`, { timeout: 60_000, label: "the login form" });
 
 // The value is passed into the page, never printed back out.
 const setUser = await ev(setInput("#email", USER));
