@@ -172,7 +172,7 @@ jobs:
       # loud and immediate. Uses the management API rather than the CLI, so it
       # needs only the access token and cannot apply anything.
       - name: Assert expected schema
-        if: ${{ always() && !inputs.dry_run }}
+        if: ${{ always() && (!inputs.dry_run || inputs.verify_only) }}
         run: |
           python3 - <<'PY'
           import json, os, sys, urllib.request
