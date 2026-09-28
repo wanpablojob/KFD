@@ -53,11 +53,29 @@ export function PaginatedDataTable<T>({
     [rows, query, searchFields],
   );
 
+  // `page` is only reset when the *query* changes, so anything else that
+  // shrinks `filtered` can strand it past the end: delete the only row on the
+  // last page, or refetch a smaller result set. `pageRows` then comes back
+  // empty while `filtered.length` is still non-zero, so EmptyState does not
+  // render either and the user gets a bare table header above a footer reading
+  // "17-17 of 17". <Pagination> hides this by disabling Next, but it never
+  // corrects an out-of-range page.
+  //
+  // Adjusting state during render when a value is derived from props is the
+  // sanctioned React pattern, and this file already uses it for the query
+  // reset above. React discards this render pass and immediately re-runs it
+  // with the corrected page, so no empty frame is ever painted. A
+  // useEffect would be wrong here: it would paint the bad frame first and
+  // flash the empty table.
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  if (page > totalPages) {
+    setPage(totalPages);
+  }
+
   const pageRows = useMemo(
     () => filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
     [filtered, page],
   );
-
   return (
     <>
       <div className="mb-3 flex items-center justify-between gap-3">
