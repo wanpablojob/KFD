@@ -119,14 +119,13 @@ async function waitFor(expression, { timeout = 30_000, label = expression } = {}
   throw new Error(`timed out waiting for ${label}; page showed ${seen}`);
 }
 
-// A Vercel rollout briefly answers 404 for routes that are not on the new
-// deployment yet, so probing the bare base URL is not enough -- that returned
-// 200 while /login was still missing. Probe the route we actually need and
-// insist on 2xx.
+// Probes the root. Whether a *single route* has propagated to this region is
+// goto()'s problem, not the probe's -- it has a much longer budget, and the
+// root is the signal for "is this site serving here at all".
 let lastProbe = "never attempted";
 const probe = async () => {
   try {
-    const r = await fetch(`${BASE}/login`, { redirect: "follow" });
+    const r = await fetch(BASE, { redirect: "follow" });
     lastProbe = `HTTP ${r.status} ${r.statusText}`;
     return r.status >= 200 && r.status < 300;
   } catch (e) {
@@ -135,7 +134,7 @@ const probe = async () => {
   }
 };
 
-async function goto(path, { attempts = 8 } = {}) {
+async function goto(path, { attempts = 20 } = {}) {
   let last;
   for (let i = 1; i <= attempts; i++) {
     await send("Page.navigate", { url: `${BASE}${path}` });
@@ -155,8 +154,8 @@ async function goto(path, { attempts = 8 } = {}) {
       return;
     }
     last = new Error(`${path} returned an error page`);
-    console.log(`  retrying ${path} (attempt ${i}/${attempts}) -- got an error page`);
-    await sleep(5000);
+    console.log(`  ${path} is on an error page (attempt ${i}/${attempts}) -- waiting out the rollout`);
+    await sleep(8000);
   }
   throw last ?? new Error(`could not load ${path}`);
 }
@@ -207,23 +206,24 @@ console.log(`\nVerifying ${BASE}\n`);
 // -- sign in ---------------------------------------------------------------
 // Wait out a deployment in flight. Dispatching this straight after a push used
 // to catch the site mid-rollout and produce a baffling timeout.
-// Pre-flight only, and deliberately non-fatal. A Vercel deploy does not reach
-// every edge at once: the local machine saw 200 while the US-east runner still
-// got 404 on /login for over a minute. Treating that as fatal made this workflow
-// a coin flip on whenever it was dispatched. goto() already retries error pages,
-// so a slow region recovers on its own; this just reports what was seen.
-for (let i = 0; i < 6 && !(await probe()); i++) {
-  if (i === 0) console.log(`  /login not 2xx yet (${lastProbe}); goto() will retry`);
-  await sleep(3000);
+// Wait for the deployment to actually be serving. GitHub reporting the deploy
+// workflow as "completed" is not the same thing: Vercel promotes the new
+// deployment to the production alias, and that alias can still be 404ing in
+// this runner's region a minute later. Observed as long as 80s, and it has hit
+// the whole site as well as a single route, so poll the root and give it room.
+for (let i = 0; i < 40; i++) {
+  if (await probe()) break;
+  if (i % 5 === 0) console.log(`  ${BASE} is not serving yet (${lastProbe}); waiting`);
+  await sleep(6000);
 }
 if (!(await probe())) {
-  let root = "unreachable";
-  try { root = `HTTP ${(await fetch(BASE, { redirect: "follow" })).status}`; } catch {}
-  console.log(`  warning: /login was ${lastProbe} while / was ${root} -- looks like a rollout in progress, continuing anyway`);
+  console.error(`${BASE} never served a 2xx within ~4 minutes (last: ${lastProbe}). Aborting.`);
+  bye();
+  process.exit(2);
 }
 
 await goto("/login");
-await waitFor(`document.querySelector('#email')`, { timeout: 60_000, label: "the login form" });
+await waitFor(`document.querySelector('#email')`, { timeout: 90_000, label: "the login form" });
 
 // The value is passed into the page, never printed back out.
 const setUser = await ev(setInput("#email", USER));
