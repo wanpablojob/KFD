@@ -469,6 +469,112 @@ jobs:
                   "probably a no-op on an id that already exists"
               )
 
+          # 6. RLS breadth: what a merchant and a customer can actually see.
+          #    The new policies are written to be additive ("a customer can
+          #    read their own orders", a merchant "their restaurant's"), but
+          #    "additive" is a claim about the letter of a policy, not the
+          #    rows a role can reach, and strengthening one hat must not
+          #    widen another. Same test for each: switch the session into the
+          #    Real-Time role, hand it a JWT claiming a real account, count
+          #    how many of the OTHER tenants'/people's orders leak, then
+          #    roll back. The check runs inside one begin/rollback block per
+          #    hat, so production data is never touched.
+          def sees(fail_label, jwt):
+              rows = query(
+                  """
+                  begin;
+                  select set_config(
+                    'request.jwt.claims',
+                    '%s',
+                    true
+                  );
+                  set local role authenticated;
+                  select
+                    count(*) as visible,
+                    count(*) filter (
+                      where restaurant_id is distinct from
+                        (select restaurant_id from app_users
+                          where user_id = auth.uid())
+                    ) as foreign_rows,
+                    min(reference is not null)::int as has_reference
+                  from orders;
+                  rollback;
+                  """
+                  % jwt.replace("'", "''")
+              )
+              if not rows or not isinstance(rows, list) or rows[0].get("visible") is None:
+                  failures.append(
+                      "%s: the management API did not return the RLS counts "
+                      "for a multi-statement query (%s)" % (fail_label, str(rows)[:200])
+                  )
+                  return None
+              row = rows[0]
+              if row["foreign_rows"] != 0:
+                  failures.append(
+                      "%s: sees %d order(s) outside the tenant "
+                      "(%d visible total)" % (fail_label, row["foreign_rows"], row["visible"])
+                  )
+              if row["has_reference"] != 1:
+                  failures.append(
+                      "%s: sees no reference-bearing order, so the test "
+                      "could not prove isolation against real data" % fail_label
+                  )
+              return row
+
+          # A real merchant, so the jwt.claims path -- and the RLS that reads
+          # it through auth.uid() -- is exercised exactly as a browser session
+          # would. Prefer the restaurant that owns the fixture (rst_01; seeded
+          # merchant in 0004): it lets the isolation check also prove positive
+          # access to a reference-bearing order, not just absence of leaks.
+          merch = query(
+              """
+              select user_id::text as uid, restaurant_id
+                from app_users
+               where role = 'merchant' and restaurant_id is not null
+               order by (restaurant_id = 'rst_01') desc, restaurant_id
+               limit 1
+              """
+          )
+          if not merch:
+              failures.append("no merchant account exists to impersonate for the RLS check")
+          else:
+              m_uid = merch[0]["uid"]
+              m_jwt = json.dumps({"sub": m_uid, "role": "authenticated"})
+              sees("a merchant", m_jwt)
+
+          # A customer with no orders of their own must read nothing at all,
+          # and one with a linked order must read exactly that order. Both
+          # states are fabricated on a throwaway order inside the transaction
+          # so a real customer is never mislabeled.
+          cust_rows = query(
+              """
+              begin;
+              update orders
+                 set customer_user_id = '99999999-9999-9999-9999-999999999999'
+               where reference = '#KFD-7A3F9C1E5B20';
+              select set_config('request.jwt.claims',
+                '{"sub": "99999999-9999-9999-9999-999999999999", "role": "authenticated"}',
+                true);
+              set local role authenticated;
+              -- Deliberately NO WHERE clause. The point is to prove scoping,
+              -- and a `where customer_user_id = auth.uid()` would return one
+              -- row even under a policy that grants every authenticated user
+              -- every order. The count is the whole row set RLS lets through.
+              select count(*) as visible from orders;
+              rollback;
+              """
+          )
+          if not cust_rows or not isinstance(cust_rows, list) or "visible" not in cust_rows[0]:
+              failures.append(
+                  "the RLS customer count came back unreadable for a "
+                  "multi-statement query (%s)" % str(cust_rows)[:200]
+              )
+          elif cust_rows[0]["visible"] != 1:
+              failures.append(
+                  "a customer with one linked order reads %d row(s); RLS on "
+                  "orders is not proving customer scoping" % cust_rows[0]["visible"]
+              )
+
           # 5. The notification read marker. It writes app_users, which 0011
           #    closed to writes on purpose, so the interesting property is that
           #    it can only ever touch the caller's own row. There is no

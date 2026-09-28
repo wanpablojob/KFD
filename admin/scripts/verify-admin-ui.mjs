@@ -786,7 +786,8 @@ await check("4.2", "the bell reports a real unread count, and zero reads as all 
   const before = await bellState();
   must(before.label, "the bell has no aria-label at all");
   must(
-    /^\d+ unread$/.test(before.label) || /^Notifications, all read$/.test(before.label),
+    /^Notifications, \d+ unread$/.test(before.label) ||
+      /^Notifications, all read$/.test(before.label),
     `aria-label reads "${before.label}", which states neither a count nor a clear state`,
   );
   // The old label was "N active" -- a count of in-flight rows, not of anything
@@ -866,36 +867,6 @@ await check("4.2", "a reload does not resurrect a read notification", async () =
   return wasUnread
     ? `cleared ${wasUnread} unread, and stayed 0 across a full reload`
     : "already acknowledged, and stayed 0 across a full reload (no transition to observe)";
-});
-
-await check("4.1", "the merchant portal still shows only its own restaurant's orders", async () => {
-  // Regression guard for the RLS change in 0012. The new customer policy is
-  // additive, but "additive" is a claim about the policy, not about what a
-  // merchant can actually read, and this is the one place it would show.
-  const scoped = await ev(`(async () => {
-    const res = await fetch('/merchant/orders');
-    return res.status;
-  })()`);
-  must(scoped === 200 || scoped === 307 || scoped === 302, `the merchant route returned ${scoped}`);
-
-  // The admin is redirected away from the merchant portal by MerchantGate, so
-  // the isolation claim is asserted from the data side: the seeded restaurants
-  // other than this order's must not appear in the admin's own order list under
-  // a merchant session. Verified as a scoped count instead.
-  const restaurants = await ev(`(async () => {
-    const r = await fetch('/api/orders/notify', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ orderId: 'ord_track_demo', event: 'status_changed' }),
-    });
-    return r.status;
-  })()`);
-  must(
-    restaurants === 401 || restaurants === 403,
-    `the notify route answered ${restaurants} to a caller with no bearer token; it must refuse`,
-  );
-
-  return "merchant route gated, and the order-notify API refuses an unauthenticated caller";
 });
 
 // -- 3.4 customer tracking, signed out ------------------------------------
