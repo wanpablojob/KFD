@@ -193,6 +193,7 @@ export default function MerchantsPage() {
         <EntityDialog
           open
           title="Attach merchant"
+          description="Attaches an account that already exists in Supabase Auth. This page does not create accounts -- a new login has to be created there first, or it will sign in to nothing."
           onClose={() => setMode(null)}
           fields={[
             {
@@ -228,6 +229,7 @@ export default function MerchantsPage() {
           open
           key={mode.row.userId}
           title={`Reassign ${mode.row.email}`}
+          description="The account loses access to its current restaurant and gains access to the one you pick."
           onClose={() => setMode(null)}
           initial={{ restaurantId: mode.row.restaurantId ?? "" }}
           fields={[

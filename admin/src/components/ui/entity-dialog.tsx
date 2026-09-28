@@ -31,6 +31,7 @@ export type DialogField = {
 export function EntityDialog({
   open,
   title,
+  description,
   fields,
   initial,
   onClose,
@@ -38,6 +39,12 @@ export function EntityDialog({
 }: {
   open: boolean;
   title: string;
+  /**
+   * What the form does, stated before it is filled in. For a form that does
+   * not do the obvious thing -- attach an account that must already exist, say
+   * so here rather than failing after the operator has typed everything.
+   */
+  description?: string;
   fields: DialogField[];
   initial?: Record<string, string>;
   onClose: () => void;
@@ -81,6 +88,10 @@ export function EntityDialog({
         }}
         className="flex flex-col gap-4"
       >
+        {description ? (
+          <p className="-mt-1 text-sm text-muted-foreground">{description}</p>
+        ) : null}
+
         {fields.map((f) => (
           <div key={f.key}>
             <Label htmlFor={`f-${f.key}`}>{f.label}</Label>

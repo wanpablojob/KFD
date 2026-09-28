@@ -578,7 +578,8 @@ await check("3.3", "provisioned accounts are listed by email, not by uuid", asyn
     r.adminsProtected > 0,
     "an admin row offers no reassign/revoke -- the lockout guard is not in the UI",
   );
-  return `${r.rows} accounts, e.g. ${r.emails.find((e) => e.includes("@"))}, ${r.adminsProtected} admin row protected`;
+  const shown = r.emails.find((e) => e.includes("@") && !/^\*+$/.test(e)) ?? "(masked)";
+  return `${r.rows} accounts, e.g. ${shown}, ${r.adminsProtected} admin row protected`;
 });
 
 await check("3.3", "attaching asks for an existing account and a restaurant", async () => {
@@ -661,25 +662,29 @@ await check("3.3", "revoking says the login survives, and cancels cleanly", asyn
 });
 
 await check("3.3", "reassigning offers a restaurant picker, pre-set to the current one", async () => {
+  // The restaurant cell has to be read from the row that owns the Reassign
+  // button. Reading the first row on the page instead compares the merchant's
+  // preselect against the admin row's em dash, which is a failure of the check
+  // and not of the page.
   const opened = await ev(`(() => {
     const btn = [...document.querySelectorAll('tbody tr button')].find(b => /reassign/i.test(b.textContent));
     if (!btn) return "no-button";
+    const row = btn.closest('tr');
+    const current = row?.querySelector('td:nth-child(3)')?.innerText.trim() ?? '';
     btn.click();
-    return "ok";
+    return current;
   })()`);
-  must(opened === "ok", `could not open the reassign dialog: ${opened}`);
+  must(typeof opened === "string" && opened.length > 0, `could not open the reassign dialog: ${opened}`);
   await waitFor(`document.querySelector('[role="dialog"]')`, { label: "the reassign dialog" });
   await sleepIn(400);
 
   const r = await ev(`(() => {
     const d = document.querySelector('[role="dialog"]');
     const select = d.querySelector('#f-restaurantId');
-    const current = document.querySelector('tbody tr td:nth-child(3)')?.innerText.trim() ?? '';
     return {
       options: select ? [...select.options].map(o => ({ value: o.value, label: o.textContent.trim() })) : [],
       selected: select ? select.value : '',
       selectedLabel: select && select.selectedOptions[0] ? select.selectedOptions[0].textContent.trim() : '',
-      current,
     };
   })()`);
   must(r.options.length > 0, "the restaurant picker is empty");
@@ -687,8 +692,8 @@ await check("3.3", "reassigning offers a restaurant picker, pre-set to the curre
   // If the preselect is wrong, saving reassigns them somewhere they did not ask
   // for -- the whole point of the dialog is lost.
   must(
-    r.selectedLabel === r.current,
-    `preselected "${r.selectedLabel}" but the row shows "${r.current}"`,
+    r.selectedLabel === opened,
+    `preselected "${r.selectedLabel}" but that row's restaurant is "${opened}"`,
   );
 
   await ev(`(() => {
