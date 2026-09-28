@@ -1,0 +1,84 @@
+# Live admin-UI verification.
+#
+# Separate from CI on purpose: this needs an authenticated admin session, and CI
+# must stay runnable on a fork's pull request where secrets are never exposed.
+# Manual trigger only, so a production login is never an automatic side effect of
+# a commit.
+#
+# Why a browser: the defects it guards (a clamped page, a role label, a KPI whose
+# value and delta describe different periods) are invisible to typecheck, lint,
+# `next build` and unit tests. Only a rendered page shows them.
+#
+# The script drives Chrome over CDP using the WebSocket built into Node 22, so
+# this adds no dependency to admin/package.json.
+
+name: Verify Admin UI
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: Deployment to verify
+        required: false
+        default: https://kfd-one.vercel.app
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-admin-ui-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # ubuntu-latest ships Chrome; fail loudly rather than silently skipping if
+      # that ever stops being true.
+      - name: Locate Chrome
+        run: |
+          set -euo pipefail
+          for c in google-chrome google-chrome-stable chromium chromium-browser; do
+            if command -v "$c" >/dev/null 2>&1; then
+              echo "CHROME_BIN=$(command -v "$c")" >> "$GITHUB_ENV"
+              "$c" --version
+              exit 0
+            fi
+          done
+          echo "No Chrome or Chromium binary on the runner." >&2
+          exit 1
+
+      - name: Keep the password out of the log
+        env:
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+          ADMIN_USER: ${{ secrets.ADMIN_USER }}
+        run: |
+          set -euo pipefail
+          # Registers a mask; the value is replaced with *** in any later output.
+          echo "::add-mask::${ADMIN_PASSWORD}"
+          echo "::add-mask::${ADMIN_USER}"
+          test -n "${ADMIN_PASSWORD}" || { echo "ADMIN_PASSWORD secret is empty." >&2; exit 1; }
+
+      - name: Drive the admin UI
+        env:
+          ADMIN_USER: ${{ secrets.ADMIN_USER }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+          BASE_URL: ${{ inputs.base_url }}
+          CHROME_BIN: ${{ env.CHROME_BIN }}
+        run: node admin/scripts/verify-admin-ui.mjs
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: admin-ui-screenshots
+          path: admin/.verify-artifacts/
+          if-no-files-found: warn
+          retention-days: 14
