@@ -373,11 +373,11 @@ export async function fetchOrdersByRider(riderName: string, range?: DateRange): 
   }));
 }
 
-export async function fetchOrdersByRestaurant(restaurantName: string, range?: DateRange): Promise<Order[]> {
+export async function fetchOrdersByRestaurant(restaurantId: string, range?: DateRange): Promise<Order[]> {
   let query = supabase
     .from("orders")
     .select("*")
-    .eq("restaurant", restaurantName)
+    .eq("restaurant_id", restaurantId)
     .order("placed_at", { ascending: false });
   if (range?.from) query = query.gte("placed_at", range.from);
   if (range?.to) query = query.lte("placed_at", range.to + "T23:59:59.999Z");
@@ -404,11 +404,11 @@ export async function fetchOrdersByRestaurant(restaurantName: string, range?: Da
   }));
 }
 
-export async function fetchMenuItemsByRestaurant(restaurantName: string): Promise<MenuItem[]> {
+export async function fetchMenuItemsByRestaurant(restaurantId: string): Promise<MenuItem[]> {
   const { data, error } = await supabase
     .from("menu_items")
     .select("*")
-    .eq("restaurant", restaurantName)
+    .eq("restaurant_id", restaurantId)
     .order("name");
 
   if (error) throw new Error(error.message);

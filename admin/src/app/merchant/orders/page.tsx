@@ -2,12 +2,12 @@
 
 import { useMemo, useState } from "react";
 import { fetchMerchantOrders } from "@/lib/supabase/merchant-queries";
-import type { OrderStatus } from "@/lib/types";
+import type { OrderStatus, DateRange } from "@/lib/types";
 import { useAsyncData } from "@/lib/use-async-data";
 import { PageContainer, PageHeader } from "@/components/layout/page";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { SearchIcon } from "@/components/ui/icons";
+import { SearchIcon, CalendarIcon } from "@/components/ui/icons";
 import { EmptyState } from "@/components/ui/status";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { TableBoundary } from "@/components/ui/table-boundary";
@@ -17,6 +17,8 @@ import { useOrderNotifications } from "@/lib/use-order-notifications";
 import { useUserRole } from "@/lib/use-user-role";
 import { formatCurrency, formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
+
+type DatePreset = "today" | "yesterday" | "week" | "month" | "all" | "custom";
 
 const FILTERS: { value: OrderStatus | "all"; label: string }[] = [
   { value: "all", label: "All" },
@@ -33,24 +35,55 @@ export default function MerchantOrdersPage() {
   const orders = useAsyncData(() => fetchMerchantOrders());
   const [status, setStatus] = useState<OrderStatus | "all">("all");
   const [query, setQuery] = useState("");
+  const [datePreset, setDatePreset] = useState<DatePreset>("all");
+  const [dateRange, setDateRange] = useState<DateRange>({});
 
   const { newOrder, dismissNewOrder } = useOrderNotifications(
     isMerchant,
     orders.refetch
   );
 
+  const resolvedRange = useMemo((): DateRange | null => {
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfYesterday = new Date(startOfToday.getTime() - 24 * 60 * 60 * 1000);
+    const startOfWeek = new Date(startOfToday.getTime() - now.getDay() * 24 * 60 * 60 * 1000);
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const toISO = (d: Date) => d.toISOString().split("T")[0];
+
+    switch (datePreset) {
+      case "today":
+        return { from: toISO(startOfToday), to: toISO(now) };
+      case "yesterday":
+        return { from: toISO(startOfYesterday), to: toISO(startOfYesterday) };
+      case "week":
+        return { from: toISO(startOfWeek), to: toISO(now) };
+      case "month":
+        return { from: toISO(startOfMonth), to: toISO(now) };
+      case "custom":
+        return dateRange.from || dateRange.to ? dateRange : null;
+      default:
+        return null;
+    }
+  }, [datePreset, dateRange]);
+
   const rows = useMemo(() => {
     const all = orders.data ?? [];
     const q = query.trim().toLowerCase();
     return all.filter((o) => {
       if (status !== "all" && o.status !== status) return false;
+      if (resolvedRange) {
+        if (resolvedRange.from && o.placedAt < resolvedRange.from) return false;
+        if (resolvedRange.to && o.placedAt > resolvedRange.to + "T23:59:59.999Z") return false;
+      }
       if (!q) return true;
       return (
         o.reference.toLowerCase().includes(q) ||
         o.customer.toLowerCase().includes(q)
       );
     });
-  }, [orders.data, status, query]);
+  }, [orders.data, status, query, resolvedRange]);
 
   return (
     <PageContainer>
@@ -72,6 +105,62 @@ export default function MerchantOrdersPage() {
             aria-label="Search orders"
             className="pl-9"
           />
+        </div>
+      </div>
+
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="flex flex-wrap items-center gap-2" aria-label="Date range">
+          <div className="flex gap-1" role="group" aria-label="Quick date filters">
+            {(["today", "yesterday", "week", "month", "all"] as DatePreset[]).map((preset) => (
+              <button
+                key={preset}
+                type="button"
+                onClick={() => {
+                  setDatePreset(preset);
+                  if (preset !== "custom") setDateRange({});
+                }}
+                aria-pressed={datePreset === preset}
+                className={cn(
+                  "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+                  datePreset === preset
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground",
+                )}
+              >
+                {preset.charAt(0).toUpperCase() + preset.slice(1)}
+              </button>
+            ))}
+          </div>
+          {datePreset === "custom" && (
+            <div className="flex items-center gap-1">
+              <label htmlFor="merch-date-from" className="sr-only">From</label>
+              <input
+                id="merch-date-from"
+                type="date"
+                value={dateRange.from ?? ""}
+                onChange={(e) => setDateRange((d) => ({ ...d, from: e.target.value || undefined }))}
+                className="h-9 px-3 text-sm border border-input bg-background rounded-md"
+              />
+              <label htmlFor="merch-date-to" className="sr-only">To</label>
+              <input
+                id="merch-date-to"
+                type="date"
+                value={dateRange.to ?? ""}
+                onChange={(e) => setDateRange((d) => ({ ...d, to: e.target.value || undefined }))}
+                className="h-9 px-3 text-sm border border-input bg-background rounded-md"
+              />
+              {(dateRange.from || dateRange.to) && (
+                <button
+                  type="button"
+                  onClick={() => setDateRange({})}
+                  className="p-1 text-muted-foreground hover:text-foreground"
+                  aria-label="Clear date filter"
+                >
+                  <CalendarIcon className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
