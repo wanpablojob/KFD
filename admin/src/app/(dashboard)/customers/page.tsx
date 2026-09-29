@@ -113,7 +113,7 @@ export default function CustomersPage() {
               columns={columns}
               rows={data ?? []}
               searchFields={["name", "email", "phone", "city", "id"]}
-              
+              onRowClick={(row) => window.location.href = `/customers/${row.id}`}
               emptyTitle="No customers found"
               exportName="customers"
               exportColumns={[

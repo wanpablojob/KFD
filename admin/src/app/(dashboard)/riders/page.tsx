@@ -188,10 +188,7 @@ export default function RidersPage() {
               columns={columns}
               rows={rows}
               searchFields={["name", "email", "phone", "city", "id"]}
-              onRowClick={(row) => {
-                setEditing(row);
-                setOpen(true);
-              }}
+              onRowClick={(row) => window.location.href = `/riders/${row.id}`}
               emptyTitle="No riders found"
               exportName="riders"
               exportColumns={[

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import type { Order } from "@/lib/types";
+import type { Order, DateRange } from "@/lib/types";
 import { formatCurrency } from "@/lib/format";
 import { Avatar } from "./ui/avatar";
 import { Badge } from "./ui/badge";
@@ -12,6 +12,7 @@ import { Dialog } from "./ui/dialog";
 import { OrderDetail } from "./order-detail";
 import { Toolbar, ToolbarSpacer, ToolbarSearch } from "./toolbar";
 import { Select } from "./ui/select";
+import { CalendarIcon } from "./ui/icons";
 import { matchesQuery, useGlobalSearch } from "@/lib/global-search";
 
 type OrderStatus = Order["status"];
@@ -94,6 +95,7 @@ const ALL_STATUSES: OrderStatus[] = [
 export function OrderList({ orders }: { orders: Order[] }) {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<OrderStatus | "all">("all");
+  const [dateRange, setDateRange] = useState<DateRange>({});
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Order | null>(null);
   const globalQuery = useGlobalSearch();
@@ -101,6 +103,9 @@ export function OrderList({ orders }: { orders: Order[] }) {
   const filtered = useMemo(() => {
     return orders.filter((order) => {
       const matchesStatus = status === "all" || order.status === status;
+      const matchesDate =
+        (!dateRange.from || order.placedAt >= dateRange.from) &&
+        (!dateRange.to || order.placedAt <= dateRange.to + "T23:59:59.999Z");
       const q = search.toLowerCase();
       const matchesSearch =
         !q ||
@@ -113,9 +118,9 @@ export function OrderList({ orders }: { orders: Order[] }) {
         globalQuery,
         ["reference", "customer", "restaurant", "rider"],
       );
-      return matchesStatus && matchesSearch && matchesGlobal;
+      return matchesStatus && matchesDate && matchesSearch && matchesGlobal;
     });
-  }, [orders, search, status, globalQuery]);
+  }, [orders, search, status, dateRange, globalQuery]);
 
   const pageRows = useMemo(
     () => filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
@@ -143,6 +148,34 @@ export function OrderList({ orders }: { orders: Order[] }) {
             </option>
           ))}
         </Select>
+        <div className="flex items-center gap-2 hidden sm:flex" aria-label="Date range">
+          <label htmlFor="date-from" className="sr-only">From</label>
+          <input
+            id="date-from"
+            type="date"
+            value={dateRange.from ?? ""}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDateRange((d) => ({ ...d, from: e.target.value || undefined }))}
+            className="h-9 px-3 text-sm border border-input bg-background rounded-md"
+          />
+          <label htmlFor="date-to" className="sr-only">To</label>
+          <input
+            id="date-to"
+            type="date"
+            value={dateRange.to ?? ""}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDateRange((d) => ({ ...d, to: e.target.value || undefined }))}
+            className="h-9 px-3 text-sm border border-input bg-background rounded-md"
+          />
+          {(dateRange.from || dateRange.to) && (
+            <button
+              type="button"
+              onClick={() => setDateRange({})}
+              className="p-1 text-muted-foreground hover:text-foreground"
+              aria-label="Clear date filter"
+            >
+              <CalendarIcon className="h-4 w-4" />
+            </button>
+          )}
+        </div>
         <ToolbarSpacer />
         <span className="text-sm text-muted-foreground">
           {filtered.length} {filtered.length === 1 ? "order" : "orders"}

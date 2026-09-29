@@ -282,11 +282,14 @@ export async function fetchMenuItems(): Promise<MenuItem[]> {
   }));
 }
 
-export async function fetchOrders(): Promise<Order[]> {
-  const { data, error } = await supabase
-    .from("orders")
-    .select("*")
-    .order("placed_at", { ascending: false });
+export type DateRange = { from?: string; to?: string };
+
+export async function fetchOrders(range?: DateRange): Promise<Order[]> {
+  let query = supabase.from("orders").select("*").order("placed_at", { ascending: false });
+  if (range?.from) query = query.gte("placed_at", range.from);
+  if (range?.to) query = query.lte("placed_at", range.to + "T23:59:59.999Z");
+
+  const { data, error } = await query;
 
   if (error) throw new Error(error.message);
 
@@ -303,12 +306,120 @@ export async function fetchOrders(): Promise<Order[]> {
     payment: o.payment,
     placedAt: String(o.placed_at),
     rider: o.rider,
-    // Mapped on both the merchant and admin paths. A field present in one
-    // mapper and missing from the other is how this drifts (Prompt 2.5).
-    // Coerced explicitly: DbRecord types unmapped columns as `unknown`, and
-    // orders cancelled before the column existed come back null.
     rejectionReason:
       typeof o.rejection_reason === "string" ? o.rejection_reason : null,
+  }));
+}
+
+export async function fetchOrdersByCustomer(customerName: string, range?: DateRange): Promise<Order[]> {
+  let query = supabase
+    .from("orders")
+    .select("*")
+    .eq("customer", customerName)
+    .order("placed_at", { ascending: false });
+  if (range?.from) query = query.gte("placed_at", range.from);
+  if (range?.to) query = query.lte("placed_at", range.to + "T23:59:59.999Z");
+
+  const { data, error } = await query;
+
+  if (error) throw new Error(error.message);
+
+  return ((data ?? []) as DbRecord<Order>[]).map((o) => ({
+    id: o.id,
+    reference: o.reference,
+    customer: o.customer,
+    restaurant: o.restaurant,
+    items: mapItems(o.items),
+    subtotal: Number(o.subtotal),
+    deliveryFee: Number(o.delivery_fee),
+    total: Number(o.total),
+    status: o.status,
+    payment: o.payment,
+    placedAt: String(o.placed_at),
+    rider: o.rider,
+    rejectionReason:
+      typeof o.rejection_reason === "string" ? o.rejection_reason : null,
+  }));
+}
+
+export async function fetchOrdersByRider(riderName: string, range?: DateRange): Promise<Order[]> {
+  let query = supabase
+    .from("orders")
+    .select("*")
+    .eq("rider", riderName)
+    .order("placed_at", { ascending: false });
+  if (range?.from) query = query.gte("placed_at", range.from);
+  if (range?.to) query = query.lte("placed_at", range.to + "T23:59:59.999Z");
+
+  const { data, error } = await query;
+
+  if (error) throw new Error(error.message);
+
+  return ((data ?? []) as DbRecord<Order>[]).map((o) => ({
+    id: o.id,
+    reference: o.reference,
+    customer: o.customer,
+    restaurant: o.restaurant,
+    items: mapItems(o.items),
+    subtotal: Number(o.subtotal),
+    deliveryFee: Number(o.delivery_fee),
+    total: Number(o.total),
+    status: o.status,
+    payment: o.payment,
+    placedAt: String(o.placed_at),
+    rider: o.rider,
+    rejectionReason:
+      typeof o.rejection_reason === "string" ? o.rejection_reason : null,
+  }));
+}
+
+export async function fetchOrdersByRestaurant(restaurantName: string, range?: DateRange): Promise<Order[]> {
+  let query = supabase
+    .from("orders")
+    .select("*")
+    .eq("restaurant", restaurantName)
+    .order("placed_at", { ascending: false });
+  if (range?.from) query = query.gte("placed_at", range.from);
+  if (range?.to) query = query.lte("placed_at", range.to + "T23:59:59.999Z");
+
+  const { data, error } = await query;
+
+  if (error) throw new Error(error.message);
+
+  return ((data ?? []) as DbRecord<Order>[]).map((o) => ({
+    id: o.id,
+    reference: o.reference,
+    customer: o.customer,
+    restaurant: o.restaurant,
+    items: mapItems(o.items),
+    subtotal: Number(o.subtotal),
+    deliveryFee: Number(o.delivery_fee),
+    total: Number(o.total),
+    status: o.status,
+    payment: o.payment,
+    placedAt: String(o.placed_at),
+    rider: o.rider,
+    rejectionReason:
+      typeof o.rejection_reason === "string" ? o.rejection_reason : null,
+  }));
+}
+
+export async function fetchMenuItemsByRestaurant(restaurantName: string): Promise<MenuItem[]> {
+  const { data, error } = await supabase
+    .from("menu_items")
+    .select("*")
+    .eq("restaurant", restaurantName)
+    .order("name");
+
+  if (error) throw new Error(error.message);
+
+  return ((data ?? []) as DbRecord<MenuItem>[]).map((m) => ({
+    id: m.id,
+    restaurant: m.restaurant,
+    name: m.name,
+    category: m.category,
+    price: Number(m.price),
+    available: Boolean(m.available),
   }));
 }
 

@@ -174,10 +174,7 @@ export default function RestaurantsPage() {
               columns={columns}
               rows={rows}
               searchFields={["name", "cuisine", "city", "id"]}
-              onRowClick={(row) => {
-                setEditing(row);
-                setOpen(true);
-              }}
+              onRowClick={(row) => window.location.href = `/restaurants/${row.id}`}
               emptyTitle="No restaurants found"
               exportName="restaurants"
               exportColumns={[

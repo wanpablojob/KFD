@@ -108,3 +108,5 @@ export interface RevenuePoint {
   orders: number;
   revenue: number;
 }
+
+export type DateRange = { from?: string; to?: string };
