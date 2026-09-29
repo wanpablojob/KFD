@@ -20,9 +20,10 @@ import { LoginScreen } from "./src/screens/login-screen";
  * Role-routed mobile shell.
  *
  * Signed-out the app has two entry points: public order tracking (track_order
- * is granted to anon, so no login) and rider sign-in. A rider account signs in
- * to the rider surface; admin/merchant accounts are told to use the web
- * console, because this app has no admin/merchant surface.
+ * is granted to anon, so no login) and a shared sign-in. Accounts are resolved
+ * to a role from app_users after login: a rider lands on the rider surface;
+ * admin/merchant accounts are told to use the web console, because this app
+ * has no admin/merchant surface.
  */
 export default function App() {
   const { user, loading: sessionLoading } = useSessionUser();
@@ -78,7 +79,7 @@ export default function App() {
         <TrackOrderScreen onBack={() => setAction(null)} />
       );
     }
-    if (action === "rider") {
+    if (action === "login") {
       return <LoginScreen onBack={() => setAction(null)} />;
     }
     return <LandingScreen onAction={setAction} />;

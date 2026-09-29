@@ -8,14 +8,14 @@ import {
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 
-export type LandingAction = "track" | "rider";
+export type LandingAction = "track" | "login";
 
 /**
  * Signed-out landing. The customer side is public -- track_order() is granted
  * to anon, matching the web's reference-tracking page -- so the two entry
- * points are explicit: track an existing order (no login) or sign in as a
- * rider. A customer should never be asked for credentials they were never
- * provisioned with.
+ * points are explicit: track an existing order (no login) or sign in. Sign-in
+ * is shared by every account that has one (rider, merchant, admin); the role
+ * is resolved from app_users afterwards, never chosen on this screen.
  */
 export function LandingScreen({
   onAction,
@@ -36,8 +36,8 @@ export function LandingScreen({
         <Pressable style={styles.primary} onPress={() => onAction("track")}>
           <Text style={styles.primaryLabel}>Track an order</Text>
         </Pressable>
-        <Pressable style={styles.secondary} onPress={() => onAction("rider")}>
-          <Text style={styles.secondaryLabel}>Rider sign in</Text>
+        <Pressable style={styles.secondary} onPress={() => onAction("login")}>
+          <Text style={styles.secondaryLabel}>Sign in</Text>
         </Pressable>
       </View>
       <StatusBar style="dark" />

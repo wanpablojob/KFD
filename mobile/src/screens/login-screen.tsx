@@ -9,9 +9,21 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { Image } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { signInWithPassword } from "../lib/auth";
 
+/**
+ * Shared sign-in for the KFD mobile app.
+ *
+ * One account serves both hats that have one: a rider signs in to the rider
+ * surface, an admin/merchant sees the web-console notice. Customers have no
+ * account (tracking is public by reference), so this is deliberately a bare
+ * email/password screen -- no role choice, no hint that a customer should be
+ * here. The role is resolved from app_users after sign-in, never chosen on
+ * this page, which is the same "no silver bullet, RLS is the boundary" rule
+ * the admin app uses.
+ */
 export function LoginScreen({ onBack }: { onBack?: () => void }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -50,6 +62,8 @@ export function LoginScreen({ onBack }: { onBack?: () => void }) {
             ‹ Back
           </Text>
         ) : null}
+
+        <Image source={require("../../assets/icon.png")} style={styles.logo} />
         <Text style={styles.title}>KFD</Text>
         <Text style={styles.subtitle}>Sign in to your KFD account</Text>
 
@@ -117,12 +131,13 @@ const styles = StyleSheet.create({
   },
   form: { padding: 24, gap: 12 },
   back: { fontSize: 15, color: "#666", alignSelf: "flex-start" },
+  logo: { width: 96, height: 96, borderRadius: 20, alignSelf: "center" },
   title: { fontSize: 32, fontWeight: "800", color: "#111", textAlign: "center" },
   subtitle: {
     fontSize: 15,
     color: "#666",
     textAlign: "center",
-    marginBottom: 8,
+    marginBottom: 16,
   },
   input: {
     borderWidth: 1,
