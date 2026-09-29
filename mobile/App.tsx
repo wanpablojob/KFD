@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Pressable,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -10,13 +11,25 @@ import {
 import { StatusBar } from "expo-status-bar";
 import { useSessionUser, signOut } from "./src/lib/auth";
 import { fetchUserRole, type UserRole } from "./src/lib/role";
+import { LandingScreen, type LandingAction } from "./src/screens/landing-screen";
+import { TrackOrderScreen } from "./src/screens/track-order-screen";
+import { RiderHomeScreen } from "./src/screens/rider-home-screen";
 import { LoginScreen } from "./src/screens/login-screen";
 
+/**
+ * Role-routed mobile shell.
+ *
+ * Signed-out the app has two entry points: public order tracking (track_order
+ * is granted to anon, so no login) and rider sign-in. A rider account signs in
+ * to the rider surface; admin/merchant accounts are told to use the web
+ * console, because this app has no admin/merchant surface.
+ */
 export default function App() {
   const { user, loading: sessionLoading } = useSessionUser();
   const [role, setRole] = useState<UserRole | null>(null);
   const [roleLoading, setRoleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [action, setAction] = useState<LandingAction | null>(null);
 
   useEffect(() => {
     if (!user) {
@@ -63,7 +76,17 @@ export default function App() {
   }
 
   if (!user) {
-    return <LoginScreen />;
+    // Signed out: two entry points. Tracking is public; rider opens the
+    // login screen. Once signed in the rider surface replaces this landing.
+    if (action === "track") {
+      return (
+        <TrackOrderScreen onBack={() => setAction(null)} />
+      );
+    }
+    if (action === "rider") {
+      return <LoginScreen onBack={() => setAction(null)} />;
+    }
+    return <LandingScreen onAction={setAction} />;
   }
 
   if (roleLoading || role === null) {
@@ -76,8 +99,19 @@ export default function App() {
     );
   }
 
-  void role; // placeholder - surfaces come in the rider/customer steps
+  if (role.role === "rider") {
+    return (
+      <RiderHomeScreen
+        userId={user.id}
+        onBackToLanding={() => {
+          // Only reachable when no rider profile is linked, in which case we
+          // drop the session rather than leave it dangling.
+        }}
+      />
+    );
+  }
 
+  // admin / merchant: no mobile surface in this app.
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
@@ -86,33 +120,25 @@ export default function App() {
           Signed in as <Text style={styles.bold}>{user.email}</Text>
         </Text>
         <Text style={styles.roleLabel}>
-          Role: <Text style={styles.bold}>{role.role ?? "unprovisioned"}</Text>
+          Role: <Text style={styles.bold}>{role.role}</Text>
         </Text>
-        {role.riderName ? (
-          <Text style={styles.muted}>Rider: {role.riderName}</Text>
-        ) : null}
-        {role.restaurantName ? (
-          <Text style={styles.muted}>{role.restaurantName}</Text>
-        ) : null}
+        <Text style={styles.muted}>
+          This mobile app serves riders and customers. Use the web console for
+          {role.role === "merchant" ? " merchant" : " admin"} work.
+        </Text>
       </ScrollView>
       <View style={styles.footer}>
-        <SignOutButton />
+        <Text
+          style={styles.signOut}
+          onPress={() => {
+            void signOut();
+          }}
+        >
+          Sign out
+        </Text>
       </View>
       <StatusBar style="dark" />
     </SafeAreaView>
-  );
-}
-
-function SignOutButton() {
-  return (
-    <Text
-      style={styles.signOut}
-      onPress={() => {
-        void signOut();
-      }}
-    >
-      Sign out
-    </Text>
   );
 }
 

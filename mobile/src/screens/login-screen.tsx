@@ -12,7 +12,7 @@ import {
 import { StatusBar } from "expo-status-bar";
 import { signInWithPassword } from "../lib/auth";
 
-export function LoginScreen() {
+export function LoginScreen({ onBack }: { onBack?: () => void }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -45,6 +45,11 @@ export function LoginScreen() {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <View style={styles.form}>
+        {onBack ? (
+          <Text style={styles.back} onPress={onBack}>
+            ‹ Back
+          </Text>
+        ) : null}
         <Text style={styles.title}>KFD</Text>
         <Text style={styles.subtitle}>Sign in to your KFD account</Text>
 
@@ -111,6 +116,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   form: { padding: 24, gap: 12 },
+  back: { fontSize: 15, color: "#666", alignSelf: "flex-start" },
   title: { fontSize: 32, fontWeight: "800", color: "#111", textAlign: "center" },
   subtitle: {
     fontSize: 15,

@@ -311,6 +311,7 @@ jobs:
           expected = [
               ("restaurants", "archived_at", "archive filter + archive write"),
               ("riders", "archived_at", "archive filter + archive write"),
+              ("riders", "user_id", "rider account link + rider RLS"),
               ("orders", "rejection_reason", "admin order detail read"),
               ("orders", "items", "order line items read"),
               ("restaurants", "revenue", "live aggregate trigger target"),
@@ -607,6 +608,11 @@ jobs:
               ("public.set_merchant_access(text, text)", "merchant provisioning"),
               ("public.revoke_merchant_access(text)", "merchant revocation"),
               ("public.merchant_access_list()", "account listing"),
+              ("public.set_rider_access(text, text)", "rider provisioning"),
+              ("public.revoke_rider_access(text)", "rider revocation"),
+              ("public.rider_access_list()", "rider account listing"),
+              ("public.rider_set_status(text)", "rider availability toggle"),
+              ("public.rider_mark_delivered(text)", "rider delivery completion"),
               ("public.is_platform_admin()", "role helper used by RLS policies"),
               ("public.current_merchant_restaurant()", "tenant helper used by RLS policies"),
           ]:
