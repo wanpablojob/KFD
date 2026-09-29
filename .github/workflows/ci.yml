@@ -132,6 +132,21 @@ jobs:
         run: npm run test --if-present
         continue-on-error: true
 
+      # A `tsc --noEmit` clean tree can still fail to bundle: this is exactly
+      # what happened when dependabot moved react-native 0.86.3 -> 0.87.1,
+      # which removed rn-get-polyfills that the SDK 57 metro-config requires.
+      # The RN/Expo version pin is enforced in dependabot.yml; this step makes
+      # the breakage loud instead of silent. Env vars are absent in CI, which
+      # app.config.js tolerates (it warns and leaves extra undefined).
+      - name: Bundle
+        env:
+          # Placeholders only: app.config.js embeds these into the bundle and
+          # the client throws on startup with none set, but the export succeeds
+          # either way. They exist so the bundled artifact is representative.
+          EXPO_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+          EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: placeholder
+        run: npx expo export --platform android --output-dir /tmp/kfd-export
+
   # ---- Backend (NestJS) ------------------------------------------------
   # Dormant until a `backend/` directory exists. Because this job is gated
   # on `backend/**` changes, it only runs once the service is added.
