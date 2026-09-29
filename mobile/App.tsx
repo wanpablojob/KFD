@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -11,6 +10,7 @@ import {
 import { StatusBar } from "expo-status-bar";
 import { useSessionUser, signOut } from "./src/lib/auth";
 import { fetchUserRole, type UserRole } from "./src/lib/role";
+import { LoadingScreen } from "./src/screens/loading-screen";
 import { LandingScreen, type LandingAction } from "./src/screens/landing-screen";
 import { TrackOrderScreen } from "./src/screens/track-order-screen";
 import { RiderHomeScreen } from "./src/screens/rider-home-screen";
@@ -67,12 +67,7 @@ export default function App() {
   }, [user]);
 
   if (sessionLoading) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" />
-        <StatusBar style="dark" />
-      </View>
-    );
+    return <LoadingScreen message="Restoring session…" />;
   }
 
   if (!user) {
@@ -91,11 +86,7 @@ export default function App() {
 
   if (roleLoading || role === null) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" />
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-        <StatusBar style="dark" />
-      </View>
+      <LoadingScreen message={error ?? "Signing in…"} />
     );
   }
 
@@ -144,18 +135,11 @@ export default function App() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#fff" },
-  center: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#fff",
-  },
   content: { padding: 24, gap: 8 },
   title: { fontSize: 28, fontWeight: "700", color: "#111" },
   subtitle: { fontSize: 15, color: "#444" },
   roleLabel: { fontSize: 15, color: "#444" },
   muted: { fontSize: 14, color: "#888" },
-  error: { fontSize: 14, color: "#b42318", marginTop: 12, textAlign: "center" },
   bold: { fontWeight: "700" },
   footer: {
     padding: 24,
