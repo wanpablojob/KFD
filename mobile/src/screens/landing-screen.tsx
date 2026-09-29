@@ -20,7 +20,9 @@ export type LandingAction = "login";
  * sign in. The role is resolved from app_users after login, never chosen here.
  *
  * Animations run on React Native's built-in Animated API (no gsap -- that is
- * DOM-only and would leave the screen static inside Expo Go).
+ * DOM-only and would leave the screen static inside Expo Go). They use the JS
+ * driver to avoid the new-architecture "cannot add new property _tracking"
+ * crash that the native animated graph triggers on Expo Go.
  */
 export function LandingScreen({
   onAction,
@@ -34,7 +36,7 @@ export function LandingScreen({
     Animated.timing(rise, {
       toValue: 1,
       duration: 600,
-      useNativeDriver: true,
+      useNativeDriver: false,
     }).start();
 
     const blinkLoop = Animated.loop(
@@ -43,13 +45,13 @@ export function LandingScreen({
           toValue: 1,
           duration: 900,
           easing: Easing.inOut(Easing.quad),
-          useNativeDriver: true,
+          useNativeDriver: false,
         }),
         Animated.timing(blink, {
           toValue: 0,
           duration: 900,
           easing: Easing.inOut(Easing.quad),
-          useNativeDriver: true,
+          useNativeDriver: false,
         }),
       ])
     );

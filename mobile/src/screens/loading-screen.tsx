@@ -4,9 +4,14 @@ import { StatusBar } from "expo-status-bar";
 
 /**
  * Branded pixel-theme loading screen shown while the app restores the session
- * or resolves the signed-in user's role. Uses only React Native's built-in
- * Animated API (no gsap -- that is DOM-only and cannot run inside Expo Go) so
- * the animation plays in the actual mobile app, not just the web build.
+ * or resolves the signed-in user's role. Uses React Native's built-in Animated
+ * API (no gsap -- that is DOM-only and cannot run inside Expo Go) so the
+ * animation plays in the actual mobile app, not just the web build.
+ *
+ * Animations deliberately run on the JS driver (useNativeDriver: false):
+ * these are purely decorative loops, and driving them through the native
+ * animated node graph crashes on Expo Go with the known
+ * "cannot add new property _tracking" error (react-native new architecture).
  */
 export function LoadingScreen({ message }: { message?: string }) {
   const bounce = useRef(new Animated.Value(0)).current;
@@ -21,13 +26,13 @@ export function LoadingScreen({ message }: { message?: string }) {
             toValue: 1,
             duration: 520,
             easing: Easing.out(Easing.quad),
-            useNativeDriver: true,
+            useNativeDriver: false,
           }),
           Animated.timing(bounce, {
             toValue: 0,
             duration: 520,
             easing: Easing.in(Easing.quad),
-            useNativeDriver: true,
+            useNativeDriver: false,
           }),
         ])
       ),
@@ -37,13 +42,13 @@ export function LoadingScreen({ message }: { message?: string }) {
             toValue: 1,
             duration: 950,
             easing: Easing.inOut(Easing.quad),
-            useNativeDriver: true,
+            useNativeDriver: false,
           }),
           Animated.timing(pulse, {
             toValue: 0,
             duration: 950,
             easing: Easing.inOut(Easing.quad),
-            useNativeDriver: true,
+            useNativeDriver: false,
           }),
         ])
       ),
@@ -52,12 +57,12 @@ export function LoadingScreen({ message }: { message?: string }) {
           Animated.timing(blink, {
             toValue: 1,
             duration: 480,
-            useNativeDriver: true,
+            useNativeDriver: false,
           }),
           Animated.timing(blink, {
             toValue: 0,
             duration: 480,
-            useNativeDriver: true,
+            useNativeDriver: false,
           }),
         ])
       ),
