@@ -95,9 +95,9 @@ export function LandingScreen({
           >
             <Text style={styles.buttonLabel}>▸ SIGN IN</Text>
           </Pressable>
-          <Text style={[styles.hint, { opacity: blinkOpacity }]}>
+          <Animated.Text style={[styles.hint, { opacity: blinkOpacity }]}>
             One account for every role
-          </Text>
+          </Animated.Text>
         </Animated.View>
       </View>
       <StatusBar style="light" />
