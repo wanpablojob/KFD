@@ -37,6 +37,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-background text-foreground">
       {/* Makes ?q= in a search result URL filter the page it lands on. */}
       <GlobalSearchSeed />
+      {/* Skip link — first focusable element. Visually hidden until focused. */}
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-card focus:px-4 focus:py-2 focus:text-sm focus:shadow-lg"
+      >
+        Skip to main content
+      </a>
       <Sidebar
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
@@ -57,7 +64,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           }
           roleLabel={roleLabel}
         />
-        <main className="flex-1">{children}</main>
+        <main id="main" tabIndex={-1} className="flex-1">{children}</main>
       </div>
     </div>
   );
