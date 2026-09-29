@@ -42,6 +42,9 @@ export function NotificationBell({
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLUListElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
 
   const { isUnread, markAllRead, readStateLoaded } = useOrderNotifications(
     enabled,
@@ -50,6 +53,21 @@ export function NotificationBell({
 
   const updates = orders.filter((o) => LIVE_STATUSES.includes(o.status)).slice(0, 6);
   const unreadCount = updates.filter((o) => isUnread(o.placedAt)).length;
+
+  // Move focus to first link on open; restore on close
+  useEffect(() => {
+    if (open) {
+      previousFocusRef.current = document.activeElement as HTMLElement;
+      // Wait for panel to render, then focus first link
+      setTimeout(() => {
+        const firstLink = panelRef.current?.querySelector("a[href]");
+        (firstLink as HTMLElement)?.focus();
+      }, 0);
+    } else if (previousFocusRef.current) {
+      previousFocusRef.current.focus();
+      previousFocusRef.current = null;
+    }
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -69,6 +87,16 @@ export function NotificationBell({
     };
   }, [open]);
 
+  // Focus trap: close when tabbing past last item
+  function onFocusOut(e: React.FocusEvent<HTMLButtonElement>) {
+    if (!open) return;
+    const related = e.relatedTarget as HTMLElement;
+    // If focus is leaving the panel and not going to another element inside the dropdown
+    if (panelRef.current && !panelRef.current.contains(related) && triggerRef.current && !triggerRef.current.contains(related)) {
+      setOpen(false);
+    }
+  }
+
   // Opening the dropdown is the acknowledgement gesture. Tying it to the read
   // state -- rather than to a click that also toggles the panel -- is what stops
   // the dot from reappearing on the next page load.
@@ -84,13 +112,20 @@ export function NotificationBell({
         ? "Notifications, all read"
         : "Notifications";
 
+  // Live region announces unread count when panel is closed
+  const liveLabel = unreadCount > 0 ? `${unreadCount} new status updates` : "No new updates";
+
   return (
     <div className="relative" ref={ref}>
       <button
+        ref={triggerRef}
         type="button"
         onClick={toggle}
+        onBlur={onFocusOut}
         aria-label={label}
         aria-expanded={open}
+        aria-controls="bell-panel"
+        aria-haspopup="listbox"
         className="relative rounded-md p-2 text-muted-foreground hover:bg-muted hover:text-foreground"
       >
         <BellIcon className="h-5 w-5" />
@@ -103,9 +138,21 @@ export function NotificationBell({
         ) : null}
       </button>
 
+      {/* Live region for unread count changes when panel is closed */}
+      <div
+        aria-live="polite"
+        aria-atomic="true"
+        className="sr-only"
+        role="status"
+      >
+        {open ? "" : liveLabel}
+      </div>
+
       {open ? (
-        <div
-          role="dialog"
+        <ul
+          ref={panelRef}
+          id="bell-panel"
+          role="listbox"
           aria-label="Notifications"
           data-bell-panel
           className="absolute right-0 z-30 mt-2 w-80 overflow-hidden rounded-(--radius-card) border border-border bg-card shadow-xl"
@@ -121,11 +168,11 @@ export function NotificationBell({
               Nothing in progress right now.
             </p>
           ) : (
-            <ul className="max-h-80 divide-y divide-border/70 overflow-y-auto">
+            <div className="max-h-80 divide-y divide-border/70 overflow-y-auto">
               {updates.map((o) => {
                 const unread = isUnread(o.placedAt);
                 return (
-                  <li key={o.id}>
+                  <li key={o.id} role="option" aria-selected={false}>
                     {/*
                       A link, so the item can actually be acted on. The old
                       rows were non-focusable <li>s, which meant a keyboard
@@ -162,9 +209,9 @@ export function NotificationBell({
                   </li>
                 );
               })}
-            </ul>
+            </div>
           )}
-        </div>
+        </ul>
       ) : null}
     </div>
   );
