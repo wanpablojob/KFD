@@ -1,6 +1,8 @@
+import { useEffect, useRef } from "react";
 import {
-  KeyboardAvoidingView,
-  Platform,
+  Animated,
+  Easing,
+  Image,
   Pressable,
   StyleSheet,
   Text,
@@ -8,74 +10,159 @@ import {
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 
-export type LandingAction = "track" | "login";
+export type LandingAction = "login";
 
 /**
- * Signed-out landing. The customer side is public -- track_order() is granted
- * to anon, matching the web's reference-tracking page -- so the two entry
- * points are explicit: track an existing order (no login) or sign in. Sign-in
- * is shared by every account that has one (rider, merchant, admin); the role
- * is resolved from app_users afterwards, never chosen on this screen.
+ * Signed-out pixel-theme landing -- the gateway to the shared sign-in.
+ *
+ * Customers track orders on the web by reference; the mobile app is account
+ * first, so the landing is deliberately one screen with a single decision:
+ * sign in. The role is resolved from app_users after login, never chosen here.
+ *
+ * Animations run on React Native's built-in Animated API (no gsap -- that is
+ * DOM-only and would leave the screen static inside Expo Go).
  */
 export function LandingScreen({
   onAction,
 }: {
   onAction: (action: LandingAction) => void;
 }) {
-  return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-    >
-      <View style={styles.inner}>
-        <Text style={styles.title}>KFD</Text>
-        <Text style={styles.subtitle}>
-          Kabankalan City Proper food delivery
-        </Text>
+  const rise = useRef(new Animated.Value(0)).current;
+  const blink = useRef(new Animated.Value(0)).current;
 
-        <Pressable style={styles.primary} onPress={() => onAction("track")}>
-          <Text style={styles.primaryLabel}>Track an order</Text>
-        </Pressable>
-        <Pressable style={styles.secondary} onPress={() => onAction("login")}>
-          <Text style={styles.secondaryLabel}>Sign in</Text>
-        </Pressable>
+  useEffect(() => {
+    Animated.timing(rise, {
+      toValue: 1,
+      duration: 600,
+      useNativeDriver: true,
+    }).start();
+
+    const blinkLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(blink, {
+          toValue: 1,
+          duration: 900,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(blink, {
+          toValue: 0,
+          duration: 900,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    blinkLoop.start();
+    return () => blinkLoop.stop();
+  }, [rise, blink]);
+
+  const riseStyle = {
+    opacity: rise,
+    transform: [
+      {
+        translateY: rise.interpolate({ inputRange: [0, 1], outputRange: [28, 0] }),
+      },
+    ],
+  };
+  const blinkOpacity = blink.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] });
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.inner}>
+        <Animated.View style={[styles.brand, riseStyle]}>
+          <View style={styles.logoRow}>
+            <Image source={require("../../assets/icon.png")} style={styles.logo} />
+            <View>
+              <Text style={styles.title}>KFD</Text>
+              <Text style={styles.subtitle}>
+                Kabankalan City Proper food delivery
+              </Text>
+            </View>
+          </View>
+          <Text style={styles.tagline}>PRESS ▮ TO PLAY</Text>
+        </Animated.View>
+
+        <Animated.View style={[styles.actions, { opacity: rise }]}>
+          <Pressable
+            style={({ pressed }) => [
+              styles.button,
+              pressed ? styles.buttonPressed : null,
+            ]}
+            onPress={() => onAction("login")}
+          >
+            <Text style={styles.buttonLabel}>▸ SIGN IN</Text>
+          </Pressable>
+          <Text style={[styles.hint, { opacity: blinkOpacity }]}>
+            One account for every role
+          </Text>
+        </Animated.View>
       </View>
-      <StatusBar style="dark" />
-    </KeyboardAvoidingView>
+      <StatusBar style="light" />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#fff",
+    backgroundColor: "#0b1020",
     justifyContent: "center",
   },
-  inner: { padding: 24, gap: 12 },
-  title: { fontSize: 32, fontWeight: "800", color: "#111", textAlign: "center" },
+  inner: { padding: 32, gap: 56 },
+  brand: { alignItems: "flex-start", gap: 8 },
+  logoRow: { flexDirection: "row", alignItems: "center", gap: 16 },
+  logo: {
+    width: 72,
+    height: 72,
+    borderWidth: 2,
+    borderColor: "#ffd23f",
+  },
+  title: {
+    fontSize: 40,
+    fontWeight: "800",
+    letterSpacing: 6,
+    color: "#ffd23f",
+  },
   subtitle: {
-    fontSize: 15,
-    color: "#666",
+    fontSize: 12,
+    letterSpacing: 1.5,
+    color: "#8aa2ff",
+    textTransform: "uppercase",
+  },
+  tagline: {
+    fontSize: 12,
+    letterSpacing: 3,
+    color: "#ff8787",
+    borderWidth: 2,
+    borderColor: "#ff8787",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    alignSelf: "flex-start",
+  },
+  actions: { gap: 16 },
+  button: {
+    borderWidth: 2,
+    borderColor: "#ffd23f",
+    backgroundColor: "#111830",
+    paddingVertical: 16,
+    alignItems: "center",
+  },
+  buttonPressed: {
+    backgroundColor: "#1c2a5e",
+    transform: [{ translateX: 2 }, { translateY: 2 }],
+  },
+  buttonLabel: {
+    fontSize: 16,
+    fontWeight: "800",
+    letterSpacing: 2,
+    color: "#ffd23f",
+  },
+  hint: {
+    fontSize: 12,
+    letterSpacing: 2,
+    color: "#8aa2ff",
     textAlign: "center",
-    marginBottom: 16,
+    textTransform: "uppercase",
   },
-  primary: {
-    backgroundColor: "#111",
-    borderRadius: 10,
-    paddingVertical: 14,
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: 48,
-  },
-  primaryLabel: { fontSize: 16, fontWeight: "700", color: "#fff" },
-  secondary: {
-    borderWidth: 1,
-    borderColor: "#d1d1d1",
-    borderRadius: 10,
-    paddingVertical: 14,
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: 48,
-  },
-  secondaryLabel: { fontSize: 16, fontWeight: "600", color: "#111" },
 });

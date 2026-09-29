@@ -12,18 +12,18 @@ import { useSessionUser, signOut } from "./src/lib/auth";
 import { fetchUserRole, type UserRole } from "./src/lib/role";
 import { LoadingScreen } from "./src/screens/loading-screen";
 import { LandingScreen, type LandingAction } from "./src/screens/landing-screen";
-import { TrackOrderScreen } from "./src/screens/track-order-screen";
 import { RiderHomeScreen } from "./src/screens/rider-home-screen";
 import { LoginScreen } from "./src/screens/login-screen";
 
 /**
  * Role-routed mobile shell.
  *
- * Signed-out the app has two entry points: public order tracking (track_order
- * is granted to anon, so no login) and a shared sign-in. Accounts are resolved
- * to a role from app_users after login: a rider lands on the rider surface;
- * admin/merchant accounts are told to use the web console, because this app
- * has no admin/merchant surface.
+ * Signed-out the app shows a pixel-theme landing with a single decision:
+ * sign in. Accounts are resolved to a role from app_users after login: a rider
+ * lands on the rider surface; admin/merchant accounts are told to use the web
+ * console, because this app has no admin/merchant surface. (Customers track
+ * orders on web by reference; track_order stays in the backend, this app is
+ * account-first.)
  */
 export default function App() {
   const { user, loading: sessionLoading } = useSessionUser();
@@ -72,13 +72,7 @@ export default function App() {
   }
 
   if (!user) {
-    // Signed out: two entry points. Tracking is public; rider opens the
-    // login screen. Once signed in the rider surface replaces this landing.
-    if (action === "track") {
-      return (
-        <TrackOrderScreen onBack={() => setAction(null)} />
-      );
-    }
+    // Signed out: one entry point -- the shared sign-in opens LoginScreen.
     if (action === "login") {
       return <LoginScreen onBack={() => setAction(null)} />;
     }

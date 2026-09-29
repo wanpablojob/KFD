@@ -14,15 +14,14 @@ import { StatusBar } from "expo-status-bar";
 import { signInWithPassword } from "../lib/auth";
 
 /**
- * Shared sign-in for the KFD mobile app.
+ * Shared sign-in for the KFD mobile app, pixel theme to match the landing.
  *
  * One account serves both hats that have one: a rider signs in to the rider
  * surface, an admin/merchant sees the web-console notice. Customers have no
  * account (tracking is public by reference), so this is deliberately a bare
  * email/password screen -- no role choice, no hint that a customer should be
  * here. The role is resolved from app_users after sign-in, never chosen on
- * this page, which is the same "no silver bullet, RLS is the boundary" rule
- * the admin app uses.
+ * this page.
  */
 export function LoginScreen({ onBack }: { onBack?: () => void }) {
   const [email, setEmail] = useState("");
@@ -59,19 +58,20 @@ export function LoginScreen({ onBack }: { onBack?: () => void }) {
       <View style={styles.form}>
         {onBack ? (
           <Text style={styles.back} onPress={onBack}>
-            ‹ Back
+            ‹ BACK
           </Text>
         ) : null}
 
         <Image source={require("../../assets/icon.png")} style={styles.logo} />
         <Text style={styles.title}>KFD</Text>
-        <Text style={styles.subtitle}>Sign in to your KFD account</Text>
+        <Text style={styles.subtitle}>SIGN IN TO YOUR KFD ACCOUNT</Text>
 
         <TextInput
           style={styles.input}
           value={email}
           onChangeText={setEmail}
           placeholder="Email"
+          placeholderTextColor="#8aa2ff"
           autoCapitalize="none"
           autoCorrect={false}
           keyboardType="email-address"
@@ -84,6 +84,7 @@ export function LoginScreen({ onBack }: { onBack?: () => void }) {
           value={password}
           onChangeText={setPassword}
           placeholder="Password"
+          placeholderTextColor="#8aa2ff"
           secureTextEntry
           textContentType="password"
           autoComplete="current-password"
@@ -96,7 +97,7 @@ export function LoginScreen({ onBack }: { onBack?: () => void }) {
 
         <SubmitButton busy={submitting} onPress={handleSubmit} />
       </View>
-      <StatusBar style="dark" />
+      <StatusBar style="light" />
     </KeyboardAvoidingView>
   );
 }
@@ -110,14 +111,18 @@ function SubmitButton({
 }) {
   return (
     <Pressable
-      style={[styles.button, busy ? styles.buttonDisabled : null]}
+      style={({ pressed }) => [
+        styles.button,
+        busy ? styles.buttonDisabled : null,
+        pressed && !busy ? styles.buttonPressed : null,
+      ]}
       disabled={busy}
       onPress={onPress}
     >
       {busy ? (
-        <ActivityIndicator color="#fff" />
+        <ActivityIndicator color="#111830" />
       ) : (
-        <Text style={styles.buttonLabel}>Sign in</Text>
+        <Text style={styles.buttonLabel}>▸ SIGN IN</Text>
       )}
     </Pressable>
   );
@@ -126,36 +131,44 @@ function SubmitButton({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#fff",
+    backgroundColor: "#0b1020",
     justifyContent: "center",
   },
   form: { padding: 24, gap: 12 },
-  back: { fontSize: 15, color: "#666", alignSelf: "flex-start" },
-  logo: { width: 96, height: 96, borderRadius: 20, alignSelf: "center" },
-  title: { fontSize: 32, fontWeight: "800", color: "#111", textAlign: "center" },
-  subtitle: {
-    fontSize: 15,
-    color: "#666",
+  back: { fontSize: 14, letterSpacing: 2, color: "#8aa2ff", alignSelf: "flex-start" },
+  logo: { width: 72, height: 72, borderWidth: 2, borderColor: "#ffd23f", alignSelf: "center" },
+  title: {
+    fontSize: 32,
+    fontWeight: "800",
+    letterSpacing: 6,
+    color: "#ffd23f",
     textAlign: "center",
-    marginBottom: 16,
+  },
+  subtitle: {
+    fontSize: 12,
+    letterSpacing: 2,
+    color: "#8aa2ff",
+    textAlign: "center",
+    marginBottom: 8,
   },
   input: {
-    borderWidth: 1,
-    borderColor: "#d1d1d1",
-    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: "#3b5bdb",
+    backgroundColor: "#111830",
+    borderRadius: 0,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 16,
-    color: "#111",
+    color: "#e5e7eb",
   },
   error: {
     fontSize: 14,
-    color: "#b42318",
+    color: "#ff8787",
     textAlign: "center",
   },
   button: {
-    backgroundColor: "#111",
-    borderRadius: 10,
+    backgroundColor: "#ffd23f",
+    borderRadius: 0,
     paddingVertical: 14,
     alignItems: "center",
     justifyContent: "center",
@@ -163,5 +176,9 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   buttonDisabled: { opacity: 0.6 },
-  buttonLabel: { fontSize: 16, fontWeight: "700", color: "#fff" },
+  buttonPressed: {
+    backgroundColor: "#e6b820",
+    transform: [{ translateX: 2 }, { translateY: 2 }],
+  },
+  buttonLabel: { fontSize: 16, fontWeight: "800", letterSpacing: 2, color: "#111830" },
 });
