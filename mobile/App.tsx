@@ -6,14 +6,23 @@ import {
   StyleSheet,
   Text,
   View,
+  Switch,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { useSessionUser, signOut } from "./src/lib/auth";
 import { fetchUserRole, type UserRole } from "./src/lib/role";
+import { supabase } from "./src/lib/supabase";
 import { LoadingScreen } from "./src/screens/loading-screen";
 import { LandingScreen, type LandingAction } from "./src/screens/landing-screen";
 import { RiderHomeScreen } from "./src/screens/rider-home-screen";
 import { LoginScreen } from "./src/screens/login-screen";
+import {
+  disablePush,
+  enablePush,
+  getPushStatus,
+  watchForTokenRotation,
+  type PushStatus,
+} from "./src/lib/push";
 
 /**
  * Role-routed mobile shell.
@@ -31,6 +40,8 @@ export default function App() {
   const [roleLoading, setRoleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [action, setAction] = useState<LandingAction | null>(null);
+  const [push, setPush] = useState<PushStatus>({ granted: false, registered: false });
+  const [pushBusy, setPushBusy] = useState(false);
 
   useEffect(() => {
     if (!user) {
@@ -39,6 +50,7 @@ export default function App() {
     }
     let active = true;
     setRoleLoading(true);
+    void getPushStatus().then(setPush);
     fetchUserRole()
       .then((resolved) => {
         if (!active) return;
@@ -66,6 +78,24 @@ export default function App() {
       active = false;
     };
   }, [user]);
+
+  // Re-register a rotated Expo token in place so a merchant with alerts on does
+  // not go silently deaf after a reinstall or permission change.
+  useEffect(() => {
+    if (role?.role !== "merchant" || !push.registered) return;
+    let active = true;
+    let subscription: { remove: () => void } | null = null;
+    void supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!active || !session?.access_token) return;
+      subscription = watchForTokenRotation(session.access_token, () => {
+        if (active) setPush({ granted: true, registered: true });
+      });
+    });
+    return () => {
+      active = false;
+      subscription?.remove();
+    };
+  }, [role, push.registered]);
 
   if (sessionLoading) {
     return <LoadingScreen message="Restoring session…" />;
@@ -98,6 +128,27 @@ export default function App() {
   }
 
   // admin / merchant: no mobile surface in this app.
+  async function togglePush() {
+    if (!user || pushBusy) return;
+    setPushBusy(true);
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) return;
+
+      if (push.granted && push.registered) {
+        await disablePush(token);
+        setPush({ granted: false, registered: false });
+      } else {
+        setPush(await enablePush(token));
+      }
+    } finally {
+      setPushBusy(false);
+    }
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
@@ -112,12 +163,42 @@ export default function App() {
           This mobile app serves riders and customers. Use the web console for
           {role.role === "merchant" ? " merchant" : " admin"} work.
         </Text>
+
+        {role.role === "merchant" ? (
+          <View style={styles.pushRow}>
+            <View style={styles.pushCopy}>
+              <Text style={styles.pushTitle}>Order alerts</Text>
+              <Text style={styles.pushMuted}>
+                {push.error
+                  ? push.error
+                  : push.granted && push.registered
+                    ? "This device receives new-order alerts."
+                    : "Get a push when a new order is placed."}
+              </Text>
+            </View>
+            <Switch
+              value={push.granted && push.registered}
+              onValueChange={() => void togglePush()}
+              disabled={pushBusy}
+            />
+          </View>
+        ) : null}
       </ScrollView>
       <View style={styles.footer}>
         <Text
           style={styles.signOut}
           onPress={() => {
-            void signOut();
+            void (async () => {
+              if (push.granted && push.registered) {
+                const {
+                  data: { session },
+                } = await supabase.auth.getSession();
+                if (session?.access_token) {
+                  await disablePush(session.access_token);
+                }
+              }
+              await signOut();
+            })();
           }}
         >
           Sign out
@@ -136,6 +217,21 @@ const styles = StyleSheet.create({
   roleLabel: { fontSize: 15, color: "#444" },
   muted: { fontSize: 14, color: "#888" },
   bold: { fontWeight: "700" },
+  pushRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 20,
+    padding: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "#d1d1d1",
+    borderRadius: 12,
+    backgroundColor: "#fafafa",
+    gap: 12,
+  },
+  pushCopy: { flex: 1, gap: 2 },
+  pushTitle: { fontSize: 15, fontWeight: "700", color: "#111" },
+  pushMuted: { fontSize: 13, color: "#666" },
   footer: {
     padding: 24,
     paddingBottom: 32,

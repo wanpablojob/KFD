@@ -6,6 +6,7 @@ import {
   sendOrderEmail,
   type OrderEmailData,
 } from "@/lib/server/order-email";
+import { sendMerchantOrderPush } from "@/lib/server/push-notify";
 
 /**
  * POST /api/orders/notify
@@ -192,7 +193,18 @@ export async function POST(req: Request) {
       recipients.map((to) => sendOrderEmail(to, mail.subject, mail.html))
     );
 
-    return NextResponse.json({ event, recipients, results });
+    // Expo Push for the same merchant accounts (Prompt 6.2). Best-effort like
+    // the email: a push failure must not fail the order write. Nothing calls
+    // the placed event yet -- ordering is not live -- so this currently sends
+    // to the devices real merchants have registered, and it stays dormant for
+    // as long as no client places orders.
+    const pushResult = await sendMerchantOrderPush(
+      supabase,
+      order.restaurant_id,
+      order.reference
+    );
+
+    return NextResponse.json({ event, recipients, results, push: pushResult });
   }
 
   // status_changed

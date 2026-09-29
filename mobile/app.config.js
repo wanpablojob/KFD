@@ -9,6 +9,12 @@ export default {
     extra: {
       supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL,
       supabasePublishableKey: process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
+      // Admin API host, used by mobile push registration. Public: a device
+      // must reach it. eslint-disable-next-line no-undef
+      apiUrl: process.env.EXPO_PUBLIC_API_URL,
+      eas: {
+        projectId: process.env.EXPO_PUBLIC_EAS_PROJECT_ID,
+      },
     },
   },
 };
