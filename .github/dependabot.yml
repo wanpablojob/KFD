@@ -29,6 +29,13 @@ updates:
       mobile-minor-patch:
         patterns: ["*"]
         update-types: [minor, patch]
+    ignore:
+      # Expo pins react-native's version in `bundledNativeModules.json`
+      # (`expo/bundledNativeModules`). Bumping RN independently of Expo broke
+      # the bundle: 0.87 removed `react-native/rn-get-polyfills`, which the
+      # SDK 57 metro-config still requires at build time. RN must move with
+      # Expo, never on its own.
+      - dependency-name: react-native
     commit-message:
       prefix: "chore(deps)"
       include: scope
