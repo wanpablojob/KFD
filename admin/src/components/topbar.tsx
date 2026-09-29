@@ -6,6 +6,7 @@ import { ThemeToggle } from "./theme-toggle";
 import { initials } from "@/lib/format";
 import { signOut, useSessionUser } from "@/lib/auth";
 import { GlobalSearch } from "./global-search";
+import { MobileSearch } from "./mobile-search";
 
 export function Topbar({
   onMenuClick,
@@ -44,6 +45,7 @@ export function Topbar({
       </button>
 
       <GlobalSearch />
+      <MobileSearch />
 
       <div className="ml-auto flex items-center gap-3">
         <span className="hidden items-center gap-1.5 rounded-full border border-border bg-muted/60 px-2.5 py-1 text-xs font-medium text-muted-foreground md:inline-flex">
