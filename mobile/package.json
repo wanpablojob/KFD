@@ -39,6 +39,9 @@
     "prettier": "^3.9.9",
     "typescript": "~6.0.3"
   },
+  "overrides": {
+    "react-native-worklets": "0.13.0"
+  },
   "scripts": {
     "start": "expo start",
     "android": "expo start --android",
