@@ -42,8 +42,22 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        source: "/:path*",
+        // Baseline policy for everything except the tracking subtree, which
+        // needs a stricter Referrer-Policy (handled below). The negative
+        // lookahead keeps the two rules from both emitting the header.
+        source: "/((?!track).*)",
         headers: securityHeaders,
+      },
+      {
+        // The order reference is a bearer secret in the URL. no-referrer stops
+        // it travelling in the Referer header when a customer taps an outbound
+        // link from a tracking page.
+        source: "/track/:path*",
+        headers: securityHeaders.map((header) =>
+          header.key === "Referrer-Policy"
+            ? { ...header, value: "no-referrer" }
+            : header
+        ),
       },
     ];
   },

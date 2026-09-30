@@ -58,6 +58,7 @@
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
+  min-height: 44px;
   padding: 0.875rem 1.5rem;
   border: var(--pixel-border);
   border-radius: 0;
@@ -173,6 +174,186 @@
 .pixel-page .pixel-focus:focus-visible {
   outline: 4px solid var(--ring);
   outline-offset: 2px;
+}
+
+/* ---------------------------------------------------------------------------
+   Sticky header. Backdrop blur keeps the pixel type legible as content scrolls
+   under it without turning the bar opaque and hiding the page.
+   --------------------------------------------------------------------------- */
+.pixel-page .pixel-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background-color: color-mix(in srgb, var(--background) 88%, transparent);
+  backdrop-filter: blur(6px);
+  border-bottom: 3px solid var(--foreground);
+}
+
+.pixel-page .pixel-nav-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-family: var(--font-geist-sans), sans-serif;
+  font-size: 0.875rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-decoration: none;
+  color: var(--foreground);
+}
+
+.pixel-page .pixel-nav-link:hover {
+  color: var(--primary);
+}
+
+.pixel-page .pixel-link {
+  color: var(--primary);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.pixel-page .pixel-link:hover {
+  text-decoration: underline;
+}
+
+.pixel-page .pixel-chip {
+  display: inline-flex;
+  align-items: center;
+  border: 3px solid var(--foreground);
+  background-color: var(--card);
+  padding: 0.4rem 0.75rem;
+  font-family: var(--font-pixel), var(--font-geist-sans), sans-serif;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.pixel-page .pixel-code {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 0.8em;
+  background-color: var(--muted);
+  padding: 0.1rem 0.35rem;
+}
+
+.pixel-page .pixel-dot {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  background-color: var(--primary);
+  flex-shrink: 0;
+}
+
+/* Form controls match the blocky language: square, solid border, tall enough
+   to be a comfortable touch target. */
+.pixel-page .pixel-input {
+  width: 100%;
+  min-height: 44px;
+  border: 3px solid var(--foreground);
+  border-radius: 0;
+  background-color: var(--card);
+  color: var(--foreground);
+  padding: 0.6rem 0.75rem;
+  font-family: var(--font-geist-sans), sans-serif;
+  font-size: 0.95rem;
+}
+
+.pixel-page .pixel-input:focus-visible {
+  outline: 4px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* Honeypot: present in the DOM for bots, invisible and untabbable for people. */
+.pixel-page .pixel-honeypot {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+/* Skip link: hidden until it takes focus. */
+.pixel-page .pixel-skip-link {
+  position: absolute;
+  left: 1rem;
+  top: 0;
+  z-index: 100;
+  transform: translateY(-140%);
+  background-color: var(--primary);
+  color: var(--primary-foreground);
+  padding: 0.75rem 1rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.pixel-page .pixel-skip-link:focus {
+  transform: translateY(0);
+}
+
+/* Any in-page anchor clears the sticky header. */
+.pixel-page :target {
+  scroll-margin-top: 6rem;
+}
+
+/* ---------------------------------------------------------------------------
+   Reveal on scroll. The hidden start state only exists once the client has set
+   data-reveal-ready, so the server render and the no-JS page show everything.
+   --------------------------------------------------------------------------- */
+.pixel-page[data-reveal-ready] [data-reveal] {
+  opacity: 0;
+  transform: translateY(18px);
+  transition:
+    opacity 500ms steps(6, end),
+    transform 500ms steps(6, end);
+}
+
+.pixel-page[data-reveal-ready] [data-reveal].is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+/* ---------------------------------------------------------------------------
+   Small motion, all opt-out under prefers-reduced-motion below.
+   --------------------------------------------------------------------------- */
+.pixel-page .pixel-float {
+  animation: pixel-float 3.2s steps(8, end) infinite alternate;
+}
+
+@keyframes pixel-float {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(-8px);
+  }
+}
+
+.pixel-page .pixel-dropdown {
+  animation: pixel-drop 160ms steps(3, end) both;
+}
+
+.pixel-page .pixel-dropdown-item {
+  animation: pixel-drop-item 180ms steps(3, end) both;
+}
+
+@keyframes pixel-drop {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes pixel-drop-item {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 /* Everything the loader and sprites need, respecting reduced motion. */

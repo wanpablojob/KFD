@@ -3,6 +3,7 @@ import { OrderTracker } from "@/components/track/order-tracker";
 export const metadata = {
   title: "Track your order — KFD",
   description: "Check the live status of your KFD order.",
+  robots: { index: false, follow: false },
 };
 
 /**

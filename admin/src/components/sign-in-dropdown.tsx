@@ -2,11 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import gsap from "gsap";
-import { useGSAP } from "@gsap/react";
 import { PixelCrate, PixelBowl } from "@/components/pixel/sprites-render";
-
-gsap.registerPlugin(useGSAP);
 
 /**
  * The portals a visitor can enter, and where each one should land them.
@@ -46,7 +42,6 @@ export function SignInDropdown() {
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<PortalKey>("admin");
   const scope = useRef<HTMLDivElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
 
   // Close on outside click and on Escape. Without this a dropdown that opens on
@@ -71,28 +66,6 @@ export function SignInDropdown() {
     };
   }, [open]);
 
-  useGSAP(
-    () => {
-      if (!open || !menuRef.current) return;
-      const reduced =
-        typeof window !== "undefined" &&
-        window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      if (reduced) return;
-
-      gsap.fromTo(
-        menuRef.current,
-        { autoAlpha: 0, y: -8 },
-        { autoAlpha: 1, y: 0, duration: 0.22, ease: "power3.out" },
-      );
-      gsap.fromTo(
-        "[data-dropdown-item]",
-        { x: -10, autoAlpha: 0 },
-        { x: 0, autoAlpha: 1, duration: 0.24, stagger: 0.05, ease: "power2.out" },
-      );
-    },
-    { dependencies: [open], scope },
-  );
-
   const current = PORTALS.find((p) => p.key === selected) ?? PORTALS[0];
 
   return (
@@ -116,10 +89,9 @@ export function SignInDropdown() {
 
       {open ? (
         <div
-          ref={menuRef}
           role="menu"
           aria-label="Choose a portal"
-          className="pixel-card absolute right-0 z-50 mt-3 w-72 p-2"
+          className="pixel-card pixel-dropdown absolute right-0 z-50 mt-3 w-72 p-2"
         >
           {PORTALS.map((portal) => (
             <Link
@@ -131,8 +103,11 @@ export function SignInDropdown() {
                 setSelected(portal.key);
                 setOpen(false);
               }}
-              className="pixel-focus flex items-center gap-3 px-3 py-3 no-underline transition-colors hover:bg-muted"
-              style={{ color: "var(--foreground)" }}
+              style={{
+                color: "var(--foreground)",
+                animationDelay: `${PORTALS.indexOf(portal) * 40}ms`,
+              }}
+              className="pixel-dropdown-item pixel-focus flex items-center gap-3 px-3 py-3 no-underline transition-colors hover:bg-muted"
             >
               <span className="shrink-0">
                 {portal.key === "customer" ? (
