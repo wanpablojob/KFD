@@ -95,7 +95,7 @@ export default function CustomersPage() {
         >
           <Card className="overflow-hidden">
             {/* Prompt 2.4, customer half. `orders.customer` is free text with
-                no foreign key to `customers`, so a correct per-customer
+                no foreign key to `/dashboard/customers`, so a correct per-customer
                 aggregate cannot be maintained -- the only available join is on
                 a name string, which silently misattributes orders between
                 same-named customers. The restaurant aggregates WERE made real
@@ -116,9 +116,9 @@ export default function CustomersPage() {
               columns={columns}
               rows={data ?? []}
               searchFields={["name", "email", "phone", "city", "id"]}
-              onRowClick={(row) => router.push(`/customers/${row.id}`)}
+              onRowClick={(row) => router.push(`/dashboard/customers/${row.id}`)}
               emptyTitle="No customers found"
-              exportName="customers"
+              exportName="/dashboard/customers"
               exportColumns={[
                 { key: "name", header: "Customer" },
                 { key: "email", header: "Email" },

@@ -1,14 +1,33 @@
 "use client";
 
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useGSAP } from "@gsap/react";
 import { SignInDropdown } from "@/components/sign-in-dropdown";
+import { WebLoadingScreen } from "@/components/web-loading-screen";
 import { PixelBowl, PixelCrate, PixelScooter } from "@/components/pixel/sprites-render";
 
 gsap.registerPlugin(useGSAP, ScrollTrigger);
+
+/** How long the intro loader holds before the page is revealed. */
+const INTRO_MS = 2200;
+
+/**
+ * Read once, lazily, at state-init time rather than inside an effect.
+ *
+ * prefers-reduced-motion must not cost anyone the intro animation on a normal
+ * reload, and setting state from an effect to branch on it re-renders anyway.
+ * `typeof window` guards SSR: the server render always takes the full intro,
+ * and the client takes the same path on hydration, so there is no mismatch.
+ */
+function prefersReducedMotion(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
+}
 
 const PILLARS = [
   {
@@ -36,6 +55,15 @@ const STATS = [
 
 export function LandingScene() {
   const scope = useRef<HTMLDivElement>(null);
+  // The intro loader mirrors the mobile app's splash: the rider crosses once,
+  // then the page is revealed. Reduced motion skips straight to the page.
+  const [introDone, setIntroDone] = useState(() => prefersReducedMotion());
+
+  useEffect(() => {
+    if (introDone) return;
+    const t = window.setTimeout(() => setIntroDone(true), INTRO_MS);
+    return () => window.clearTimeout(t);
+  }, [introDone]);
 
   useGSAP(
     () => {
@@ -114,6 +142,10 @@ export function LandingScene() {
     },
     { scope },
   );
+
+  if (!introDone) {
+    return <WebLoadingScreen message="Loading KFD" />;
+  }
 
   return (
     <div ref={scope} className="pixel-page pixel-scanlines relative min-h-dvh">

@@ -18,17 +18,17 @@ import { useSessionUser } from "@/lib/auth";
 import { useUserRole } from "@/lib/use-user-role";
 
 const navItems = [
-  { href: "/", label: "Overview", icon: LayoutDashboardIcon },
-  { href: "/orders", label: "Orders", icon: ReceiptIcon },
-  { href: "/restaurants", label: "Restaurants", icon: StoreIcon },
-  { href: "/riders", label: "Riders", icon: BikeIcon },
-  { href: "/customers", label: "Customers", icon: UsersIcon },
-  { href: "/menu", label: "Menu Items", icon: UtensilsIcon },
+  { href: "/dashboard", label: "Overview", icon: LayoutDashboardIcon },
+  { href: "/dashboard/orders", label: "Orders", icon: ReceiptIcon },
+  { href: "/dashboard/restaurants", label: "Restaurants", icon: StoreIcon },
+  { href: "/dashboard/riders", label: "Riders", icon: BikeIcon },
+  { href: "/dashboard/customers", label: "Customers", icon: UsersIcon },
+  { href: "/dashboard/menu", label: "Menu Items", icon: UtensilsIcon },
   // Admin only, because attaching a restaurant to an account is the one nav
   // item that grants access to anything. The link is hidden for merchants, and
   // 0011_merchant_provisioning.sql refuses the write for them regardless --
   // the page existing is not the permission.
-  { href: "/merchants", label: "Merchant access", icon: UserCogIcon, adminOnly: true },
+  { href: "/dashboard/merchants", label: "Merchant access", icon: UserCogIcon, adminOnly: true },
 ] as const;
 
 export function Sidebar({
@@ -66,7 +66,7 @@ export function Sidebar({
         )}
       >
         <div className="flex h-16 items-center justify-between border-b border-border px-5">
-          <Link href="/" onClick={onClose} className="flex items-center gap-2.5">
+          <Link href="/dashboard" onClick={onClose} className="flex items-center gap-2.5">
             <Image
               src="/images/kabankalan/logo.jpg"
               alt="Kabankalan Food Delivery"
@@ -91,9 +91,12 @@ export function Sidebar({
         <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4" aria-label="Admin">
           {navItems.map((item) => {
             if ("adminOnly" in item && item.adminOnly && !isAdmin) return null;
+            // "/dashboard" is a prefix of every other item, so a plain
+            // startsWith would light up the whole nav. The Overview item is
+            // active only on an exact match.
             const isActive =
-              item.href === "/"
-                ? pathname === "/"
+              item.href === "/dashboard"
+                ? pathname === "/dashboard"
                 : pathname.startsWith(item.href);
             return (
               <Link

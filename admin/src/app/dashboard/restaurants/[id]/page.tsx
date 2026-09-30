@@ -102,7 +102,7 @@ const menuColumns: Column<MenuItem>[] = [
 export default function RestaurantDetailPage() {
   const params = useParams();
   const restaurantId = params.id as string;
-  const [activeTab, setActiveTab] = useState("menu");
+  const [activeTab, setActiveTab] = useState("/dashboard/menu");
 
   const { data: restaurants, loading: restaurantsLoading, error: restaurantsError } = useAsyncData(() =>
     fetchRestaurants(),
@@ -160,7 +160,7 @@ export default function RestaurantDetailPage() {
         title={restaurant.name}
         description={`${restaurant.cuisine} · ${restaurant.city}`}
         actions={
-          <Link href="/restaurants">
+          <Link href="/dashboard/restaurants">
             <Button variant="outline" size="sm">
               <ArrowLeftIcon className="h-4 w-4" />
               Back to Restaurants
@@ -195,17 +195,17 @@ export default function RestaurantDetailPage() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList aria-label="Restaurant details">
-          <TabsTrigger value="menu">
+          <TabsTrigger value="/dashboard/menu">
             <UtensilsIcon className="h-4 w-4" />
             Menu ({totalMenuItems})
           </TabsTrigger>
-          <TabsTrigger value="orders">
+          <TabsTrigger value="/dashboard/orders">
             <ReceiptIcon className="h-4 w-4" />
             Order History ({orders?.length ?? 0})
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="menu">
+        <TabsContent value="/dashboard/menu">
           <TableBoundary
             loading={menuLoading}
             error={menuError}
@@ -239,7 +239,7 @@ export default function RestaurantDetailPage() {
           </TableBoundary>
         </TabsContent>
 
-        <TabsContent value="orders">
+        <TabsContent value="/dashboard/orders">
           <TableBoundary
             loading={ordersLoading}
             error={ordersError}

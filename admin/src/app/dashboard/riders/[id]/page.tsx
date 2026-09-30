@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { fetchCustomers, fetchOrdersByCustomer } from "@/lib/supabase/queries";
+import { fetchRiders, fetchOrdersByRider } from "@/lib/supabase/queries";
 import { formatCurrency } from "@/lib/format";
 import { PageContainer, PageHeader, Section } from "@/components/layout/page";
 import { Card } from "@/components/ui/card";
@@ -22,6 +22,16 @@ const columns: Column<Order>[] = [
     key: "reference",
     header: "Reference",
     cell: (row) => <span className="font-medium text-card-foreground">{row.reference}</span>,
+  },
+  {
+    key: "customer",
+    header: "Customer",
+    cell: (row) => (
+      <span className="flex items-center gap-2.5">
+        <Avatar name={row.customer} size="sm" />
+        <span className="text-card-foreground">{row.customer}</span>
+      </span>
+    ),
   },
   {
     key: "restaurant",
@@ -53,22 +63,22 @@ const columns: Column<Order>[] = [
   },
 ];
 
-export default function CustomerDetailPage() {
+export default function RiderDetailPage() {
   const params = useParams();
-  const customerId = params.id as string;
+  const riderId = params.id as string;
 
-  const { data: customers, loading: customersLoading, error: customersError } = useAsyncData(() =>
-    fetchCustomers(),
+  const { data: riders, loading: ridersLoading, error: ridersError } = useAsyncData(() =>
+    fetchRiders(),
   );
   const { data: orders, loading: ordersLoading, error: ordersError } = useAsyncData(() =>
-    fetchOrdersByCustomer(
-      customers?.find((c) => c.id === customerId)?.name ?? "",
+    fetchOrdersByRider(
+      riders?.find((r) => r.id === riderId)?.name ?? "",
     ),
   );
 
-  const customer = customers?.find((c) => c.id === customerId);
-  const loading = customersLoading || ordersLoading;
-  const error = customersError || ordersError;
+  const rider = riders?.find((r) => r.id === riderId);
+  const loading = ridersLoading || ordersLoading;
+  const error = ridersError || ordersError;
 
   if (loading) {
     return (
@@ -78,85 +88,88 @@ export default function CustomerDetailPage() {
     );
   }
 
-  // A failed fetch would otherwise fall through to "Customer not found", which
-  // reads as a deleted customer rather than a network or RLS problem.
+  // A failed fetch would otherwise fall through to "Rider not found", which
+  // reads as a deleted rider rather than a network or RLS problem.
   if (error) {
     return (
       <PageContainer>
         <PageHeader
-          title="Could not load this customer"
+          title="Could not load this rider"
           description={error}
         />
       </PageContainer>
     );
   }
 
-  if (!customer) {
+  if (!rider) {
     return (
       <PageContainer>
-        <PageHeader title="Customer not found" description="The requested customer does not exist." />
+        <PageHeader title="Rider not found" description="The requested rider does not exist." />
       </PageContainer>
     );
   }
 
+  const deliveredOrders = orders?.filter((o) => o.status === "delivered") ?? [];
+  const totalDeliveries = deliveredOrders.length;
+  const totalEarnings = deliveredOrders.reduce((sum, o) => sum + o.total, 0);
+
   return (
     <PageContainer>
       <PageHeader
-        title={customer.name}
-        description={customer.email}
+        title={rider.name}
+        description={rider.email}
         actions={
-          <Link href="/customers">
+          <Link href="/dashboard/riders">
             <Button variant="outline" size="sm">
               <ArrowLeftIcon className="h-4 w-4" />
-              Back to Customers
+              Back to Riders
             </Button>
           </Link>
         }
       />
 
-      <Section aria-label="Customer details">
+      <Section aria-label="Rider details">
         <Card className="mb-6">
           <div className="flex flex-col sm:flex-row sm:items-center gap-4 p-5">
-            <Avatar name={customer.name} size="lg" />
+            <Avatar name={rider.name} size="lg" />
             <div className="space-y-1">
-              <p className="text-lg font-semibold text-card-foreground">{customer.name}</p>
-              <p className="text-muted-foreground">{customer.email}</p>
+              <p className="text-lg font-semibold text-card-foreground">{rider.name}</p>
+              <p className="text-muted-foreground">{rider.email}</p>
               <p className="text-sm text-muted-foreground">
-                {customer.phone} · {customer.city}
+                {rider.phone} · {rider.city} · {rider.vehicle}
               </p>
-              <p className="text-xs text-muted-foreground">Joined {customer.joinedAt}</p>
+              <p className="text-xs text-muted-foreground">
+                Status: {rider.status} · Rating: {rider.rating} ★
+              </p>
             </div>
             <div className="flex flex-wrap gap-2 ml-auto">
-              <Badge variant="secondary" size="sm">
-                {customer.ordersCount} orders (sample)
-              </Badge>
-              <Badge variant="secondary" size="sm">
-                {formatCurrency(customer.totalSpend)} total (sample)
-              </Badge>
+              <Badge variant="secondary" size="sm">{totalDeliveries} deliveries</Badge>
+              <Badge variant="secondary" size="sm">{formatCurrency(totalEarnings)} earnings</Badge>
             </div>
           </div>
         </Card>
       </Section>
 
-      <Section aria-label="Order history">
+      <Section aria-label="Delivery history">
         <TableBoundary
           loading={ordersLoading}
           error={ordersError}
           onRetry={() => {}}
-          errorTitle="Could not load order history"
+          errorTitle="Could not load delivery history"
           skeletonRows={5}
-          skeletonColumns={6}
+          skeletonColumns={7}
         >
           <Card className="overflow-hidden">
             <PaginatedDataTable<Order>
               columns={columns}
               rows={orders ?? []}
-              searchFields={["reference", "restaurant", "status", "payment"]}
-              emptyTitle="No orders found"
-              emptyDescription="This customer has not placed any orders yet."
-              exportName={`customer-${customer.name}-orders`}
+              searchFields={["reference", "customer", "restaurant", "status", "payment"]}
+              emptyTitle="No deliveries found"
+              emptyDescription="This rider has not completed any deliveries yet."
+              exportName={`rider-${rider.name}-deliveries`}
               exportColumns={[
                 { key: "reference", header: "Reference" },
+                { key: "customer", header: "Customer" },
                 { key: "restaurant", header: "Restaurant" },
                 { key: "total", header: "Total", format: (row) => formatCurrency(row.total) },
                 { key: "status", header: "Status" },

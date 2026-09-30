@@ -286,9 +286,9 @@ export default function RidersPage() {
               columns={columns}
               rows={rows}
               searchFields={["name", "email", "phone", "city", "id"]}
-              onRowClick={(row) => router.push(`/riders/${row.id}`)}
+              onRowClick={(row) => router.push(`/dashboard/riders/${row.id}`)}
               emptyTitle="No riders found"
-              exportName="riders"
+              exportName="/dashboard/riders"
               exportColumns={[
                 { key: "name", header: "Rider" },
                 { key: "email", header: "Email" },

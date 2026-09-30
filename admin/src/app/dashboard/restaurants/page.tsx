@@ -176,9 +176,9 @@ export default function RestaurantsPage() {
               columns={columns}
               rows={rows}
               searchFields={["name", "cuisine", "city", "id"]}
-              onRowClick={(row) => router.push(`/restaurants/${row.id}`)}
+              onRowClick={(row) => router.push(`/dashboard/restaurants/${row.id}`)}
               emptyTitle="No restaurants found"
-              exportName="restaurants"
+              exportName="/dashboard/restaurants"
               exportColumns={[
                 { key: "name", header: "Restaurant" },
                 { key: "cuisine", header: "Cuisine" },

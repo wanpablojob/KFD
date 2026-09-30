@@ -181,7 +181,7 @@ export function NotificationBell({
                       the same seed the global search does.
                     */}
                     <Link
-                      href={`/orders?q=${encodeURIComponent(o.reference)}`}
+                      href={`/dashboard/orders?q=${encodeURIComponent(o.reference)}`}
                       onClick={() => setOpen(false)}
                       data-bell-item={o.reference}
                       data-unread={unread ? "true" : "false"}

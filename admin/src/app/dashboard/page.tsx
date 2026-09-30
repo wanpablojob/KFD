@@ -73,7 +73,7 @@ export default function OverviewPage() {
   // period. A flow metric (revenue, order count) is windowed to the last 7 days
   // so the number and its "vs prev 7 days" arrow agree. A stock metric (riders
   // online) reports the current level and carries no delta at all, because
-  // `riders` has no timestamp on status changes and therefore no derivable
+  // `/dashboard/riders` has no timestamp on status changes and therefore no derivable
   // previous value to compare against.
   const WINDOW_LABEL = `(${PERIOD_DAYS}d)`;
 
@@ -165,7 +165,7 @@ export default function OverviewPage() {
                 subtitle="The latest orders across all restaurants"
                 action={
                   <Button variant="ghost" size="sm" asChild>
-                    <Link href="/orders">
+                    <Link href="/dashboard/orders">
                       View all
                       <ArrowRightIcon className="h-3.5 w-3.5" />
                     </Link>
@@ -214,7 +214,7 @@ export default function OverviewPage() {
                 subtitle="By gross revenue, all time"
                 action={
                   <Button variant="ghost" size="sm" asChild>
-                    <Link href="/restaurants">
+                    <Link href="/dashboard/restaurants">
                       View all
                       <ArrowRightIcon className="h-3.5 w-3.5" />
                     </Link>
