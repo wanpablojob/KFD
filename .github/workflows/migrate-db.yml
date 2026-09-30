@@ -317,6 +317,17 @@ jobs:
               ("restaurants", "revenue", "live aggregate trigger target"),
               ("restaurants", "orders_count", "live aggregate trigger target"),
               ("orders", "customer_user_id", "customer order tracking + customer RLS"),
+              ("orders", "delivery_address", "storefront delivery target"),
+              ("orders", "service_fee", "storefront service-fee line"),
+              -- Phase 1 migrations:
+              ("orders", "restaurant_id", "FK to restaurants (0024)"),
+              ("orders", "rider_id", "FK to riders (0025)"),
+              ("orders", "updated_at", "audit/analytics timestamp (0026)"),
+              ("restaurants", "updated_at", "audit/analytics timestamp (0026)"),
+              ("riders", "updated_at", "audit/analytics timestamp (0026)"),
+              -- Phase 2 migrations:
+              ("menu_items", "restaurant_id", "FK to restaurants (0027)"),
+              ("audit_log", "actor_user_id", "audit trail (0028)"),
           ]
           sql = """
           select table_name, column_name from information_schema.columns
@@ -326,6 +337,42 @@ jobs:
           for t, c, why in expected:
               if (t, c) not in found:
                   failures.append("missing column %s.%s -- %s" % (t, c, why))
+
+          # 1b. FK constraints from Phase 1 migrations must exist
+          fk_checks = [
+              ("orders", "orders_restaurant_id_fkey", "FK orders.restaurant_id -> restaurants.id (0024)"),
+              ("orders", "orders_rider_id_fkey", "FK orders.rider_id -> riders.id (0025)"),
+              ("menu_items", "menu_items_restaurant_id_fkey", "FK menu_items.restaurant_id -> restaurants.id (0027)"),
+          ]
+          for table, constraint, why in fk_checks:
+              if not query(
+                  "select 1 from information_schema.table_constraints "
+                  "where table_schema = 'public' and table_name = '%s' and constraint_name = '%s'" % (table, constraint)
+              ):
+                  failures.append("missing FK constraint %s on %s -- %s" % (constraint, table, why))
+
+          # 1d. menu_items.restaurant_id must be NOT NULL (0027)
+          nullable_cols = query(
+              "select column_name from information_schema.columns "
+              "where table_schema = 'public' and table_name = 'menu_items' "
+              "and column_name = 'restaurant_id' and is_nullable = 'YES'"
+          )
+          if nullable_cols:
+              failures.append("menu_items.restaurant_id is still nullable; 0027 did not set NOT NULL")
+
+          # 1c. updated_at triggers must exist
+          trigger_checks = [
+              ("orders", "orders_set_updated_at", "updated_at trigger on orders (0026)"),
+              ("restaurants", "restaurants_set_updated_at", "updated_at trigger on restaurants (0026)"),
+              ("riders", "riders_set_updated_at", "updated_at trigger on riders (0026)"),
+              ("app_users", "app_users_audit", "audit trigger on app_users (0028)"),
+          ]
+          for table, trigger, why in trigger_checks:
+              if not query(
+                  "select 1 from information_schema.triggers "
+                  "where event_object_schema = 'public' and event_object_table = '%s' and trigger_name = '%s'" % (table, trigger)
+              ):
+                  failures.append("missing trigger %s on %s -- %s" % (trigger, table, why))
 
           # 2. app_users must be read-only over PostgREST. The provisioning
           #    functions in 0011 are SECURITY DEFINER, so a direct insert would
@@ -589,6 +636,225 @@ jobs:
                   "orders is not proving customer scoping" % cust_rows[0]["visible"]
               )
 
+          # 7. Storefront (customer role): the browse RLS and order creation.
+          #    Same impersonated-transaction approach as the merchant/customer
+          #    probes above.
+          if not query(
+              "select has_function_privilege('authenticated', "
+              "'public.is_customer()', 'EXECUTE') as ok"
+          )[0]["ok"]:
+              failures.append("authenticated cannot call is_customer")
+          if not query(
+              "select has_function_privilege('authenticated', "
+              "'public.register_customer()', 'EXECUTE') as ok"
+          )[0]["ok"]:
+              failures.append("authenticated cannot call register_customer")
+          if not query(
+              "select has_function_privilege('authenticated', "
+              "'public.customer_place_order(text, jsonb, text, payment_method)', "
+              "'EXECUTE') as ok"
+          )[0]["ok"]:
+              failures.append("authenticated cannot call customer_place_order")
+
+          # No-session callers must be refused before they can do anything,
+          # exactly like the provisioning functions in check #3.
+          for fn, cannot in [
+              ("register_customer", "Sign in to create your customer account"),
+              ("customer_place_order('rst_01', '[{\"menu_item_id\": \"mnu_01\", \"quantity\": 1}]', 'a st', 'cash')",
+               "Sign in to place an order."),
+          ]:
+              try:
+                  query("select public.%s" % fn)
+              except RuntimeError as exc:
+                  if cannot not in str(exc):
+                      failures.append(
+                          "%s raised for the wrong reason (expected %r): %s"
+                          % (fn, cannot, exc)
+                      )
+                  continue
+              failures.append(
+                  "%s succeeded for a caller with no session (auth.uid() is null)" % fn
+              )
+
+          # A customer sees the storefront catalog (active restaurants + menus)
+          # and nothing else: bilingual RLS. `status = 'active'` is exactly what
+          # the policy asserts -- a suspended/approval restaurant (rst_06 is
+          # seeded 'suspended') must be invisible even though the connection
+          # also has the authenticated default SELECT grant -- and the count is
+          # the whole row set RLS lets through, WHERE-less on purpose.
+          store = query(
+              """
+              begin;
+              insert into auth.users (id, email, aud, role, email_confirmed_at)
+                values (
+                  '88888888-8888-8888-8888-888888888888',
+                  'store-probe@kfd.invalid',
+                  'authenticated',
+                  'authenticated',
+                  now()
+                );
+              insert into app_users (user_id, role)
+                values ('88888888-8888-8888-8888-888888888888', 'customer');
+              select set_config('request.jwt.claims',
+                '{"sub": "88888888-8888-8888-8888-888888888888", "role": "authenticated"}',
+                true);
+              set local role authenticated;
+              select
+                count(*) as visible_restaurants,
+                count(*) filter (
+                  where status <> 'active' or archived_at is not null
+                ) as non_active_restaurants
+              from restaurants;
+              rollback;
+              """
+          )
+          if not store or not isinstance(store, list) or "visible_restaurants" not in store[0]:
+              failures.append(
+                  "the storefront browse RLS probe returned nothing usable "
+                  "(%s)" % str(store)[:200]
+              )
+          else:
+              if store[0].get("non_active_restaurants") != 0:
+                  failures.append(
+                      "a customer can read %d non-active restaurant(s) through "
+                      "the browse policy" % store[0]["non_active_restaurants"]
+                  )
+              if store[0].get("visible_restaurants", 0) < 1:
+                  failures.append(
+                      "a customer reads no active restaurants at all; the "
+                      "browse policy is excluding the whole catalogue"
+                  )
+
+          cust_place = query(
+              """
+              begin;
+              insert into auth.users (id, email, aud, role, email_confirmed_at)
+                values (
+                  '88888888-8888-8888-8888-888888888888',
+                  'store-probe@kfd.invalid',
+                  'authenticated',
+                  'authenticated',
+                  now()
+                );
+              insert into app_users (user_id, role)
+                values ('88888888-8888-8888-8888-888888888888', 'customer');
+              select set_config('request.jwt.claims',
+                '{"sub": "88888888-8888-8888-8888-888888888888", "role": "authenticated"}',
+                true);
+              set local role authenticated;
+              select * from public.customer_place_order(
+                'rst_01',
+                '[{"menu_item_id": "mnu_01", "quantity": 2}]',
+                'Gate St, Kabankalan',
+                'cash'
+              );
+              rollback;
+              """
+          )
+          if not cust_place or not isinstance(cust_place, list) or "total" not in cust_place[0]:
+              failures.append(
+                  "customer_place_order returned nothing usable for an "
+                  "impersonated customer (%s)" % str(cust_place)[:200]
+              )
+          else:
+              placed = cust_place[0]
+              # The subtotal is priced from menu_items server-side, so assert
+              # the arithmetic the function performed: read the seeded price for
+              # mnu_01 rather than hardcoding it (the row is a moving target).
+              price = query(
+                  "select price from menu_items where id = 'mnu_01'"
+              )
+              unit = price[0]["price"] if price else None
+              if not price or unit is None:
+                  failures.append("mnu_01 is missing; cannot check order pricing")
+              else:
+                  expected_total = (float(unit) * 2) + 45.00 + 5.00
+                  if placed["total"] != expected_total:
+                      failures.append(
+                          "customer_place_order total %s, expected %s for "
+                          "mnu_01 x2 + 45 delivery + 5 service"
+                          % (placed["total"], expected_total)
+                      )
+              if placed["status"] != "pending":
+                  failures.append(
+                      "customer_place_order created a non-pending order (%s)" % placed["status"]
+                  )
+              if not re.match(r"^#KFD-[0-9A-F]{12}$", placed["reference"] or ""):
+                  failures.append(
+                      "customer_place_order minted a non-conforming reference %r" % placed["reference"]
+                  )
+
+          # A non-customer (e.g. a rider) must not be able to place orders, and
+          # register_customer must never demote a provisioned account.
+          noncust = query(
+              """
+              begin;
+              insert into auth.users (id, email, aud, role, email_confirmed_at)
+                values (
+                  '77777777-7777-7777-7777-777777777777',
+                  'noncust-probe@kfd.invalid',
+                  'authenticated',
+                  'authenticated',
+                  now()
+                );
+              insert into app_users (user_id, role)
+                values ('77777777-7777-7777-7777-777777777777', 'rider');
+              select set_config('request.jwt.claims',
+                '{"sub": "77777777-7777-7777-7777-777777777777", "role": "authenticated"}',
+                true);
+              set local role authenticated;
+              select public.register_customer() as registered,
+                     (select role from app_users
+                       where user_id = auth.uid()) as role_after;
+              rollback;
+              """
+          )
+          if not noncust or not isinstance(noncust, list):
+              failures.append(
+                  "the register_customer no-demote probe returned nothing "
+                  "(%s)" % str(noncust)[:200]
+              )
+          else:
+              row = noncust[0]
+              if row.get("role_after") != "rider":
+                  failures.append(
+                      "register_customer changed an existing role (%s); it must be idempotent"
+                      % row.get("role_after")
+                  )
+
+          # grab the generation: fresh registrations land as 'customer'
+          fresh = query(
+              """
+              begin;
+              insert into auth.users (id, email, aud, role, email_confirmed_at)
+                values (
+                  '66666666-6666-6666-6666-666666666666',
+                  'fresh-probe@kfd.invalid',
+                  'authenticated',
+                  'authenticated',
+                  now()
+                );
+              select set_config('request.jwt.claims',
+                '{"sub": "66666666-6666-6666-6666-666666666666", "role": "authenticated"}',
+                true);
+              set local role authenticated;
+              select public.register_customer() as registered,
+                     (select role from app_users
+                       where user_id = auth.uid()) as role_after;
+              rollback;
+              """
+          )
+          if not fresh or not isinstance(fresh, list):
+              failures.append(
+                  "the register_customer fresh-registration probe returned "
+                  "nothing (%s)" % str(fresh)[:200]
+              )
+          elif fresh[0].get("role_after") != "customer":
+              failures.append(
+                  "register_customer did not create a customer role for a fresh "
+                  "account (%s)" % fresh[0].get("role_after")
+              )
+
           # 5. The notification read marker. It writes app_users, which 0011
           #    closed to writes on purpose, so the interesting property is that
           #    it can only ever touch the caller's own row. There is no
@@ -615,6 +881,10 @@ jobs:
               ("public.rider_mark_delivered(text)", "rider delivery completion"),
               ("public.is_platform_admin()", "role helper used by RLS policies"),
               ("public.current_merchant_restaurant()", "tenant helper used by RLS policies"),
+              ("public.is_customer()", "storefront helper used by RLS policies"),
+              ("public.register_customer()", "customer self-service registration"),
+              ("public.customer_place_order(text, jsonb, text, payment_method)", "storefront order creation"),
+              ("public.search_restaurants(text, text)", "storefront restaurant search"),
           ]:
               if query(
                   "select has_function_privilege('anon', '%s', 'EXECUTE') as ok" % sig
