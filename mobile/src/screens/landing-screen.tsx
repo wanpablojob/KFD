@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import {
   Animated,
   Easing,
@@ -6,9 +6,11 @@ import {
   Pressable,
   StyleSheet,
   Text,
+  useAnimatedValue,
   View,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
+import { colors, radius, spacing, type } from "../lib/theme";
 
 export type LandingAction = "login";
 
@@ -29,8 +31,8 @@ export function LandingScreen({
 }: {
   onAction: (action: LandingAction) => void;
 }) {
-  const rise = useRef(new Animated.Value(0)).current;
-  const blink = useRef(new Animated.Value(0)).current;
+  const rise = useAnimatedValue(0);
+  const blink = useAnimatedValue(0);
 
   useEffect(() => {
     Animated.timing(rise, {
@@ -77,9 +79,7 @@ export function LandingScreen({
             <Image source={require("../../assets/icon.png")} style={styles.logo} />
             <View>
               <Text style={styles.title}>KFD</Text>
-              <Text style={styles.subtitle}>
-                Kabankalan City Proper food delivery
-              </Text>
+              <Text style={styles.subtitle}>Kabankalan Food Delivery</Text>
             </View>
           </View>
           <Text style={styles.tagline}>PRESS ▮ TO PLAY</Text>
@@ -100,7 +100,7 @@ export function LandingScreen({
           </Animated.Text>
         </Animated.View>
       </View>
-      <StatusBar style="light" />
+      <StatusBar style="dark" />
     </View>
   );
 }
@@ -108,63 +108,59 @@ export function LandingScreen({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#0b1020",
+    backgroundColor: colors.background,
     justifyContent: "center",
   },
-  inner: { padding: 32, gap: 56 },
-  brand: { alignItems: "flex-start", gap: 8 },
-  logoRow: { flexDirection: "row", alignItems: "center", gap: 16 },
+  inner: { padding: spacing.xl, gap: spacing.xxl },
+  brand: { alignItems: "flex-start", gap: spacing.xs },
+  logoRow: { flexDirection: "row", alignItems: "center", gap: spacing.lg },
   logo: {
     width: 72,
     height: 72,
     borderWidth: 2,
-    borderColor: "#ffd23f",
+    borderColor: colors.primary,
+    borderRadius: radius.md,
   },
   title: {
-    fontSize: 40,
+    fontSize: 36,
     fontWeight: "800",
-    letterSpacing: 6,
-    color: "#ffd23f",
+    letterSpacing: 4,
+    color: colors.primary,
   },
   subtitle: {
-    fontSize: 12,
-    letterSpacing: 1.5,
-    color: "#8aa2ff",
-    textTransform: "uppercase",
+    ...type.eyebrow,
+    letterSpacing: 2,
   },
   tagline: {
-    fontSize: 12,
-    letterSpacing: 3,
-    color: "#ff8787",
+    ...type.eyebrow,
+    letterSpacing: 2,
+    color: colors.secondary,
     borderWidth: 2,
-    borderColor: "#ff8787",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    borderColor: colors.secondary,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
     alignSelf: "flex-start",
   },
-  actions: { gap: 16 },
+  actions: { gap: spacing.md },
   button: {
-    borderWidth: 2,
-    borderColor: "#ffd23f",
-    backgroundColor: "#111830",
-    paddingVertical: 16,
+    backgroundColor: colors.primary,
+    borderRadius: radius.pill,
+    paddingVertical: spacing.lg,
     alignItems: "center",
+    minWidth: 200,
   },
   buttonPressed: {
-    backgroundColor: "#1c2a5e",
-    transform: [{ translateX: 2 }, { translateY: 2 }],
+    backgroundColor: colors.primaryDark,
+    transform: [{ scale: 0.98 }],
   },
   buttonLabel: {
-    fontSize: 16,
-    fontWeight: "800",
-    letterSpacing: 2,
-    color: "#ffd23f",
+    ...type.heading,
+    color: colors.textInverse,
+    letterSpacing: 1,
   },
   hint: {
-    fontSize: 12,
-    letterSpacing: 2,
-    color: "#8aa2ff",
+    ...type.caption,
+    color: colors.textMuted,
     textAlign: "center",
-    textTransform: "uppercase",
   },
 });

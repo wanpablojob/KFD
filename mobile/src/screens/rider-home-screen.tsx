@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -9,34 +9,17 @@ import {
   View,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { supabase } from "../lib/supabase";
 import { signOut } from "../lib/auth";
+import {
+  useRiderOrders,
+  useRiderProfile,
+  type RiderOrderPageResult,
+} from "../lib/hooks";
+import { colors, radius, spacing, type } from "../lib/theme";
 
-type RiderProfile = {
-  id: string;
-  name: string;
-  city: string;
-  vehicle: string;
-  status: "online" | "busy" | "offline";
-  deliveries: number;
-  rating: number;
-  earnings: number;
-};
-
-type AssignedOrder = {
-  id: string;
-  reference: string;
-  customer: string;
-  restaurant: string;
-  items: { name: string; quantity: number; price: number }[];
-  total: number;
-  status: string;
-  payment: string;
-  placed_at: string;
-};
-
-const RIDER_STATUSES = ["online", "busy", "offline"] as const;
-type RiderStatus = (typeof RIDER_STATUSES)[number];
+type AssignedOrder = RiderOrderPageResult["items"][0];
 
 const STATUS_LABEL: Record<string, string> = {
   pending: "Pending",
@@ -48,114 +31,117 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 /**
- * Rider surface. Reads the caller's own riders row (RLS scopes it to
- * user_id = auth.uid()) and the orders assigned to that rider by name
- * (0018's "riders read assigned orders" policy). Availability is the one
- * write a rider makes about themselves, an UPDATE on their own row.
+ * Rider deliveries tab. Reads the orders assigned to the calling rider by name
+ * (0018's "riders read assigned orders" policy).
+ *
+ * Orders are loaded via cursor-based pagination (fetch_rider_orders_page RPC).
+ * Pull-to-refresh reloads page 1; onEndReached loads the next page.
+ *
+ * Availability and sign-out live on the profile tab; the rider's own stats are
+ * on the earnings tab, so this screen stays about the delivery queue.
  */
-export function RiderHomeScreen({
-  userId,
-  onBackToLanding,
-}: {
-  userId: string;
-  onBackToLanding: () => void;
-}) {
-  const [profile, setProfile] = useState<RiderProfile | null>(null);
+export function RiderHomeScreen({ userId }: { userId: string }) {
+  const insets = useSafeAreaInsets();
   const [orders, setOrders] = useState<AssignedOrder[]>([]);
   const [loading, setLoading] = useState(true);
-  const [updatingStatus, setUpdatingStatus] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [deliveringId, setDeliveringId] = useState<string | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(true);
 
-  const load = useCallback(async () => {
-    const [{ data: rider }, { data: orderRows, error: ordersError }] =
-      await Promise.all([
-        supabase
-          .from("riders")
-          .select("id, name, city, vehicle, status, deliveries, rating, earnings")
-          .eq("user_id", userId)
-          .maybeSingle(),
-        supabase
-          .from("orders")
-          .select(
-            "id, reference, customer, restaurant, items, total, status, payment, placed_at"
-          )
-          .order("placed_at", { ascending: false }),
-      ]);
+  // Page 1: initial load
+  const { data: page1, refetch: refetchPage1 } = useRiderOrders(null, 20);
+  const { data: profile } = useRiderProfile(userId);
 
-    if (ordersError) {
-      setError(ordersError.message);
-      setLoading(false);
-      return;
-    }
-    setProfile(
-      rider
-        ? {
-            id: rider.id,
-            name: rider.name,
-            city: rider.city,
-            vehicle: rider.vehicle,
-            status: rider.status,
-            deliveries: rider.deliveries,
-            rating: rider.rating,
-            earnings: rider.earnings,
-          }
-        : null
-    );
-    setOrders((orderRows ?? []) as AssignedOrder[]);
-    setLoading(false);
-  }, [userId]);
-
-  async function refresh() {
-    setRefreshing(true);
-    await load();
-    setRefreshing(false);
+  // Reset pagination whenever page 1 resolves to a new result. Adjusting state
+  // during render (rather than in an effect) is React's documented pattern for
+  // deriving from a changing value and avoids the set-state-in-effect cascade.
+  const [syncedPage1, setSyncedPage1] = useState(page1);
+  if (page1 !== syncedPage1) {
+    setSyncedPage1(page1);
+    const data = page1 as RiderOrderPageResult | undefined;
+    setOrders(data?.items ?? []);
+    setNextCursor(data?.nextCursor ?? null);
+    setHasMore(!!data?.nextCursor);
+    if (data) setLoading(false);
   }
 
+  // Pull-to-refresh: reload page 1
+  const refresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await refetchPage1();
+    } catch (cause) {
+      setFetchError(cause instanceof Error ? cause.message : "Failed to load data.");
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refetchPage1]);
+
+  // Load next page
+  const [loadingMore, setLoadingMore] = useState(false);
+  const loadMore = useCallback(async () => {
+    if (!hasMore || loadingMore || !nextCursor) return;
+    setLoadingMore(true);
+    try {
+      const { data } = await supabase.rpc("fetch_rider_orders_page", {
+        p_cursor: nextCursor,
+        p_limit: 20,
+      });
+      const rows = (data ?? []) as (RiderOrderPageResult["items"][0] & {
+        next_cursor: string | null;
+      })[];
+      const next = rows[0]?.next_cursor ?? null;
+      setOrders((prev) => [...prev, ...rows]);
+      setNextCursor(next);
+      setHasMore(!!next);
+    } catch (cause) {
+      setFetchError(
+        cause instanceof Error ? cause.message : "Failed to load more orders."
+      );
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [hasMore, nextCursor, loadingMore]);
+
+  // Handle FlatList onEndReached
+  const handleEndReached = useCallback(() => {
+    if (!loadingMore) loadMore();
+  }, [loadMore, loadingMore]);
+
   async function markDelivered(orderId: string) {
-    setError(null);
+    if (deliveringId) return;
+    setDeliveringId(orderId);
+    setFetchError(null);
     const { error } = await supabase.rpc("rider_mark_delivered", {
       p_order_id: orderId,
     });
+    setDeliveringId(null);
     if (error) {
-      setError(error.message);
+      setFetchError(error.message);
       return;
     }
-    await load();
+    // Refresh page 1 to get updated status/delivery count
+    await refetchPage1();
   }
-
-  async function setStatus(status: RiderStatus) {
-    setUpdatingStatus(true);
-    setError(null);
-    const { error } = await supabase.rpc("rider_set_status", {
-      p_status: status,
-    });
-    if (error) setError(error.message);
-    else setProfile((p) => (p ? { ...p, status } : p));
-    setUpdatingStatus(false);
-  }
-
-  useEffect(() => {
-    void load();
-  }, [load]);
 
   if (loading) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" />
+      <View style={[styles.center, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={type.caption}>Loading…</Text>
         <StatusBar style="dark" />
       </View>
     );
   }
 
-  if (!profile) {
+  if (profile === null) {
     return (
-      <View style={styles.center}>
-        <Text style={styles.error}>
-          No rider profile is linked to this account.
-        </Text>
-        <Pressable style={styles.linkButton} onPress={onBackToLanding}>
-          <Text style={styles.linkLabel}>Back</Text>
+      <View style={[styles.center, { backgroundColor: colors.background }]}>
+        <Text style={styles.error}>No rider profile is linked to this account.</Text>
+        <Pressable style={styles.linkButton} onPress={() => void signOut()}>
+          <Text style={styles.linkLabel}>Sign out</Text>
         </Pressable>
         <StatusBar style="dark" />
       </View>
@@ -164,70 +150,22 @@ export function RiderHomeScreen({
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <View style={styles.headerRow}>
-          <Text style={styles.title}>{profile.name}</Text>
-          <Pressable
-            style={styles.signOut}
-            onPress={() => {
-              void signOut();
-            }}
-          >
-            <Text style={styles.signOutLabel}>Sign out</Text>
-          </Pressable>
-        </View>
-        <Text style={styles.subtitle}>
-          {profile.city} · {profile.vehicle}
-        </Text>
-        <View style={styles.statsRow}>
-          <Text style={styles.stat}>Deliveries: {profile.deliveries}</Text>
-          <Text style={styles.stat}>Rating: {Number(profile.rating).toFixed(1)}</Text>
-          <Text style={styles.stat}>₱{Number(profile.earnings).toFixed(2)}</Text>
-        </View>
-
-        <View style={styles.availability}>
-          <Text style={styles.availabilityLabel}>Availability</Text>
-          <View style={styles.statusButtons}>
-            {RIDER_STATUSES.map((s) => {
-              const active = profile.status === s;
-              return (
-                <Pressable
-                  key={s}
-                  style={[
-                    styles.statusButton,
-                    active && styles.statusButtonActive,
-                    updatingStatus && styles.disabled,
-                  ]}
-                  disabled={updatingStatus}
-                  onPress={() => void setStatus(s)}
-                >
-                  <Text
-                    style={[
-                      styles.statusButtonLabel,
-                      active && styles.statusButtonLabelActive,
-                    ]}
-                  >
-                    {s}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        </View>
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-      </View>
-
       <FlatList
         data={orders}
         keyExtractor={(o) => o.id}
         contentContainerStyle={styles.list}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={refresh} />
-        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
+        onEndReached={handleEndReached}
+        onEndReachedThreshold={0.5}
         ListHeaderComponent={
-          <Text style={styles.sectionTitle}>Your deliveries</Text>
+          <View style={[styles.sectionHeader, { paddingTop: spacing.lg + insets.top }]}>
+            <Text style={styles.sectionTitle}>Your deliveries</Text>
+            {loadingMore && <ActivityIndicator size="small" color={colors.secondary} />}
+          </View>
         }
-        ListEmptyComponent={<Text style={styles.empty}>No deliveries assigned yet.</Text>}
+        ListEmptyComponent={
+          <Text style={styles.empty}>No deliveries assigned yet.</Text>
+        }
         renderItem={({ item }) => {
           const canDeliver = !["delivered", "cancelled"].includes(item.status);
           return (
@@ -246,15 +184,26 @@ export function RiderHomeScreen({
               </Text>
               {canDeliver ? (
                 <Pressable
-                  style={styles.deliverButton}
+                  style={[
+                    styles.deliverButton,
+                    deliveringId === item.id && styles.disabled,
+                  ]}
+                  disabled={deliveringId !== null}
                   onPress={() => void markDelivered(item.id)}
                 >
-                  <Text style={styles.deliverButtonLabel}>Mark delivered</Text>
+                  {deliveringId === item.id ? (
+                    <ActivityIndicator color={colors.textInverse} size="small" />
+                  ) : (
+                    <Text style={styles.deliverButtonLabel}>Mark delivered</Text>
+                  )}
                 </Pressable>
               ) : null}
             </View>
           );
         }}
+        ListFooterComponent={
+          fetchError ? <Text style={styles.error}>{fetchError}</Text> : null
+        }
       />
       <StatusBar style="dark" />
     </View>
@@ -262,70 +211,64 @@ export function RiderHomeScreen({
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fff" },
+  container: { flex: 1, backgroundColor: colors.background },
   center: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    padding: 24,
-    gap: 12,
-    backgroundColor: "#fff",
+    padding: spacing.lg,
+    gap: spacing.md,
+    backgroundColor: colors.background,
   },
-  header: { padding: 20, gap: 6, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "#e2e2e2" },
-  headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  title: { fontSize: 22, fontWeight: "800", color: "#111" },
-  subtitle: { fontSize: 14, color: "#666" },
-  signOut: { paddingVertical: 6, paddingHorizontal: 10 },
-  signOutLabel: { color: "#b42318", fontSize: 14, fontWeight: "600" },
-  statsRow: { flexDirection: "row", gap: 12, marginTop: 2 },
-  stat: { fontSize: 13, color: "#555" },
-  availability: { marginTop: 10, gap: 6 },
-  availabilityLabel: { fontSize: 13, fontWeight: "700", color: "#333" },
-  statusButtons: { flexDirection: "row", gap: 8 },
-  statusButton: {
-    borderWidth: 1,
-    borderColor: "#d1d1d1",
-    borderRadius: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    backgroundColor: "#fff",
-  },
-  statusButtonActive: { backgroundColor: "#111", borderColor: "#111" },
-  statusButtonLabel: { fontSize: 14, color: "#111", textTransform: "capitalize" },
-  statusButtonLabelActive: { color: "#fff", fontWeight: "700" },
-  disabled: { opacity: 0.6 },
-  error: { fontSize: 14, color: "#b42318", marginTop: 8 },
-  list: { padding: 20, gap: 10 },
-  sectionTitle: { fontSize: 17, fontWeight: "800", color: "#111", marginBottom: 4 },
-  empty: { fontSize: 14, color: "#888" },
-  orderCard: {
-    borderWidth: 1,
-    borderColor: "#e2e2e2",
-    borderRadius: 12,
-    padding: 14,
-    gap: 4,
-    backgroundColor: "#fafafa",
-  },
-  orderHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  orderRef: { fontSize: 15, fontWeight: "800", color: "#111" },
-  orderStatus: { fontSize: 13, fontWeight: "700", color: "#6b4eff" },
-  orderRestaurant: { fontSize: 14, color: "#444" },
-  orderCustomer: { fontSize: 13, color: "#666" },
-  orderTotal: { fontSize: 12, color: "#999", marginTop: 2 },
-  deliverButton: {
-    marginTop: 10,
-    backgroundColor: "#177245",
-    borderRadius: 8,
-    paddingVertical: 10,
-    alignItems: "center",
-  },
-  deliverButtonLabel: { fontSize: 15, fontWeight: "700", color: "#fff" },
   linkButton: {
     borderWidth: 1,
-    borderColor: "#d1d1d1",
-    borderRadius: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 20,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.xl,
+    marginTop: spacing.lg,
   },
-  linkLabel: { fontSize: 15, fontWeight: "600", color: "#111" },
+  linkLabel: { ...type.label, color: colors.primary },
+  disabled: { opacity: 0.6 },
+  error: { ...type.body, color: colors.danger },
+  list: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xxl },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: spacing.sm,
+  },
+  sectionTitle: { ...type.heading, fontSize: 17 },
+  empty: {
+    ...type.caption,
+    color: colors.textMuted,
+    textAlign: "center",
+    paddingVertical: spacing.xxl,
+  },
+  orderCard: {
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    gap: spacing.sm,
+  },
+  orderHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  orderRef: { ...type.heading, color: colors.primary },
+  orderStatus: { ...type.label, color: colors.secondary },
+  orderRestaurant: { ...type.body, color: colors.textMuted },
+  orderCustomer: { ...type.caption, color: colors.textFaint },
+  orderTotal: { ...type.caption, color: colors.textFaint },
+  deliverButton: {
+    marginTop: spacing.sm,
+    backgroundColor: colors.success,
+    borderRadius: radius.md,
+    paddingVertical: spacing.md,
+    alignItems: "center",
+  },
+  deliverButtonLabel: { ...type.label, color: colors.textInverse },
 });

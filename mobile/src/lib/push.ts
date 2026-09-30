@@ -20,12 +20,14 @@ const apiUrl = Constants.expoConfig?.extra?.apiUrl as string | undefined;
 // The EAS project id is what Expo uses to attribute a push token to this app.
 // Reading it from the app config keeps Expo Go / EAS builds working without a
 // second secret.
-const projectId = Constants.expoConfig?.extra?.eas?.projectId as
-  | string
-  | undefined;
+const projectId = Constants.expoConfig?.extra?.eas?.projectId as string | undefined;
 
 const DEVICE_ID_KEY = "kfd.push.deviceId";
 const REGISTERED_KEY = "kfd.push.registered";
+
+// Register/unregister calls must settle quickly; a hung admin API should not
+// leave the toggle spinning indefinitely.
+const REGISTER_TIMEOUT_MS = 10_000;
 
 // A single foreground handler is enough for the whole app: new-order alerts
 // surface even while the app is open.
@@ -69,6 +71,33 @@ export interface PushStatus {
 function pushPlatform(): "ios" | "android" {
   if (Platform.OS === "android") return "android";
   return "ios";
+}
+
+async function register(accessToken: string, timeoutMs: number): Promise<boolean> {
+  if (!apiUrl || !projectId) return false;
+  const token = await Notifications.getExpoPushTokenAsync({ projectId });
+  const deviceId = await getOrCreateDeviceId();
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(`${apiUrl}/api/push/register`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        deviceId,
+        token: token.data,
+        platform: pushPlatform(),
+      }),
+      signal: controller.signal,
+    });
+    return res.ok;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 export async function getPushStatus(): Promise<PushStatus> {
@@ -126,28 +155,12 @@ export async function enablePush(accessToken: string): Promise<PushStatus> {
     };
   }
 
-  const token = await Notifications.getExpoPushTokenAsync({ projectId });
-  const deviceId = await getOrCreateDeviceId();
-
-  const res = await fetch(`${apiUrl}/api/push/register`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${accessToken}`,
-    },
-    body: JSON.stringify({
-      deviceId,
-      token: token.data,
-      platform: pushPlatform(),
-    }),
-  });
-
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
+  const ok = await register(accessToken, REGISTER_TIMEOUT_MS).catch(() => false);
+  if (!ok) {
     return {
       granted: true,
       registered: false,
-      error: `Could not register this device (${res.status}). ${body.slice(0, 160)}`,
+      error: "Could not register this device with the server.",
     };
   }
 
@@ -161,16 +174,18 @@ export async function disablePush(accessToken: string): Promise<void> {
 
   if (!apiUrl || !deviceId) return;
 
-  await fetch(
-    `${apiUrl}/api/push/register?deviceId=${encodeURIComponent(deviceId)}`,
-    {
-      method: "DELETE",
-      headers: { Authorization: `Bearer ${accessToken}` },
-    }
-  ).catch(() => {
-    // Best-effort. A stale row is overwritten by token on the next register,
-    // so a failed unregister costs nothing permanent.
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REGISTER_TIMEOUT_MS);
+  await fetch(`${apiUrl}/api/push/register?deviceId=${encodeURIComponent(deviceId)}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${accessToken}` },
+    signal: controller.signal,
+  })
+    .catch(() => {
+      // Best-effort. A stale row is overwritten by token on the next register,
+      // so a failed unregister costs nothing permanent.
+    })
+    .finally(() => clearTimeout(timer));
 }
 
 /**
@@ -184,21 +199,7 @@ export function watchForTokenRotation(
   return Notifications.addPushTokenListener(async () => {
     if (!projectId || !apiUrl) return;
 
-    const token = await Notifications.getExpoPushTokenAsync({ projectId });
-    const deviceId = await getOrCreateDeviceId();
-
-    const res = await fetch(`${apiUrl}/api/push/register`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify({
-        deviceId,
-        token: token.data,
-        platform: pushPlatform(),
-      }),
-    });
-    onRegistered(res.ok);
+    const ok = await register(accessToken, REGISTER_TIMEOUT_MS).catch(() => false);
+    onRegistered(ok);
   });
 }

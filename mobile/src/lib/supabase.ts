@@ -2,6 +2,7 @@ import "react-native-url-polyfill/auto";
 import { createClient } from "@supabase/supabase-js";
 import * as SecureStore from "expo-secure-store";
 import Constants from "expo-constants";
+import type { Database } from "./database";
 
 /**
  * The project URL must be the bare project URL with NO `/rest/v1` suffix.
@@ -10,8 +11,8 @@ import Constants from "expo-constants";
  * bare.
  */
 const url = Constants.expoConfig?.extra?.supabaseUrl as string | undefined;
-const publishableKey = Constants.expoConfig?.extra
-  ?.supabasePublishableKey as string | undefined;
+const publishableKey = Constants.expoConfig?.extra?.supabasePublishableKey as
+  string | undefined;
 
 if (!url || !publishableKey) {
   throw new Error(
@@ -31,11 +32,15 @@ const secureStorage = {
   removeItem: (key: string) => SecureStore.deleteItemAsync(key),
 };
 
-export const supabase = createClient(url, publishableKey, {
+export const supabase = createClient<Database>(url, publishableKey, {
   auth: {
     storage: secureStorage,
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,
+    // The native OAuth flow (signInWithProvider) exchanges a PKCE code
+    // returned to the app's own scheme; implicit would ship tokens in the
+    // callback URL, which is the flow expo-auth-session cannot safely reuse.
+    flowType: "pkce",
   },
 });

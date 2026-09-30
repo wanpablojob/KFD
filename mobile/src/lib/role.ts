@@ -39,7 +39,7 @@ export async function fetchUserRole(): Promise<UserRole> {
 
   if (!data) return emptyRole();
 
-  const restaurantId = (data.restaurant_id as string | null) ?? null;
+  const restaurantId = data.restaurant_id ?? null;
   let restaurantName: string | null = null;
 
   if (restaurantId) {
@@ -48,7 +48,7 @@ export async function fetchUserRole(): Promise<UserRole> {
       .select("name")
       .eq("id", restaurantId)
       .maybeSingle();
-    restaurantName = (restaurant?.name as string | null) ?? null;
+    restaurantName = restaurant?.name ?? null;
   }
 
   let riderId: string | null = null;
@@ -60,12 +60,12 @@ export async function fetchUserRole(): Promise<UserRole> {
       .select("id, name")
       .eq("user_id", user.id)
       .maybeSingle();
-    riderId = (rider?.id as string | null) ?? null;
-    riderName = (rider?.name as string | null) ?? null;
+    riderId = rider?.id ?? null;
+    riderName = rider?.name ?? null;
   }
 
   return {
-    role: data.role as AppRole,
+    role: data.role,
     restaurantId,
     restaurantName,
     riderId,

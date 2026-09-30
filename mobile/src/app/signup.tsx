@@ -1,7 +1,6 @@
 import { useState } from "react";
 import {
   ActivityIndicator,
-  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -12,137 +11,9 @@ import {
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { Link } from "expo-router";
-import { signInWithPassword, signInWithProvider } from "../lib/auth";
+import { signUpWithEmail, signInWithProvider } from "../lib/auth";
+import { collapseAuthError } from "../lib/auth-errors";
 import { colors, radius, shadow, spacing, type } from "../lib/theme";
-
-/**
- * Shared sign-in for the KFD mobile app, pixel theme to match the landing.
- *
- * One account serves every role: a rider signs in to the rider surface, a
- * customer to the storefront, an admin/merchant sees the web-console notice.
- * A customer can also sign in with Google or create an email account (the
- * /signup route). The role is resolved from app_users after sign-in, never
- * chosen on this page.
- */
-export function LoginScreen({ onBack }: { onBack?: () => void }) {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-
-  async function handleSubmit() {
-    if (submitting) return;
-    setError(null);
-    const trimmedEmail = email.trim();
-    if (!trimmedEmail || !password) {
-      setError("Enter your email and password.");
-      return;
-    }
-    setSubmitting(true);
-    try {
-      await signInWithPassword(trimmedEmail, password);
-      // The session listener in App re-renders into the role screen.
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Sign-in failed. Try again.");
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  async function handleProvider(provider: "google") {
-    if (submitting) return;
-    setError(null);
-    setSubmitting(true);
-    try {
-      await signInWithProvider(provider);
-      // Cancel or completion both land in session-context; cancel keeps us here.
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Provider sign-in failed.");
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-    >
-      <View style={styles.frame}>
-        {onBack ? (
-          <Pressable style={styles.back} onPress={onBack}>
-            <Text style={styles.backLabel}>‹ BACK</Text>
-          </Pressable>
-        ) : null}
-
-        <View style={styles.brand}>
-          <Image source={require("../../assets/icon.png")} style={styles.logo} />
-          <View>
-            <Text style={styles.title}>KFD</Text>
-            <Text style={styles.subtitle}>KABANKALAN FOOD DELIVERY</Text>
-          </View>
-        </View>
-
-        <Text style={styles.lead}>Local food, delivered to your door</Text>
-
-        <Field
-          label="EMAIL"
-          value={email}
-          onChangeText={setEmail}
-          placeholder="you@example.com"
-          autoCapitalize="none"
-          autoCorrect={false}
-          keyboardType="email-address"
-          textContentType="emailAddress"
-          autoComplete="email"
-          editable={!submitting}
-        />
-        <Field
-          label="PASSWORD"
-          value={password}
-          onChangeText={setPassword}
-          placeholder="Password"
-          secureTextEntry
-          textContentType="password"
-          autoComplete="current-password"
-          editable={!submitting}
-          onSubmitEditing={handleSubmit}
-          returnKeyType="go"
-        />
-
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-
-        <SubmitButton busy={submitting} onPress={handleSubmit} />
-
-        <View style={styles.orRow}>
-          <View style={styles.orLine} />
-          <Text style={styles.orText}>OR</Text>
-          <View style={styles.orLine} />
-        </View>
-
-        <Pressable
-          style={({ pressed }) => [
-            styles.providerButton,
-            shadow.card,
-            pressed ? styles.providerPressed : null,
-          ]}
-          disabled={submitting}
-          onPress={() => void handleProvider("google")}
-        >
-          <Text style={styles.providerGlyph}>G</Text>
-          <Text style={styles.providerLabel}>Continue with Google</Text>
-        </Pressable>
-
-        <Link href="/signup" replace style={styles.signupLink}>
-          <Text style={styles.signupLabel}>
-            New here? <Text style={styles.signupLinkBold}>Create an account</Text>
-          </Text>
-        </Link>
-      </View>
-      <StatusBar style="dark" />
-    </KeyboardAvoidingView>
-  );
-}
 
 function Field({
   label,
@@ -170,24 +41,177 @@ function Field({
   );
 }
 
-function SubmitButton({ busy, onPress }: { busy: boolean; onPress: () => void }) {
+/**
+ * Customer self sign-up. After a successful email/password signUp the session
+ * auto-embraces the customer role (register_customer in session-context), so
+ * this screen needs no role hint. If Supabase holds the account for email
+ * confirmation, a message is shown instead and the user signs in after
+ * confirming.
+ */
+export default function SignUpScreen() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  async function handleSubmit() {
+    if (submitting) return;
+    setError(null);
+    setInfo(null);
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail || !password) {
+      setError("Enter an email and password.");
+      return;
+    }
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters.");
+      return;
+    }
+    if (password !== confirm) {
+      setError("Passwords do not match.");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const data = await signUpWithEmail(trimmedEmail, password);
+      if (!data.session) {
+        setInfo(
+          "Check your inbox to confirm your email, then sign in. (OTP email may take a minute.)"
+        );
+      }
+      // On the session path the auto-register in session-context guides us.
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? (collapseAuthError(cause.message) ?? cause.message)
+          : "Sign-up failed. Try again."
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleGoogle() {
+    if (submitting) return;
+    setError(null);
+    setSubmitting(true);
+    try {
+      const result = await signInWithProvider("google");
+      if (!result) {
+        // User cancelled the provider flow
+        setSubmitting(false);
+        return;
+      }
+      // Session established; session-context auto-registers customer
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? (collapseAuthError(cause.message) ?? cause.message)
+          : "Google sign-up failed. Try again."
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   return (
-    <Pressable
-      style={({ pressed }) => [
-        styles.button,
-        shadow.card,
-        busy ? styles.buttonDisabled : null,
-        !busy && pressed ? styles.buttonPressed : null,
-      ]}
-      disabled={busy}
-      onPress={onPress}
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      {busy ? (
-        <ActivityIndicator color={colors.textInverse} />
-      ) : (
-        <Text style={styles.buttonLabel}>SIGN IN</Text>
-      )}
-    </Pressable>
+      <View style={styles.frame}>
+        <Link href="/login" replace>
+          <Text style={styles.back}>‹ BACK</Text>
+        </Link>
+
+        <View>
+          <Text style={styles.title}>Create account</Text>
+          <Text style={styles.subtitle}>Order from any place in Kabankalan</Text>
+        </View>
+
+        <Field
+          label="EMAIL"
+          value={email}
+          onChangeText={setEmail}
+          placeholder="you@example.com"
+          autoCapitalize="none"
+          autoCorrect={false}
+          keyboardType="email-address"
+          textContentType="username"
+          autoComplete="email"
+          editable={!submitting}
+        />
+        <Field
+          label="PASSWORD"
+          value={password}
+          onChangeText={setPassword}
+          placeholder="At least 6 characters"
+          secureTextEntry
+          textContentType="newPassword"
+          autoComplete="new-password"
+          editable={!submitting}
+        />
+        <Field
+          label="CONFIRM PASSWORD"
+          value={confirm}
+          onChangeText={setConfirm}
+          placeholder="Re-enter password"
+          secureTextEntry
+          textContentType="newPassword"
+          autoComplete="new-password"
+          editable={!submitting}
+          onSubmitEditing={handleSubmit}
+          returnKeyType="go"
+        />
+
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+        {info ? <Text style={styles.info}>{info}</Text> : null}
+
+        <Pressable
+          style={({ pressed }) => [
+            styles.button,
+            shadow.card,
+            pressed ? styles.buttonPressed : null,
+          ]}
+          onPress={handleSubmit}
+          disabled={submitting}
+        >
+          {submitting ? (
+            <ActivityIndicator color={colors.textInverse} />
+          ) : (
+            <Text style={styles.buttonLabel}>CREATE ACCOUNT</Text>
+          )}
+        </Pressable>
+
+        <View style={styles.orRow}>
+          <View style={styles.orLine} />
+          <Text style={styles.orText}>OR</Text>
+          <View style={styles.orLine} />
+        </View>
+
+        <Pressable
+          style={({ pressed }) => [
+            styles.providerButton,
+            shadow.card,
+            pressed ? styles.providerPressed : null,
+          ]}
+          disabled={submitting}
+          onPress={handleGoogle}
+        >
+          <Text style={styles.providerGlyph}>G</Text>
+          <Text style={styles.providerLabel}>Continue with Google</Text>
+        </Pressable>
+
+        <Link href="/login" replace style={styles.signupLink}>
+          <Text style={styles.signupLabel}>
+            Already have an account? <Text style={styles.signupLinkBold}>Sign in</Text>
+          </Text>
+        </Link>
+      </View>
+      <StatusBar style="dark" />
+    </KeyboardAvoidingView>
   );
 }
 
@@ -205,31 +229,17 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xl,
     gap: spacing.lg,
   },
-  back: { alignSelf: "flex-start" },
-  backLabel: { ...type.label, color: colors.secondary },
-  brand: { flexDirection: "row", alignItems: "center", gap: spacing.lg },
-  logo: {
-    width: 60,
-    height: 60,
-    borderRadius: radius.md,
-    backgroundColor: colors.primary,
-  },
-  title: { fontSize: 28, fontWeight: "800", letterSpacing: 3, color: colors.primary },
-  subtitle: {
-    fontSize: 10,
-    letterSpacing: 1.5,
-    color: colors.textMuted,
-    marginTop: 2,
-  },
-  lead: { ...type.body, color: colors.textMuted, marginTop: -spacing.sm },
+  back: { ...type.label, color: colors.secondary },
+  title: { fontSize: 26, fontWeight: "800", color: colors.text },
+  subtitle: { ...type.caption, color: colors.textMuted, marginTop: 2 },
   field: { gap: 6 },
   fieldLabel: { ...type.eyebrow, color: colors.textFaint },
   fieldLabelFocused: { color: colors.secondary },
   input: {
     backgroundColor: colors.surface,
-    borderRadius: radius.md,
     borderWidth: 1,
     borderColor: colors.border,
+    borderRadius: radius.md,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
     fontSize: 15,
@@ -237,6 +247,7 @@ const styles = StyleSheet.create({
   },
   inputFocused: { borderColor: colors.secondary, backgroundColor: colors.card },
   error: { ...type.body, color: colors.danger, textAlign: "center" },
+  info: { ...type.body, color: colors.secondary, textAlign: "center" },
   button: {
     backgroundColor: colors.primary,
     borderRadius: radius.pill,
@@ -245,7 +256,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     minHeight: 52,
   },
-  buttonDisabled: { opacity: 0.6 },
   buttonPressed: { backgroundColor: colors.primaryDark },
   buttonLabel: { fontSize: 16, fontWeight: "800", color: colors.textInverse },
   orRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
@@ -275,7 +285,7 @@ const styles = StyleSheet.create({
     color: colors.primary,
   },
   providerLabel: { fontSize: 14, fontWeight: "700", color: colors.text },
-  signupLink: { alignItems: "center" },
+  signupLink: { alignItems: "center", marginTop: spacing.sm },
   signupLabel: { ...type.caption, color: colors.textMuted },
   signupLinkBold: { color: colors.primary, fontWeight: "800" },
 });
