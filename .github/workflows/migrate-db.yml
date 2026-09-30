@@ -725,32 +725,41 @@ jobs:
                       "browse policy is excluding the whole catalogue"
                   )
 
-          cust_place = query(
-              """
-              begin;
-              insert into auth.users (id, email, aud, role, email_confirmed_at)
-                values (
-                  '88888888-8888-8888-8888-888888888888',
-                  'store-probe@kfd.invalid',
-                  'authenticated',
-                  'authenticated',
-                  now()
-                );
-              insert into app_users (user_id, role)
-                values ('88888888-8888-8888-8888-888888888888', 'customer');
-              select set_config('request.jwt.claims',
-                '{"sub": "88888888-8888-8888-8888-888888888888", "role": "authenticated"}',
-                true);
-              set local role authenticated;
-              select * from public.customer_place_order(
-                'rst_01',
-                '[{"menu_item_id": "mnu_01", "quantity": 2}]',
-                'Gate St, Kabankalan',
-                'cash'
-              );
-              rollback;
-              """
-          )
+          # A verification harness should report, not crash: an exception here
+          # would abort the run before the failure list is printed, hiding
+          # every other check. Record it and let the rest of the assertions run.
+          try:
+              cust_place = query(
+                  """
+                  begin;
+                  insert into auth.users (id, email, aud, role, email_confirmed_at)
+                    values (
+                      '88888888-8888-8888-8888-888888888888',
+                      'store-probe@kfd.invalid',
+                      'authenticated',
+                      'authenticated',
+                      now()
+                    );
+                  insert into app_users (user_id, role)
+                    values ('88888888-8888-8888-8888-888888888888', 'customer');
+                  select set_config('request.jwt.claims',
+                    '{"sub": "88888888-8888-8888-8888-888888888888", "role": "authenticated"}',
+                    true);
+                  set local role authenticated;
+                  select * from public.customer_place_order(
+                    'rst_01',
+                    '[{"menu_item_id": "mnu_01", "quantity": 2}]',
+                    'Gate St, Kabankalan',
+                    'cash'
+                  );
+                  rollback;
+                  """
+              )
+          except Exception as e:
+              cust_place = []
+              failures.append(
+                  "customer_place_order raised %s: %s" % (type(e).__name__, str(e)[:200])
+              )
           if not cust_place or not isinstance(cust_place, list) or "total" not in cust_place[0]:
               failures.append(
                   "customer_place_order returned nothing usable for an "
