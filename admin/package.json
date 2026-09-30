@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --experimental-strip-types --test src/lib/dashboard-metrics.test.ts src/lib/notify-errors.test.ts src/lib/notification-cursor.test.ts src/lib/role-routing.test.ts src/lib/supabase/ilike-filter.test.ts",
+    "test": "node --experimental-strip-types --test src/lib/dashboard-metrics.test.ts src/lib/notify-errors.test.ts src/lib/notification-cursor.test.ts src/lib/role-routing.test.ts src/lib/supabase/ilike-filter.test.ts src/lib/pixel-sprites.test.ts",
     "typecheck": "next typegen && tsc --noEmit"
   },
   "dependencies": {

@@ -2,6 +2,7 @@
 
 import { useRef } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 import { LoginForm } from "@/components/login-form";
@@ -201,6 +202,14 @@ export function LoginPage({
         <p data-reveal="footer" className="mt-6 text-center text-xs text-white/60">
           © {new Date().getFullYear()} KFD — Kabankalan City Proper, Negros
           Occidental
+        </p>
+        <p data-reveal="footer" className="mt-3 text-center text-xs">
+          <Link
+            href="/welcome"
+            className="text-white/60 underline underline-offset-4 transition-colors hover:text-white"
+          >
+            New here? See what KFD does
+          </Link>
         </p>
       </div>
     </div>

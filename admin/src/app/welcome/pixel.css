@@ -1,0 +1,187 @@
+/**
+ * Pixel art styling layer for the marketing surface.
+ *
+ * Scoped under .pixel-page so the dashboard's rounded, soft-edged cards are
+ * untouched. The three ideas that sell "pixel art" over "blocky divs":
+ *
+ *   1. Hard offset shadows, never blurred. A blurred shadow is the tell of a
+ *      theme that is only pretending; the shadow is a duplicated, solid shape
+ *      offset by a fixed number of pixels.
+ *   2. No border-radius anywhere. Sub-pixel rounding curves read as rounding,
+ *      not pixels.
+ *   3. `image-rendering: pixelated` plus integer grid steps, so the art stays
+ *      crisp instead of resampling into mush.
+ *
+ * Colours come from the existing theme tokens (--primary, --gold, …) rather
+ * than new hexes, so the landing page follows a brand change automatically and
+ * dark mode keeps working.
+ */
+
+.pixel-page {
+  /* The one place rounded corners are allowed: the page itself. */
+  --pixel-unit: 4px;
+  --pixel-shadow: 4px 4px 0 0 var(--primary-hover);
+  --pixel-shadow-lg: 8px 8px 0 0 var(--primary-hover);
+  --pixel-shadow-sm: 3px 3px 0 0 var(--primary-hover);
+  --pixel-border: 3px solid var(--foreground);
+
+  font-family: var(--font-pixel), var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  background-color: var(--background);
+  color: var(--foreground);
+  overflow-x: hidden;
+}
+
+/* Every interactive element keeps square corners and a solid offset shadow. */
+.pixel-page .pixel-card {
+  border: var(--pixel-border);
+  border-radius: 0;
+  background-color: var(--card);
+  box-shadow: var(--pixel-shadow);
+  transition:
+    transform 120ms steps(2, end),
+    box-shadow 120ms steps(2, end);
+}
+
+.pixel-page .pixel-card-hover:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0 0 var(--primary-hover);
+}
+
+.pixel-page .pixel-card-hover:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0 0 var(--primary-hover);
+}
+
+/* Pixel button: a chunky block that physically depresses on press. */
+.pixel-page .pixel-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.875rem 1.5rem;
+  border: var(--pixel-border);
+  border-radius: 0;
+  font-family: inherit;
+  font-size: 0.875rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-decoration: none;
+  cursor: pointer;
+  box-shadow: var(--pixel-shadow);
+  transition:
+    transform 100ms steps(2, end),
+    box-shadow 100ms steps(2, end),
+    background-color 100ms steps(2, end);
+}
+
+.pixel-page .pixel-btn:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0 0 var(--primary-hover);
+}
+
+.pixel-page .pixel-btn:active,
+.pixel-page .pixel-btn[data-active="true"] {
+  transform: translate(3px, 3px);
+  box-shadow: 1px 1px 0 0 var(--primary-hover);
+}
+
+.pixel-page .pixel-btn-primary {
+  background-color: var(--primary);
+  color: var(--primary-foreground);
+}
+
+.pixel-page .pixel-btn-secondary {
+  background-color: var(--card);
+  color: var(--foreground);
+}
+
+.pixel-page .pixel-btn:focus-visible {
+  outline: 4px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* Big pixel display type. The double text shadow is the classic 8-bit drop. */
+.pixel-page .pixel-title {
+  font-family: var(--font-pixel), var(--font-geist-sans), sans-serif;
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: 0.02em;
+  text-shadow:
+    3px 3px 0 0 var(--primary),
+    6px 6px 0 0 var(--primary-hover);
+}
+
+.pixel-page .pixel-eyebrow {
+  font-family: var(--font-pixel), var(--font-geist-sans), sans-serif;
+  font-size: 0.75rem;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--secondary);
+}
+
+/* Body copy stays in the sans face: Silkscreen at paragraph length is
+   unreadable, so the pixel font is for display type only. */
+.pixel-page .pixel-body {
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  line-height: 1.7;
+  color: var(--muted-foreground);
+}
+
+/* Checkerboard tile used behind sprites and in the hero. */
+.pixel-page .pixel-checker {
+  background-image:
+    linear-gradient(45deg, var(--muted) 25%, transparent 25%),
+    linear-gradient(-45deg, var(--muted) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, var(--muted) 75%),
+    linear-gradient(-45deg, transparent 75%, var(--muted) 75%);
+  background-size: 16px 16px;
+  background-position:
+    0 0,
+    0 8px,
+    8px -8px,
+    -8px 0;
+}
+
+/* CRT scanlines. Kept very low contrast -- at full strength the page looks
+   broken rather than retro. */
+.pixel-page .pixel-scanlines::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.045) 0 1px,
+    transparent 1px 3px
+  );
+  z-index: 1;
+}
+
+/* Marquee-ish divider with blocky notches. */
+.pixel-page .pixel-rule {
+  height: 6px;
+  background-color: var(--primary);
+  box-shadow: 0 6px 0 0 var(--gold);
+}
+
+/* Sprite cells: integer steps keep edges from blurring during animation. */
+.pixel-page [data-pixel-cell] {
+  will-change: transform;
+}
+
+/* Focus ring shared by the dropdown trigger and menu items. */
+.pixel-page .pixel-focus:focus-visible {
+  outline: 4px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* Everything the loader and sprites need, respecting reduced motion. */
+@media (prefers-reduced-motion: reduce) {
+  .pixel-page *,
+  .pixel-page *::before,
+  .pixel-page *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
