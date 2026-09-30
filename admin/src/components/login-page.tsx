@@ -115,10 +115,10 @@ export function LoginPage({
   );
 
   return (
-    <div ref={scope} className="relative min-h-screen overflow-hidden bg-[#1d0e10]">
+    <div ref={scope} className="relative min-h-screen overflow-hidden bg-background">
       {/* Curtain entrance */}
-      <div data-curtain="top" className="fixed inset-x-0 top-0 z-50 h-1/2 bg-[#180b0d]" />
-      <div data-curtain="bottom" className="fixed inset-x-0 bottom-0 z-50 h-1/2 bg-[#180b0d]" />
+      <div data-curtain="top" className="fixed inset-x-0 top-0 z-50 h-1/2 bg-muted" />
+      <div data-curtain="bottom" className="fixed inset-x-0 bottom-0 z-50 h-1/2 bg-muted" />
 
       {/* ---- Full-page live backdrop ---- */}
       <div data-reveal="backdrop" className="absolute inset-0">
@@ -126,7 +126,7 @@ export function LoginPage({
           className="pointer-events-none absolute inset-0"
           style={{
             background:
-              "radial-gradient(120% 90% at 15% 0%, rgba(185,14,31,0.30) 0%, transparent 55%), radial-gradient(90% 70% at 90% 100%, rgba(242,160,7,0.28) 0%, transparent 60%), radial-gradient(60% 50% at 60% 50%, rgba(249,115,22,0.14) 0%, transparent 70%)",
+              "radial-gradient(120% 90% at 15% 0%, color-mix(in srgb, var(--primary) 30%, transparent) 0%, transparent 55%), radial-gradient(90% 70% at 90% 100%, rgba(242,160,7,0.28) 0%, transparent 60%), radial-gradient(60% 50% at 60% 50%, rgba(249,115,22,0.14) 0%, transparent 70%)",
           }}
         />
 
@@ -135,7 +135,7 @@ export function LoginPage({
           className="pointer-events-none absolute inset-x-0 top-0 h-[200%] opacity-40"
           style={{
             backgroundImage:
-              "radial-gradient(rgba(251,191,36,0.22) 1px, transparent 1.4px)",
+              "radial-gradient(rgba(var(--ring) / 0.22) 1px, transparent 1.4px)",
             backgroundSize: "28px 28px",
           }}
         />
@@ -145,9 +145,9 @@ export function LoginPage({
         <div data-orb="c" className="pointer-events-none absolute right-1/4 top-1/5 h-64 w-64 rounded-full bg-amber-400/10 blur-3xl" />
 
         <div className="pointer-events-none absolute right-[12%] top-[14%] h-14 w-14">
-          <div data-radar className="absolute inset-0 rounded-full border border-amber-400/50" />
-          <div className="absolute inset-0 flex items-center justify-center rounded-full bg-amber-400/10">
-            <span className="block h-2.5 w-2.5 rounded-full bg-amber-300 shadow-[0_0_16px_rgba(252,211,77,0.9)]" />
+          <div data-radar className="absolute inset-0 rounded-full border border-primary/50" />
+          <div className="absolute inset-0 flex items-center justify-center rounded-full bg-primary/10">
+            <span className="block h-2.5 w-2.5 rounded-full bg-primary shadow-[0_0_16px_var(--primary)]" />
           </div>
         </div>
 

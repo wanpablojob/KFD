@@ -15,7 +15,7 @@ import Link from "next/link";
 import { useAsyncData } from "@/lib/use-async-data";
 import { TableBoundary } from "@/components/ui/table-boundary";
 import type { Column } from "@/components/ui/data-table";
-import type { Customer, Order } from "@/lib/types";
+import type { Order } from "@/lib/types";
 
 const columns: Column<Order>[] = [
   {
@@ -74,6 +74,19 @@ export default function CustomerDetailPage() {
     return (
       <PageContainer>
         <PageHeader title="Loading…" />
+      </PageContainer>
+    );
+  }
+
+  // A failed fetch would otherwise fall through to "Customer not found", which
+  // reads as a deleted customer rather than a network or RLS problem.
+  if (error) {
+    return (
+      <PageContainer>
+        <PageHeader
+          title="Could not load this customer"
+          description={error}
+        />
       </PageContainer>
     );
   }

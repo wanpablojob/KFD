@@ -1,5 +1,7 @@
 "use client";
 
+import { useRouter } from "next/navigation";
+
 import { fetchCustomers } from "@/lib/supabase/queries";
 import { formatCurrency } from "@/lib/format";
 import { PageContainer, PageHeader, Section } from "@/components/layout/page";
@@ -71,6 +73,7 @@ const columns: Column<Customer>[] = [
 ];
 
 export default function CustomersPage() {
+  const router = useRouter();
   const { data, loading, error, refetch } = useAsyncData(() =>
     fetchCustomers(),
   );
@@ -113,7 +116,7 @@ export default function CustomersPage() {
               columns={columns}
               rows={data ?? []}
               searchFields={["name", "email", "phone", "city", "id"]}
-              onRowClick={(row) => window.location.href = `/customers/${row.id}`}
+              onRowClick={(row) => router.push(`/customers/${row.id}`)}
               emptyTitle="No customers found"
               exportName="customers"
               exportColumns={[

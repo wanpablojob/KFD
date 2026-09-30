@@ -46,8 +46,9 @@ export function RevenueChart({ data }: { data: RevenuePoint[] }) {
       </div>
       <p className="mt-3 text-xs text-muted-foreground">
         Peak: {formatCompact(max)} — revenue this week{" "}
+      
         {formatCurrency(data.reduce((sum, d) => sum + d.revenue, 0))}
       </p>
-    </div>
+    </div>  
   );
 }

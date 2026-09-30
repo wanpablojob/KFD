@@ -681,3 +681,49 @@ export async function revokeMerchantAccess(email: string): Promise<void> {
   });
   requireOk(error, undefined);
 }
+
+export type RiderAccess = {
+  riderId: string;
+  riderName: string;
+  userId: string | null;
+  email: string;
+  archivedAt: string | null;
+};
+
+/** Every rider with its linked auth account, or "(none)" when unlinked. */
+export async function fetchRiderAccess(): Promise<RiderAccess[]> {
+  const { data, error } = await supabase.rpc("rider_access_list");
+
+  return requireOk(error, ((data ?? []) as Record<string, unknown>[]).map((row) => ({
+    riderId: String(row.rider_id),
+    riderName: String(row.rider_name),
+    userId: row.user_id == null ? null : String(row.user_id),
+    email: String(row.email),
+    archivedAt: row.archived_at == null ? null : String(row.archived_at),
+  })));
+}
+
+/**
+ * Attach an existing account to a rider row, or move the link.
+ *
+ * The rider keeps their row (and therefore their order history and delivery
+ * count) when the link moves; only riders.user_id and the app_users role change.
+ */
+export async function setRiderAccess(
+  email: string,
+  riderId: string,
+): Promise<void> {
+  const { error } = await supabase.rpc("set_rider_access", {
+    p_email: email,
+    p_rider_id: riderId,
+  });
+  requireOk(error, undefined);
+}
+
+/** Remove the rider link. The auth account and the rider row both survive. */
+export async function revokeRiderAccess(email: string): Promise<void> {
+  const { error } = await supabase.rpc("revoke_rider_access", {
+    p_email: email,
+  });
+  requireOk(error, undefined);
+}

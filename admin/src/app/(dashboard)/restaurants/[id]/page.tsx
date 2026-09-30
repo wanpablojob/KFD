@@ -16,7 +16,7 @@ import Link from "next/link";
 import { useAsyncData } from "@/lib/use-async-data";
 import { TableBoundary } from "@/components/ui/table-boundary";
 import type { Column } from "@/components/ui/data-table";
-import type { Restaurant, Order, MenuItem } from "@/lib/types";
+import type { Order, MenuItem } from "@/lib/types";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 const orderColumns: Column<Order>[] = [
@@ -126,6 +126,19 @@ export default function RestaurantDetailPage() {
     return (
       <PageContainer>
         <PageHeader title="Loading…" />
+      </PageContainer>
+    );
+  }
+
+  // A failed fetch would otherwise fall through to "Restaurant not found",
+  // which reads as a deleted restaurant rather than a network or RLS problem.
+  if (error) {
+    return (
+      <PageContainer>
+        <PageHeader
+          title="Could not load this restaurant"
+          description={error}
+        />
       </PageContainer>
     );
   }

@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import {
   fetchRestaurants,
@@ -101,6 +102,7 @@ const FIELDS: DialogField[] = [
 ];
 
 export default function RestaurantsPage() {
+  const router = useRouter();
   const { data, loading, error, refetch } = useAsyncData(() =>
     fetchRestaurants(),
   );
@@ -174,7 +176,7 @@ export default function RestaurantsPage() {
               columns={columns}
               rows={rows}
               searchFields={["name", "cuisine", "city", "id"]}
-              onRowClick={(row) => window.location.href = `/restaurants/${row.id}`}
+              onRowClick={(row) => router.push(`/restaurants/${row.id}`)}
               emptyTitle="No restaurants found"
               exportName="restaurants"
               exportColumns={[

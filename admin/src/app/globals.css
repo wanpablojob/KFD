@@ -3,23 +3,28 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /* ============================================================================
-   Kabankalan City Proper — Food Delivery Dashboard Theme
-   Tailwind v4: colors mapped into @theme inline for utilities like
-   `bg-primary` / `text-primary-foreground` across every page.
-
-   • Primary: #0891b2 (Kabankalan City proper blue)
-   • Primary-hover: #0e7490
-   • Facebook‑only food delivery service (no web/app).
-
-   –––––––––––––––––––––––––––––––––––––––––––––––––––
-   Kabankalan City, Negros Occidental, Philippines
-   • Population: ~190k (2025 est.)
-   • Geography: Central portion of Southern Negros Island
-   • 81k + followers on official City Government Facebook page
-   • Food‑delivery service operates exclusively via Facebook Messenger/
-     post — no standalone app or website.
-   –––––––––––––––––––––––––––––––––––––––––––––––––––
-   */
+   Kabankalan Food Delivery — Warm Theme (mirrors mobile app)
+   Palette from mobile/src/lib/theme.ts:
+   • Primary (crimson):        #A3130A
+   • Primary-dark:             #7E0E07
+   • Primary-soft:             #F6DDD6
+   • Secondary (burnt orange): #CD6D18
+   • Accent (golden orange):   #D59E50
+   • Gold:                     #ECC97B
+   • Gold-soft:                #FBF1D8
+   • Background (cream):       #FFF8E7
+   • Card (white):             #FFFFFF
+   • Surface:                  #FDF3DC
+   • Text (dark brown):        #3A2115
+   • Text-muted:               #795548
+   • Text-faint:               #A1887F
+   • Text-inverse:             #FEFEFE
+   • Border:                   #EBD9B8
+   • Border-strong:            #D59E50
+   • Success:                  #2E7D32
+   • Danger:                   #B3261E
+   • Warning:                  #CD6D18
+   ============================================================================ */
 
 @theme inline {
   --color-background: var(--background);
@@ -57,72 +62,76 @@
   --radius-input: 0.5rem;
 }
 
+/* Light mode — warm cream theme */
 :root {
   color-scheme: light;
 
-  /* Brand */
-  --primary: #b90e1f;
-  --primary-hover: #9c0c1b;
-  --primary-foreground: #ffffff;
-  --secondary: #f4f4f5;
-  --secondary-foreground: #27272a;
+  /* Brand — crimson primary, burnt orange secondary */
+  --primary: #A3130A;
+  --primary-hover: #7E0E07;
+  --primary-foreground: #FEFEFE;
 
-  /* Surfaces */
-  --background: #fafafa;
-  --foreground: #18181b;
-  --muted: #f4f4f5;
-  --muted-foreground: #71717a;
-  --card: #ffffff;
-  --card-foreground: #18181b;
+  --secondary: #CD6D18;
+  --secondary-foreground: #FEFEFE;
+
+  /* Surfaces — cream background, white cards */
+  --background: #FFF8E7;
+  --foreground: #3A2115;
+  --muted: #FDF3DC;
+  --muted-foreground: #795548;
+  --card: #FFFFFF;
+  --card-foreground: #3A2115;
 
   /* Lines & focus */
-  --border: #e4e4e7;
-  --input: #e4e4e7;
-  --ring: #f2a007;
+  --border: #EBD9B8;
+  --input: #EBD9B8;
+  --ring: #D59E50;
 
   /* Semantic status */
-  --success: #059669;
-  --success-foreground: #ffffff;
-  --warning: #d97706;
-  --warning-foreground: #ffffff;
-  --destructive: #e11d48;
-  --destructive-foreground: #ffffff;
+  --success: #2E7D32;
+  --success-foreground: #FEFEFE;
+  --warning: #CD6D18;
+  --warning-foreground: #FEFEFE;
+  --destructive: #B3261E;
+  --destructive-foreground: #FEFEFE;
 
   /* Radius */
-  --radius-card: 0.75rem; /* 12px */
-  --radius-input: 0.5rem; /* 8px */
+  --radius-card: 0.75rem;
+  --radius-input: 0.5rem;
 }
 
+/* Dark mode — deep brown surfaces, warm accents */
 .dark {
   color-scheme: dark;
 
   /* Brand */
-  --primary: #b90e1f;
-  --primary-hover: #de0f24;
-  --primary-foreground: #ffffff;
-  --secondary: #27272a;
-  --secondary-foreground: #fafafa;
+  --primary: #D59E50;
+  --primary-hover: #ECC97B;
+  --primary-foreground: #3A2115;
 
-  /* Surfaces */
-  --background: #110c0d;
-  --foreground: #f4f4f5;
-  --muted: #241d1d;
-  --muted-foreground: #a1a1a7;
-  --card: #1a1314;
-  --card-foreground: #f4f4f5;
+  --secondary: #CD6D18;
+  --secondary-foreground: #FEFEFE;
+
+  /* Surfaces — deep brown */
+  --background: #1A1314;
+  --foreground: #FDF3DC;
+  --muted: #241D1D;
+  --muted-foreground: #A1887F;
+  --card: #1A1314;
+  --card-foreground: #FDF3DC;
 
   /* Lines & focus */
-  --border: #33292a;
-  --input: #3a3031;
-  --ring: #f2a007;
+  --border: #3A2E2F;
+  --input: #3A2E2F;
+  --ring: #D59E50;
 
   /* Semantic status */
-  --success: #34d399;
-  --success-foreground: #052e16;
-  --warning: #fbbf24;
-  --warning-foreground: #451a03;
-  --destructive: #f87171;
-  --destructive-foreground: #450a0a;
+  --success: #34D399;
+  --success-foreground: #052E16;
+  --warning: #FBBF24;
+  --warning-foreground: #451A03;
+  --destructive: #F87171;
+  --destructive-foreground: #450A0A;
 }
 
 html {
@@ -134,13 +143,9 @@ body {
   color: var(--foreground);
 }
 
-/* ============================================================================
-   Typography — sensible module defaults. Pages can still size text with
-   utilities; these provide consistent, non-overstyled baseline headings.
-   ========================================================================== */
-
+/* Typography */
 h1 {
-  font-size: 1.5rem; /* 24px */
+  font-size: 1.5rem;
   line-height: 1.25;
   font-weight: 700;
   letter-spacing: -0.02em;
@@ -173,10 +178,7 @@ small {
   font-size: 0.875rem;
 }
 
-/* ============================================================================
-   Accessibility — visible focus indicator driven by the ring token.
-   ========================================================================== */
-
+/* Accessibility */
 :focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
