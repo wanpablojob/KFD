@@ -319,13 +319,13 @@ jobs:
               ("orders", "customer_user_id", "customer order tracking + customer RLS"),
               ("orders", "delivery_address", "storefront delivery target"),
               ("orders", "service_fee", "storefront service-fee line"),
-              -- Phase 1 migrations:
+              # Phase 1 migrations:
               ("orders", "restaurant_id", "FK to restaurants (0024)"),
               ("orders", "rider_id", "FK to riders (0025)"),
               ("orders", "updated_at", "audit/analytics timestamp (0026)"),
               ("restaurants", "updated_at", "audit/analytics timestamp (0026)"),
               ("riders", "updated_at", "audit/analytics timestamp (0026)"),
-              -- Phase 2 migrations:
+              # Phase 2 migrations:
               ("menu_items", "restaurant_id", "FK to restaurants (0027)"),
               ("audit_log", "actor_user_id", "audit trail (0028)"),
           ]
