@@ -50,7 +50,7 @@ export async function upsertRestaurant(
 ): Promise<void> {
   const id = existingId ?? makeId("rst");
   const { error } = await supabase
-    .from("/dashboard/restaurants")
+    .from("restaurants")
     .upsert(
       {
         id,
@@ -74,7 +74,7 @@ export async function upsertRider(
 ): Promise<void> {
   const id = existingId ?? makeId("rdr");
   const { error } = await supabase
-    .from("/dashboard/riders")
+    .from("riders")
     .upsert(
       {
         id,
@@ -129,7 +129,7 @@ export async function setRiderStatus(
   id: string,
   status: Rider["status"],
 ): Promise<void> {
-  const { error } = await supabase.from("/dashboard/riders").update({ status }).eq("id", id);
+  const { error } = await supabase.from("riders").update({ status }).eq("id", id);
   if (error) throw new Error(error.message);
 }
 
@@ -146,7 +146,7 @@ export async function setRiderStatus(
  * or filters on it -- so a skewed device clock is not worth a database round
  * trip to avoid.
  */
-async function setArchived(table: "/dashboard/restaurants" | "/dashboard/riders", id: string, archived: boolean): Promise<void> {
+async function setArchived(table: "restaurants" | "riders", id: string, archived: boolean): Promise<void> {
   const { error } = await supabase
     .from(table)
     .update({ archived_at: archived ? new Date().toISOString() : null })
@@ -155,10 +155,10 @@ async function setArchived(table: "/dashboard/restaurants" | "/dashboard/riders"
 }
 
 export const setRestaurantArchived = (id: string, archived: boolean): Promise<void> =>
-  setArchived("/dashboard/restaurants", id, archived);
+  setArchived("restaurants", id, archived);
 
 export const setRiderArchived = (id: string, archived: boolean): Promise<void> =>
-  setArchived("/dashboard/riders", id, archived);
+  setArchived("riders", id, archived);
 
 export type DbRecord<T> = T & Record<string, unknown>;
 
@@ -184,7 +184,7 @@ function mapItems(raw: unknown): OrderItem[] {
  */
 export async function fetchRestaurants(): Promise<Restaurant[]> {
   const { data, error } = await supabase
-    .from("/dashboard/restaurants")
+    .from("restaurants")
     .select("*")
     .order("name");
 
@@ -206,7 +206,7 @@ export async function fetchRestaurants(): Promise<Restaurant[]> {
 
 export async function fetchRiders(): Promise<Rider[]> {
   const { data, error } = await supabase
-    .from("/dashboard/riders")
+    .from("riders")
     .select("*")
     .order("name");
 
@@ -246,7 +246,7 @@ export async function fetchRiders(): Promise<Rider[]> {
  */
 export async function fetchCustomers(): Promise<Customer[]> {
   const { data, error } = await supabase
-    .from("/dashboard/customers")
+    .from("customers")
     .select("*")
     .order("name");
 
@@ -285,7 +285,7 @@ export async function fetchMenuItems(): Promise<MenuItem[]> {
 export type DateRange = { from?: string; to?: string };
 
 export async function fetchOrders(range?: DateRange): Promise<Order[]> {
-  let query = supabase.from("/dashboard/orders").select("*").order("placed_at", { ascending: false });
+  let query = supabase.from("orders").select("*").order("placed_at", { ascending: false });
   if (range?.from) query = query.gte("placed_at", range.from);
   if (range?.to) query = query.lte("placed_at", range.to + "T23:59:59.999Z");
 
@@ -313,7 +313,7 @@ export async function fetchOrders(range?: DateRange): Promise<Order[]> {
 
 export async function fetchOrdersByCustomer(customerName: string, range?: DateRange): Promise<Order[]> {
   let query = supabase
-    .from("/dashboard/orders")
+    .from("orders")
     .select("*")
     .eq("customer", customerName)
     .order("placed_at", { ascending: false });
@@ -344,7 +344,7 @@ export async function fetchOrdersByCustomer(customerName: string, range?: DateRa
 
 export async function fetchOrdersByRider(riderName: string, range?: DateRange): Promise<Order[]> {
   let query = supabase
-    .from("/dashboard/orders")
+    .from("orders")
     .select("*")
     .eq("rider", riderName)
     .order("placed_at", { ascending: false });
@@ -375,7 +375,7 @@ export async function fetchOrdersByRider(riderName: string, range?: DateRange): 
 
 export async function fetchOrdersByRestaurant(restaurantId: string, range?: DateRange): Promise<Order[]> {
   let query = supabase
-    .from("/dashboard/orders")
+    .from("orders")
     .select("*")
     .eq("restaurant_id", restaurantId)
     .order("placed_at", { ascending: false });
@@ -489,27 +489,27 @@ export async function searchEverything(
 
   const [orders, restaurants, riders, customers, menuItems] = await Promise.all([
     supabase
-      .from("/dashboard/orders")
+      .from("orders")
       .select("id, reference, customer, restaurant, status, total, placed_at")
       .or(anyIlikeFilter(["reference", "customer", "restaurant"], trimmed))
       .order("placed_at", { ascending: false })
       .limit(PER_ENTITY),
     supabase
-      .from("/dashboard/restaurants")
+      .from("restaurants")
       .select("id, name, cuisine, city, status")
       .or(anyIlikeFilter(["name", "cuisine", "city"], trimmed))
       .is("archived_at", null)
       .order("name")
       .limit(PER_ENTITY),
     supabase
-      .from("/dashboard/riders")
+      .from("riders")
       .select("id, name, email, phone, vehicle, status")
       .or(anyIlikeFilter(["name", "email", "phone", "city"], trimmed))
       .is("archived_at", null)
       .order("name")
       .limit(PER_ENTITY),
     supabase
-      .from("/dashboard/customers")
+      .from("customers")
       .select("id, name, email, phone, city")
       .or(anyIlikeFilter(["name", "email", "phone", "city"], trimmed))
       .order("name")
@@ -568,7 +568,7 @@ function toSearchResult(
       subtitle: [text(row.customer), text(row.restaurant), text(row.status)]
         .filter(Boolean)
         .join(" · "),
-      href: listHref("/dashboard/orders", label),
+      href: listHref("orders", label),
     };
   }
   if ("cuisine" in row) {
@@ -579,7 +579,7 @@ function toSearchResult(
       subtitle: [text(row.cuisine), text(row.city), text(row.status)]
         .filter(Boolean)
         .join(" · "),
-      href: listHref("/dashboard/restaurants", label),
+      href: listHref("restaurants", label),
     };
   }
   if ("vehicle" in row) {
@@ -590,7 +590,7 @@ function toSearchResult(
       subtitle: [text(row.vehicle), text(row.status), text(row.phone)]
         .filter(Boolean)
         .join(" · "),
-      href: listHref("/dashboard/riders", label),
+      href: listHref("riders", label),
     };
   }
   if ("price" in row) {
@@ -611,7 +611,7 @@ function toSearchResult(
     subtitle: [text(row.email), text(row.phone), text(row.city)]
       .filter(Boolean)
       .join(" · "),
-    href: listHref("/dashboard/customers", label),
+    href: listHref("customers", label),
   };
 }
 // ---------------------------------------------------------------------------
