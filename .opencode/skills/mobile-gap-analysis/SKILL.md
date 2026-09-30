@@ -91,6 +91,100 @@ is worse than no rider app, because it looks broken to the rider. Critical path:
 assignment mechanism (backend) → dispatch UI (admin) → address and contact
 added to `fetch_rider_orders_page` (RPC) → then rider UX.
 
+## Rider fix plan, in dependency order
+
+Each phase is independently shippable and leaves the system in a working state.
+Do not start a phase before the previous one is verified in production.
+
+### Rider Fix 0 — unblock what is already written (no new code)
+
+This is not optional groundwork; it is the reason the rider app looks dead.
+
+**Finding, verified against the live project with `supabase gen types`:**
+`fetch_rider_orders_page` does not exist in production. It is defined in
+migration `0030_rider_orders_pagination.sql`, which is committed but not
+applied. Live `orders` also has no `rider_id` column at all — the two `rider_id`
+hits in the generated types belong to `set_rider_access(p_email, p_rider_id)`,
+not to `orders`.
+
+So the rider app currently calls an RPC that returns `404 PGRST202`, and
+`rider_id` — the column every rider query filters on — has never been created.
+`0024`–`0032` are all unapplied; `0032` is already documented as unapplied in
+`database.overrides.ts`.
+
+- Verify each of `0024`–`0032` actually ran before marking any applied; the
+  history is inconsistent, so do not trust the folder.
+- Apply them in order, then regenerate `database.types.ts` and delete the
+  `PendingFunctions` block.
+- Confirm `fetch_rider_orders_page` exists and `orders.rider_id` exists.
+- Re-test rider sign-in and the deliveries tab. The queue will still be empty
+  for want of an assignment path, which is Fix 1.
+
+### Rider Fix 1 — assignment mechanism (the real blocker)
+
+Nothing assigns a rider today. Pick one model; do not build both.
+
+- **Option A, auto-assign on order placement.** In `customer_place_order()`
+  (`0023`), after insert, select the nearest online rider. Cheapest to operate,
+  no rider UI needed, but needs location data the riders table does not have.
+- **Option B, dispatch queue with accept.** New `order_offers` table plus
+  `available_jobs` / `claim_order` RPCs. Closest to how Foodpanda-style
+  marketplaces work and it uses `rider_set_status`, which already exists and is
+  currently consumed by nothing. Costs a migration plus a rider feed screen.
+
+Either way this needs: an `orders.rider_id` write path (column arrives with
+`0025`), a decision on what happens when no rider is free, and an admin surface
+if dispatch stays manual. Whatever is chosen must set `rider_id`, not the
+denormalised `rider` text, so the name-matching backfill in `0025` is not
+reused.
+
+### Rider Fix 2 — make the order actionable
+
+Smallest high-value change in the whole rider plan. One migration, one RPC
+change, one screen.
+
+- Add `delivery_address` to `fetch_rider_orders_page`'s return table; the column
+  already exists on `orders` since `0021` and is already populated by
+  `customer_place_order()`. This alone is what turns the delivery card from
+  useless into usable.
+- Add customer phone to `orders` (via a new column or a join to `customers`),
+  and surface a call/chat deep link.
+- Add `items` to the rendered card or an order-detail screen — the data is
+  already returned and never displayed.
+- Stop labelling the customer's order total as if it were rider pay. Add a
+  per-trip payout column, or remove the peso figure until Fix 3.
+
+### Rider Fix 3 — earnings that mean something
+
+- New `rider_payouts` ledger written by the delivery-completion trigger
+  alongside the existing `0008` aggregate refresh. Migration plus trigger.
+- Per-delivery history, daily/weekly rollups, and cash-out on `earnings.tsx`,
+  replacing the lifetime-only read off the `riders` row.
+- Push the rider on delivery completion; the shared `lib/push.ts` already
+  supports it and the rider surface ignores it today.
+
+### Rider Fix 4 — trust and safety
+
+- Delivery proof: photo upload to Supabase Storage, or customer OTP confirm.
+  Both need a new bucket or column; neither exists.
+- A failed-delivery / return-to-merchant path. `markDelivered` currently has
+  only success, so a rider who cannot deliver has nowhere to record it.
+- Customer live location for the rider to follow, plus a map view. Needs a map
+  SDK, background location permission, and a location column — none present.
+
+### Rider Fix 5 — onboarding
+
+- Rider self-signup with document upload (licence, ORCR, ID) and admin approval,
+  replacing `set_rider_access` provisioning. Needs document columns on
+  `riders` and a Storage bucket.
+- Shifts, delivery zones, and multi-order batching.
+
+### Sequencing summary
+
+Fix 0 → Fix 1 → Fix 2 → Fix 3 → Fix 4 → Fix 5. Fix 2 is the highest
+value-per-hour item in the plan and the cheapest. Fix 1 is the expensive one and
+needs a product decision between auto-assign and a dispatch queue.
+
 ## What already exists (do not plan these)
 
 | Area | Implementation |
