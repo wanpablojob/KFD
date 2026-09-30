@@ -8,6 +8,89 @@ description: Use when planning or scoping any mobile app feature work in KFD. Re
 Snapshot of `mobile/` as of `f1a3b4a`-era code, ~5,300 lines across 34 TS/TSX
 files. Re-verify against the source before relying on any line claim below.
 
+## Rider app (`mobile/src/app/rider/`, `mobile/src/screens/rider-home-screen.tsx`)
+
+Three tabs, 274 lines for the deliveries screen. Solid mechanics: cursor
+pagination via `fetch_rider_orders_page`, pull-to-refresh, optimistic-free
+`markDelivered` with a per-row spinner, `rider_set_status` availability toggle
+in profile, and an explicit "no rider profile linked" state.
+
+The problem is that riders have nothing to *do*. There is no assignment
+mechanism anywhere in the system.
+
+### Rider Phase 1 — the app cannot receive work
+
+- **No assignment mechanism exists at all.** The only code that ever writes
+  `orders.rider_id` is the one-time backfill in `0025_orders_rider_fk.sql`,
+  which matches on rider *name* for pre-existing rows. `customer_place_order()`
+  in `0023` inserts no rider, and `0010_archive.sql` only references the column.
+  So `fetch_rider_orders_page`'s `where o.rider_id = v_rider_id` can never match
+  a new order. The rider app is a working viewer over a queue nothing feeds.
+- **No dispatch surface.** With no auto-assign, no available-jobs feed, and no
+  accept/decline, someone must assign by hand — and the admin has no
+  rider-assignment UI either. This is a backend + admin gap before it is a
+  mobile gap, and it blocks every other rider feature.
+- **Rider cannot see where to deliver.** `fetch_rider_orders_page` returns
+  `id, reference, customer, restaurant, items, total, status, payment,
+  placed_at, next_cursor`. `delivery_address` was added to `orders` in `0021`
+  but is **not** in the RPC's return table, and `RiderOrderPageItem` has no
+  address field. The rider sees a reference, a restaurant name, and a customer
+  name — literally nowhere to go.
+- **No way to contact the customer.** `orders` has no customer phone column and
+  `RiderOrderPageItem` carries none. No call, no chat, no directions link.
+- **`Mark delivered` is a single unconfirmed tap.** No photo proof, no OTP, no
+  customer confirmation, and no cancel/failed-delivery path. It fires
+  `rider_mark_delivered` directly for any non-terminal status.
+
+### Rider Phase 2 — day-to-day usability
+
+- No customer live location or map view; no map SDK in `package.json` at all.
+- No order-detail screen. `items` is returned by the RPC but never rendered —
+  the card shows reference, restaurant, customer, total. A rider cannot see
+  what they are picking up.
+- No pickup instructions or merchant contact.
+- **The `₱` figure on the delivery card is the customer's order total, not the
+  rider's pay.** There is no per-trip delivery fee or payout column anywhere in
+  the schema, so `rider.earnings` has no per-order breakdown to show.
+- Availability is a manual button, and nothing consumes it — no dispatcher, no
+  push to online riders when work appears.
+
+### Rider Phase 3 — earnings and trust
+
+- `earnings.tsx` renders lifetime `earnings`/`deliveries` off the `riders` row.
+  No per-delivery ledger, no daily/weekly breakdown, no payout or cash-out, no
+  history. `riders.earnings` is maintained by a trigger (see `0008`), so the
+  number is right but unauditable from the app.
+- No in-app earnings notification on delivery completion.
+- No rider performance or incentive surface; `rating` is never written by a
+  customer.
+
+### Rider Phase 4 — onboarding and growth
+
+- Riders are provisioned via `0018_rider_access` / `set_rider_access` from the
+  admin. No self-signup, no document upload (license, ORCR, ID), no background
+  check, no vehicle verification. `riders` has no document columns.
+- No shift or schedule, no zone/preferred-area assignment, no batching of
+  multiple deliveries into one trip.
+
+### Rider Phase 5 — platform hardening
+
+- Push is registered via the shared `lib/push.ts` but never verified on a
+  physical device; `push.ts` returns an explicit error on emulators, and there
+  is no notification handling in the rider surface at all — no "new job" alert,
+  so a rider must keep the app open to notice work.
+- No background location tracking, which is what a real delivery app needs for
+  dispatch and customer ETA.
+- No offline behaviour. `connectivity-context.tsx` reports the network state but
+  `markDelivered` has no retry or queue — a failed tap loses the action.
+
+### Rider sequencing note
+
+Do not build rider UI before dispatch exists. A rider app with an empty queue
+is worse than no rider app, because it looks broken to the rider. Critical path:
+assignment mechanism (backend) → dispatch UI (admin) → address and contact
+added to `fetch_rider_orders_page` (RPC) → then rider UX.
+
 ## What already exists (do not plan these)
 
 | Area | Implementation |
@@ -70,18 +153,6 @@ files. Re-verify against the source before relying on any line claim below.
 - Search is name/cuisine substring only — no delivery-area filtering, so a
   customer outside the coverage zone sees restaurants they cannot order from.
   Delivery area is hardcoded as "Kabankalan City" in `customer/index.tsx`.
-
-### Phase 4 — marketplace and rider operations
-
-- Riders only see already-assigned orders. No available-jobs feed, no
-  accept/decline, no claim. `rider_mark_delivered` and `rider_set_status` exist
-  but nothing drives assignment.
-- No delivery proof: no photo, no OTP, no customer signature.
-- No in-app navigation or contact. No rider-to-merchant or rider-to-customer
-  messaging, no call/chat deep link.
-- No rider payout history. `earnings.tsx` renders lifetime totals off the
-  `riders` row; no per-delivery ledger, no cash-out.
-- No customer live location for the rider to follow.
 
 ### Phase 5 — platform hardening
 
