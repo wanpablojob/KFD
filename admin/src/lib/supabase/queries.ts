@@ -190,7 +190,7 @@ export async function fetchRestaurants(): Promise<Restaurant[]> {
 
   if (error) throw new Error(error.message);
 
-  return ((data ?? []) as DbRecord<Restaurant>[]).map((r) => ({
+  return ((data ?? [])).map((r) => ({
     id: r.id,
     name: r.name,
     cuisine: r.cuisine,
@@ -212,11 +212,11 @@ export async function fetchRiders(): Promise<Rider[]> {
 
   if (error) throw new Error(error.message);
 
-  return ((data ?? []) as DbRecord<Rider>[]).map((r) => ({
+  return ((data ?? [])).map((r) => ({
     id: r.id,
     name: r.name,
     email: r.email,
-    phone: r.phone,
+    phone: r.phone ?? "",
     city: r.city,
     vehicle: r.vehicle,
     status: r.status,
@@ -252,11 +252,11 @@ export async function fetchCustomers(): Promise<Customer[]> {
 
   if (error) throw new Error(error.message);
 
-  return ((data ?? []) as DbRecord<Customer>[]).map((c) => ({
+  return ((data ?? [])).map((c) => ({
     id: c.id,
     name: c.name,
     email: c.email,
-    phone: c.phone,
+    phone: c.phone ?? "",
     city: c.city,
     ordersCount: Number(c.orders_count),
     totalSpend: Number(c.total_spend),
@@ -272,7 +272,7 @@ export async function fetchMenuItems(): Promise<MenuItem[]> {
 
   if (error) throw new Error(error.message);
 
-  return ((data ?? []) as DbRecord<MenuItem>[]).map((m) => ({
+  return ((data ?? [])).map((m) => ({
     id: m.id,
     restaurant: m.restaurant,
     name: m.name,
@@ -293,7 +293,7 @@ export async function fetchOrders(range?: DateRange): Promise<Order[]> {
 
   if (error) throw new Error(error.message);
 
-  return ((data ?? []) as DbRecord<Order>[]).map((o) => ({
+  return ((data ?? [])).map((o) => ({
     id: o.id,
     reference: o.reference,
     customer: o.customer,
@@ -305,7 +305,7 @@ export async function fetchOrders(range?: DateRange): Promise<Order[]> {
     status: o.status,
     payment: o.payment,
     placedAt: String(o.placed_at),
-    rider: o.rider,
+    rider: o.rider ?? "",
     rejectionReason:
       typeof o.rejection_reason === "string" ? o.rejection_reason : null,
   }));
@@ -324,7 +324,7 @@ export async function fetchOrdersByCustomer(customerName: string, range?: DateRa
 
   if (error) throw new Error(error.message);
 
-  return ((data ?? []) as DbRecord<Order>[]).map((o) => ({
+  return ((data ?? [])).map((o) => ({
     id: o.id,
     reference: o.reference,
     customer: o.customer,
@@ -336,7 +336,7 @@ export async function fetchOrdersByCustomer(customerName: string, range?: DateRa
     status: o.status,
     payment: o.payment,
     placedAt: String(o.placed_at),
-    rider: o.rider,
+    rider: o.rider ?? "",
     rejectionReason:
       typeof o.rejection_reason === "string" ? o.rejection_reason : null,
   }));
@@ -355,7 +355,7 @@ export async function fetchOrdersByRider(riderName: string, range?: DateRange): 
 
   if (error) throw new Error(error.message);
 
-  return ((data ?? []) as DbRecord<Order>[]).map((o) => ({
+  return ((data ?? [])).map((o) => ({
     id: o.id,
     reference: o.reference,
     customer: o.customer,
@@ -367,7 +367,7 @@ export async function fetchOrdersByRider(riderName: string, range?: DateRange): 
     status: o.status,
     payment: o.payment,
     placedAt: String(o.placed_at),
-    rider: o.rider,
+    rider: o.rider ?? "",
     rejectionReason:
       typeof o.rejection_reason === "string" ? o.rejection_reason : null,
   }));
@@ -386,7 +386,7 @@ export async function fetchOrdersByRestaurant(restaurantId: string, range?: Date
 
   if (error) throw new Error(error.message);
 
-  return ((data ?? []) as DbRecord<Order>[]).map((o) => ({
+  return ((data ?? [])).map((o) => ({
     id: o.id,
     reference: o.reference,
     customer: o.customer,
@@ -398,7 +398,7 @@ export async function fetchOrdersByRestaurant(restaurantId: string, range?: Date
     status: o.status,
     payment: o.payment,
     placedAt: String(o.placed_at),
-    rider: o.rider,
+    rider: o.rider ?? "",
     rejectionReason:
       typeof o.rejection_reason === "string" ? o.rejection_reason : null,
   }));
@@ -413,7 +413,7 @@ export async function fetchMenuItemsByRestaurant(restaurantId: string): Promise<
 
   if (error) throw new Error(error.message);
 
-  return ((data ?? []) as DbRecord<MenuItem>[]).map((m) => ({
+  return ((data ?? [])).map((m) => ({
     id: m.id,
     restaurant: m.restaurant,
     name: m.name,

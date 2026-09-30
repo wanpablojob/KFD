@@ -58,7 +58,10 @@ export async function fetchTrackedOrder(
   return {
     reference: row.reference,
     restaurant: row.restaurant,
-    items: Array.isArray(row.items) ? (row.items as OrderItem[]) : [],
+    // `items` is a jsonb column, so it arrives as `Json`. The shape is written
+    // by customer_place_order() and mirrored by OrderItem, but jsonb carries no
+    // compile-time contract, hence the hop through unknown.
+    items: Array.isArray(row.items) ? (row.items as unknown as OrderItem[]) : [],
     subtotal: Number(row.subtotal),
     deliveryFee: Number(row.delivery_fee),
     total: Number(row.total),

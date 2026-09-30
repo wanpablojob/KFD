@@ -31,7 +31,7 @@ export async function fetchMerchantOrders(): Promise<Order[]> {
 
   if (error) throw new Error(error.message);
 
-  return ((data ?? []) as DbRecord<Order>[]).map((o) => ({
+  return ((data ?? [])).map((o) => ({
     id: o.id,
     reference: o.reference,
     customer: o.customer,
@@ -43,7 +43,7 @@ export async function fetchMerchantOrders(): Promise<Order[]> {
     status: o.status,
     payment: o.payment,
     placedAt: String(o.placed_at),
-    rider: o.rider,
+    rider: o.rider ?? "",
     // Mapped on both the merchant and admin paths. A field present in one
     // mapper and missing from the other is how this drifts (Prompt 2.5).
     // Coerced explicitly: DbRecord types unmapped columns as `unknown`, and
@@ -61,7 +61,7 @@ export async function fetchMerchantMenu(): Promise<MenuItem[]> {
 
   if (error) throw new Error(error.message);
 
-  return ((data ?? []) as DbRecord<MenuItem>[]).map((m) => ({
+  return ((data ?? [])).map((m) => ({
     id: m.id,
     restaurant: m.restaurant,
     name: m.name,
