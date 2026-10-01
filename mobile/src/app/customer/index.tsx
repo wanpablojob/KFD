@@ -11,10 +11,8 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useRestaurants, RestaurantRow } from "../../lib/hooks";
+import { useOrderFees, useRestaurants, RestaurantRow } from "../../lib/hooks";
 import { colors, radius, shadow, spacing, type } from "../../lib/theme";
-
-const DELIVERY_FEE = 45;
 
 export default function CustomerHomeScreen() {
   const insets = useSafeAreaInsets();
@@ -30,6 +28,11 @@ export default function CustomerHomeScreen() {
     isFetching,
     refetch,
   } = useRestaurants(debouncedQuery, cuisine);
+
+  // The advertised delivery price, straight from the server. Null until it
+  // lands, in which case the card simply omits the claim rather than guessing.
+  const { data: fees } = useOrderFees();
+  const deliveryFee = fees?.delivery_fee ?? null;
 
   const cuisines = useMemo(() => {
     const set = new Set((restaurants ?? []).map((r) => r.cuisine).filter(Boolean));
@@ -142,7 +145,9 @@ export default function CustomerHomeScreen() {
             </Text>
           </View>
         }
-        renderItem={({ item }) => <RestaurantCard row={item} />}
+        renderItem={({ item }) => (
+          <RestaurantCard row={item} deliveryFee={deliveryFee} />
+        )}
         refreshControl={
           <RefreshControl refreshing={isFetching} onRefresh={() => refetch()} />
         }
@@ -151,7 +156,13 @@ export default function CustomerHomeScreen() {
   );
 }
 
-function RestaurantCard({ row }: { row: RestaurantRow }) {
+function RestaurantCard({
+  row,
+  deliveryFee,
+}: {
+  row: RestaurantRow;
+  deliveryFee: number | null;
+}) {
   const router = useRouter();
   return (
     <Pressable
@@ -182,8 +193,12 @@ function RestaurantCard({ row }: { row: RestaurantRow }) {
             <Text style={styles.ratingStar}>★</Text>
             <Text style={styles.ratingValue}>{row.rating.toFixed(1)}</Text>
           </View>
-          <Text style={styles.metaDot}>·</Text>
-          <Text style={type.caption}>₱{DELIVERY_FEE} delivery</Text>
+          {deliveryFee !== null ? (
+            <>
+              <Text style={styles.metaDot}>·</Text>
+              <Text style={type.caption}>₱{deliveryFee.toFixed(0)} delivery</Text>
+            </>
+          ) : null}
           <Text style={styles.metaDot}>·</Text>
           <Text style={type.caption}>20-30 min</Text>
         </View>

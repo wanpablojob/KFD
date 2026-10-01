@@ -13,11 +13,9 @@ import {
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCart } from "../../lib/cart-context";
+import { useCartQuote } from "../../lib/cart-quote";
 import { placeCustomerOrder, type PaymentChoice } from "../../lib/storefront";
 import { colors, radius, shadow, spacing, type } from "../../lib/theme";
-
-const DELIVERY_FEE = 45;
-const SERVICE_FEE = 5;
 
 const PAYMENTS: { key: PaymentChoice; label: string; glyph: string }[] = [
   { key: "cash", label: "Cash on delivery", glyph: "₱" },
@@ -25,22 +23,36 @@ const PAYMENTS: { key: PaymentChoice; label: string; glyph: string }[] = [
   { key: "card", label: "Card", glyph: "▭" },
 ];
 
-/** Review -> address -> pay -> place. Totals mirror the server. */
+/** Review -> address -> pay -> place. Every peso shown here comes from the server. */
 export default function CustomerCartScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { lines, setQuantity, remove, subtotal, clear, restaurantId } = useCart();
+  const { lines, setQuantity, remove, clear, restaurantId } = useCart();
+  const { quote, loading: quoting, error: quoteError } = useCartQuote();
   const [address, setAddress] = useState("");
   const [payment, setPayment] = useState<PaymentChoice>("cash");
   const [error, setError] = useState<string | null>(null);
   const [placing, setPlacing] = useState(false);
 
-  const total = subtotal + DELIVERY_FEE + SERVICE_FEE;
+  // No local arithmetic on purpose. A subtotal computed here would have to be
+  // re-derived from prices that may have changed since the menu was cached, and
+  // the fee in particular has no client copy worth having.
+  const subtotal = quote?.subtotal ?? null;
+  const total = quote?.total ?? null;
+  // Anything but a settled quote means the button would charge a number the
+  // customer has not actually seen.
+  const canPlace = quote !== null && !quoting && !placing;
 
   async function handlePlaceOrder() {
     if (placing) return;
     const trimmedAddress = address.trim();
     if (lines.length === 0) return;
+    // Guard the invariant the button also enforces, so a race between the tap
+    // and the re-price cannot place an order against a stale total.
+    if (!quote) {
+      setError("Still pricing your cart. Try again in a moment.");
+      return;
+    }
     if (!restaurantId) {
       setError("Your cart has items from more than one place. Start a new cart.");
       return;
@@ -190,35 +202,46 @@ export default function CustomerCartScreen() {
         </View>
 
         <View style={[styles.totalCard, shadow.card]}>
-          <BillLine label="Subtotal" value={`₱${subtotal.toFixed(2)}`} />
-          <BillLine label="Delivery fee" value={`₱${DELIVERY_FEE.toFixed(2)}`} />
-          <BillLine label="Service fee" value={`₱${SERVICE_FEE.toFixed(2)}`} />
+          {/* "—" rather than a guess: a stale or assumed figure here is the
+              exact failure this screen was rewritten to prevent. */}
+          <BillLine label="Subtotal" value={peso(subtotal)} />
+          <BillLine label="Delivery fee" value={peso(quote?.delivery_fee ?? null)} />
+          <BillLine label="Service fee" value={peso(quote?.service_fee ?? null)} />
           <View style={styles.divider} />
-          <BillLine label="Total" value={`₱${total.toFixed(2)}`} bold />
+          <BillLine label="Total" value={peso(total)} bold />
         </View>
 
+        {quoteError ? <Text style={styles.error}>{quoteError}</Text> : null}
         {error ? <Text style={styles.error}>{error}</Text> : null}
       </ScrollView>
 
       <View style={styles.footer}>
         <Pressable
+          onPress={handlePlaceOrder}
+          disabled={!canPlace}
           style={({ pressed }) => [
             styles.checkoutBtn,
             shadow.raised,
-            pressed && styles.checkoutPressed,
+            !canPlace && styles.checkoutDisabled,
+            pressed && canPlace && styles.checkoutPressed,
           ]}
-          onPress={handlePlaceOrder}
-          disabled={placing}
         >
-          {placing ? (
+          {placing || quoting ? (
             <ActivityIndicator color={colors.textInverse} />
-          ) : (
+          ) : total !== null ? (
             <Text style={styles.checkoutLabel}>ORDER NOW · ₱{total.toFixed(2)}</Text>
+          ) : (
+            <Text style={styles.checkoutLabel}>TOTAL UNAVAILABLE</Text>
           )}
         </Pressable>
       </View>
     </KeyboardAvoidingView>
   );
+}
+
+/** Peso, or an em dash when the server has not priced this cart yet. */
+function peso(value: number | null): string {
+  return value === null ? "—" : `₱${value.toFixed(2)}`;
 }
 
 function BillLine({
@@ -356,6 +379,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     minHeight: 52,
   },
+  checkoutDisabled: { opacity: 0.5 },
   checkoutPressed: { backgroundColor: colors.primaryDark },
   checkoutLabel: {
     fontSize: 15,

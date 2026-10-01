@@ -181,6 +181,30 @@ export type Database = {
           status: string;
         }[];
       };
+      /**
+       * Server-authoritative price preview (migration 0033). Mirrors the
+       * pricing and availability checks in customer_place_order so the number
+       * shown at checkout and the number charged come from one place.
+       */
+      order_fees: {
+        Args: never;
+        Returns: {
+          delivery_fee: number;
+          service_fee: number;
+        }[];
+      };
+      quote_order: {
+        Args: {
+          p_restaurant_id: string;
+          p_items: { menu_item_id: string; quantity: number }[];
+        };
+        Returns: {
+          subtotal: number;
+          delivery_fee: number;
+          service_fee: number;
+          total: number;
+        }[];
+      };
       search_restaurants: {
         Args: {
           p_query?: string;

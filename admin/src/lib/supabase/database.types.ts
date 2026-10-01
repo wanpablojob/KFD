@@ -446,6 +446,22 @@ export type Database = {
         }[]
       }
       mint_order_reference: { Args: never; Returns: string }
+      order_fees: {
+        Args: never
+        Returns: {
+          delivery_fee: number
+          service_fee: number
+        }[]
+      }
+      quote_order: {
+        Args: { p_items: Json; p_restaurant_id: string }
+        Returns: {
+          delivery_fee: number
+          service_fee: number
+          subtotal: number
+          total: number
+        }[]
+      }
       refresh_restaurant_aggregates: {
         Args: { p_ids: string[] }
         Returns: undefined

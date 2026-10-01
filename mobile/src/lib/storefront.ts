@@ -159,6 +159,59 @@ export interface PlaceOrderItem {
 
 export type PaymentChoice = "cash" | "card" | "e_wallet";
 
+export interface OrderQuote {
+  subtotal: number;
+  delivery_fee: number;
+  service_fee: number;
+  total: number;
+}
+
+export interface OrderFees {
+  delivery_fee: number;
+  service_fee: number;
+}
+
+/**
+ * The platform fees, for places that state a delivery price before a cart
+ * exists (the restaurant card). Same source as the checkout total, so the
+ * advertised figure and the charged one cannot drift.
+ */
+export async function fetchOrderFees(): Promise<OrderFees> {
+  const { data, error } = await supabase.rpc("order_fees");
+  if (error) throw error;
+  if (!data || data.length !== 1) {
+    throw new Error("Could not load delivery pricing.");
+  }
+  return data[0];
+}
+
+/**
+ * Server-authoritative price preview (migration 0033).
+ *
+ * The checkout screen used to total the cart itself from hardcoded constants
+ * copied from inside customer_place_order(). Two copies of a price is one copy
+ * too many: edit one and the customer is shown a total the server then
+ * contradicts. This asks the server instead, so the preview and the charge
+ * cannot disagree.
+ *
+ * Throws with the RPC error when a line has gone unavailable, which is the same
+ * wording the real order will produce.
+ */
+export async function quoteOrder(args: {
+  restaurantId: string;
+  items: PlaceOrderItem[];
+}): Promise<OrderQuote> {
+  const { data, error } = await supabase.rpc("quote_order", {
+    p_restaurant_id: args.restaurantId,
+    p_items: args.items,
+  });
+  if (error) throw error;
+  if (!data || data.length !== 1) {
+    throw new Error("Could not price this cart. Try again.");
+  }
+  return data[0];
+}
+
 /** Server-side priced + minted order. Throws with the RPC error on rejection. */
 export async function placeCustomerOrder(args: {
   restaurantId: string;

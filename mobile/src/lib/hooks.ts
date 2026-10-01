@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   fetchActiveRestaurants,
+  fetchOrderFees,
   searchRestaurants,
   fetchMenu,
   fetchMyOrders,
@@ -22,7 +23,18 @@ export const queryKeys = {
     ["restaurants", query, cuisine] as const,
   menu: (restaurantId: string) => ["menu", restaurantId] as const,
   orders: () => ["orders"] as const,
+  orderFees: () => ["order-fees"] as const,
 };
+
+/** Delivery fee for copy that needs a number before a cart exists. */
+export function useOrderFees() {
+  return useQuery({
+    queryKey: queryKeys.orderFees(),
+    queryFn: fetchOrderFees,
+    // Platform-wide and effectively static; do not refetch on every focus.
+    staleTime: 15 * 60 * 1000,
+  });
+}
 
 export function useRestaurants(query: string = "", cuisine: string | null = null) {
   const key = queryKeys.restaurants(query, cuisine);
