@@ -12,8 +12,13 @@
 -- --------------------------------------------------------------------------
 
 -- 1. Add the new column (nullable for backfill)
+--
+-- text, not uuid: riders.id is `text primary key` (0001), so a uuid column
+-- cannot carry a foreign key to it at all. Postgres rejects the constraint with
+-- 42804 "key columns are of incompatible types: uuid and text". Matched to the
+-- referenced type, which is the only correct choice here.
 alter table orders
-  add column if not exists rider_id uuid
+  add column if not exists rider_id text
     references riders (id)
     on delete set null;
 
@@ -99,7 +104,8 @@ security definer
 set search_path = public
 as $$
 declare
-  v_rider_id uuid;
+  v_rider_id text;
+  v_order_rider_id text;
   v_status order_status;
 begin
   select r.id into v_rider_id
@@ -111,7 +117,11 @@ begin
       using errcode = '42501';
   end if;
 
-  select o.status, o.rider_id into v_status, v_rider_id
+  -- Read the order's assignee into its OWN variable. This previously selected
+  -- into v_rider_id, overwriting the caller's id with the order's, so the
+  -- ownership check below compared the order's rider against itself and could
+  -- never fail -- any authenticated rider could mark any order delivered.
+  select o.status, o.rider_id into v_status, v_order_rider_id
     from orders o
    where o.id = p_order_id;
 
@@ -119,8 +129,7 @@ begin
     raise exception 'No order with id %.', p_order_id;
   end if;
 
-  -- Check assignment via the new FK (primary) and free-text (fallback for legacy)
-  if (select o.rider_id from orders o where o.id = p_order_id) <> v_rider_id then
+  if v_order_rider_id is distinct from v_rider_id then
     raise exception 'That order is not assigned to you.'
       using errcode = '42501';
   end if;
