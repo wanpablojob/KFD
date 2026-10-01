@@ -19,8 +19,12 @@ begin
      and r.id is null;
 
   if v_orphans > 0 then
+    -- The argument is required, not decorative: RAISE treats % as a placeholder,
+    -- so without v_orphans here this raises 42601 "too few parameters" and
+    -- never reports the orphan count it was written to report.
     raise exception
-      'Cannot add FK: % orders have restaurant_id values not found in restaurants. Fix data first.'
+      'Cannot add FK: % orders have restaurant_id values not found in restaurants. Fix data first.',
+      v_orphans
       using errcode = '23503';
   end if;
 end;
