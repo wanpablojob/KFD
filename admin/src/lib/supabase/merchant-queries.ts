@@ -64,6 +64,7 @@ export async function fetchMerchantMenu(): Promise<MenuItem[]> {
   return ((data ?? [])).map((m) => ({
     id: m.id,
     restaurant: m.restaurant,
+    restaurant_id: m.restaurant_id,
     name: m.name,
     category: m.category,
     price: Number(m.price),

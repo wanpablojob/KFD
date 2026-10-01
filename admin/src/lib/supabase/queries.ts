@@ -34,6 +34,12 @@ export type RiderInput = {
 
 export type MenuItemInput = {
   restaurant: string;
+  /**
+   * Required since migration 0027 made menu_items.restaurant_id NOT NULL: an
+   * item that cannot be attributed to a restaurant is an orphan no role can
+   * see, and it cannot be priced into an order.
+   */
+  restaurant_id: string;
   name: string;
   category: string;
   price: number;
@@ -93,6 +99,13 @@ export async function upsertRider(
   if (error) throw new Error(error.message);
 }
 
+/**
+ * Create or update a menu item from the admin dashboard.
+ *
+ * `restaurant_id` is required: migration 0027 made menu_items.restaurant_id NOT
+ * NULL, because an item that cannot be attributed to a restaurant is an orphan
+ * no role can see and it cannot be priced into an order.
+ */
 export async function upsertMenuItem(
   input: MenuItemInput,
   existingId?: string,
@@ -104,6 +117,7 @@ export async function upsertMenuItem(
       {
         id,
         restaurant: input.restaurant,
+        restaurant_id: input.restaurant_id,
         name: input.name,
         category: input.category,
         price: input.price,
@@ -275,6 +289,7 @@ export async function fetchMenuItems(): Promise<MenuItem[]> {
   return ((data ?? [])).map((m) => ({
     id: m.id,
     restaurant: m.restaurant,
+    restaurant_id: m.restaurant_id,
     name: m.name,
     category: m.category,
     price: Number(m.price),
@@ -416,6 +431,7 @@ export async function fetchMenuItemsByRestaurant(restaurantId: string): Promise<
   return ((data ?? [])).map((m) => ({
     id: m.id,
     restaurant: m.restaurant,
+    restaurant_id: m.restaurant_id,
     name: m.name,
     category: m.category,
     price: Number(m.price),

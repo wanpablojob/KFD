@@ -84,6 +84,8 @@ export interface Customer {
 export interface MenuItem {
   id: string;
   restaurant: string;
+  /** NOT NULL since 0027. Needed to write the item back on edit. */
+  restaurant_id: string;
   name: string;
   category: string;
   price: number;

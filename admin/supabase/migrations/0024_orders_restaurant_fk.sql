@@ -30,6 +30,14 @@ begin
 end;
 $$;
 
+-- Idempotent: this constraint was already present in production (applied
+-- out-of-band through the SQL editor) while the migration remained unrecorded,
+-- so a plain add constraint aborts with 42710. Dropping first re-establishes
+-- this file's definition as the source of truth. Same shape 0027 uses for
+-- menu_items_restaurant_id_fkey.
+alter table orders
+  drop constraint if exists orders_restaurant_id_fkey;
+
 alter table orders
   add constraint orders_restaurant_id_fkey
   foreign key (restaurant_id)

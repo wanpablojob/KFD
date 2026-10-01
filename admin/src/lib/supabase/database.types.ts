@@ -46,6 +46,45 @@ export type Database = {
           },
         ]
       }
+      audit_log: {
+        Row: {
+          action: string
+          actor_user_id: string | null
+          changed_at: string
+          id: number
+          new_restaurant_id: string | null
+          new_role: Database["public"]["Enums"]["app_role"] | null
+          old_restaurant_id: string | null
+          old_role: Database["public"]["Enums"]["app_role"] | null
+          record_id: string | null
+          table_name: string
+        }
+        Insert: {
+          action: string
+          actor_user_id?: string | null
+          changed_at?: string
+          id?: never
+          new_restaurant_id?: string | null
+          new_role?: Database["public"]["Enums"]["app_role"] | null
+          old_restaurant_id?: string | null
+          old_role?: Database["public"]["Enums"]["app_role"] | null
+          record_id?: string | null
+          table_name?: string
+        }
+        Update: {
+          action?: string
+          actor_user_id?: string | null
+          changed_at?: string
+          id?: never
+          new_restaurant_id?: string | null
+          new_role?: Database["public"]["Enums"]["app_role"] | null
+          old_restaurant_id?: string | null
+          old_role?: Database["public"]["Enums"]["app_role"] | null
+          record_id?: string | null
+          table_name?: string
+        }
+        Relationships: []
+      }
       customers: {
         Row: {
           city: string
@@ -82,6 +121,36 @@ export type Database = {
         }
         Relationships: []
       }
+      leads: {
+        Row: {
+          consent_at: string
+          contact: string
+          created_at: string
+          id: number
+          kind: string
+          name: string
+          note: string | null
+        }
+        Insert: {
+          consent_at?: string
+          contact: string
+          created_at?: string
+          id?: never
+          kind: string
+          name: string
+          note?: string | null
+        }
+        Update: {
+          consent_at?: string
+          contact?: string
+          created_at?: string
+          id?: never
+          kind?: string
+          name?: string
+          note?: string | null
+        }
+        Relationships: []
+      }
       menu_items: {
         Row: {
           available: boolean
@@ -91,7 +160,7 @@ export type Database = {
           name: string
           price: number
           restaurant: string
-          restaurant_id: string | null
+          restaurant_id: string
         }
         Insert: {
           available?: boolean
@@ -101,7 +170,7 @@ export type Database = {
           name: string
           price?: number
           restaurant: string
-          restaurant_id?: string | null
+          restaurant_id: string
         }
         Update: {
           available?: boolean
@@ -111,7 +180,7 @@ export type Database = {
           name?: string
           price?: number
           restaurant?: string
-          restaurant_id?: string | null
+          restaurant_id?: string
         }
         Relationships: [
           {
@@ -139,10 +208,12 @@ export type Database = {
           restaurant: string
           restaurant_id: string | null
           rider: string | null
+          rider_id: string | null
           service_fee: number
           status: Database["public"]["Enums"]["order_status"]
           subtotal: number
           total: number
+          updated_at: string
         }
         Insert: {
           created_at?: string
@@ -150,7 +221,7 @@ export type Database = {
           customer_user_id?: string | null
           delivery_address?: string | null
           delivery_fee?: number
-          id: string
+          id?: string
           items?: Json
           payment?: Database["public"]["Enums"]["payment_method"]
           placed_at?: string
@@ -159,10 +230,12 @@ export type Database = {
           restaurant: string
           restaurant_id?: string | null
           rider?: string | null
+          rider_id?: string | null
           service_fee?: number
           status?: Database["public"]["Enums"]["order_status"]
           subtotal?: number
           total?: number
+          updated_at?: string
         }
         Update: {
           created_at?: string
@@ -179,10 +252,12 @@ export type Database = {
           restaurant?: string
           restaurant_id?: string | null
           rider?: string | null
+          rider_id?: string | null
           service_fee?: number
           status?: Database["public"]["Enums"]["order_status"]
           subtotal?: number
           total?: number
+          updated_at?: string
         }
         Relationships: [
           {
@@ -190,6 +265,13 @@ export type Database = {
             columns: ["restaurant_id"]
             isOneToOne: false
             referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_rider_id_fkey"
+            columns: ["rider_id"]
+            isOneToOne: false
+            referencedRelation: "riders"
             referencedColumns: ["id"]
           },
         ]
@@ -231,6 +313,7 @@ export type Database = {
           rating: number
           revenue: number
           status: Database["public"]["Enums"]["restaurant_status"]
+          updated_at: string
         }
         Insert: {
           archived_at?: string | null
@@ -244,6 +327,7 @@ export type Database = {
           rating?: number
           revenue?: number
           status?: Database["public"]["Enums"]["restaurant_status"]
+          updated_at?: string
         }
         Update: {
           archived_at?: string | null
@@ -257,6 +341,7 @@ export type Database = {
           rating?: number
           revenue?: number
           status?: Database["public"]["Enums"]["restaurant_status"]
+          updated_at?: string
         }
         Relationships: []
       }
@@ -273,6 +358,7 @@ export type Database = {
           phone: string | null
           rating: number
           status: Database["public"]["Enums"]["rider_status"]
+          updated_at: string
           user_id: string | null
           vehicle: Database["public"]["Enums"]["vehicle_type"]
         }
@@ -288,6 +374,7 @@ export type Database = {
           phone?: string | null
           rating?: number
           status?: Database["public"]["Enums"]["rider_status"]
+          updated_at?: string
           user_id?: string | null
           vehicle?: Database["public"]["Enums"]["vehicle_type"]
         }
@@ -303,6 +390,7 @@ export type Database = {
           phone?: string | null
           rating?: number
           status?: Database["public"]["Enums"]["rider_status"]
+          updated_at?: string
           user_id?: string | null
           vehicle?: Database["public"]["Enums"]["vehicle_type"]
         }
@@ -324,6 +412,21 @@ export type Database = {
         Returns: {
           order_id: string
           reference: string
+          status: Database["public"]["Enums"]["order_status"]
+          total: number
+        }[]
+      }
+      fetch_rider_orders_page: {
+        Args: { p_cursor?: string; p_limit?: number }
+        Returns: {
+          customer: string
+          id: string
+          items: Json
+          next_cursor: string
+          payment: Database["public"]["Enums"]["payment_method"]
+          placed_at: string
+          reference: string
+          restaurant: string
           status: Database["public"]["Enums"]["order_status"]
           total: number
         }[]
@@ -362,6 +465,18 @@ export type Database = {
       }
       rider_mark_delivered: { Args: { p_order_id: string }; Returns: undefined }
       rider_set_status: { Args: { p_status: string }; Returns: undefined }
+      search_restaurants: {
+        Args: { p_cuisine?: string; p_query?: string }
+        Returns: {
+          archived_at: string
+          city: string
+          cuisine: string
+          id: string
+          name: string
+          rating: number
+          status: Database["public"]["Enums"]["restaurant_status"]
+        }[]
+      }
       set_merchant_access: {
         Args: { p_email: string; p_restaurant_id: string }
         Returns: string
@@ -369,6 +484,16 @@ export type Database = {
       set_rider_access: {
         Args: { p_email: string; p_rider_id: string }
         Returns: string
+      }
+      submit_lead: {
+        Args: {
+          p_consent?: boolean
+          p_contact: string
+          p_kind: string
+          p_name: string
+          p_note?: string
+        }
+        Returns: undefined
       }
       track_order: {
         Args: { p_reference: string }

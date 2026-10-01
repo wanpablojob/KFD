@@ -21,18 +21,19 @@ export interface LeadInput {
  */
 
 /**
- * submit_lead() is created by migration 0032_leads.sql, which is committed but
- * NOT yet applied to production. It is declared in database.overrides.ts so
- * these arguments stay type-checked; the call fails at runtime with 404
- * PGRST202 until 0032 is applied, which is the honest current state of the lead
- * forms.
+ * submit_lead() comes from migration 0032_leads.sql, applied to production on
+ * 2026-10-01 along with 0024-0031. Its arguments are checked against the
+ * generated schema -- database.overrides.ts, which used to declare this
+ * function ahead of production, has been removed.
  */
 export async function submitLead(input: LeadInput): Promise<void> {
   const { error } = await supabase.rpc("submit_lead", {
     p_kind: input.kind,
     p_name: input.name,
     p_contact: input.contact,
-    p_note: input.note?.trim() || null,
+    // Omitted rather than passed as null: the RPC argument is optional text,
+    // and submit_lead coalesces a missing note to '' internally.
+    ...(input.note?.trim() ? { p_note: input.note.trim() } : {}),
     p_consent: input.consent,
   });
 

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import {
   fetchMenuItems,
+  fetchRestaurants,
   setMenuItemAvailable,
   upsertMenuItem,
 } from "@/lib/supabase/queries";
@@ -18,7 +19,7 @@ import { PlusIcon } from "@/components/ui/icons";
 import type { Column } from "@/components/ui/data-table";
 import { useAsyncData } from "@/lib/use-async-data";
 import { TableBoundary } from "@/components/ui/table-boundary";
-import type { MenuItem } from "@/lib/types";
+import type { MenuItem, Restaurant } from "@/lib/types";
 
 const baseColumns: Column<MenuItem>[] = [
   {
@@ -64,17 +65,29 @@ const baseColumns: Column<MenuItem>[] = [
   },
 ];
 
-const FIELDS: DialogField[] = [
-  { key: "restaurant", label: "Restaurant", required: true },
-  { key: "name", label: "Item name", required: true },
-  { key: "category", label: "Category", required: true },
-  { key: "price", label: "Price", type: "number", required: true },
-];
+function menuFields(restaurants: Restaurant[]): DialogField[] {
+  return [
+    {
+      key: "restaurant_id",
+      label: "Restaurant",
+      required: true,
+      // A select of real restaurants rather than a free-text name: 0027 makes
+      // menu_items.restaurant_id NOT NULL, and an id that does not exist is
+      // rejected by the FK. The denormalised `restaurant` name is still written
+      // for the storefront and receipts, taken from this same choice.
+      options: restaurants.map((r) => ({ value: r.id, label: r.name })),
+    },
+    { key: "name", label: "Item name", required: true },
+    { key: "category", label: "Category", required: true },
+    { key: "price", label: "Price", type: "number", required: true },
+  ];
+}
 
 export default function MenuPage() {
   const { data, loading, error, refetch } = useAsyncData(() =>
     fetchMenuItems(),
   );
+  const { data: restaurants } = useAsyncData(() => fetchRestaurants());
   const [editing, setEditing] = useState<MenuItem | null>(null);
   const [open, setOpen] = useState(false);
 
@@ -151,11 +164,11 @@ export default function MenuPage() {
         key={editing?.id ?? "new"}
         open={open}
         title={editing ? `Edit ${editing.name}` : "Add Menu Item"}
-        fields={FIELDS}
+        fields={menuFields(restaurants ?? [])}
         initial={
           editing
             ? {
-                restaurant: editing.restaurant,
+                restaurant_id: editing.restaurant_id,
                 name: editing.name,
                 category: editing.category,
                 price: String(editing.price),
@@ -164,9 +177,16 @@ export default function MenuPage() {
         }
         onClose={() => setOpen(false)}
         onSave={async (v) => {
+          // Name and id come from the same selection, so the denormalised
+          // restaurant text can never disagree with the FK.
+          const restaurant = restaurants?.find((r) => r.id === v.restaurant_id);
+          if (!restaurant) {
+            throw new Error("Pick a restaurant for this item.");
+          }
           await upsertMenuItem(
             {
-              restaurant: v.restaurant,
+              restaurant: restaurant.name,
+              restaurant_id: restaurant.id,
               name: v.name,
               category: v.category,
               price: Number(v.price),
