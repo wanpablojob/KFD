@@ -73,9 +73,37 @@ function pushPlatform(): "ios" | "android" {
   return "ios";
 }
 
+/**
+ * getExpoPushTokenAsync has never resolved on iOS SDK 53+, leaving the toggle
+ * spinning forever with no error (expo/expo#37516). It is not ours to fix, so
+ * bound it: the caller turns this into a "try again" message instead of an
+ * infinite spinner. REGISTER_TIMEOUT_MS covers the fetch, not this.
+ */
+const TOKEN_TIMEOUT_MS = 15_000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(message)), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (cause) => {
+        clearTimeout(timer);
+        reject(cause);
+      }
+    );
+  });
+}
+
 async function register(accessToken: string, timeoutMs: number): Promise<boolean> {
   if (!apiUrl || !projectId) return false;
-  const token = await Notifications.getExpoPushTokenAsync({ projectId });
+  const token = await withTimeout(
+    Notifications.getExpoPushTokenAsync({ projectId }),
+    TOKEN_TIMEOUT_MS,
+    "This device did not hand over a push token in time. Tap On again."
+  );
   const deviceId = await getOrCreateDeviceId();
 
   const controller = new AbortController();
