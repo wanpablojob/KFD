@@ -2,11 +2,15 @@ import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
+  KeyboardAvoidingView,
   Linking,
+  Modal,
+  Platform,
   Pressable,
   RefreshControl,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
@@ -50,6 +54,13 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
   const [refreshing, setRefreshing] = useState(false);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(true);
+
+  // Failed-delivery report (migration 0044). The reason is rider input, so it
+  // needs a field rather than a confirm dialog -- Alert.prompt is iOS-only and
+  // Android is where most of these riders are.
+  const [failingId, setFailingId] = useState<string | null>(null);
+  const [failReason, setFailReason] = useState("");
+  const [reporting, setReporting] = useState(false);
 
   // Page 1: initial load
   const {
@@ -142,6 +153,43 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
       void notifyRiderDelivered(session.access_token, orderId);
     }
     // Refresh page 1 to get updated status/delivery count
+    await refetchPage1();
+  }
+
+  function openFailReport(orderId: string) {
+    setFetchError(null);
+    setFailReason("");
+    setFailingId(orderId);
+  }
+
+  function closeFailReport() {
+    setFailingId(null);
+    setFailReason("");
+  }
+
+  /**
+   * Returns the order to the dispatch pool. Unlike markDelivered this earns
+   * nothing and sends no push: nothing was delivered, so there is no completed
+   * job to celebrate and no ledger row was written.
+   */
+  async function reportFailed(orderId: string) {
+    const reason = failReason.trim();
+    // The server rejects this too (22023), but saying it here saves a round
+    // trip and keeps the field's error message next to the field.
+    if (!reason || reporting) return;
+    setReporting(true);
+    setFetchError(null);
+    const { error } = await supabase.rpc("rider_report_failed_delivery", {
+      p_order_id: orderId,
+      p_reason: reason,
+    });
+    setReporting(false);
+    if (error) {
+      setFetchError(error.message);
+      return;
+    }
+    closeFailReport();
+    // The order left this rider's list, so page 1 has to be re-read.
     await refetchPage1();
   }
 
@@ -265,20 +313,38 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
               </View>
 
               {canDeliver ? (
-                <Pressable
-                  style={[
-                    styles.deliverButton,
-                    deliveringId === item.id && styles.disabled,
-                  ]}
-                  disabled={deliveringId !== null}
-                  onPress={() => void markDelivered(item.id)}
-                >
-                  {deliveringId === item.id ? (
-                    <ActivityIndicator color={colors.textInverse} size="small" />
-                  ) : (
-                    <Text style={styles.deliverButtonLabel}>Mark delivered</Text>
-                  )}
-                </Pressable>
+                // Two outcomes, side by side. Reporting a failure is the honest
+                // escape from a job that cannot be completed, and it has to be
+                // as reachable as the lie it replaces.
+                <View style={styles.actions}>
+                  <Pressable
+                    style={[
+                      styles.failButton,
+                      (deliveringId !== null || reporting) && styles.disabled,
+                    ]}
+                    disabled={deliveringId !== null || reporting}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Report ${item.reference} as not deliverable`}
+                    onPress={() => openFailReport(item.id)}
+                  >
+                    <Text style={styles.failButtonLabel}>Can&apos;t deliver</Text>
+                  </Pressable>
+
+                  <Pressable
+                    style={[
+                      styles.deliverButton,
+                      deliveringId === item.id && styles.disabled,
+                    ]}
+                    disabled={deliveringId !== null || reporting}
+                    onPress={() => void markDelivered(item.id)}
+                  >
+                    {deliveringId === item.id ? (
+                      <ActivityIndicator color={colors.textInverse} size="small" />
+                    ) : (
+                      <Text style={styles.deliverButtonLabel}>Mark delivered</Text>
+                    )}
+                  </Pressable>
+                </View>
               ) : null}
             </View>
           );
@@ -287,6 +353,75 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
           fetchError ? <Text style={styles.error}>{fetchError}</Text> : null
         }
       />
+
+      <Modal
+        visible={failingId !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={closeFailReport}
+      >
+        <Pressable
+          style={styles.backdrop}
+          accessibilityLabel="Dismiss"
+          onPress={closeFailReport}
+        >
+          {/* Stops a tap inside the sheet from dismissing it. */}
+          <Pressable
+            style={[styles.sheet, { paddingBottom: spacing.xl + insets.bottom }]}
+            onPress={() => undefined}
+          >
+            <KeyboardAvoidingView
+              behavior={Platform.OS === "ios" ? "padding" : undefined}
+            >
+              <Text style={styles.sheetTitle}>Why can&apos;t you deliver this?</Text>
+              <Text style={styles.sheetBody}>
+                The order goes back to the restaurant to hand to another rider. You earn
+                nothing for it, and the reason is recorded against your name.
+              </Text>
+
+              <TextInput
+                style={styles.input}
+                value={failReason}
+                onChangeText={setFailReason}
+                placeholder="Customer not answering, address not found, order already cancelled…"
+                placeholderTextColor={colors.textFaint}
+                multiline
+                numberOfLines={3}
+                maxLength={500}
+                autoFocus
+                editable={!reporting}
+                accessibilityLabel="Reason the delivery could not be completed"
+              />
+              <Text style={styles.counter}>{failReason.trim().length}/500</Text>
+
+              <View style={styles.sheetActions}>
+                <Pressable
+                  style={[styles.secondaryButton, reporting && styles.disabled]}
+                  disabled={reporting}
+                  onPress={closeFailReport}
+                >
+                  <Text style={styles.secondaryButtonLabel}>Keep the order</Text>
+                </Pressable>
+                <Pressable
+                  style={[
+                    styles.failButton,
+                    (!failReason.trim() || reporting) && styles.disabled,
+                  ]}
+                  disabled={!failReason.trim() || reporting}
+                  onPress={() => failingId && void reportFailed(failingId)}
+                >
+                  {reporting ? (
+                    <ActivityIndicator color={colors.textInverse} size="small" />
+                  ) : (
+                    <Text style={styles.failButtonLabel}>Return to restaurant</Text>
+                  )}
+                </Pressable>
+              </View>
+            </KeyboardAvoidingView>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
       <StatusBar style="dark" />
     </View>
   );
@@ -376,12 +511,70 @@ const styles = StyleSheet.create({
   },
   payout: { ...type.body, color: colors.text, fontWeight: "700" },
   placedAt: { ...type.caption, color: colors.textFaint },
-  deliverButton: {
+  actions: {
+    flexDirection: "row",
+    gap: spacing.sm,
     marginTop: spacing.sm,
+  },
+  deliverButton: {
+    flex: 1,
     backgroundColor: colors.success,
     borderRadius: radius.md,
     paddingVertical: spacing.md,
     alignItems: "center",
   },
   deliverButtonLabel: { ...type.label, color: colors.textInverse },
+
+  // Outlined, not filled: returning an order is the exceptional path and must
+  // not read as the primary action next to "Mark delivered".
+  failButton: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: colors.danger,
+    borderRadius: radius.md,
+    paddingVertical: spacing.md,
+    alignItems: "center",
+    backgroundColor: colors.card,
+  },
+  failButtonLabel: { ...type.label, color: colors.danger },
+
+  backdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    justifyContent: "flex-end",
+  },
+  sheet: {
+    backgroundColor: colors.card,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    padding: spacing.lg,
+    gap: spacing.sm,
+  },
+  sheetTitle: { ...type.title, fontSize: 18 },
+  sheetBody: { ...type.caption, color: colors.textMuted, lineHeight: 18 },
+  input: {
+    ...type.body,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    minHeight: 88,
+    marginTop: spacing.sm,
+    textAlignVertical: "top",
+  },
+  counter: { ...type.caption, color: colors.textFaint, alignSelf: "flex-end" },
+  sheetActions: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  secondaryButton: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingVertical: spacing.md,
+    alignItems: "center",
+  },
+  secondaryButtonLabel: { ...type.label, color: colors.textMuted },
 });

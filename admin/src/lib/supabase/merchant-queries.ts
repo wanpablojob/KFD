@@ -50,6 +50,10 @@ export async function fetchMerchantOrders(): Promise<Order[]> {
     // orders cancelled before the column existed come back null.
     rejectionReason:
       typeof o.rejection_reason === "string" ? o.rejection_reason : null,
+    deliveryFailedReason:
+      typeof o.delivery_failed_reason === "string" ? o.delivery_failed_reason : null,
+    deliveryFailedAt:
+      typeof o.delivery_failed_at === "string" ? o.delivery_failed_at : null,
   }));
 }
 

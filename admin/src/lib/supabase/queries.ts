@@ -323,6 +323,10 @@ export async function fetchOrders(range?: DateRange): Promise<Order[]> {
     rider: o.rider ?? "",
     rejectionReason:
       typeof o.rejection_reason === "string" ? o.rejection_reason : null,
+    deliveryFailedReason:
+      typeof o.delivery_failed_reason === "string" ? o.delivery_failed_reason : null,
+    deliveryFailedAt:
+      typeof o.delivery_failed_at === "string" ? o.delivery_failed_at : null,
   }));
 }
 
@@ -354,6 +358,10 @@ export async function fetchOrdersByCustomer(customerName: string, range?: DateRa
     rider: o.rider ?? "",
     rejectionReason:
       typeof o.rejection_reason === "string" ? o.rejection_reason : null,
+    deliveryFailedReason:
+      typeof o.delivery_failed_reason === "string" ? o.delivery_failed_reason : null,
+    deliveryFailedAt:
+      typeof o.delivery_failed_at === "string" ? o.delivery_failed_at : null,
   }));
 }
 
@@ -385,6 +393,10 @@ export async function fetchOrdersByRider(riderName: string, range?: DateRange): 
     rider: o.rider ?? "",
     rejectionReason:
       typeof o.rejection_reason === "string" ? o.rejection_reason : null,
+    deliveryFailedReason:
+      typeof o.delivery_failed_reason === "string" ? o.delivery_failed_reason : null,
+    deliveryFailedAt:
+      typeof o.delivery_failed_at === "string" ? o.delivery_failed_at : null,
   }));
 }
 
@@ -416,6 +428,10 @@ export async function fetchOrdersByRestaurant(restaurantId: string, range?: Date
     rider: o.rider ?? "",
     rejectionReason:
       typeof o.rejection_reason === "string" ? o.rejection_reason : null,
+    deliveryFailedReason:
+      typeof o.delivery_failed_reason === "string" ? o.delivery_failed_reason : null,
+    deliveryFailedAt:
+      typeof o.delivery_failed_at === "string" ? o.delivery_failed_at : null,
   }));
 }
 

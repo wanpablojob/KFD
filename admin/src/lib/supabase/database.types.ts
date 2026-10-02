@@ -247,6 +247,9 @@ export type Database = {
           customer_phone: string | null
           customer_user_id: string | null
           delivery_address: string | null
+          delivery_failed_at: string | null
+          delivery_failed_by: string | null
+          delivery_failed_reason: string | null
           delivery_fee: number
           id: string
           items: Json
@@ -271,6 +274,9 @@ export type Database = {
           customer_phone?: string | null
           customer_user_id?: string | null
           delivery_address?: string | null
+          delivery_failed_at?: string | null
+          delivery_failed_by?: string | null
+          delivery_failed_reason?: string | null
           delivery_fee?: number
           id?: string
           items?: Json
@@ -295,6 +301,9 @@ export type Database = {
           customer_phone?: string | null
           customer_user_id?: string | null
           delivery_address?: string | null
+          delivery_failed_at?: string | null
+          delivery_failed_by?: string | null
+          delivery_failed_reason?: string | null
           delivery_fee?: number
           id?: string
           items?: Json
@@ -678,6 +687,14 @@ export type Database = {
         }[]
       }
       rider_payout_per_delivery: { Args: never; Returns: number }
+      rider_report_failed_delivery: {
+        Args: { p_order_id: string; p_reason: string }
+        Returns: {
+          order_id: string
+          reference: string
+          status: Database["public"]["Enums"]["order_status"]
+        }[]
+      }
       rider_set_status: { Args: { p_status: string }; Returns: undefined }
       search_restaurants: {
         Args: { p_cuisine?: string; p_query?: string }

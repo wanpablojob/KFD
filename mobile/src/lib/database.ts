@@ -163,6 +163,19 @@ export type Database = {
         Args: { p_order_id: string };
         Returns: unknown;
       };
+      /**
+       * The failure leg of a delivery (migration 0044). Returns the order to
+       * the dispatch pool and records why, so the order stops being a lie the
+       * rider has to tell to get rid of it.
+       */
+      rider_report_failed_delivery: {
+        Args: { p_order_id: string; p_reason: string };
+        Returns: {
+          order_id: string;
+          reference: string;
+          status: OrderStatus;
+        }[];
+      };
       register_customer: {
         Args: Record<string, never>;
         Returns: unknown;

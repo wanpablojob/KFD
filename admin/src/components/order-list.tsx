@@ -53,7 +53,21 @@ const columns: Column<Order>[] = [
   {
     key: "status",
     header: "Status",
-    cell: (row) => <StatusBadge status={row.status} />,
+    // A bounced delivery is the operator's cue that this order needs a new
+    // rider, so the reason rides with the status rather than hiding in a detail
+    // view nobody opens before reassigning.
+    cell: (row) => (
+      <div className="flex flex-col items-start gap-1">
+        <StatusBadge status={row.status} />
+        {row.deliveryFailedReason ? (
+          <Badge variant="destructive" size="sm" className="max-w-[22rem] whitespace-normal">
+            <span className="line-clamp-2">
+              Returned by rider: {row.deliveryFailedReason}
+            </span>
+          </Badge>
+        ) : null}
+      </div>
+    ),
   },
   {
     key: "payment",
@@ -112,7 +126,10 @@ export function OrderList({ orders }: { orders: Order[] }) {
         order.reference.toLowerCase().includes(q) ||
         order.customer.toLowerCase().includes(q) ||
         order.restaurant.toLowerCase().includes(q) ||
-        order.rider.toLowerCase().includes(q);
+        order.rider.toLowerCase().includes(q) ||
+        // Lets an operator find the orders that already bounced and the ones
+        // a given rider failed, without a new filter.
+        (order.deliveryFailedReason ?? "").toLowerCase().includes(q);
       const matchesGlobal = matchesQuery(
         order as unknown as Record<string, unknown>,
         globalQuery,

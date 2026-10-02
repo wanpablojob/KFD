@@ -36,6 +36,8 @@ function order(daysAgo: number, total = 100, id = `o${daysAgo}`): Order {
     placedAt: new Date(NOW - daysAgo * DAY_MS).toISOString(),
     rider: "",
     rejectionReason: null,
+    deliveryFailedReason: null,
+    deliveryFailedAt: null,
   };
 }
 

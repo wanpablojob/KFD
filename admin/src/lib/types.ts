@@ -35,6 +35,13 @@ export interface Order {
   rider: string;
   /** Merchant's stated reason for a cancellation. Null on other statuses. */
   rejectionReason: string | null;
+  /**
+   * Why the assigned rider could not complete this delivery (migration 0044).
+   * Survives reassignment, so an operator can see that the order bounced before
+   * deciding who to give it to next. Null unless a rider reported a failure.
+   */
+  deliveryFailedReason: string | null;
+  deliveryFailedAt: string | null;
 }
 
 export interface Restaurant {
