@@ -70,6 +70,13 @@ Shipped in `0035`:
   `admin_dispatch_order(order, rider_ids)`. All admin RPCs re-check the role
   inside a `security definer` body; the nav link being hidden is not the guard.
 
+`0036` then closed an `archived_at` hole in the above: `status = 'online'` alone
+let an archived rider be offered live work, and made the admin count lie.
+Archived is now excluded in five places — `current_rider_id()`,
+`claim_order()`, `admin_dispatch_order()`, `online_riders_in_city`, and
+`dispatch_riders()`. The roster excludes archived because it is the dispatch
+list, not the rider directory; `/dashboard/riders` is where you un-archive.
+
 Decided: **5-minute expiry**, and a **decline returns the order to the pool** —
 it stays unassigned and visible to admin, because it is still a customer waiting
 on food. Nothing auto-expires an order into limbo, so the unassigned list grows
