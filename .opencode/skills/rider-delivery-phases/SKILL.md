@@ -168,15 +168,28 @@ Three things worth remembering here:
    correct instead of the grant. `0039` revoked the privileges the way `0035`
    does for `order_offers`, so the request is refused outright.
 
-**Not done, deliberately: the delivery-completion push.** The brief assumed
-`lib/push.ts` "already supports it and the rider surface ignores it." Neither
-half is true. `push.ts` is a *registration* client and is consumed only by the
-customer `app/account.tsx`; the server has `sendMerchantOrderPush` and no rider
-sender at all. On top of that `rider_mark_delivered` is a Postgres function, so
-it cannot reach the Next route without `pg_net` + vault credentials. And the
-alert is near-worthless: the rider just tapped the button and is looking at the
-result. **The push worth building is new-offer alerts** — telling an idle rider
-that an order appeared while they were in another app. That belongs to Phase 1's
+**Push: done, and it is narrower than it sounds.** `sendRiderPush` reads
+`push_tokens` straight by `user_id` — no `app_users` fan-out, because a
+provisioned rider has no `app_users` row at all, so a merchant-shaped join finds
+nobody and reports success having sent nothing. Riders also had **no way to
+register a token**: the only toggle lives in `app/account.tsx` behind
+`role === "merchant"`. The rider profile now has its own opt-in, plus the
+token-rotation re-register and the sign-out unregister that `app/account.tsx`
+already did. Without the unregister, the next person to sign in on a shared
+phone inherits the previous rider's alerts.
+
+The trigger is the **client**, not a database hook. `rider_mark_delivered` is a
+Postgres function; reaching the Next route from there needs `pg_net` plus a
+vault-held bearer — real infrastructure to verify for an alert that only matters
+while the app is open anyway. The rider just tapped the button, so the app
+already knows the moment. If this ever has to fire with the app closed, that is
+when to add `pg_net`.
+
+Be clear about what the buyer got: the rider sees this app refresh itself, and
+the push lands on their *other* devices. **Still unverified — `lib/push.ts`
+returns an error string on an emulator, so this needs a physical phone.** The
+push still worth building next is **new-offer alerts**, telling an idle rider an
+order appeared while they were in another app. That belongs to Phase 1's
 dispatch surface, not here.
 
 **Done when:** a rider can answer "what did I earn today" and "what was that

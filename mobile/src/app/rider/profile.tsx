@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -13,6 +13,13 @@ import { signOut } from "../../lib/auth";
 import { useRiderProfile } from "../../lib/hooks";
 import { useSession } from "../../lib/session-context";
 import { supabase } from "../../lib/supabase";
+import {
+  disablePush,
+  enablePush,
+  getPushStatus,
+  watchForTokenRotation,
+  type PushStatus,
+} from "../../lib/push";
 import { colors, radius, shadow, spacing, type } from "../../lib/theme";
 
 const RIDER_STATUSES = ["online", "busy", "offline"] as const;
@@ -28,6 +35,77 @@ export default function RiderProfileRoute() {
   const { data: profile, isLoading, error, refetch } = useRiderProfile(user?.id ?? "");
   const [updating, setUpdating] = useState(false);
   const [statusError, setStatusError] = useState<string | null>(null);
+  const [push, setPush] = useState<PushStatus>({ granted: false, registered: false });
+  const [pushBusy, setPushBusy] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    void getPushStatus().then(setPush);
+  }, [user]);
+
+  // Re-register a rotated Expo token in place, so a rider with alerts on does
+  // not go silently deaf after a reinstall or permission change. Merchants
+  // already get this on app/account.tsx; riders needed it here because their
+  // surface had no push registration at all.
+  useEffect(() => {
+    if (!push.registered) return;
+    let active = true;
+    let subscription: { remove: () => void } | null = null;
+    void supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!active || !session?.access_token) return;
+      subscription = watchForTokenRotation(session.access_token, () => {
+        if (active) setPush({ granted: true, registered: true });
+      });
+    });
+    return () => {
+      active = false;
+      subscription?.remove();
+    };
+  }, [push.registered]);
+
+  // Unregister before signing out: the token is keyed to the account, and
+  // without this the next person to sign in on this phone inherits the
+  // previous rider's delivery alerts.
+  async function signOutAndUnregister() {
+    if (push.granted && push.registered) {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (session?.access_token) {
+        await disablePush(session.access_token).catch(() => {
+          // Best-effort: a stale row is replaced on the next register.
+        });
+      }
+    }
+    await signOut();
+  }
+
+  async function togglePush() {
+    if (!user || pushBusy) return;
+    setPushBusy(true);
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) return;
+
+      if (push.granted && push.registered) {
+        await disablePush(token);
+        setPush({ granted: false, registered: false });
+      } else {
+        setPush(await enablePush(token));
+      }
+    } catch (cause) {
+      setPush({
+        granted: false,
+        registered: false,
+        error: cause instanceof Error ? cause.message : "Push failed. Try again.",
+      });
+    } finally {
+      setPushBusy(false);
+    }
+  }
 
   async function setStatus(status: RiderStatus) {
     setUpdating(true);
@@ -65,7 +143,7 @@ export default function RiderProfileRoute() {
     return (
       <View style={[styles.center, { backgroundColor: colors.background }]}>
         <Text style={styles.error}>No rider profile is linked to this account.</Text>
-        <Pressable style={styles.signOut} onPress={() => void signOut()}>
+        <Pressable style={styles.signOut} onPress={() => void signOutAndUnregister()}>
           <Text style={styles.signOutLabel}>Sign out</Text>
         </Pressable>
         <StatusBar style="dark" />
@@ -115,6 +193,32 @@ export default function RiderProfileRoute() {
         </View>
 
         <View style={styles.section}>
+          <Text style={styles.sectionLabel}>Delivery alerts</Text>
+          <Text style={styles.pushCopy}>
+            Get a notification when you complete a delivery, including on your other
+            devices.
+          </Text>
+          <Pressable
+            style={({ pressed }) => [styles.pushRow, pressed && styles.pushRowPressed]}
+            onPress={() => void togglePush()}
+            disabled={pushBusy}
+          >
+            <Text style={styles.meta}>
+              {push.granted && push.registered ? "On" : "Off"}
+            </Text>
+            <View
+              style={[
+                styles.switchTrack,
+                push.granted && push.registered && styles.switchTrackOn,
+              ]}
+            >
+              <Text style={styles.switchHint}>{pushBusy ? "…" : ""}</Text>
+            </View>
+          </Pressable>
+          {push.error ? <Text style={styles.error}>{push.error}</Text> : null}
+        </View>
+
+        <View style={styles.section}>
           <Text style={styles.sectionLabel}>Account</Text>
           <Text style={styles.meta}>Deliveries: {profile.deliveries}</Text>
           <Text style={styles.meta}>Rating: {Number(profile.rating).toFixed(1)}</Text>
@@ -125,7 +229,7 @@ export default function RiderProfileRoute() {
 
         <Pressable
           style={({ pressed }) => [styles.signOut, pressed && styles.signOutPressed]}
-          onPress={() => void signOut()}
+          onPress={() => void signOutAndUnregister()}
         >
           <Text style={styles.signOutLabel}>Sign out</Text>
         </Pressable>
@@ -177,6 +281,25 @@ const styles = StyleSheet.create({
   },
   statusButtonLabelActive: { color: colors.textInverse, fontWeight: "700" },
   disabled: { opacity: 0.6 },
+  pushCopy: { ...type.caption, color: colors.textMuted, marginBottom: spacing.xs },
+  pushRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: spacing.sm,
+  },
+  pushRowPressed: { opacity: 0.6 },
+  switchTrack: {
+    minWidth: 46,
+    height: 26,
+    borderRadius: radius.pill,
+    backgroundColor: colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: spacing.sm,
+  },
+  switchTrackOn: { backgroundColor: colors.primary },
+  switchHint: { ...type.caption, color: colors.textInverse },
   meta: { ...type.body, color: colors.textMuted },
   signOut: {
     alignSelf: "flex-start",

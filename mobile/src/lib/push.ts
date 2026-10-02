@@ -203,3 +203,35 @@ export function watchForTokenRotation(
     onRegistered(ok);
   });
 }
+
+/**
+ * Tells the server a delivery completed, so the rider's other devices can be
+ * alerted. Fired fire-and-forget after `rider_mark_delivered` has already
+ * succeeded: the delivery is recorded either way, so a failure here is silent
+ * by design and never blocks the rider or shows an error.
+ *
+ * The rider who taps the button is on this device, so the visible result is
+ * this app refreshing itself. The push exists for the rider's *other* devices.
+ */
+export async function notifyRiderDelivered(
+  accessToken: string,
+  orderId: string
+): Promise<void> {
+  if (!apiUrl) return;
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REGISTER_TIMEOUT_MS);
+  await fetch(`${apiUrl}/api/push/rider`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ orderId }),
+    signal: controller.signal,
+  })
+    .catch(() => {
+      // Best-effort, as documented.
+    })
+    .finally(() => clearTimeout(timer));
+}

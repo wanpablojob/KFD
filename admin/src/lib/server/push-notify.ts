@@ -127,3 +127,96 @@ export async function sendMerchantOrderPush(
     };
   }
 }
+/**
+ * Expo Push send path for riders.
+ *
+ * Same best-effort contract as sendMerchantOrderPush: the delivery is already
+ * recorded, so a push failure is housekeeping and never raised back into the
+ * caller's write.
+ *
+ * Unlike the merchant path this reads push_tokens straight by user_id. There is
+ * no restaurant fan-out to resolve -- a rider's tokens hang off their own auth
+ * user -- so going via app_users would be an extra join that only ever matches
+ * or doesn't, and app_users has no rider row for a provisioned rider, which is
+ * exactly how the rider path silently found nobody.
+ */
+export async function sendRiderPush(
+  supabase: ServiceClient,
+  riderUserId: string,
+  title: string,
+  body: string,
+  data?: Record<string, unknown>
+): Promise<PushResult> {
+  const { data: tokens, error: tokensError } = await supabase
+    .from("push_tokens")
+    .select("token")
+    .eq("user_id", riderUserId);
+
+  if (tokensError) {
+    return { ok: false, sent: 0, detail: tokensError.message };
+  }
+
+  const validTokens = (tokens ?? [])
+    .map((t) => t.token as string)
+    .filter((token) => Expo.isExpoPushToken(token));
+
+  if (validTokens.length === 0) {
+    return { ok: false, sent: 0, skipped: "no push tokens for this rider" };
+  }
+
+  const messages: ExpoPushMessage[] = validTokens.map((to) => ({
+    to,
+    sound: "default",
+    channelId: "orders",
+    title,
+    body,
+    ...(data ? { data } : {}),
+  }));
+
+  const expo = new Expo();
+
+  try {
+    const receiptTokenPairs: { id: string; token: string }[] = [];
+    for (const chunk of expo.chunkPushNotifications(messages)) {
+      const tickets = await expo.sendPushNotificationsAsync(chunk);
+      for (let i = 0; i < tickets.length; i += 1) {
+        const ticket = tickets[i];
+        const token = chunk[i]?.to;
+        if (ticket.status === "ok" && typeof token === "string") {
+          receiptTokenPairs.push({ id: ticket.id, token });
+        }
+      }
+    }
+
+    const toPrune: string[] = [];
+    const receiptIds = receiptTokenPairs.map((p) => p.id);
+    const tokensByReceiptId = new Map(receiptTokenPairs.map((p) => [p.id, p.token]));
+    for (const chunk of expo.chunkPushNotificationReceiptIds(receiptIds)) {
+      const receipts = await expo.getPushNotificationReceiptsAsync(chunk);
+      for (const key in receipts) {
+        const receipt = receipts[key];
+        if (receipt.status === "error" && receipt.details?.error === "DeviceNotRegistered") {
+          const token = tokensByReceiptId.get(key);
+          if (token) toPrune.push(token);
+        }
+      }
+    }
+
+    // Housekeeping only: never let a prune failure fail the send.
+    if (toPrune.length > 0) {
+      try {
+        await supabase.from("push_tokens").delete().in("token", toPrune);
+      } catch {
+        // housekeeping only
+      }
+    }
+
+    return { ok: true, sent: messages.length };
+  } catch (err) {
+    return {
+      ok: false,
+      sent: 0,
+      detail: err instanceof Error ? err.message : "Expo push send failed",
+    };
+  }
+}

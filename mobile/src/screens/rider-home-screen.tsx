@@ -13,6 +13,7 @@ import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { supabase } from "../lib/supabase";
 import { signOut } from "../lib/auth";
+import { notifyRiderDelivered } from "../lib/push";
 import {
   useRiderOrders,
   useRiderProfile,
@@ -122,6 +123,14 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
     if (error) {
       setFetchError(error.message);
       return;
+    }
+    // The delivery is recorded; the alert is a courtesy on top of it, so it
+    // runs after the successful write and its own failure is swallowed.
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (session?.access_token) {
+      void notifyRiderDelivered(session.access_token, orderId);
     }
     // Refresh page 1 to get updated status/delivery count
     await refetchPage1();
