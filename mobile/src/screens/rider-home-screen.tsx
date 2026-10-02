@@ -45,7 +45,6 @@ const STATUS_LABEL: Record<string, string> = {
 export function RiderHomeScreen({ userId }: { userId: string }) {
   const insets = useSafeAreaInsets();
   const [orders, setOrders] = useState<AssignedOrder[]>([]);
-  const [loading, setLoading] = useState(true);
   const [deliveringId, setDeliveringId] = useState<string | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -53,12 +52,23 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
   const [hasMore, setHasMore] = useState(true);
 
   // Page 1: initial load
-  const { data: page1, refetch: refetchPage1 } = useRiderOrders(null, 20);
+  const {
+    data: page1,
+    error: page1Error,
+    refetch: refetchPage1,
+    isPending,
+  } = useRiderOrders(null, 20);
   const { data: profile } = useRiderProfile(userId);
 
   // Reset pagination whenever page 1 resolves to a new result. Adjusting state
   // during render (rather than in an effect) is React's documented pattern for
   // deriving from a changing value and avoids the set-state-in-effect cascade.
+  //
+  // The spinner used to be mirrored into local state here, gated on `if (data)`.
+  // That never cleared when the query failed: `placeholderData` keeps `data`
+  // undefined across pending -> error, so this block never re-ran and the
+  // screen spun forever with no message. The query's own isPending is the
+  // honest signal -- it is false once the query settles either way.
   const [syncedPage1, setSyncedPage1] = useState(page1);
   if (page1 !== syncedPage1) {
     setSyncedPage1(page1);
@@ -66,7 +76,6 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
     setOrders(data?.items ?? []);
     setNextCursor(data?.nextCursor ?? null);
     setHasMore(!!data?.nextCursor);
-    if (data) setLoading(false);
   }
 
   // Pull-to-refresh: reload page 1
@@ -136,7 +145,7 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
     await refetchPage1();
   }
 
-  if (loading) {
+  if (isPending) {
     return (
       <View style={[styles.center, { backgroundColor: colors.background }]}>
         <ActivityIndicator size="large" color={colors.primary} />
@@ -174,7 +183,13 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
           </View>
         }
         ListEmptyComponent={
-          <Text style={styles.empty}>No deliveries assigned yet.</Text>
+          // Page 1 failing is the case that used to be invisible. Show why,
+          // rather than an empty list that reads like "no work assigned".
+          page1Error ? (
+            <Text style={styles.error}>{page1Error.message}</Text>
+          ) : (
+            <Text style={styles.empty}>No deliveries assigned yet.</Text>
+          )
         }
         renderItem={({ item }) => {
           const canDeliver = !["delivered", "cancelled"].includes(item.status);
