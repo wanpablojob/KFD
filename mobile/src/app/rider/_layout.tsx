@@ -55,7 +55,7 @@ function BottomNav({ pathname }: { pathname: string }) {
               <Pressable
                 key={tab.route}
                 style={styles.tab}
-                onPress={() => router.push(tab.route as never)}
+                onPress={() => router.navigate(tab.route as never)}
                 accessibilityRole="tab"
                 accessibilityState={{ selected: active }}
               >
