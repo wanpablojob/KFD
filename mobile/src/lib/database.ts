@@ -244,6 +244,30 @@ export type Database = {
           next_cursor: string | null;
         }[];
       };
+      rider_earnings_summary: {
+        Args: Record<never, never>;
+        Returns: {
+          earned_today: number;
+          earned_week: number;
+          lifetime: number;
+          delivery_count: number;
+          /** Null until the rider's first delivery since the ledger existed. */
+          first_earned_at: string | null;
+          last_earned_at: string | null;
+        }[];
+      };
+      rider_payout_history: {
+        Args: { p_limit?: number };
+        Returns: {
+          order_id: string;
+          order_reference: string;
+          restaurant: string;
+          amount: number;
+          earned_at: string;
+          /** True when the rider has more deliveries than the limit returned. */
+          has_more: boolean;
+        }[];
+      };
     };
     Enums: Record<never, never>;
     CompositeTypes: Record<never, never>;

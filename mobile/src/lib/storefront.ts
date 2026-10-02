@@ -153,6 +153,78 @@ export async function fetchRiderOrdersPage(
   return { items: rows, nextCursor };
 }
 
+/**
+ * Rider earnings, summed from the payout ledger rather than the lifetime
+ * aggregate. `riders.earnings` is reconciled to the same sum server-side, but
+ * the ledger is the record that a number came from a real delivery.
+ */
+export interface RiderEarningsSummary {
+  earned_today: number;
+  earned_week: number;
+  lifetime: number;
+  delivery_count: number;
+  /** Null until the rider has completed a delivery since the ledger existed. */
+  first_earned_at: string | null;
+  last_earned_at: string | null;
+}
+
+export async function fetchRiderEarningsSummary(): Promise<RiderEarningsSummary> {
+  const { data, error } = await supabase.rpc("rider_earnings_summary");
+  if (error) throw error;
+
+  // The RPC always returns exactly one aggregate row, even for a rider with no
+  // payouts, so a missing row means the call shape is wrong, not empty.
+  const row = data?.[0];
+  if (!row) {
+    throw new Error("Earnings summary came back empty.");
+  }
+
+  // Same RETURNS TABLE nullability gap as fetchRiderOrdersPage: first/last are
+  // genuinely null before the rider's first delivery.
+  return {
+    earned_today: row.earned_today,
+    earned_week: row.earned_week,
+    lifetime: row.lifetime,
+    delivery_count: row.delivery_count,
+    first_earned_at: row.first_earned_at ?? null,
+    last_earned_at: row.last_earned_at ?? null,
+  };
+}
+
+/** One completed delivery and what it was worth. */
+export interface RiderPayoutRow {
+  order_id: string;
+  order_reference: string;
+  restaurant: string;
+  amount: number;
+  earned_at: string;
+}
+
+export interface RiderPayoutHistory {
+  items: RiderPayoutRow[];
+  /** True when the rider has more deliveries than the limit returned. */
+  hasMore: boolean;
+}
+
+export async function fetchRiderPayoutHistory(limit = 20): Promise<RiderPayoutHistory> {
+  const { data, error } = await supabase.rpc("rider_payout_history", {
+    p_limit: limit,
+  });
+  if (error) throw error;
+
+  const rows = data ?? [];
+  return {
+    items: rows.map((row) => ({
+      order_id: row.order_id,
+      order_reference: row.order_reference,
+      restaurant: row.restaurant,
+      amount: row.amount,
+      earned_at: row.earned_at,
+    })),
+    hasMore: rows[0]?.has_more ?? false,
+  };
+}
+
 export interface RiderProfile {
   id: string;
   name: string;

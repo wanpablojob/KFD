@@ -399,6 +399,45 @@ export type Database = {
         }
         Relationships: []
       }
+      rider_payouts: {
+        Row: {
+          amount: number
+          earned_at: string
+          id: number
+          order_id: string
+          rider_id: string
+        }
+        Insert: {
+          amount: number
+          earned_at?: string
+          id?: never
+          order_id: string
+          rider_id: string
+        }
+        Update: {
+          amount?: number
+          earned_at?: string
+          id?: never
+          order_id?: string
+          rider_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rider_payouts_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: true
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rider_payouts_rider_id_fkey"
+            columns: ["rider_id"]
+            isOneToOne: false
+            referencedRelation: "riders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       riders: {
         Row: {
           archived_at: string | null
@@ -614,7 +653,30 @@ export type Database = {
           user_id: string
         }[]
       }
+      rider_earned_on: { Args: { p_at: string }; Returns: string }
+      rider_earnings_summary: {
+        Args: never
+        Returns: {
+          delivery_count: number
+          earned_today: number
+          earned_week: number
+          first_earned_at: string
+          last_earned_at: string
+          lifetime: number
+        }[]
+      }
       rider_mark_delivered: { Args: { p_order_id: string }; Returns: undefined }
+      rider_payout_history: {
+        Args: { p_limit?: number }
+        Returns: {
+          amount: number
+          earned_at: string
+          has_more: boolean
+          order_id: string
+          order_reference: string
+          restaurant: string
+        }[]
+      }
       rider_payout_per_delivery: { Args: never; Returns: number }
       rider_set_status: { Args: { p_status: string }; Returns: undefined }
       search_restaurants: {

@@ -8,6 +8,8 @@ import {
   placeCustomerOrder,
   fetchRiderOrdersPage,
   fetchRiderProfile,
+  fetchRiderEarningsSummary,
+  fetchRiderPayoutHistory,
   type RiderOrderPageResult,
   type RiderProfile,
   type RestaurantRow,
@@ -94,6 +96,20 @@ export function useRiderOrders(initialCursor: string | null = null, limit = 20) 
     queryKey: ["riderOrders", initialCursor],
     queryFn: () => fetchRiderOrdersPage(initialCursor, limit),
     placeholderData: (prev) => prev,
+  });
+}
+
+export function useRiderEarningsSummary() {
+  return useQuery({
+    queryKey: ["riderEarningsSummary"],
+    queryFn: () => fetchRiderEarningsSummary(),
+  });
+}
+
+export function useRiderPayoutHistory(limit = 20) {
+  return useQuery({
+    queryKey: ["riderPayoutHistory", limit],
+    queryFn: () => fetchRiderPayoutHistory(limit),
   });
 }
 
