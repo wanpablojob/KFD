@@ -244,6 +244,7 @@ export type Database = {
         Row: {
           created_at: string
           customer: string
+          customer_phone: string | null
           customer_user_id: string | null
           delivery_address: string | null
           delivery_fee: number
@@ -257,6 +258,7 @@ export type Database = {
           restaurant_id: string | null
           rider: string | null
           rider_id: string | null
+          rider_payout: number | null
           service_fee: number
           status: Database["public"]["Enums"]["order_status"]
           subtotal: number
@@ -266,6 +268,7 @@ export type Database = {
         Insert: {
           created_at?: string
           customer: string
+          customer_phone?: string | null
           customer_user_id?: string | null
           delivery_address?: string | null
           delivery_fee?: number
@@ -279,6 +282,7 @@ export type Database = {
           restaurant_id?: string | null
           rider?: string | null
           rider_id?: string | null
+          rider_payout?: number | null
           service_fee?: number
           status?: Database["public"]["Enums"]["order_status"]
           subtotal?: number
@@ -288,6 +292,7 @@ export type Database = {
         Update: {
           created_at?: string
           customer?: string
+          customer_phone?: string | null
           customer_user_id?: string | null
           delivery_address?: string | null
           delivery_fee?: number
@@ -301,6 +306,7 @@ export type Database = {
           restaurant_id?: string | null
           rider?: string | null
           rider_id?: string | null
+          rider_payout?: number | null
           service_fee?: number
           status?: Database["public"]["Enums"]["order_status"]
           subtotal?: number
@@ -481,6 +487,7 @@ export type Database = {
           placed_at: string
           reference: string
           restaurant: string
+          rider_payout: number
           total: number
         }[]
       }
@@ -544,6 +551,8 @@ export type Database = {
         Args: { p_cursor?: string; p_limit?: number }
         Returns: {
           customer: string
+          customer_phone: string
+          delivery_address: string
           id: string
           items: Json
           next_cursor: string
@@ -551,6 +560,7 @@ export type Database = {
           placed_at: string
           reference: string
           restaurant: string
+          rider_payout: number
           status: Database["public"]["Enums"]["order_status"]
           total: number
         }[]
@@ -605,6 +615,7 @@ export type Database = {
         }[]
       }
       rider_mark_delivered: { Args: { p_order_id: string }; Returns: undefined }
+      rider_payout_per_delivery: { Args: never; Returns: number }
       rider_set_status: { Args: { p_status: string }; Returns: undefined }
       search_restaurants: {
         Args: { p_cuisine?: string; p_query?: string }

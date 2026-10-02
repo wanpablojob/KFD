@@ -69,13 +69,43 @@ export interface PlaceOrderResult {
   status: string;
 }
 
+export interface OrderLine {
+  name: string;
+  quantity: number;
+  price: number;
+}
+
+/**
+ * orders.items is jsonb, so the schema types it as `Json` and nothing downstream
+ * can trust it. customer_place_order writes {name, quantity, price} per line,
+ * so parse that and drop anything that does not fit rather than casting the
+ * array and pretending. Same guard as the admin dispatch list.
+ */
+function parseOrderItems(value: unknown): OrderLine[] {
+  if (!Array.isArray(value)) return [];
+  const lines: OrderLine[] = [];
+  for (const entry of value) {
+    if (entry === null || typeof entry !== "object") continue;
+    const { name, quantity, price } = entry as Record<string, unknown>;
+    if (typeof name !== "string" || typeof quantity !== "number") continue;
+    lines.push({ name, quantity, price: typeof price === "number" ? price : 0 });
+  }
+  return lines;
+}
+
 export interface RiderOrderPageItem {
   id: string;
   reference: string;
   customer: string;
+  /** Null when the customer never set a contact number in their profile. */
+  customer_phone: string | null;
   restaurant: string;
-  items: { name: string; quantity: number; price: number }[];
+  /** Null for orders placed before delivery addresses existed. */
+  delivery_address: string | null;
+  items: OrderLine[];
   total: number;
+  /** Null until a rider claims the order; the agreed fee, frozen at claim. */
+  rider_payout: number | null;
   status: string;
   payment: string;
   placed_at: string;
@@ -97,7 +127,27 @@ export async function fetchRiderOrdersPage(
     p_limit: limit,
   });
   if (error) throw error;
-  const rows = (data ?? []) as (RiderOrderPageItem & { next_cursor: string | null })[];
+
+  // gen-types cannot infer nullability for a RETURNS TABLE, so it hands back
+  // every column as non-null. customer_phone, delivery_address, rider_payout and
+  // next_cursor are all genuinely nullable, which is why this maps explicitly
+  // instead of casting the rows into RiderOrderPageItem[] and lying about it.
+  const rows: RiderOrderPageItem[] = (data ?? []).map((row) => ({
+    id: row.id,
+    reference: row.reference,
+    customer: row.customer,
+    customer_phone: row.customer_phone ?? null,
+    restaurant: row.restaurant,
+    delivery_address: row.delivery_address ?? null,
+    items: parseOrderItems(row.items),
+    total: row.total,
+    rider_payout: row.rider_payout ?? null,
+    status: row.status,
+    payment: row.payment,
+    placed_at: row.placed_at,
+    next_cursor: row.next_cursor ?? null,
+  }));
+
   // All rows in a page have the same next_cursor (from the window function)
   const nextCursor = rows[0]?.next_cursor ?? null;
   return { items: rows, nextCursor };

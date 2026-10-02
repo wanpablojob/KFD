@@ -229,9 +229,15 @@ export type Database = {
           id: string;
           reference: string;
           customer: string;
+          /** Null when the customer never set a contact number in their profile. */
+          customer_phone: string | null;
           restaurant: string;
+          /** Null for orders placed before delivery addresses existed. */
+          delivery_address: string | null;
           items: OrderItem[];
           total: number;
+          /** The rider's agreed fee, frozen at claim time. Null until claimed. */
+          rider_payout: number | null;
           status: OrderStatus;
           payment: PaymentMethod;
           placed_at: string;

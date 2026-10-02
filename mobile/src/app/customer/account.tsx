@@ -1,14 +1,19 @@
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useState } from "react";
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useSession } from "../../lib/session-context";
-import { signOut } from "../../lib/auth";
+import { saveContactPhone, signOut } from "../../lib/auth";
 import { colors, radius, shadow, spacing, type } from "../../lib/theme";
 
 /**
- * Customer profile: who you are signed in as, what you have ordered, and the
- * way out. The session user is the source of truth for the email -- there is no
- * customers table to drift from.
+ * Customer profile: who you are signed in as, how the rider reaches you, what
+ * you have ordered, and the way out. The session user is the source of truth
+ * for the email -- there is no customers table to drift from.
+ *
+ * The contact number lives here because there is no order -> customer join to
+ * read it from. customer_place_order copies it onto each order, so a rider
+ * always dials the number that was on file when they ordered.
  */
 export default function CustomerAccountScreen() {
   const router = useRouter();
@@ -20,6 +25,27 @@ export default function CustomerAccountScreen() {
     typeof user?.user_metadata?.name === "string" && user.user_metadata.name
       ? user.user_metadata.name
       : email.split("@")[0] || "Customer";
+
+  const savedPhone =
+    typeof user?.user_metadata?.phone === "string" ? user.user_metadata.phone : "";
+  const [phone, setPhone] = useState(savedPhone);
+  const [saving, setSaving] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  const dirty = phone.trim() !== savedPhone;
+
+  async function save() {
+    setSaving(true);
+    setNotice(null);
+    try {
+      await saveContactPhone(phone);
+      setNotice("Saved. Future orders will carry this number.");
+    } catch {
+      setNotice("Could not save. Try again.");
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
     <ScrollView
@@ -35,6 +61,40 @@ export default function CustomerAccountScreen() {
         <View style={styles.rolePill}>
           <Text style={styles.roleText}>CUSTOMER</Text>
         </View>
+      </View>
+
+      <View style={[styles.card, shadow.card]}>
+        <View style={styles.fieldHead}>
+          <Text style={styles.rowLabel}>Contact number</Text>
+          <Text style={styles.hint}>
+            The rider calls this when they are at your door. Orders already placed keep
+            the number that was on file at the time.
+          </Text>
+        </View>
+        <TextInput
+          style={styles.input}
+          value={phone}
+          onChangeText={setPhone}
+          placeholder="09XX XXX XXXX"
+          placeholderTextColor={colors.textFaint}
+          keyboardType="phone-pad"
+          autoComplete="tel"
+          returnKeyType="done"
+          onSubmitEditing={() => void save()}
+        />
+        <Pressable
+          style={({ pressed }) => [
+            styles.save,
+            (!dirty || saving) && styles.saveDisabled,
+            pressed && dirty && !saving && styles.savePressed,
+          ]}
+          accessibilityRole="button"
+          disabled={!dirty || saving}
+          onPress={() => void save()}
+        >
+          <Text style={styles.saveLabel}>{saving ? "Saving…" : "Save"}</Text>
+        </Pressable>
+        {notice ? <Text style={styles.notice}>{notice}</Text> : null}
       </View>
 
       <View style={[styles.card, shadow.card]}>
@@ -132,6 +192,30 @@ const styles = StyleSheet.create({
   rowLabel: { ...type.heading, fontSize: 15 },
   rowHint: { ...type.caption, color: colors.textFaint },
   rowChevron: { fontSize: 24, color: colors.textFaint },
+  fieldHead: { gap: 2, paddingTop: spacing.lg },
+  hint: { ...type.caption, color: colors.textFaint },
+  input: {
+    marginTop: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
+    color: colors.text,
+    fontSize: 16,
+  },
+  save: {
+    marginTop: spacing.md,
+    paddingVertical: spacing.md,
+    borderRadius: radius.sm,
+    backgroundColor: colors.primary,
+    alignItems: "center",
+  },
+  saveDisabled: { backgroundColor: colors.border },
+  savePressed: { opacity: 0.7 },
+  saveLabel: { fontSize: 15, fontWeight: "700", color: colors.textInverse },
+  notice: { ...type.caption, color: colors.textMuted, marginTop: spacing.sm },
   divider: { height: 1, backgroundColor: colors.border },
   signOut: {
     backgroundColor: colors.card,

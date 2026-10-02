@@ -2,6 +2,7 @@ import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
+  Linking,
   Pressable,
   RefreshControl,
   StyleSheet,
@@ -176,12 +177,69 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
                   {STATUS_LABEL[item.status] ?? item.status}
                 </Text>
               </View>
+
               <Text style={styles.orderRestaurant}>{item.restaurant}</Text>
-              <Text style={styles.orderCustomer}>Customer: {item.customer}</Text>
-              <Text style={styles.orderTotal}>
-                ₱{Number(item.total).toFixed(2)} · {item.payment} ·{" "}
-                {new Date(item.placed_at).toLocaleString()}
-              </Text>
+
+              {/* Where to go. Absent only for orders placed before addresses
+                  existed, so it is stated rather than left blank. */}
+              <View style={styles.block}>
+                <Text style={styles.blockLabel}>Deliver to</Text>
+                <Text style={styles.blockValue}>
+                  {item.customer}
+                  {item.delivery_address ? `\n${item.delivery_address}` : ""}
+                </Text>
+              </View>
+
+              {/* How to reach them. No number on file is a real state, not an
+                  error, so it says so instead of rendering a dead tel: link. */}
+              {item.customer_phone ? (
+                <Pressable
+                  style={styles.callRow}
+                  accessibilityRole="link"
+                  accessibilityLabel={`Call ${item.customer}`}
+                  onPress={() =>
+                    void Linking.openURL(`tel:${item.customer_phone ?? ""}`).catch(
+                      () => undefined
+                    )
+                  }
+                >
+                  <Text style={styles.callLabel}>Call customer</Text>
+                  <Text style={styles.callNumber}>{item.customer_phone}</Text>
+                </Pressable>
+              ) : (
+                <View style={styles.callRow}>
+                  <Text style={styles.noPhone}>No contact number on file</Text>
+                </View>
+              )}
+
+              {/* What they are picking up. */}
+              <View style={styles.block}>
+                <Text style={styles.blockLabel}>Items</Text>
+                {item.items.length === 0 ? (
+                  <Text style={styles.noPhone}>Not listed</Text>
+                ) : (
+                  item.items.map((line, index) => (
+                    <Text key={`${line.name}-${index}`} style={styles.blockValue}>
+                      {line.quantity}× {line.name}
+                    </Text>
+                  ))
+                )}
+              </View>
+
+              {/* The rider's own fee, not the customer's bill. Frozen onto the
+                  order when it was claimed, so it cannot drift if the rate
+                  changes later. */}
+              <View style={styles.footer}>
+                <Text style={styles.payout}>
+                  {item.rider_payout !== null
+                    ? `You earn ₱${Number(item.rider_payout).toFixed(2)}`
+                    : "Payout pending"}
+                </Text>
+                <Text style={styles.placedAt}>
+                  {item.payment} · {new Date(item.placed_at).toLocaleString()}
+                </Text>
+              </View>
+
               {canDeliver ? (
                 <Pressable
                   style={[
@@ -261,8 +319,39 @@ const styles = StyleSheet.create({
   orderRef: { ...type.heading, color: colors.primary },
   orderStatus: { ...type.label, color: colors.secondary },
   orderRestaurant: { ...type.body, color: colors.textMuted },
-  orderCustomer: { ...type.caption, color: colors.textFaint },
-  orderTotal: { ...type.caption, color: colors.textFaint },
+  block: { gap: 2, marginTop: spacing.sm },
+  blockLabel: {
+    ...type.caption,
+    color: colors.textFaint,
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+  },
+  blockValue: { ...type.body, color: colors.text },
+  callRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.md,
+    marginTop: spacing.md,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.sm,
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  callLabel: { ...type.body, color: colors.primary, fontWeight: "700" },
+  callNumber: { ...type.caption, color: colors.textMuted },
+  noPhone: { ...type.caption, color: colors.textFaint },
+  footer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.md,
+    marginTop: spacing.md,
+  },
+  payout: { ...type.body, color: colors.text, fontWeight: "700" },
+  placedAt: { ...type.caption, color: colors.textFaint },
   deliverButton: {
     marginTop: spacing.sm,
     backgroundColor: colors.success,
