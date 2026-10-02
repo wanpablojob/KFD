@@ -117,6 +117,82 @@ export interface RiderOrderPageResult {
   nextCursor: string | null;
 }
 
+/**
+ * A live offer: an order the system has put in front of this rider to accept or
+ * decline. Not yet theirs, so it carries no rider_payout -- the fee shown is the
+ * standard rate, frozen onto the order only if they accept.
+ */
+export interface RiderOffer {
+  offerId: number;
+  orderId: string;
+  reference: string;
+  restaurant: string;
+  customer: string;
+  deliveryAddress: string | null;
+  items: OrderLine[];
+  total: number;
+  orderStatus: string;
+  /** What they would earn. Null only if an offer outlived its order's payout. */
+  payoutPerDelivery: number | null;
+  city: string | null;
+  offeredAt: string;
+  expiresAt: string;
+}
+
+/**
+ * Live offers for the calling rider (migration 0045).
+ *
+ * Polls on a short interval because offers are time-boxed: without a refresh the
+ * expiry countdown is a lie and Accept would fail against a row that quietly
+ * went stale. refetchInterval is on the hook, not here.
+ */
+export async function fetchRiderOffers(): Promise<RiderOffer[]> {
+  const { data, error } = await supabase.rpc("fetch_rider_offers");
+  if (error) throw error;
+
+  // Same reason as fetchRiderOrdersPage: gen-types cannot infer nullability for
+  // a RETURNS TABLE, so nullable columns are mapped rather than cast over.
+  return ((data ?? []) as unknown as Record<string, unknown>[]).map((row) => ({
+    offerId: Number(row.offer_id),
+    orderId: String(row.order_id),
+    reference: String(row.reference),
+    restaurant: String(row.restaurant),
+    customer: String(row.customer),
+    deliveryAddress: (row.delivery_address as string | null) ?? null,
+    items: parseOrderItems(row.items),
+    total: Number(row.total),
+    orderStatus: String(row.order_status),
+    payoutPerDelivery:
+      row.payout_per_delivery === null || row.payout_per_delivery === undefined
+        ? null
+        : Number(row.payout_per_delivery),
+    city: (row.city as string | null) ?? null,
+    offeredAt: String(row.offered_at),
+    expiresAt: String(row.expires_at),
+  }));
+}
+
+/**
+ * Accept an offer. Returns the frozen payout the claim wrote onto the order, so
+ * the UI can confirm the number the rider agreed to rather than re-deriving it.
+ */
+export async function acceptRiderOffer(
+  orderId: string
+): Promise<{ reference: string; riderPayout: number }> {
+  const { data, error } = await supabase.rpc("claim_order", { p_order_id: orderId });
+  if (error) throw error;
+  const row = (data ?? [])[0] as
+    { reference: string; rider_payout: number } | undefined;
+  if (!row) throw new Error("The delivery was taken before you accepted it.");
+  return { reference: row.reference, riderPayout: Number(row.rider_payout) };
+}
+
+/** Decline an offer. The system offers it to the next rider in rotation. */
+export async function declineRiderOffer(orderId: string): Promise<void> {
+  const { error } = await supabase.rpc("decline_order", { p_order_id: orderId });
+  if (error) throw error;
+}
+
 /** Cursor-paginated orders for the calling rider. */
 export async function fetchRiderOrdersPage(
   cursor: string | null,

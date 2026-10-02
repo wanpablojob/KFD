@@ -176,6 +176,47 @@ export type Database = {
           status: OrderStatus;
         }[];
       };
+      /**
+       * Live delivery offers addressed to the calling rider (migration 0045).
+       * rider_payout is absent because the order is not claimed yet: the fee is
+       * the standard rate, frozen onto the order only when the rider accepts.
+       */
+      fetch_rider_offers: {
+        Args: Record<string, never>;
+        Returns: {
+          offer_id: number;
+          order_id: string;
+          reference: string;
+          restaurant: string;
+          customer: string;
+          delivery_address: string | null;
+          items: OrderItem[];
+          total: number;
+          order_status: OrderStatus;
+          payout_per_delivery: number | null;
+          city: string | null;
+          offered_at: string;
+          expires_at: string;
+        }[];
+      };
+      decline_order: {
+        Args: { p_order_id: string; p_reason?: string | null };
+        Returns: undefined;
+      };
+      claim_order: {
+        Args: { p_order_id: string };
+        Returns: {
+          order_id: string;
+          reference: string;
+          restaurant: string;
+          delivery_address: string | null;
+          items: OrderItem[];
+          total: number;
+          rider_payout: number;
+          payment: PaymentMethod;
+          placed_at: string;
+        }[];
+      };
       register_customer: {
         Args: Record<string, never>;
         Returns: unknown;

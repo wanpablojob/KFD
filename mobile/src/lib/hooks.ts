@@ -7,10 +7,14 @@ import {
   fetchMyOrders,
   placeCustomerOrder,
   fetchRiderOrdersPage,
+  fetchRiderOffers,
+  acceptRiderOffer,
+  declineRiderOffer,
   fetchRiderProfile,
   fetchRiderEarningsSummary,
   fetchRiderPayoutHistory,
   type RiderOrderPageResult,
+  type RiderOffer,
   type RiderProfile,
   type RestaurantRow,
   type MenuItemRow,
@@ -99,6 +103,48 @@ export function useRiderOrders(initialCursor: string | null = null, limit = 20) 
   });
 }
 
+/**
+ * Live offers for this rider.
+ *
+ * Polls rather than relying on a push, because an offer that silently went stale
+ * is worse than one that showed up late: Accept would fail against a row that is
+ * no longer claimable. 10s is under the 5-minute offer window with room to spare,
+ * and the query is cheap (one indexed read of this rider's own offers).
+ */
+export function useRiderOffers() {
+  return useQuery({
+    queryKey: ["riderOffers"],
+    queryFn: fetchRiderOffers,
+    refetchInterval: 10_000,
+    refetchOnWindowFocus: true,
+  });
+}
+
+export function useAcceptOffer() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (orderId: string) => acceptRiderOffer(orderId),
+    onSuccess: () => {
+      // The offer is gone and the order is now theirs: both lists are wrong.
+      queryClient.invalidateQueries({ queryKey: ["riderOffers"] });
+      queryClient.invalidateQueries({ queryKey: ["riderOrders"] });
+      queryClient.invalidateQueries({ queryKey: ["riderEarningsSummary"] });
+    },
+  });
+}
+
+export function useDeclineOffer() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (orderId: string) => declineRiderOffer(orderId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["riderOffers"] });
+    },
+  });
+}
+
 export function useRiderEarningsSummary() {
   return useQuery({
     queryKey: ["riderEarningsSummary"],
@@ -129,5 +175,6 @@ export type {
   PlaceOrderItem,
   PaymentChoice,
   RiderOrderPageResult,
+  RiderOffer,
   RiderProfile,
 };

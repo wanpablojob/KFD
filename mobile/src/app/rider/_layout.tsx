@@ -19,6 +19,7 @@ export default function RiderLayout() {
       <View style={styles.content}>
         <Stack screenOptions={{ headerShown: false, animation: "fade_from_bottom" }}>
           <Stack.Screen name="index" />
+          <Stack.Screen name="offers" />
           <Stack.Screen name="earnings" />
           <Stack.Screen name="profile" />
         </Stack>
@@ -35,6 +36,9 @@ interface Tab {
 }
 
 const TABS: Tab[] = [
+  // Available is first because it is the queue a rider opens the app to work.
+  // Deliveries is what they already accepted.
+  { route: "/rider/offers", label: "Available", glyph: "◈" },
   { route: "/rider", label: "Deliveries", glyph: "≡" },
   { route: "/rider/earnings", label: "Earnings", glyph: "₱" },
   { route: "/rider/profile", label: "Profile", glyph: "◍" },

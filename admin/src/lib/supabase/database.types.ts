@@ -595,6 +595,25 @@ export type Database = {
         }[]
       }
       expire_stale_offers: { Args: never; Returns: undefined }
+      fetch_rider_offers: {
+        Args: never
+        Returns: {
+          city: string
+          customer: string
+          delivery_address: string
+          expires_at: string
+          items: Json
+          offer_id: number
+          offered_at: string
+          order_id: string
+          order_status: Database["public"]["Enums"]["order_status"]
+          payout_per_delivery: number
+          reference: string
+          restaurant: string
+          rider_payout: number
+          total: number
+        }[]
+      }
       fetch_rider_orders_page: {
         Args: { p_cursor?: string; p_limit?: number }
         Returns: {
