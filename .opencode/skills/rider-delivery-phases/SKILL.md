@@ -223,6 +223,21 @@ Phase 2 item 4 has an open product decision: showing `₱{total}` next to a
 customer's order implies it is rider pay. Do not invent a payout rate — either
 add a real per-trip payout column or drop the peso figure.
 
+## Known gap: `out_for_delivery` is unreachable
+
+Nothing in the running app ever sets `orders.status = 'out_for_delivery'`. Only
+the 0001 seed rows have it. `merchant-queries.ts` filters it out of
+`allowedTransitions()` on purpose, on the reasoning that "dispatch is the
+platform's job", but no platform function sets it either.
+
+Consequence: a rider who claims a still-`pending` order cannot finish it.
+`rider_mark_delivered` only accepts `out_for_delivery`, `confirmed`, or
+`preparing`, so the rider is stuck on "cannot be marked delivered from its
+current state (pending)" until the merchant advances it. Do not have
+`claim_order` force `out_for_delivery` without deciding this first — that would
+also lock the merchant out of the `confirmed -> preparing` step. This is a
+product decision, not a mechanical fix.
+
 ## Rules
 
 - One migration per phase, applied and verified before the next starts.
@@ -233,3 +248,28 @@ add a real per-trip payout column or drop the peso figure.
   non-terminal status. Do not add more destructive single-tap actions alongside it.
 - Push is unverified on a physical device and `push.ts` errors on emulators.
   Do not build a phase that depends on push without a device.
+
+## Read RPCs by calling them
+
+Phase 1 shipped four functions that could never run, and every read that
+touched them looked fine. Static review does not catch this class; the only
+reliable test is invoking the function through PostgREST with a real JWT.
+
+- A `returns table (order_id text, ...)` OUT parameter is a plpgsql variable.
+  If the body also references an `order_id` column, Postgres raises `42702
+  column reference "order_id" is ambiguous` at run time. This killed
+  `set_rider_access`, `admin_dispatch_order`, and `claim_order`. Fix with
+  `#variable_conflict use_column` as the first line inside the block, before
+  `declare`. Qualifying does not work: `on conflict (o.order_id, ...)` and
+  `on conflict (order_offers.order_id, ...)` are both syntax errors.
+- Never raise with `errcode = '40001'`. That is `serialization_failure`, which
+  PostgREST treats as retryable and re-runs forever, so a deterministic
+  business-rule rejection becomes an infinite hang instead of an error. Use
+  `P0001`. Measured: `40001` never returned past 8s; `P0001` returned 400 in
+  0.38s.
+- A function can hide behind earlier raises. `claim_order` only reached its
+  broken statement once an offer actually existed, which was impossible while
+  `admin_dispatch_order` was also broken.
+- Test the write path, not just the reads. `available_jobs()` and
+  `fetch_rider_orders_page()` worked the whole time, which is exactly why a
+  dead dispatch went unnoticed.
