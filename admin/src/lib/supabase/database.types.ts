@@ -192,6 +192,54 @@ export type Database = {
           },
         ]
       }
+      order_offers: {
+        Row: {
+          claimed_at: string | null
+          decline_reason: string | null
+          expires_at: string
+          id: number
+          offered_at: string
+          order_id: string
+          rider_id: string
+          status: Database["public"]["Enums"]["offer_status"]
+        }
+        Insert: {
+          claimed_at?: string | null
+          decline_reason?: string | null
+          expires_at: string
+          id?: never
+          offered_at?: string
+          order_id: string
+          rider_id: string
+          status?: Database["public"]["Enums"]["offer_status"]
+        }
+        Update: {
+          claimed_at?: string | null
+          decline_reason?: string | null
+          expires_at?: string
+          id?: never
+          offered_at?: string
+          order_id?: string
+          rider_id?: string
+          status?: Database["public"]["Enums"]["offer_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_offers_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_offers_rider_id_fkey"
+            columns: ["rider_id"]
+            isOneToOne: false
+            referencedRelation: "riders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       orders: {
         Row: {
           created_at: string
@@ -401,7 +449,43 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_dispatch_order: {
+        Args: { p_order_id: string; p_rider_ids?: string[] }
+        Returns: {
+          offered_to: number
+          order_id: string
+        }[]
+      }
+      available_jobs: {
+        Args: never
+        Returns: {
+          city: string
+          delivery_address: string
+          expires_at: string
+          items: Json
+          order_id: string
+          payment: Database["public"]["Enums"]["payment_method"]
+          placed_at: string
+          reference: string
+          restaurant: string
+          total: number
+        }[]
+      }
+      claim_order: {
+        Args: { p_order_id: string }
+        Returns: {
+          delivery_address: string
+          items: Json
+          order_id: string
+          payment: Database["public"]["Enums"]["payment_method"]
+          placed_at: string
+          reference: string
+          restaurant: string
+          total: number
+        }[]
+      }
       current_merchant_restaurant: { Args: never; Returns: string }
+      current_rider_id: { Args: never; Returns: string }
       customer_place_order: {
         Args: {
           p_delivery_address: string
@@ -416,6 +500,46 @@ export type Database = {
           total: number
         }[]
       }
+      decline_order: {
+        Args: { p_order_id: string; p_reason?: string }
+        Returns: undefined
+      }
+      dispatch_riders: {
+        Args: never
+        Returns: {
+          active_offers: number
+          city: string
+          claimed_today: number
+          deliveries: number
+          name: string
+          phone: string
+          rating: number
+          rider_id: string
+          status: Database["public"]["Enums"]["rider_status"]
+          vehicle: Database["public"]["Enums"]["vehicle_type"]
+        }[]
+      }
+      dispatch_unassigned_orders: {
+        Args: never
+        Returns: {
+          city: string
+          customer: string
+          declines: number
+          delivery_address: string
+          items: Json
+          live_offers: number
+          offers_made: number
+          online_riders_in_city: number
+          order_id: string
+          placed_at: string
+          reference: string
+          restaurant: string
+          restaurant_id: string
+          status: Database["public"]["Enums"]["order_status"]
+          total: number
+        }[]
+      }
+      expire_stale_offers: { Args: never; Returns: undefined }
       fetch_rider_orders_page: {
         Args: { p_cursor?: string; p_limit?: number }
         Returns: {
@@ -431,6 +555,7 @@ export type Database = {
           total: number
         }[]
       }
+      is_admin: { Args: never; Returns: boolean }
       is_customer: { Args: never; Returns: boolean }
       is_platform_admin: { Args: never; Returns: boolean }
       mark_notifications_seen: { Args: never; Returns: string }
@@ -528,6 +653,7 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "merchant" | "rider" | "customer"
+      offer_status: "offered" | "claimed" | "declined" | "expired"
       order_status:
         | "pending"
         | "confirmed"
@@ -667,6 +793,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "merchant", "rider", "customer"],
+      offer_status: ["offered", "claimed", "declined", "expired"],
       order_status: [
         "pending",
         "confirmed",

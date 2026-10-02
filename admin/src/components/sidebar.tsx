@@ -22,6 +22,10 @@ const navItems = [
   { href: "/dashboard/orders", label: "Orders", icon: ReceiptIcon },
   { href: "/dashboard/restaurants", label: "Restaurants", icon: StoreIcon },
   { href: "/dashboard/riders", label: "Riders", icon: BikeIcon },
+  // Admin only for the same reason as merchant access: dispatch is the write
+  // that assigns a rider, and 0035's admin_dispatch_order() refuses anyone who
+  // is not an admin regardless of who can see the link.
+  { href: "/dashboard/dispatch", label: "Dispatch", icon: BikeIcon, adminOnly: true },
   { href: "/dashboard/customers", label: "Customers", icon: UsersIcon },
   { href: "/dashboard/menu", label: "Menu Items", icon: UtensilsIcon },
   // Admin only, because attaching a restaurant to an account is the one nav

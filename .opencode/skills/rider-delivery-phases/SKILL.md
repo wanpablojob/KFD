@@ -12,6 +12,9 @@ anything to *do*.
 
 **Hard rule: do not build rider UI before dispatch exists.** A rider app with an
 empty queue looks broken to the rider, which is worse than shipping nothing.
+Dispatch landed in `0035`, so this rule no longer blocks Phase 2 — but the rider
+app has no feed UI for `available_jobs()` yet, so the queue is still empty from a
+rider's point of view until that is built.
 
 ## Where things actually are
 
@@ -19,80 +22,78 @@ empty queue looks broken to the rider, which is worse than shipping nothing.
 | --- | --- |
 | `mobile/src/app/rider/` | 3 tabs: Deliveries, Earnings, Profile |
 | `screens/rider-home-screen.tsx` | 274 lines, pagination + refresh, no address |
-| `fetch_rider_orders_page` | Defined in `0030`, **not applied to production** |
-| `orders.rider_id` | Added in `0025`, **column does not exist live** |
-| Assignment mechanism | **Does not exist in any form** |
+| `fetch_rider_orders_page` | Defined in `0030`, **applied**, returns 401 when anon |
+| `orders.rider_id` | Added in `0025`, **exists live**, RLS policy in place |
+| Assignment mechanism | **Landed in `0035`** — `claim_order` is now the runtime writer |
+| `/dashboard/dispatch` | **Landed** — unassigned orders + online riders |
 | `rider_set_status` | Exists, consumed by nothing |
 | `lib/push.ts` | Registered, ignored by the rider surface |
 | `riders.earnings` | Trigger-maintained lifetime total, no ledger |
 | Map SDK | Not in `package.json` |
 
-Only code that ever writes `orders.rider_id` is the one-time backfill in
-`0025`, which matches on rider *name* for pre-existing rows. `customer_place_order`
-inserts no rider. So `where o.rider_id = v_rider_id` can never match a new order.
+Migrations `0001`–`0035` are applied to production with none pending. Before
+`0035`, the only code that ever wrote `orders.rider_id` was the one-time
+name-matching backfill in `0025`, so `where o.rider_id = v_rider_id` could never
+match a new order. That is now closed: `claim_order()` is the only writer.
 
 ## Phase 0 — Unblock the schema (no UI, no new features)
 
-**Why first:** the rider app currently calls an RPC that returns `404 PGRST202`.
-Everything else is downstream of this. Zero product decisions.
+**Done 2026-10-01.** `0024`'s `%`-without-argument `RAISE` was fixed to pass
+`v_orphans` (`9e61c4e`), `0025` moved to `orders.rider_id text` with the RLS
+policy and missing-argument `RAISE` fixed (`39d236c`), then `0024`–`0034` were
+applied and `database.overrides.ts` was deleted wholesale (`fd716e3`,
+`7213ef8`). `0027` aborts loudly on orphans, so a failure meant fix-the-data and
+never did.
 
-1. Fix the `RAISE` bug in `0024_orders_restaurant_fk.sql` — it has a `%`
-   placeholder with no argument, so it dies with `42601 too few parameters`
-   instead of reporting orphan rows. Pass `v_orphans`.
-2. Audit the other migrations for the same defect before pushing. Every
-   `raise exception` with `%` needs its argument.
-3. Apply `0024`–`0032` in order. `0024` and `0027` abort loudly on orphans
-   rather than corrupting data, so a failure here means fix-the-data, not
-   work-around-the-check.
-4. Regenerate `admin/src/lib/supabase/database.types.ts` from the live project.
-5. Delete the `PendingFunctions` block from
-   `admin/src/lib/supabase/database.overrides.ts` — it exists only to type an
-   RPC that was not there. Also delete the `submit_lead` override once `0032`
-   lands.
-
-**Done when:** `supabase gen types` shows `orders.rider_id` and
-`fetch_rider_orders_page`; a rider sign-in loads the deliveries tab without a
-404. The queue will still be empty. That is expected.
-
-**Verified 2026-10-01:** `db push` was attempted and rolled back cleanly on
-`0024`. Nothing was recorded. `0024`–`0032` remain pending.
+`fetch_rider_orders_page` is live and correctly gated: anon returns
+`401 42501`, not `404 PGRST202`.
 
 Note the parked `stash@{0}` ("customer phase1 WIP") also contains a draft
 `0033_quote_order_and_rider_address.sql` that does the Phase 2 RPC change plus a
-`quote_order` RPC. It is mid-edit and does not typecheck; recover it with
-`git stash show -p stash@{0}` when returning to customer work.
+`quote_order` RPC. It is mid-edit and does not typecheck, and it is now
+superseded by the real `0033_quote_order.sql` / `0034`. Recover it with
+`git stash show -p stash@{0}` if anything in it is still wanted.
 
 ## Phase 1 — Dispatch queue with accept (backend + admin)
 
-The chosen model. Chosen over auto-assign because the `riders` table has no
-location data, so "nearest rider" would be a fiction until a map SDK and
-background location land.
+**Done.** Migration `0035_dispatch_offers.sql` is applied and
+`admin/src/app/dashboard/dispatch` is the admin surface. Chosen over auto-assign
+because `riders` has no location data, so "nearest rider" would be fiction until
+a map SDK and background location land.
 
-**Why this shape:** it reuses `rider_set_status`, which already exists and is
-consumed by nothing. Availability becomes meaningful the moment something
-listens to it.
+Shipped in `0035`:
+- `order_offers` with `offer_status` (`offered`/`claimed`/`declined`/`expired`),
+  a partial unique index making at most one live offer per order+rider pair.
+- `available_jobs()`, `claim_order(p_order_id)` (the sole `orders.rider_id`
+  writer, guarded by `and o.rider_id is null`), `decline_order(order, reason)`.
+- `dispatch_unassigned_orders()`, `dispatch_riders()`,
+  `admin_dispatch_order(order, rider_ids)`. All admin RPCs re-check the role
+  inside a `security definer` body; the nav link being hidden is not the guard.
 
-Backend, one migration:
-- `order_offers` table: order, rider, offered_at, expires_at, status
-  (`offered`/`claimed`/`declined`/`expired`), decline reason.
-- `available_jobs()` — offers for online riders whose city matches, unclaimed
-  and unexpired.
-- `claim_order(p_order_id)` — atomic. Succeeds for exactly one rider; sets
-  `orders.rider_id`, marks the offer claimed, cancels sibling offers. This is
-  the only place `rider_id` is written from here on, so the `0025` name-matching
-  backfill is never reused.
-- Decide explicitly what happens when no rider claims: order stays
-  `confirmed` and the admin sees it in an unassigned list. Do not auto-expire an
-  order into limbo.
+Decided: **5-minute expiry**, and a **decline returns the order to the pool** —
+it stays unassigned and visible to admin, because it is still a customer waiting
+on food. Nothing auto-expires an order into limbo, so the unassigned list grows
+until a human deals with it.
 
-Admin:
-- A dispatch surface listing unassigned orders and online riders.
+Two known-imperfect details, both deliberate:
+- `available_jobs()` is declared `stable` but sweeps stale offers via the
+  nested `volatile` `expire_stale_offers()`. The `UPDATE` is legal because it
+  executes inside the volatile helper, and PostgREST evaluates the function once
+  per request, so nothing observes it. Not worth a second migration that would
+  duplicate the function body. The sweep is not load-bearing anyway: both read
+  paths already filter `expires_at > now()`, and re-offers re-arm the existing
+  row through `ON CONFLICT ... DO UPDATE`.
+- `orders.rider` is still mirrored on claim because `queries.ts` filters on it.
+  It is a display mirror, never the source of truth.
 
 **Done when:** an order placed by a customer appears in at least one online
 rider's feed, and claiming it in two apps leaves exactly one winner.
 
-**Decide before coding:** expiry window, and whether a declined order returns to
-the pool or goes to manual dispatch.
+**Not yet verified.** The schema, the arity, and the anon/admin gating are all
+confirmed over the wire, but the actual race has never been run: `autoconfirm`
+is off, signup needs approval, and no confirmed rider or admin credentials
+exist in this environment. The "exactly one winner" done-test needs two
+authenticated rider sessions against a seeded unassigned order.
 
 ## Phase 2 — Make the job actionable (one migration, one screen)
 
@@ -146,10 +147,14 @@ delivery worth" from the app.
 ## Sequencing
 
 Phase 0 → 1 → 2 → 3 → 4 → 5. Phase 2 is the best value and the cheapest. Phase 1
-is the expensive one and is the only phase needing a product decision.
+is the expensive one and was the only phase needing a product decision.
 
-Phase 0 and Phase 1 are backend. The rider UI does not meaningfully begin until
-Phase 2.
+Phase 0 and Phase 1 are backend and are both done. The rider UI does not
+meaningfully begin until Phase 2, and Phase 2 is now unblocked.
+
+Phase 2 item 4 has an open product decision: showing `₱{total}` next to a
+customer's order implies it is rider pay. Do not invent a payout rate — either
+add a real per-trip payout column or drop the peso figure.
 
 ## Rules
 
