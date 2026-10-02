@@ -89,9 +89,10 @@ describe("fetchOrderFees", () => {
  * is exactly the failure being guarded against.
  */
 describe("the client holds no fees of its own", () => {
-  // cart-logic.ts is intentionally absent: it is not part of this change.
-  // Whichever phase lands it should add it back to this list.
+  // cart-logic.ts is here because it used to carry DELIVERY_FEE/SERVICE_FEE
+  // alongside the line maths. It has no business pricing anything now.
   const sources = [
+    "cart-logic.ts",
     "cart-quote.ts",
     "storefront.ts",
     "../app/customer/cart.tsx",

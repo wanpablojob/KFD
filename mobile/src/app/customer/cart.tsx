@@ -27,7 +27,7 @@ const PAYMENTS: { key: PaymentChoice; label: string; glyph: string }[] = [
 export default function CustomerCartScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { lines, setQuantity, remove, clear, restaurantId } = useCart();
+  const { lines, setQuantity, remove, clear, restaurantId, restaurantName } = useCart();
   const { quote, loading: quoting, error: quoteError } = useCartQuote();
   const [address, setAddress] = useState("");
   const [payment, setPayment] = useState<PaymentChoice>("cash");
@@ -118,7 +118,14 @@ export default function CustomerCartScreen() {
         >
           <Text style={styles.backGlyph}>‹</Text>
         </Pressable>
-        <Text style={styles.topTitle}>Your cart</Text>
+        <View style={styles.topTitles}>
+          <Text style={styles.topTitle}>Your cart</Text>
+          {restaurantName ? (
+            <Text style={type.caption} numberOfLines={1}>
+              {restaurantName}
+            </Text>
+          ) : null}
+        </View>
         <View style={styles.backBtn} />
       </View>
 
@@ -279,6 +286,7 @@ const styles = StyleSheet.create({
   },
   backBtn: { width: 32, height: 32, justifyContent: "center" },
   backGlyph: { fontSize: 30, color: colors.text, lineHeight: 32 },
+  topTitles: { flex: 1, alignItems: "center" },
   topTitle: { ...type.heading, color: colors.text },
   list: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xl },
   line: {

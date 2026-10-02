@@ -46,6 +46,10 @@ export default function CustomerMenuScreen() {
 
   const sections = useMemo(() => groupByCategory(menu ?? []), [menu]);
 
+  // menu_items carries the restaurant name, so this costs no extra request and
+  // is what makes the cart-conflict message nameable.
+  const restaurantName = menu?.[0]?.restaurant ?? "";
+
   if (!menu) {
     return (
       <View style={[styles.screen, styles.center]}>
@@ -74,7 +78,9 @@ export default function CustomerMenuScreen() {
         >
           <Text style={styles.backGlyph}>‹</Text>
         </Pressable>
-        <Text style={styles.topTitle}>Menu</Text>
+        <Text style={styles.topTitle} numberOfLines={1}>
+          {restaurantName || "Menu"}
+        </Text>
         {count > 0 ? (
           <View style={styles.topCart}>
             <Text style={styles.topCartText}>{count}</Text>
@@ -99,7 +105,11 @@ export default function CustomerMenuScreen() {
             <Text style={styles.sectionHeader}>{section.title}</Text>
           )}
           renderItem={({ item }) => (
-            <MenuItemCard row={item} restaurantId={restaurantId} />
+            <MenuItemCard
+              row={item}
+              restaurantId={restaurantId}
+              restaurantName={restaurantName}
+            />
           )}
         />
       )}
@@ -110,11 +120,67 @@ export default function CustomerMenuScreen() {
 function MenuItemCard({
   row,
   restaurantId,
+  restaurantName,
 }: {
   row: MenuItemRow;
   restaurantId: string;
+  restaurantName: string;
 }) {
-  const { add } = useCart();
+  const { add, pending, acceptPending, dismissPending } = useCart();
+
+  const line = {
+    menu_item_id: row.id,
+    name: row.name,
+    price: row.price,
+    restaurantId,
+    restaurantName,
+  };
+
+  /**
+   * This item is the one the customer is being asked about. Asking here, next to
+   * the button they just pressed, is the point: `add` holds the line rather than
+   * dropping it, so the tap always does something visible.
+   */
+  const conflict = pending?.line.menu_item_id === row.id ? pending : null;
+
+  if (conflict) {
+    return (
+      <View style={[styles.item, shadow.card]}>
+        <View style={styles.itemBody}>
+          <Text style={styles.itemName}>{row.name}</Text>
+          <Text style={type.caption}>
+            Your cart has {conflict.previousItemCount}{" "}
+            {conflict.previousItemCount === 1 ? "item" : "items"} from{" "}
+            {conflict.previousRestaurantName}. Adding this starts a new cart.
+          </Text>
+        </View>
+        <View style={styles.conflictActions}>
+          <Pressable
+            style={({ pressed }) => [
+              styles.conflictKeep,
+              pressed && styles.conflictKeepPressed,
+            ]}
+            onPress={dismissPending}
+            accessibilityLabel="Keep current cart"
+          >
+            <Text style={styles.conflictKeepLabel}>KEEP CART</Text>
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [
+              styles.conflictSwap,
+              pressed && styles.conflictSwapPressed,
+              shadow.raised,
+            ]}
+            onPress={acceptPending}
+            accessibilityLabel="Clear current cart and add this item"
+          >
+            <Text style={styles.conflictSwapLabel}>CLEAR &amp; ADD</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={[styles.item, shadow.card]}>
       <View style={styles.itemBody}>
@@ -123,14 +189,7 @@ function MenuItemCard({
       </View>
       <Pressable
         style={({ pressed }) => [styles.addBtn, pressed && styles.addBtnPressed]}
-        onPress={() =>
-          add({
-            menu_item_id: row.id,
-            name: row.name,
-            price: row.price,
-            restaurantId,
-          })
-        }
+        onPress={() => add(line)}
         accessibilityLabel={`Add ${row.name} to cart`}
       >
         <Text style={styles.addLabel}>ADD</Text>
@@ -205,6 +264,26 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
   },
   addBtnPressed: { backgroundColor: colors.primaryDark },
+  conflictActions: { flexDirection: "row", gap: spacing.sm },
+  conflictKeep: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    justifyContent: "center",
+  },
+  conflictKeepPressed: { backgroundColor: colors.surface },
+  conflictKeepLabel: { ...type.caption, fontWeight: "700" },
+  conflictSwap: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.sm,
+    backgroundColor: colors.primary,
+    justifyContent: "center",
+  },
+  conflictSwapPressed: { backgroundColor: colors.primaryDark },
+  conflictSwapLabel: { ...type.caption, fontWeight: "700", color: colors.textInverse },
   addLabel: {
     fontSize: 12,
     fontWeight: "800",
