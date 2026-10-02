@@ -138,12 +138,46 @@ last page. Map those columns explicitly rather than casting.
 
 ## Phase 3 — Earnings that mean something
 
-- `rider_payouts` ledger, written by the delivery-completion trigger alongside
-  the existing `0008` aggregate refresh.
-- Replace the lifetime-only read on `earnings.tsx` with per-delivery history and
-  daily/weekly rollups.
-- Push the rider on delivery completion. `lib/push.ts` already supports it and
-  the rider surface ignores it.
+**Done.** Migrations `0038` (ledger) and `0039` (table privileges).
+
+- `rider_payouts` ledger, one row per completed delivery, written by
+  `rider_mark_delivered` with the payout frozen at claim time.
+- `rider_earnings_summary` (today / week / lifetime / count) and
+  `rider_payout_history` (per-delivery, with `has_more`) sum the ledger, so
+  `earnings.tsx` answers "what did I earn today" and "what was that delivery
+  worth".
+- `riders.earnings` is reconciled to the ledger sum, because the `0001` seed
+  values were never real earnings and leaving them put the admin dashboard and
+  the rider app in open disagreement.
+
+Three things worth remembering here:
+
+1. **A seeded demo column is not a total.** `0001` seeds `rdr_01` at
+   `earnings 2840.00 / deliveries 182` and *nothing in the schema ever wrote that
+   column* — `0008` refreshes restaurant aggregates only. The screen divided the
+   two and labelled it "Per delivery", rendering "₱2,840.00 lifetime, ₱15.60 per
+   delivery" for a rider who had never earned anything. If a number has no
+   writer, it is not a total, and dividing it still produces a confident lie.
+2. **Do not backfill history you cannot reconstruct.** Deliveries completed
+   before `0037` have a NULL `rider_payout`, so there is no trustworthy amount
+   to record. Reconstructing one from a historical rate would recreate exactly
+   the fiction the ledger removes. Start empty and let it fill forward.
+3. **`enabled` RLS is not a privilege.** `0038` left `rider_payouts` on
+   Supabase's default table grants, so an anon read reached PostgREST and came
+   back `200 []` — RLS emptied it. Safe, but it relied on the policy being
+   correct instead of the grant. `0039` revoked the privileges the way `0035`
+   does for `order_offers`, so the request is refused outright.
+
+**Not done, deliberately: the delivery-completion push.** The brief assumed
+`lib/push.ts` "already supports it and the rider surface ignores it." Neither
+half is true. `push.ts` is a *registration* client and is consumed only by the
+customer `app/account.tsx`; the server has `sendMerchantOrderPush` and no rider
+sender at all. On top of that `rider_mark_delivered` is a Postgres function, so
+it cannot reach the Next route without `pg_net` + vault credentials. And the
+alert is near-worthless: the rider just tapped the button and is looking at the
+result. **The push worth building is new-offer alerts** — telling an idle rider
+that an order appeared while they were in another app. That belongs to Phase 1's
+dispatch surface, not here.
 
 **Done when:** a rider can answer "what did I earn today" and "what was that
 delivery worth" from the app.
