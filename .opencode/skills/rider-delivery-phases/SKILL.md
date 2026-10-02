@@ -104,24 +104,37 @@ authenticated rider sessions against a seeded unassigned order.
 
 ## Phase 2 — Make the job actionable (one migration, one screen)
 
-Highest value per hour in the whole rider plan. The data mostly exists already
-and is simply not being selected.
+**Done.** Migration `0037_rider_actionable_job.sql`. The card now answers where
+to go, what to pick up, how to call the customer, and what the rider earns.
 
-1. **Add `delivery_address` to `fetch_rider_orders_page`'s return table.** The
-   column exists on `orders` since `0021` and is already populated by
-   `customer_place_order`. It was never in the RPC's return table. This one
-   change is the difference between a usable delivery card and a useless one.
-2. **Customer contact.** Add a phone column, or join `customers`. Then a
-   `tel:` deep link on the card.
-3. **Render `items`.** The RPC returns them and the UI never draws them. A rider
-   cannot see what they are picking up. Either inline the list or add an
-   order-detail screen.
-4. **Stop labelling the customer's order total as if it were rider pay.** It
-   reads `₱{total} · {payment}` with no payout anywhere. Either add a per-trip
-   payout column or remove the peso figure until Phase 3.
+1. `delivery_address` is in `fetch_rider_orders_page`'s return table.
+2. Customer contact is `orders.customer_phone`, snapshotted from the auth
+   profile at order time. There is deliberately **no** order→customers join:
+   `customers.id` is free text with no auth link and `orders.customer_user_id`
+   is a uuid, so the only path is the profile the customer maintains. "No
+   contact number on file" is a real state the card states, not a dead `tel:`.
+3. `items` is parsed and rendered.
+4. The customer's total is gone. `rider_payout_per_delivery()` defines the
+   flat 25.00 rate in one place, `claim_order` **freezes** it onto the order,
+   and `rider_mark_delivered` adds it to `riders.earnings` on completion.
+   Snapshot rather than compute-on-read so a past delivery keeps its agreed
+   value when the rate changes.
 
-**Done when:** a rider can open an assigned job and knows where to go, what to
-pick up, and how to call the customer — without asking anyone.
+Two traps worth remembering, both found the hard way:
+
+- **Rebuilding a function means rebuilding it from its *latest* definer, not
+  its first.** `customer_place_order` was last redefined in `0033`, not `0023`.
+  Writing from `0023` silently dropped the closed-restaurant check, the
+  empty-cart guard and `mint_order_reference()`. Always diff the new body
+  against the live one and assert only the intended lines differ. Same class of
+  error: `rider_mark_delivered`'s real version is in `0025`, not `0018`.
+- **`is distinct from`, never `<>`,** in an ownership guard. With a NULL
+  `rider_id`, `null <> 'abc'` is NULL rather than true, so the check passes.
+  `0025` already had this right; do not "simplify" it.
+
+Also note gen-types cannot infer nullability for a `RETURNS TABLE` and returns
+every column as non-null, even `next_cursor`, which is explicitly NULL on the
+last page. Map those columns explicitly rather than casting.
 
 ## Phase 3 — Earnings that mean something
 
