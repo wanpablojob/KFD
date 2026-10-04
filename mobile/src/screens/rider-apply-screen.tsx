@@ -77,6 +77,11 @@ export function RiderApplyScreen() {
   const [orcrRef, setOrcrRef] = useState("");
   const [governmentIdRef, setGovernmentIdRef] = useState("");
   const [error, setError] = useState<string | null>(null);
+  // Rejected applicants get the form back. The server has always allowed this --
+  // submit_rider_application only refuses a pending row or an existing rider --
+  // but the screen showed a status panel with one "Back" button, so a declined
+  // rider was stuck permanently with no way to fix whatever the note flagged.
+  const [reapplying, setReapplying] = useState(false);
 
   async function handleSubmit() {
     if (submit.isPending) return;
@@ -101,11 +106,32 @@ export function RiderApplyScreen() {
         orcrRef: orcrRef.trim() || null,
         governmentIdRef: governmentIdRef.trim() || null,
       });
+      // Back to the status panel, which now shows the new pending row.
+      setReapplying(false);
     } catch (cause) {
       setError(
         cause instanceof Error ? cause.message : "Could not send your application."
       );
     }
+  }
+
+  /**
+   * Reopen the form on a rejected application, carrying the previous answers
+   * across. Most rejections are about one field, and the note usually names it,
+   * so retyping a whole application to change a licence number is the kind of
+   * friction that ends an application rather than fixes it.
+   */
+  function startReapply() {
+    if (!application) return;
+    setFullName(application.fullName ?? "");
+    setPhone(application.phone ?? "");
+    setCity(application.city ?? "");
+    setVehicle(application.vehicle ?? "motorcycle");
+    setLicenceRef(application.licenceRef ?? "");
+    setOrcrRef(application.orcrRef ?? "");
+    setGovernmentIdRef(application.governmentIdRef ?? "");
+    setError(null);
+    setReapplying(true);
   }
 
   if (isLoading) {
@@ -116,8 +142,12 @@ export function RiderApplyScreen() {
     );
   }
 
-  // Already applied. The status panel is the whole screen from here.
-  if (application) {
+  // Already applied. The status panel is the whole screen from here -- except
+  // for a rejected application the applicant has chosen to answer again, where
+  // the form comes back. Pending stays locked because a second pending row is
+  // refused server-side, and approved has no reason to apply again.
+  const showStatus = application && !(reapplying && application.status === "rejected");
+  if (showStatus) {
     return (
       <View style={styles.container}>
         <View style={styles.statusFrame}>
@@ -136,6 +166,13 @@ export function RiderApplyScreen() {
                 ? "Your rider account is ready. Open the rider app and turn on your availability when you want to start taking deliveries."
                 : "Your application was declined."}
           </Text>
+
+          {application.status === "rejected" ? (
+            <Text style={styles.statusHint}>
+              You can send a new application. Your previous answers are kept below so
+              you only need to change what the note asks for.
+            </Text>
+          ) : null}
 
           {application.decisionNote ? (
             <View style={styles.noteBox}>
@@ -166,12 +203,25 @@ export function RiderApplyScreen() {
             ) : null}
           </View>
 
+          {application.status === "rejected" ? (
+            <Pressable
+              accessibilityRole="button"
+              style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
+              onPress={startReapply}
+            >
+              <Text style={styles.buttonLabel}>Apply again</Text>
+            </Pressable>
+          ) : null}
+
           <Pressable
             accessibilityRole="button"
-            style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
+            style={({ pressed }) => [
+              styles.buttonGhost,
+              pressed && styles.buttonGhostPressed,
+            ]}
             onPress={() => router.back()}
           >
-            <Text style={styles.buttonLabel}>Back</Text>
+            <Text style={styles.buttonGhostLabel}>Back</Text>
           </Pressable>
         </View>
         <StatusBar style="dark" />
@@ -357,7 +407,19 @@ const styles = StyleSheet.create({
   buttonPressed: { backgroundColor: colors.primaryDark },
   buttonDisabled: { opacity: 0.6 },
   buttonLabel: { fontSize: 16, fontWeight: "800", color: colors.textInverse },
+  // Secondary action, so the primary "Apply again" stays the obvious one.
+  buttonGhost: {
+    borderRadius: radius.pill,
+    paddingVertical: spacing.lg,
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 52,
+    marginTop: spacing.xs,
+  },
+  buttonGhostPressed: { backgroundColor: colors.surface },
+  buttonGhostLabel: { fontSize: 16, fontWeight: "700", color: colors.primary },
   footnote: { ...type.caption, color: colors.textMuted, textAlign: "center" },
+  statusHint: { ...type.caption, color: colors.textMuted, lineHeight: 17 },
   statusFrame: {
     marginHorizontal: spacing.lg,
     marginTop: spacing.xxl,

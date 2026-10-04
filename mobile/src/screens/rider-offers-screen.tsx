@@ -12,6 +12,7 @@ import {
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { signOut } from "../lib/auth";
+import { offerWindowLabel } from "../lib/offer-window";
 import {
   useAcceptOffer,
   useDeclineOffer,
@@ -42,6 +43,24 @@ function countdown(expiresAt: string, now: number): string {
   if (s <= 0) return "expired";
   if (s < 60) return `${s}s left`;
   return `${Math.floor(s / 60)}m ${s % 60}s left`;
+}
+
+/**
+ * "3 waiting. Offers expire in 5 minutes."
+ *
+ * The window is read off the offers rather than written here. It used to be the
+ * literal "5 minutes", which was a second source of truth for a number the
+ * server owns: retune the window in 0045 and this sentence would keep claiming
+ * five minutes above a countdown counting down from something else. When the
+ * window cannot be determined -- no offers, or offers that disagree because the
+ * server changed it mid-flight -- the count is still worth stating and the
+ * window is left off rather than guessed.
+ */
+function offerSummary(offers: readonly RiderOffer[]): string {
+  const count = offers.length;
+  const waiting = `${count} waiting`;
+  const window = offerWindowLabel(offers);
+  return window ? `${waiting}. Offers expire in ${window}.` : `${waiting}.`;
 }
 
 /**
@@ -150,7 +169,7 @@ export function RiderOffersScreen({ userId }: { userId: string }) {
               <Text style={styles.subtitle}>
                 {(offers ?? []).length === 0
                   ? "Nothing on offer right now."
-                  : `${(offers ?? []).length} waiting. Offers expire in 5 minutes.`}
+                  : offerSummary(offers ?? [])}
               </Text>
             </View>
             <ActivityIndicator size="small" color={colors.textFaint} />
