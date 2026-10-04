@@ -1,0 +1,56 @@
+-- 0049_fixture_emails_are_reserved_domains.sql
+--
+-- Why
+--
+-- Supabase flagged this project for a high rate of bounced transactional email
+-- (ref ijeqwbrrgfsmymsektih, 2026-10-04). The cause was test traffic, not bot
+-- abuse: the project has 7 real accounts and no spam signups at all. Four auth
+-- confirmation emails were sent during verification, and two of the addresses
+-- used belonged to domains that cannot receive mail:
+--
+--   kfd.ph  A record 172.93.103.101 (ReliableSite.Net LLC, a parked host),
+--           no MX record. Mail to it is undeliverable.
+--   kfd.com does not resolve at all.
+--
+-- Both came from addresses in this file's lineage: the rider fixtures seeded in
+-- 0001, and the kfdtest.merchant@kfd.ph test account from 0004/0006.
+--
+-- What this does
+--
+-- Moves the seeded rider fixture addresses onto example.com, which RFC 2606
+-- reserves for documentation and RFC 7505 gives a null MX, so it cannot receive
+-- mail by construction. That matters for two reasons:
+--
+--   1. It cannot bounce. A fixture address that provably cannot receive mail is
+--      never a mail target, so no future test can turn one into a bounce.
+--   2. It cannot be mistaken for a real one. The fixtures read as obviously
+--      synthetic, so the next person verifying something does not reach for
+--      @kfd.ph as a throwaway and have it bounce in production.
+--
+-- Scope
+--
+-- Deliberately narrow. This does not:
+--
+--   * Touch auth.users. admin@kfd.com, rider@kfd.com and costumer@kfd.com are
+--     real sign-ins; rewriting an auth email locks people out and is not
+--     something a fixture cleanup may do. rdr_01 below is linked to the real
+--     rider@kfd.com account and keeps working, because riders link to auth by
+--     user_id, not by email (see set_rider_access, which resolves auth.users by
+--     email and then writes riders.user_id).
+--   * Rewrite the historical 0001 seed. Applied migrations are immutable; this
+--     is a forward-only correction, so a database rebuilt from scratch gets the
+--     0001 addresses and then has them corrected by this file.
+--   * Claim to have fixed the bounces. It reduces the chance of new ones. The
+--     sends that already bounced happened before this file existed.
+--
+-- Verified against production before writing: riders.email is referenced only
+-- for display (admin/src/app/dashboard/riders/[id]/page.tsx) and never as a
+-- lookup key.
+
+-- All fixture riders, including rdr_01, which is attached to the real
+-- rider@kfd.com account. That is safe and intended: riders.email is display-only
+-- and the account's real address lives in auth.users, untouched here. The column
+-- needs no user_id carve-out because nothing reads it as a key.
+update riders
+   set email = replace(email, '@kfd.ph', '@example.com')
+ where email like '%@kfd.ph';
