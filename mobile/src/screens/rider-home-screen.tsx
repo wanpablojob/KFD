@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { supabase } from "../lib/supabase";
 import { signOut } from "../lib/auth";
 import { notifyRiderDelivered } from "../lib/push";
+import { shouldSyncPage1 } from "../lib/delivery-sync";
 import {
   useRiderOrders,
   useRiderProfile,
@@ -80,13 +81,28 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
   // undefined across pending -> error, so this block never re-ran and the
   // screen spun forever with no message. The query's own isPending is the
   // honest signal -- it is false once the query settles either way.
+  // Only ever sync from a *defined* page1.
+  //
+  // This used to sync on any identity change, including page1 becoming
+  // undefined. That is what emptied the list on tab change: the rider Stack
+  // unmounts an inactive screen, so coming back remounts this component, the
+  // query goes pending, and data is undefined until it resolves. The old code
+  // read that undefined as "the server returned zero orders" and called
+  // setOrders([]) -- so a rider who tapped Earnings and came back watched
+  // their deliveries vanish and had to pull to refresh to get them back.
+  //
+  // placeholderData keeps the last good data through a background refetch, but
+  // it cannot help across an unmount: there is no previous observer to inherit
+  // from. Gating on `page1` being defined means an in-flight or failed refetch
+  // leaves the current list untouched, which is the honest reading -- we do not
+  // yet know what the server says, so we do not throw away what we had.
   const [syncedPage1, setSyncedPage1] = useState(page1);
-  if (page1 !== syncedPage1) {
+  if (shouldSyncPage1(page1, syncedPage1)) {
     setSyncedPage1(page1);
-    const data = page1 as RiderOrderPageResult | undefined;
-    setOrders(data?.items ?? []);
-    setNextCursor(data?.nextCursor ?? null);
-    setHasMore(!!data?.nextCursor);
+    const data = page1 as RiderOrderPageResult;
+    setOrders(data.items);
+    setNextCursor(data.nextCursor);
+    setHasMore(!!data.nextCursor);
   }
 
   // Pull-to-refresh: reload page 1
