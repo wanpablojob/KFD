@@ -1,5 +1,7 @@
 import { supabase } from "./supabase";
 
+type VehicleType = "bicycle" | "scooter" | "motorcycle" | "car";
+
 export interface RestaurantRow {
   id: string;
   name: string;
@@ -428,4 +430,77 @@ export async function placeCustomerOrder(args: {
     throw new Error("Order was not placed. Try again.");
   }
   return data[0];
+}
+
+/**
+ * The applicant's own application, or null if they have never applied. The
+ * status is what drives the screen: pending shows "we are reviewing it",
+ * approved means they can open the rider app, rejected shows the note and an
+ * apply-again button.
+ */
+export interface RiderApplication {
+  id: string;
+  status: "pending" | "approved" | "rejected";
+  fullName: string;
+  phone: string;
+  city: string;
+  vehicle: VehicleType;
+  licenceRef: string | null;
+  orcrRef: string | null;
+  governmentIdRef: string | null;
+  decisionNote: string | null;
+  createdAt: string;
+  reviewedAt: string | null;
+}
+
+export async function fetchMyRiderApplication(): Promise<RiderApplication | null> {
+  const { data, error } = await supabase.rpc("my_rider_application");
+  if (error) throw error;
+
+  // RETURNS TABLE with limit 1, so this arrives as a zero- or one-element array
+  // rather than a single object, and gen-types cannot infer that. Same mapping
+  // rather than cast as fetchRiderOrdersPage.
+  const row = ((data ?? []) as unknown as Record<string, unknown>[])[0];
+  if (!row) return null;
+
+  return {
+    id: String(row.id),
+    status: String(row.status) as RiderApplication["status"],
+    fullName: String(row.full_name),
+    phone: String(row.phone),
+    city: String(row.city),
+    vehicle: String(row.vehicle) as VehicleType,
+    licenceRef: (row.licence_ref as string | null) ?? null,
+    orcrRef: (row.orcr_ref as string | null) ?? null,
+    governmentIdRef: (row.government_id_ref as string | null) ?? null,
+    decisionNote: (row.decision_note as string | null) ?? null,
+    createdAt: String(row.created_at),
+    reviewedAt: (row.reviewed_at as string | null) ?? null,
+  };
+}
+
+/**
+ * Apply to deliver. Idempotent server-side, so a retry after a dropped
+ * connection cannot create a duplicate application.
+ */
+export async function submitRiderApplication(args: {
+  fullName: string;
+  phone: string;
+  city?: string | null;
+  vehicle: VehicleType;
+  licenceRef?: string | null;
+  orcrRef?: string | null;
+  governmentIdRef?: string | null;
+}): Promise<string> {
+  const { data, error } = await supabase.rpc("submit_rider_application", {
+    p_full_name: args.fullName,
+    p_phone: args.phone,
+    p_city: args.city ?? null,
+    p_vehicle: args.vehicle,
+    p_licence_ref: args.licenceRef ?? null,
+    p_orcr_ref: args.orcrRef ?? null,
+    p_government_id_ref: args.governmentIdRef ?? null,
+  });
+  if (error) throw error;
+  return String(data ?? "");
 }

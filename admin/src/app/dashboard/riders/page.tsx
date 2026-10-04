@@ -5,12 +5,15 @@ import { useState } from "react";
 import {
   fetchRiders,
   fetchRiderAccess,
+  fetchRiderApplications,
+  reviewRiderApplication,
   revokeRiderAccess,
   setRiderAccess,
   setRiderArchived,
   setRiderStatus,
   upsertRider,
   type RiderAccess,
+  type RiderApplication,
 } from "@/lib/supabase/queries";
 import { formatCurrency } from "@/lib/format";
 import { PageContainer, PageHeader, Section } from "@/components/layout/page";
@@ -43,7 +46,9 @@ const baseColumns: Column<Rider>[] = [
           <span className="block font-medium text-card-foreground">
             {row.name}
           </span>
-          <span className="block text-xs text-muted-foreground">{row.email}</span>
+          <span className="block text-xs text-muted-foreground">
+            {row.email}
+          </span>
         </span>
       </span>
     ),
@@ -70,9 +75,7 @@ const baseColumns: Column<Rider>[] = [
     key: "rating",
     header: "Rating",
     align: "right",
-    cell: (row) => (
-      <span className="text-card-foreground">{row.rating} ★</span>
-    ),
+    cell: (row) => <span className="text-card-foreground">{row.rating} ★</span>,
   },
   {
     key: "earnings",
@@ -105,7 +108,11 @@ const FIELDS: DialogField[] = [
   { key: "email", label: "Email", required: true },
   { key: "phone", label: "Phone" },
   { key: "city", label: "City" },
-  { key: "vehicle", label: "Vehicle", options: ["bicycle", "scooter", "motorcycle", "car"] },
+  {
+    key: "vehicle",
+    label: "Vehicle",
+    options: ["bicycle", "scooter", "motorcycle", "car"],
+  },
   { key: "status", label: "Status", options: ["online", "busy", "offline"] },
 ];
 
@@ -113,29 +120,37 @@ export default function RidersPage() {
   const router = useRouter();
   const { data, loading, error, refetch } = useAsyncData(() => fetchRiders());
   const access = useAsyncData(() => fetchRiderAccess());
+  // Applications are a separate queue from the rider list: an applicant has no
+  // rider row yet, so it cannot appear in `rows`. Fetched unfiltered and split
+  // client-side because the same panel shows reviewed rows underneath pending
+  // ones, and the SQL already orders pending first.
+  const applications = useAsyncData(() => fetchRiderApplications());
   const [editing, setEditing] = useState<Rider | null>(null);
   const [open, setOpen] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
   const [mode, setMode] = useState<
     | { kind: "reassign"; row: RiderAccess }
     | { kind: "revoke"; row: RiderAccess }
+    | { kind: "review"; row: RiderApplication; approve: boolean }
     | null
   >(null);
   const [busy, setBusy] = useState(false);
   const [accessError, setAccessError] = useState<string | null>(null);
   const [accessNotice, setAccessNotice] = useState<string | null>(null);
 
-  async function runAccess(action: () => Promise<void>, success: string) {
+  async function runAccess(action: () => Promise<void>, success?: string) {
     setBusy(true);
     setAccessError(null);
     setAccessNotice(null);
     try {
       await action();
       setMode(null);
-      setAccessNotice(success);
+      if (success) setAccessNotice(success);
       await access.refetch();
     } catch (cause) {
-      setAccessError(cause instanceof Error ? cause.message : "Could not save.");
+      setAccessError(
+        cause instanceof Error ? cause.message : "Could not save.",
+      );
     } finally {
       setBusy(false);
     }
@@ -201,7 +216,100 @@ export default function RidersPage() {
     },
   ];
 
+  const applicationColumns: Column<RiderApplication>[] = [
+    {
+      key: "fullName",
+      header: "Applicant",
+      cell: (row) => (
+        <span className="flex items-center gap-2.5">
+          <Avatar name={row.fullName} size="sm" />
+          <span className="font-medium text-card-foreground">
+            {row.fullName}
+          </span>
+        </span>
+      ),
+    },
+    {
+      key: "applicantEmail",
+      header: "Account",
+      cell: (row) => (
+        <span>
+          <span className="block font-medium text-card-foreground">
+            {row.applicantEmail}
+          </span>
+          <span className="block text-muted-foreground">{row.phone}</span>
+        </span>
+      ),
+    },
+    {
+      key: "vehicle",
+      header: "Vehicle",
+      cell: (row) => (
+        <span className="text-card-foreground">
+          {row.vehicle} · {row.city}
+        </span>
+      ),
+    },
+    {
+      key: "documents",
+      header: "Documents",
+      cell: (row) => (
+        <span className="text-muted-foreground">
+          {[
+            ["Licence", row.licenceRef],
+            ["ORCR", row.orcrRef],
+            ["ID", row.governmentIdRef],
+          ]
+            .filter(([, ref]) => ref)
+            .map(([label, ref]) => `${label}: ${ref}`)
+            .join(" · ") || "None supplied"}
+        </span>
+      ),
+    },
+    {
+      key: "status",
+      header: "Status",
+      cell: (row) => (
+        <span className="flex flex-col items-start gap-1">
+          <StatusBadge status={row.status} />
+          {row.decisionNote ? (
+            <span className="text-muted-foreground">{row.decisionNote}</span>
+          ) : null}
+        </span>
+      ),
+    },
+    {
+      key: "actions",
+      header: "",
+      align: "right",
+      cell: (row) =>
+        row.status === "pending" ? (
+          <span className="flex justify-end gap-2">
+            <Button
+              size="sm"
+              onClick={() => setMode({ kind: "review", row, approve: true })}
+            >
+              Approve
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setMode({ kind: "review", row, approve: false })}
+            >
+              Reject
+            </Button>
+          </span>
+        ) : (
+          <span className="text-muted-foreground">Reviewed</span>
+        ),
+    },
+  ];
+
   const accessRows = access.data ?? [];
+  const allApplications = applications.data ?? [];
+  const pendingApplications = allApplications.filter(
+    (a) => a.status === "pending",
+  );
 
   const columns: Column<Rider>[] = [
     ...baseColumns,
@@ -352,13 +460,47 @@ export default function RidersPage() {
         </p>
       ) : null}
 
+      <Section aria-label="Rider applications" className="mt-8">
+        <h2 className="mb-1 text-lg font-semibold text-card-foreground">
+          Applications
+          {pendingApplications.length > 0 ? (
+            <Badge variant="primary" size="sm" className="ml-2">
+              {pendingApplications.length} pending
+            </Badge>
+          ) : null}
+        </h2>
+        <p className="mb-3 text-sm text-muted-foreground">
+          People who applied to deliver from the app. Approving creates their
+          rider record and lets them sign in; it does not put them online, which
+          is their own tap on the availability toggle.
+        </p>
+        <TableBoundary
+          loading={applications.loading}
+          error={applications.error}
+          onRetry={() => void applications.refetch()}
+          errorTitle="Could not load rider applications"
+          skeletonRows={3}
+        >
+          {allApplications.length === 0 ? (
+            <EmptyState
+              title="No applications yet"
+              description="Applications submitted from the rider app land here."
+            />
+          ) : (
+            <Card className="overflow-hidden">
+              <DataTable columns={applicationColumns} rows={allApplications} />
+            </Card>
+          )}
+        </TableBoundary>
+      </Section>
+
       <Section aria-label="Rider access" className="mt-8">
         <h2 className="mb-1 text-lg font-semibold text-card-foreground">
           Rider access
         </h2>
         <p className="mb-3 text-sm text-muted-foreground">
-          Attach an existing account to a rider so they can sign in to the
-          rider app. Accounts are not created here — sign the rider up in Supabase
+          Attach an existing account to a rider so they can sign in to the rider
+          app. Accounts are not created here — sign the rider up in Supabase
           Auth first, or they will sign in to nothing.
         </p>
         <TableBoundary
@@ -399,12 +541,40 @@ export default function RidersPage() {
             },
           ]}
           onSave={(values) =>
-            runAccess(
-              async () => {
-                await setRiderAccess(values.email.trim(), mode.row.riderId);
-              },
-              `${values.email.trim()} is now linked to ${mode.row.riderName}.`,
-            )
+            runAccess(async () => {
+              await setRiderAccess(values.email.trim(), mode.row.riderId);
+            }, `${values.email.trim()} is now linked to ${mode.row.riderName}.`)
+          }
+        />
+      ) : null}
+
+      {mode?.kind === "review" && mode.row ? (
+        <ReviewApplicationDialog
+          application={mode.row}
+          approve={mode.approve}
+          busy={busy}
+          onClose={() => setMode(null)}
+          onConfirm={(note) =>
+            runAccess(async () => {
+              const result = await reviewRiderApplication(
+                mode.row.id,
+                mode.approve,
+                note,
+              );
+              // Approving returns the new rider id; rejecting returns "rejected".
+              // Both then need the rider tables re-read, because approval creates
+              // a row this page has never seen.
+              await Promise.all([
+                applications.refetch(),
+                refetch(),
+                access.refetch(),
+              ]);
+              setAccessNotice(
+                mode.approve
+                  ? `Approved. ${mode.row.fullName} can now sign in as a rider (${result}).`
+                  : `Rejected ${mode.row.fullName}'s application.`,
+              );
+            })
           }
         />
       ) : null}
@@ -416,12 +586,9 @@ export default function RidersPage() {
           busy={busy}
           onClose={() => setMode(null)}
           onConfirm={() =>
-            runAccess(
-              async () => {
-                await revokeRiderAccess(mode.row.email);
-              },
-              `${mode.row.email} can no longer sign in as a rider. The login itself still exists.`,
-            )
+            runAccess(async () => {
+              await revokeRiderAccess(mode.row.email);
+            }, `${mode.row.email} can no longer sign in as a rider. The login itself still exists.`)
           }
         />
       ) : null}
@@ -447,7 +614,11 @@ function RevokeRiderDialog({
   onConfirm: () => void;
 }) {
   return (
-    <Dialog open onClose={busy ? () => {} : onClose} title="Revoke rider access?">
+    <Dialog
+      open
+      onClose={busy ? () => {} : onClose}
+      title="Revoke rider access?"
+    >
       <div className="space-y-4">
         <p className="text-sm text-muted-foreground">
           {email} will immediately lose access to the rider app. {riderName}{" "}
@@ -464,6 +635,95 @@ function RevokeRiderDialog({
           </Button>
           <Button variant="destructive" onClick={onConfirm} disabled={busy}>
             {busy ? "Revoking…" : "Revoke access"}
+          </Button>
+        </div>
+      </div>
+    </Dialog>
+  );
+}
+/**
+ * Approving an application is the one action here that creates a rider and
+ * changes somebody's sign-in privileges, so it states exactly what will happen
+ * before the button is pressed. The note is optional on approve and encouraged
+ * on reject: a rejected applicant sees it, so "documents unreadable" beats a
+ * silent no.
+ */
+function ReviewApplicationDialog({
+  application,
+  approve,
+  busy,
+  onClose,
+  onConfirm,
+}: {
+  application: RiderApplication;
+  approve: boolean;
+  busy: boolean;
+  onClose: () => void;
+  onConfirm: (note: string) => void;
+}) {
+  const [note, setNote] = useState("");
+
+  return (
+    <Dialog
+      open
+      onClose={busy ? () => {} : onClose}
+      title={approve ? "Approve this rider?" : "Reject this application?"}
+    >
+      <div className="space-y-4">
+        <div className="rounded-md border border-border bg-muted/40 p-3 text-sm">
+          <p className="font-medium text-card-foreground">
+            {application.fullName}
+          </p>
+          <p className="text-muted-foreground">{application.applicantEmail}</p>
+          <p className="text-muted-foreground">
+            {application.phone} · {application.vehicle} · {application.city}
+          </p>
+        </div>
+
+        {approve ? (
+          <p className="text-sm text-muted-foreground">
+            This creates their rider record and lets{" "}
+            {application.applicantEmail} sign in to the rider app. They start
+            offline, so they will not receive orders until they turn on
+            availability themselves.
+          </p>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            The application is declined. They can apply again after fixing their
+            details, and any note below is shown to them.
+          </p>
+        )}
+
+        <label className="block text-sm">
+          <span className="mb-1.5 block font-medium text-card-foreground">
+            Note {approve ? "(optional)" : "(shared with the applicant)"}
+          </span>
+          <input
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder={
+              approve
+                ? "Checked against the licence registry"
+                : "Licence photo is unreadable"
+            }
+            className="h-9 w-full rounded-md border border-border bg-background px-3 text-sm text-card-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          />
+        </label>
+
+        <div className="flex justify-end gap-2 pt-1">
+          <Button variant="outline" onClick={onClose} disabled={busy}>
+            Cancel
+          </Button>
+          <Button
+            variant={approve ? "primary" : "destructive"}
+            onClick={() => onConfirm(note)}
+            disabled={busy}
+          >
+            {busy
+              ? "Saving…"
+              : approve
+                ? "Approve rider"
+                : "Reject application"}
           </Button>
         </div>
       </div>

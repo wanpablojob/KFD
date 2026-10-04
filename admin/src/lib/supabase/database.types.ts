@@ -408,6 +408,60 @@ export type Database = {
         }
         Relationships: []
       }
+      rider_applications: {
+        Row: {
+          city: string
+          created_at: string
+          decision_note: string | null
+          full_name: string
+          government_id_ref: string | null
+          id: string
+          licence_ref: string | null
+          orcr_ref: string | null
+          phone: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: Database["public"]["Enums"]["rider_application_status"]
+          updated_at: string
+          user_id: string
+          vehicle: Database["public"]["Enums"]["vehicle_type"]
+        }
+        Insert: {
+          city?: string
+          created_at?: string
+          decision_note?: string | null
+          full_name: string
+          government_id_ref?: string | null
+          id?: string
+          licence_ref?: string | null
+          orcr_ref?: string | null
+          phone: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: Database["public"]["Enums"]["rider_application_status"]
+          updated_at?: string
+          user_id: string
+          vehicle?: Database["public"]["Enums"]["vehicle_type"]
+        }
+        Update: {
+          city?: string
+          created_at?: string
+          decision_note?: string | null
+          full_name?: string
+          government_id_ref?: string | null
+          id?: string
+          licence_ref?: string | null
+          orcr_ref?: string | null
+          phone?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: Database["public"]["Enums"]["rider_application_status"]
+          updated_at?: string
+          user_id?: string
+          vehicle?: Database["public"]["Enums"]["vehicle_type"]
+        }
+        Relationships: []
+      }
       rider_payouts: {
         Row: {
           amount: number
@@ -595,6 +649,25 @@ export type Database = {
         }[]
       }
       expire_stale_offers: { Args: never; Returns: undefined }
+      fetch_rider_applications: {
+        Args: { p_status?: string }
+        Returns: {
+          applicant_email: string
+          applicant_user_id: string
+          city: string
+          created_at: string
+          decision_note: string
+          full_name: string
+          government_id_ref: string
+          id: string
+          licence_ref: string
+          orcr_ref: string
+          phone: string
+          reviewed_at: string
+          status: Database["public"]["Enums"]["rider_application_status"]
+          vehicle: Database["public"]["Enums"]["vehicle_type"]
+        }[]
+      }
       fetch_rider_offers: {
         Args: never
         Returns: {
@@ -648,6 +721,24 @@ export type Database = {
         }[]
       }
       mint_order_reference: { Args: never; Returns: string }
+      my_rider_application: {
+        Args: never
+        Returns: {
+          city: string
+          created_at: string
+          decision_note: string
+          full_name: string
+          government_id_ref: string
+          id: string
+          licence_ref: string
+          orcr_ref: string
+          phone: string
+          reviewed_at: string
+          status: Database["public"]["Enums"]["rider_application_status"]
+          vehicle: Database["public"]["Enums"]["vehicle_type"]
+        }[]
+      }
+      next_rider_id: { Args: never; Returns: string }
       order_fees: {
         Args: never
         Returns: {
@@ -669,6 +760,10 @@ export type Database = {
         Returns: undefined
       }
       register_customer: { Args: never; Returns: undefined }
+      review_rider_application: {
+        Args: { p_application_id: string; p_approve: boolean; p_note?: string }
+        Returns: string
+      }
       revoke_merchant_access: { Args: { p_email: string }; Returns: undefined }
       revoke_rider_access: { Args: { p_email: string }; Returns: undefined }
       rider_access_list: {
@@ -745,6 +840,18 @@ export type Database = {
         }
         Returns: undefined
       }
+      submit_rider_application: {
+        Args: {
+          p_city?: string
+          p_full_name: string
+          p_government_id_ref?: string
+          p_licence_ref?: string
+          p_orcr_ref?: string
+          p_phone: string
+          p_vehicle?: Database["public"]["Enums"]["vehicle_type"]
+        }
+        Returns: string
+      }
       track_order: {
         Args: { p_reference: string }
         Returns: {
@@ -772,6 +879,7 @@ export type Database = {
         | "cancelled"
       payment_method: "cash" | "card" | "e_wallet"
       restaurant_status: "active" | "approval" | "suspended"
+      rider_application_status: "pending" | "approved" | "rejected"
       rider_status: "online" | "busy" | "offline"
       vehicle_type: "bicycle" | "scooter" | "motorcycle" | "car"
     }
@@ -913,6 +1021,7 @@ export const Constants = {
       ],
       payment_method: ["cash", "card", "e_wallet"],
       restaurant_status: ["active", "approval", "suspended"],
+      rider_application_status: ["pending", "approved", "rejected"],
       rider_status: ["online", "busy", "offline"],
       vehicle_type: ["bicycle", "scooter", "motorcycle", "car"],
     },

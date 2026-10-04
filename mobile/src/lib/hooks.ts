@@ -8,6 +8,8 @@ import {
   placeCustomerOrder,
   fetchRiderOrdersPage,
   fetchRiderOffers,
+  fetchMyRiderApplication,
+  submitRiderApplication,
   acceptRiderOffer,
   declineRiderOffer,
   fetchRiderProfile,
@@ -15,6 +17,7 @@ import {
   fetchRiderPayoutHistory,
   type RiderOrderPageResult,
   type RiderOffer,
+  type RiderApplication,
   type RiderProfile,
   type RestaurantRow,
   type MenuItemRow,
@@ -177,4 +180,30 @@ export type {
   RiderOrderPageResult,
   RiderOffer,
   RiderProfile,
+  RiderApplication,
 };
+
+/**
+ * The signed-in user's own rider application. Query, not a mutation result:
+ * the screen has to show pending/approved/rejected on every visit, including
+ * after an admin decided while the app was closed.
+ */
+export function useMyRiderApplication() {
+  return useQuery({
+    queryKey: ["riderApplication"],
+    queryFn: fetchMyRiderApplication,
+  });
+}
+
+export function useSubmitRiderApplication() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: submitRiderApplication,
+    onSuccess: () => {
+      // Re-read rather than trusting the returned id: the server is idempotent
+      // and may have returned a pre-existing application.
+      queryClient.invalidateQueries({ queryKey: ["riderApplication"] });
+    },
+  });
+}

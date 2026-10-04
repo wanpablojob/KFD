@@ -221,6 +221,43 @@ export type Database = {
         Args: Record<string, never>;
         Returns: unknown;
       };
+      /**
+       * Apply to deliver (migration 0046). Returns the application id, and is
+       * idempotent while a pending application exists. Grants no role: an admin
+       * approves via review_rider_application().
+       */
+      submit_rider_application: {
+        Args: {
+          p_full_name: string;
+          p_phone: string;
+          p_city?: string | null;
+          p_vehicle?: VehicleType;
+          p_licence_ref?: string | null;
+          p_orcr_ref?: string | null;
+          p_government_id_ref?: string | null;
+        };
+        Returns: string;
+      };
+      /** The signed-in applicant's most recent application, any status. */
+      my_rider_application: {
+        Args: Record<string, never>;
+        Returns:
+          | {
+              id: string;
+              status: "pending" | "approved" | "rejected";
+              full_name: string;
+              phone: string;
+              city: string;
+              vehicle: VehicleType;
+              licence_ref: string | null;
+              orcr_ref: string | null;
+              government_id_ref: string | null;
+              decision_note: string | null;
+              created_at: string;
+              reviewed_at: string | null;
+            }
+          | [];
+      };
       customer_place_order: {
         Args: {
           p_restaurant_id: string;

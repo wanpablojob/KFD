@@ -1,11 +1,9 @@
 import { Badge, type BadgeVariant } from "./badge";
-import type {
-  OrderStatus,
-  RestaurantStatus,
-  RiderStatus,
-} from "@/lib/types";
+import type { OrderStatus, RestaurantStatus, RiderStatus } from "@/lib/types";
+import type { RiderApplicationStatus } from "@/lib/supabase/queries";
 
-type Status = OrderStatus | RestaurantStatus | RiderStatus;
+type Status =
+  OrderStatus | RestaurantStatus | RiderStatus | RiderApplicationStatus;
 
 const statusMap: Record<Status, { variant: BadgeVariant; label: string }> = {
   pending: { variant: "warning", label: "Pending" },
@@ -20,6 +18,10 @@ const statusMap: Record<Status, { variant: BadgeVariant; label: string }> = {
   online: { variant: "success", label: "Online" },
   busy: { variant: "warning", label: "Busy" },
   offline: { variant: "neutral", label: "Offline" },
+  // Application states, which are distinct from rider_status: a pending
+  // applicant is not an offline rider, they are not a rider at all yet.
+  approved: { variant: "success", label: "Approved" },
+  rejected: { variant: "destructive", label: "Rejected" },
 };
 
 export function StatusBadge({ status }: { status: Status }) {

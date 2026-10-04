@@ -7,6 +7,7 @@ import type {
   OrderItem,
   Restaurant,
   Rider,
+  VehicleType,
 } from "@/lib/types";
 
 export type RestaurantInput = {
@@ -55,22 +56,20 @@ export async function upsertRestaurant(
   existingId?: string,
 ): Promise<void> {
   const id = existingId ?? makeId("rst");
-  const { error } = await supabase
-    .from("restaurants")
-    .upsert(
-      {
-        id,
-        name: input.name,
-        cuisine: input.cuisine,
-        city: input.city,
-        rating: input.rating ?? 0,
-        orders_count: input.ordersCount ?? 0,
-        revenue: input.revenue ?? 0,
-        status: input.status,
-        joined_at: input.joinedAt ?? new Date().toISOString().slice(0, 10),
-      },
-      { onConflict: "id" },
-    );
+  const { error } = await supabase.from("restaurants").upsert(
+    {
+      id,
+      name: input.name,
+      cuisine: input.cuisine,
+      city: input.city,
+      rating: input.rating ?? 0,
+      orders_count: input.ordersCount ?? 0,
+      revenue: input.revenue ?? 0,
+      status: input.status,
+      joined_at: input.joinedAt ?? new Date().toISOString().slice(0, 10),
+    },
+    { onConflict: "id" },
+  );
   if (error) throw new Error(error.message);
 }
 
@@ -79,23 +78,21 @@ export async function upsertRider(
   existingId?: string,
 ): Promise<void> {
   const id = existingId ?? makeId("rdr");
-  const { error } = await supabase
-    .from("riders")
-    .upsert(
-      {
-        id,
-        name: input.name,
-        email: input.email,
-        phone: input.phone ?? "",
-        city: input.city ?? "Kabankalan City Proper",
-        vehicle: input.vehicle,
-        status: input.status,
-        deliveries: input.deliveries ?? 0,
-        rating: input.rating ?? 0,
-        earnings: input.earnings ?? 0,
-      },
-      { onConflict: "id" },
-    );
+  const { error } = await supabase.from("riders").upsert(
+    {
+      id,
+      name: input.name,
+      email: input.email,
+      phone: input.phone ?? "",
+      city: input.city ?? "Kabankalan City Proper",
+      vehicle: input.vehicle,
+      status: input.status,
+      deliveries: input.deliveries ?? 0,
+      rating: input.rating ?? 0,
+      earnings: input.earnings ?? 0,
+    },
+    { onConflict: "id" },
+  );
   if (error) throw new Error(error.message);
 }
 
@@ -111,20 +108,18 @@ export async function upsertMenuItem(
   existingId?: string,
 ): Promise<void> {
   const id = existingId ?? makeId("mnu");
-  const { error } = await supabase
-    .from("menu_items")
-    .upsert(
-      {
-        id,
-        restaurant: input.restaurant,
-        restaurant_id: input.restaurant_id,
-        name: input.name,
-        category: input.category,
-        price: input.price,
-        available: input.available ?? true,
-      },
-      { onConflict: "id" },
-    );
+  const { error } = await supabase.from("menu_items").upsert(
+    {
+      id,
+      restaurant: input.restaurant,
+      restaurant_id: input.restaurant_id,
+      name: input.name,
+      category: input.category,
+      price: input.price,
+      available: input.available ?? true,
+    },
+    { onConflict: "id" },
+  );
   if (error) throw new Error(error.message);
 }
 
@@ -143,7 +138,10 @@ export async function setRiderStatus(
   id: string,
   status: Rider["status"],
 ): Promise<void> {
-  const { error } = await supabase.from("riders").update({ status }).eq("id", id);
+  const { error } = await supabase
+    .from("riders")
+    .update({ status })
+    .eq("id", id);
   if (error) throw new Error(error.message);
 }
 
@@ -160,7 +158,11 @@ export async function setRiderStatus(
  * or filters on it -- so a skewed device clock is not worth a database round
  * trip to avoid.
  */
-async function setArchived(table: "restaurants" | "riders", id: string, archived: boolean): Promise<void> {
+async function setArchived(
+  table: "restaurants" | "riders",
+  id: string,
+  archived: boolean,
+): Promise<void> {
   const { error } = await supabase
     .from(table)
     .update({ archived_at: archived ? new Date().toISOString() : null })
@@ -168,11 +170,15 @@ async function setArchived(table: "restaurants" | "riders", id: string, archived
   if (error) throw new Error(error.message);
 }
 
-export const setRestaurantArchived = (id: string, archived: boolean): Promise<void> =>
-  setArchived("restaurants", id, archived);
+export const setRestaurantArchived = (
+  id: string,
+  archived: boolean,
+): Promise<void> => setArchived("restaurants", id, archived);
 
-export const setRiderArchived = (id: string, archived: boolean): Promise<void> =>
-  setArchived("riders", id, archived);
+export const setRiderArchived = (
+  id: string,
+  archived: boolean,
+): Promise<void> => setArchived("riders", id, archived);
 
 export type DbRecord<T> = T & Record<string, unknown>;
 
@@ -204,7 +210,7 @@ export async function fetchRestaurants(): Promise<Restaurant[]> {
 
   if (error) throw new Error(error.message);
 
-  return ((data ?? [])).map((r) => ({
+  return (data ?? []).map((r) => ({
     id: r.id,
     name: r.name,
     cuisine: r.cuisine,
@@ -226,7 +232,7 @@ export async function fetchRiders(): Promise<Rider[]> {
 
   if (error) throw new Error(error.message);
 
-  return ((data ?? [])).map((r) => ({
+  return (data ?? []).map((r) => ({
     id: r.id,
     name: r.name,
     email: r.email,
@@ -266,7 +272,7 @@ export async function fetchCustomers(): Promise<Customer[]> {
 
   if (error) throw new Error(error.message);
 
-  return ((data ?? [])).map((c) => ({
+  return (data ?? []).map((c) => ({
     id: c.id,
     name: c.name,
     email: c.email,
@@ -286,7 +292,7 @@ export async function fetchMenuItems(): Promise<MenuItem[]> {
 
   if (error) throw new Error(error.message);
 
-  return ((data ?? [])).map((m) => ({
+  return (data ?? []).map((m) => ({
     id: m.id,
     restaurant: m.restaurant,
     restaurant_id: m.restaurant_id,
@@ -300,7 +306,10 @@ export async function fetchMenuItems(): Promise<MenuItem[]> {
 export type DateRange = { from?: string; to?: string };
 
 export async function fetchOrders(range?: DateRange): Promise<Order[]> {
-  let query = supabase.from("orders").select("*").order("placed_at", { ascending: false });
+  let query = supabase
+    .from("orders")
+    .select("*")
+    .order("placed_at", { ascending: false });
   if (range?.from) query = query.gte("placed_at", range.from);
   if (range?.to) query = query.lte("placed_at", range.to + "T23:59:59.999Z");
 
@@ -308,7 +317,7 @@ export async function fetchOrders(range?: DateRange): Promise<Order[]> {
 
   if (error) throw new Error(error.message);
 
-  return ((data ?? [])).map((o) => ({
+  return (data ?? []).map((o) => ({
     id: o.id,
     reference: o.reference,
     customer: o.customer,
@@ -324,13 +333,18 @@ export async function fetchOrders(range?: DateRange): Promise<Order[]> {
     rejectionReason:
       typeof o.rejection_reason === "string" ? o.rejection_reason : null,
     deliveryFailedReason:
-      typeof o.delivery_failed_reason === "string" ? o.delivery_failed_reason : null,
+      typeof o.delivery_failed_reason === "string"
+        ? o.delivery_failed_reason
+        : null,
     deliveryFailedAt:
       typeof o.delivery_failed_at === "string" ? o.delivery_failed_at : null,
   }));
 }
 
-export async function fetchOrdersByCustomer(customerName: string, range?: DateRange): Promise<Order[]> {
+export async function fetchOrdersByCustomer(
+  customerName: string,
+  range?: DateRange,
+): Promise<Order[]> {
   let query = supabase
     .from("orders")
     .select("*")
@@ -343,7 +357,7 @@ export async function fetchOrdersByCustomer(customerName: string, range?: DateRa
 
   if (error) throw new Error(error.message);
 
-  return ((data ?? [])).map((o) => ({
+  return (data ?? []).map((o) => ({
     id: o.id,
     reference: o.reference,
     customer: o.customer,
@@ -359,13 +373,18 @@ export async function fetchOrdersByCustomer(customerName: string, range?: DateRa
     rejectionReason:
       typeof o.rejection_reason === "string" ? o.rejection_reason : null,
     deliveryFailedReason:
-      typeof o.delivery_failed_reason === "string" ? o.delivery_failed_reason : null,
+      typeof o.delivery_failed_reason === "string"
+        ? o.delivery_failed_reason
+        : null,
     deliveryFailedAt:
       typeof o.delivery_failed_at === "string" ? o.delivery_failed_at : null,
   }));
 }
 
-export async function fetchOrdersByRider(riderName: string, range?: DateRange): Promise<Order[]> {
+export async function fetchOrdersByRider(
+  riderName: string,
+  range?: DateRange,
+): Promise<Order[]> {
   let query = supabase
     .from("orders")
     .select("*")
@@ -378,7 +397,7 @@ export async function fetchOrdersByRider(riderName: string, range?: DateRange): 
 
   if (error) throw new Error(error.message);
 
-  return ((data ?? [])).map((o) => ({
+  return (data ?? []).map((o) => ({
     id: o.id,
     reference: o.reference,
     customer: o.customer,
@@ -394,13 +413,18 @@ export async function fetchOrdersByRider(riderName: string, range?: DateRange): 
     rejectionReason:
       typeof o.rejection_reason === "string" ? o.rejection_reason : null,
     deliveryFailedReason:
-      typeof o.delivery_failed_reason === "string" ? o.delivery_failed_reason : null,
+      typeof o.delivery_failed_reason === "string"
+        ? o.delivery_failed_reason
+        : null,
     deliveryFailedAt:
       typeof o.delivery_failed_at === "string" ? o.delivery_failed_at : null,
   }));
 }
 
-export async function fetchOrdersByRestaurant(restaurantId: string, range?: DateRange): Promise<Order[]> {
+export async function fetchOrdersByRestaurant(
+  restaurantId: string,
+  range?: DateRange,
+): Promise<Order[]> {
   let query = supabase
     .from("orders")
     .select("*")
@@ -413,7 +437,7 @@ export async function fetchOrdersByRestaurant(restaurantId: string, range?: Date
 
   if (error) throw new Error(error.message);
 
-  return ((data ?? [])).map((o) => ({
+  return (data ?? []).map((o) => ({
     id: o.id,
     reference: o.reference,
     customer: o.customer,
@@ -429,13 +453,17 @@ export async function fetchOrdersByRestaurant(restaurantId: string, range?: Date
     rejectionReason:
       typeof o.rejection_reason === "string" ? o.rejection_reason : null,
     deliveryFailedReason:
-      typeof o.delivery_failed_reason === "string" ? o.delivery_failed_reason : null,
+      typeof o.delivery_failed_reason === "string"
+        ? o.delivery_failed_reason
+        : null,
     deliveryFailedAt:
       typeof o.delivery_failed_at === "string" ? o.delivery_failed_at : null,
   }));
 }
 
-export async function fetchMenuItemsByRestaurant(restaurantId: string): Promise<MenuItem[]> {
+export async function fetchMenuItemsByRestaurant(
+  restaurantId: string,
+): Promise<MenuItem[]> {
   const { data, error } = await supabase
     .from("menu_items")
     .select("*")
@@ -444,7 +472,7 @@ export async function fetchMenuItemsByRestaurant(restaurantId: string): Promise<
 
   if (error) throw new Error(error.message);
 
-  return ((data ?? [])).map((m) => ({
+  return (data ?? []).map((m) => ({
     id: m.id,
     restaurant: m.restaurant,
     restaurant_id: m.restaurant_id,
@@ -460,11 +488,7 @@ export async function fetchMenuItemsByRestaurant(restaurantId: string): Promise<
 // ---------------------------------------------------------------------------
 
 export type SearchEntity =
-  | "order"
-  | "restaurant"
-  | "rider"
-  | "customer"
-  | "menu_item";
+  "order" | "restaurant" | "rider" | "customer" | "menu_item";
 
 /**
  * One row of the search popover. `entity` is a discriminant so the UI can
@@ -512,47 +536,46 @@ function listHref(path: string, term: string): string {
  * list pages. Adding a filter that trusts a role from the client would be
  * strictly weaker than what the database already enforces.
  */
-export async function searchEverything(
-  term: string,
-): Promise<SearchResult[]> {
+export async function searchEverything(term: string): Promise<SearchResult[]> {
   const trimmed = term.trim();
   if (trimmed.length < MIN_TERM_LENGTH) return [];
 
-
-  const [orders, restaurants, riders, customers, menuItems] = await Promise.all([
-    supabase
-      .from("orders")
-      .select("id, reference, customer, restaurant, status, total, placed_at")
-      .or(anyIlikeFilter(["reference", "customer", "restaurant"], trimmed))
-      .order("placed_at", { ascending: false })
-      .limit(PER_ENTITY),
-    supabase
-      .from("restaurants")
-      .select("id, name, cuisine, city, status")
-      .or(anyIlikeFilter(["name", "cuisine", "city"], trimmed))
-      .is("archived_at", null)
-      .order("name")
-      .limit(PER_ENTITY),
-    supabase
-      .from("riders")
-      .select("id, name, email, phone, vehicle, status")
-      .or(anyIlikeFilter(["name", "email", "phone", "city"], trimmed))
-      .is("archived_at", null)
-      .order("name")
-      .limit(PER_ENTITY),
-    supabase
-      .from("customers")
-      .select("id, name, email, phone, city")
-      .or(anyIlikeFilter(["name", "email", "phone", "city"], trimmed))
-      .order("name")
-      .limit(PER_ENTITY),
-    supabase
-      .from("menu_items")
-      .select("id, name, category, restaurant, price")
-      .or(anyIlikeFilter(["name", "category", "restaurant"], trimmed))
-      .order("name")
-      .limit(PER_ENTITY),
-  ]);
+  const [orders, restaurants, riders, customers, menuItems] = await Promise.all(
+    [
+      supabase
+        .from("orders")
+        .select("id, reference, customer, restaurant, status, total, placed_at")
+        .or(anyIlikeFilter(["reference", "customer", "restaurant"], trimmed))
+        .order("placed_at", { ascending: false })
+        .limit(PER_ENTITY),
+      supabase
+        .from("restaurants")
+        .select("id, name, cuisine, city, status")
+        .or(anyIlikeFilter(["name", "cuisine", "city"], trimmed))
+        .is("archived_at", null)
+        .order("name")
+        .limit(PER_ENTITY),
+      supabase
+        .from("riders")
+        .select("id, name, email, phone, vehicle, status")
+        .or(anyIlikeFilter(["name", "email", "phone", "city"], trimmed))
+        .is("archived_at", null)
+        .order("name")
+        .limit(PER_ENTITY),
+      supabase
+        .from("customers")
+        .select("id, name, email, phone, city")
+        .or(anyIlikeFilter(["name", "email", "phone", "city"], trimmed))
+        .order("name")
+        .limit(PER_ENTITY),
+      supabase
+        .from("menu_items")
+        .select("id, name, category, restaurant, price")
+        .or(anyIlikeFilter(["name", "category", "restaurant"], trimmed))
+        .order("name")
+        .limit(PER_ENTITY),
+    ],
+  );
 
   const responses = [orders, restaurants, riders, customers, menuItems];
   const failures = responses.filter((r) => r.error);
@@ -673,15 +696,19 @@ function requireOk<T>(error: { message: string } | null, value: T): T {
 export async function fetchMerchantAccess(): Promise<MerchantAccess[]> {
   const { data, error } = await supabase.rpc("merchant_access_list");
 
-  return requireOk(error, ((data ?? []) as Record<string, unknown>[]).map((row) => ({
-    userId: String(row.user_id),
-    email: String(row.email),
-    role: row.role === "admin" ? ("admin" as const) : ("merchant" as const),
-    restaurantId: row.restaurant_id == null ? null : String(row.restaurant_id),
-    restaurantName:
-      row.restaurant_name == null ? null : String(row.restaurant_name),
-    createdAt: String(row.created_at),
-  })));
+  return requireOk(
+    error,
+    ((data ?? []) as Record<string, unknown>[]).map((row) => ({
+      userId: String(row.user_id),
+      email: String(row.email),
+      role: row.role === "admin" ? ("admin" as const) : ("merchant" as const),
+      restaurantId:
+        row.restaurant_id == null ? null : String(row.restaurant_id),
+      restaurantName:
+        row.restaurant_name == null ? null : String(row.restaurant_name),
+      createdAt: String(row.created_at),
+    })),
+  );
 }
 
 /**
@@ -726,13 +753,16 @@ export type RiderAccess = {
 export async function fetchRiderAccess(): Promise<RiderAccess[]> {
   const { data, error } = await supabase.rpc("rider_access_list");
 
-  return requireOk(error, ((data ?? []) as Record<string, unknown>[]).map((row) => ({
-    riderId: String(row.rider_id),
-    riderName: String(row.rider_name),
-    userId: row.user_id == null ? null : String(row.user_id),
-    email: String(row.email),
-    archivedAt: row.archived_at == null ? null : String(row.archived_at),
-  })));
+  return requireOk(
+    error,
+    ((data ?? []) as Record<string, unknown>[]).map((row) => ({
+      riderId: String(row.rider_id),
+      riderName: String(row.rider_name),
+      userId: row.user_id == null ? null : String(row.user_id),
+      email: String(row.email),
+      archivedAt: row.archived_at == null ? null : String(row.archived_at),
+    })),
+  );
 }
 
 /**
@@ -758,4 +788,80 @@ export async function revokeRiderAccess(email: string): Promise<void> {
     p_email: email,
   });
   requireOk(error, undefined);
+}
+
+export type RiderApplicationStatus = "pending" | "approved" | "rejected";
+
+export type RiderApplication = {
+  id: string;
+  status: RiderApplicationStatus;
+  fullName: string;
+  phone: string;
+  city: string;
+  vehicle: VehicleType;
+  licenceRef: string | null;
+  orcrRef: string | null;
+  governmentIdRef: string | null;
+  decisionNote: string | null;
+  createdAt: string;
+  reviewedAt: string | null;
+  applicantEmail: string;
+  applicantUserId: string;
+};
+
+/**
+ * Rider applications for the review queue. Pending first, then most recent --
+ * the SQL orders it that way so the page does not re-sort. p_status is passed
+ * through unvalidated and matched against the enum's text, so an unknown value
+ * returns nothing rather than everything.
+ */
+export async function fetchRiderApplications(
+  status?: RiderApplicationStatus,
+): Promise<RiderApplication[]> {
+  const { data, error } = await supabase.rpc("fetch_rider_applications", {
+    p_status: status,
+  });
+
+  return requireOk(
+    error,
+    ((data ?? []) as Record<string, unknown>[]).map((row) => ({
+      id: String(row.id),
+      status: String(row.status) as RiderApplicationStatus,
+      fullName: String(row.full_name),
+      phone: String(row.phone),
+      city: String(row.city),
+      vehicle: String(row.vehicle) as VehicleType,
+      licenceRef: row.licence_ref == null ? null : String(row.licence_ref),
+      orcrRef: row.orcr_ref == null ? null : String(row.orcr_ref),
+      governmentIdRef:
+        row.government_id_ref == null ? null : String(row.government_id_ref),
+      decisionNote:
+        row.decision_note == null ? null : String(row.decision_note),
+      createdAt: String(row.created_at),
+      reviewedAt: row.reviewed_at == null ? null : String(row.reviewed_at),
+      applicantEmail: String(row.applicant_email),
+      applicantUserId: String(row.applicant_user_id),
+    })),
+  );
+}
+
+/**
+ * Approve or reject an application.
+ *
+ * On approval the database creates the rider row and links the auth account in
+ * the same transaction, and returns the new rider id. That is why this does not
+ * then call setRiderAccess(): the SQL already did it, and doing it twice would
+ * be a second un-audited link move.
+ */
+export async function reviewRiderApplication(
+  applicationId: string,
+  approve: boolean,
+  note?: string,
+): Promise<string> {
+  const { data, error } = await supabase.rpc("review_rider_application", {
+    p_application_id: applicationId,
+    p_approve: approve,
+    p_note: note?.trim() ? note.trim() : undefined,
+  });
+  return requireOk(error, String(data ?? ""));
 }

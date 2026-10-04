@@ -109,6 +109,15 @@ export default function CustomerAccountScreen() {
           hint="Track any order with its KFD code"
           onPress={() => router.push("/track" as never)}
         />
+        <View style={styles.divider} />
+        {/* The earning side of the app, reached from the customer account. A
+            signed-in rider never sees this row because /rider protects its own
+            tabs, and submit_rider_application() refuses an existing rider. */}
+        <Row
+          label="Apply to deliver"
+          hint="Ride with KFD and get paid per delivery"
+          onPress={() => router.push("/rider-apply" as never)}
+        />
       </View>
 
       <Pressable

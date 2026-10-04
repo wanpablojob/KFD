@@ -93,6 +93,12 @@ function RootNavigator() {
         <Stack.Screen name="index" />
         <Stack.Screen name="login" />
         <Stack.Screen name="signup" />
+        {/*
+         * Rider application. Declared with the signed-out group because an
+         * applicant only needs an auth identity, not a rider role -- a new
+         * signup lands here rather than being told they are already a rider.
+         */}
+        <Stack.Screen name="rider-apply" />
       </Stack.Protected>
       <Stack.Protected guard={isRider}>
         <Stack.Screen name="rider" />
