@@ -15,6 +15,7 @@ function menuItem(
     restaurant_id: "r1",
     category: "Mains",
     available: true,
+    image_url: null,
     ...extra,
   };
 }

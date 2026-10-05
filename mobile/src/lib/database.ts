@@ -70,6 +70,8 @@ export type Database = {
           category: string;
           price: number;
           available: boolean;
+          /** Null when no image has been set (migration 0056). */
+          image_url: string | null;
           created_at: string;
         };
         Insert: never;

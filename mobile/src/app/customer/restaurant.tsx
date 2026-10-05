@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Image,
   Pressable,
   SectionList,
   StyleSheet,
@@ -209,6 +210,7 @@ function MenuItemCard({
 
   return (
     <View style={[styles.item, shadow.card]}>
+      <MenuItemThumb uri={row.image_url} />
       <View style={styles.itemBody}>
         <Text style={styles.itemName}>{row.name}</Text>
         <Text style={type.price}>₱{row.price.toFixed(2)}</Text>
@@ -222,6 +224,12 @@ function MenuItemCard({
       </Pressable>
     </View>
   );
+}
+
+/** The item's image when it has one; nothing when it does not (0056). */
+function MenuItemThumb({ uri }: { uri: string | null }) {
+  if (!uri) return null;
+  return <Image source={{ uri }} style={styles.itemImage} resizeMode="cover" />;
 }
 
 function groupByCategory(rows: MenuItemRow[]) {
@@ -293,6 +301,12 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
   },
   itemBody: { flex: 1, gap: 4 },
+  itemImage: {
+    width: 56,
+    height: 56,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface,
+  },
   itemName: { ...type.body, fontWeight: "700", color: colors.text },
   addBtn: {
     backgroundColor: colors.primary,

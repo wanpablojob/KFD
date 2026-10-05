@@ -20,6 +20,8 @@ export interface MenuItemRow {
   category: string;
   price: number;
   available: boolean;
+  /** Optional image URL; null when none has been set (migration 0056). */
+  image_url: string | null;
 }
 
 /** Restaurants surfaced to customers: active and not archived (RLS enforces). */
@@ -71,7 +73,9 @@ export async function searchRestaurants(
 export async function fetchMenu(restaurantId: string): Promise<MenuItemRow[]> {
   const { data, error } = await supabase
     .from("menu_items")
-    .select("id, restaurant, restaurant_id, name, category, price, available")
+    .select(
+      "id, restaurant, restaurant_id, name, category, price, available, image_url"
+    )
     .eq("restaurant_id", restaurantId)
     .eq("available", true)
     .order("category")
