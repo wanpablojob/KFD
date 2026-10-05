@@ -35,6 +35,22 @@ export async function fetchActiveRestaurants(): Promise<RestaurantRow[]> {
 }
 
 /**
+ * One active restaurant's public fields, for the menu screen header. Null when
+ * the id is not an active restaurant (RLS scopes the read to customers).
+ */
+export async function fetchRestaurant(id: string): Promise<RestaurantRow | null> {
+  const { data, error } = await supabase
+    .from("restaurants")
+    .select("id, name, cuisine, city, rating, status, archived_at")
+    .eq("id", id)
+    .eq("status", "active")
+    .is("archived_at", null)
+    .maybeSingle();
+  if (error) throw error;
+  return (data as RestaurantRow | null) ?? null;
+}
+
+/**
  * Server-side restaurant search: matches name or cuisine against a substring
  * and optionally narrows to one cuisine. Replaces the client-side filter in
  * the home screen so the catalogue does not all have to travel to the device.

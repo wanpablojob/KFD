@@ -9,7 +9,12 @@ import {
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { fetchMenu, type MenuItemRow } from "../../lib/storefront";
+import {
+  fetchMenu,
+  fetchRestaurant,
+  type MenuItemRow,
+  type RestaurantRow,
+} from "../../lib/storefront";
 import { useCart } from "../../lib/cart-context";
 import { colors, radius, shadow, spacing, type } from "../../lib/theme";
 
@@ -23,6 +28,7 @@ export default function CustomerMenuScreen() {
   const insets = useSafeAreaInsets();
 
   const [menu, setMenu] = useState<MenuItemRow[] | null>(null);
+  const [restaurant, setRestaurant] = useState<RestaurantRow | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { count } = useCart();
   const router = useRouter();
@@ -30,9 +36,11 @@ export default function CustomerMenuScreen() {
   useEffect(() => {
     if (!restaurantId) return;
     let active = true;
-    fetchMenu(restaurantId)
-      .then((rows) => {
-        if (active) setMenu(rows);
+    Promise.all([fetchMenu(restaurantId), fetchRestaurant(restaurantId)])
+      .then(([rows, info]) => {
+        if (!active) return;
+        setMenu(rows);
+        setRestaurant(info);
       })
       .catch((cause) => {
         if (active) {
@@ -101,6 +109,24 @@ export default function CustomerMenuScreen() {
           keyExtractor={(item) => item.id}
           stickySectionHeadersEnabled
           contentContainerStyle={styles.list}
+          ListHeaderComponent={
+            restaurant ? (
+              <View style={[styles.restaurantHeader, shadow.card]}>
+                <Text style={styles.restaurantName} numberOfLines={2}>
+                  {restaurant.name}
+                </Text>
+                <Text style={type.caption}>
+                  {restaurant.cuisine} · {restaurant.city}
+                </Text>
+                <View style={styles.restaurantMeta}>
+                  <Text style={styles.ratingStar}>★</Text>
+                  <Text style={styles.ratingValue}>
+                    {Number(restaurant.rating).toFixed(1)}
+                  </Text>
+                </View>
+              </View>
+            ) : null
+          }
           renderSectionHeader={({ section }) => (
             <Text style={styles.sectionHeader}>{section.title}</Text>
           )}
@@ -240,6 +266,17 @@ const styles = StyleSheet.create({
   },
   topCartText: { fontSize: 12, fontWeight: "800", color: colors.textInverse },
   list: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xxl },
+  restaurantHeader: {
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    gap: 4,
+    marginBottom: spacing.xs,
+  },
+  restaurantName: { ...type.title, color: colors.text },
+  restaurantMeta: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 },
+  ratingStar: { fontSize: 14, color: colors.accent },
+  ratingValue: { fontSize: 14, fontWeight: "700", color: colors.text },
   sectionHeader: {
     ...type.eyebrow,
     textTransform: "uppercase",
