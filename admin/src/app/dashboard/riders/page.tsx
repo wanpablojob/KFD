@@ -1,16 +1,18 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import {
-  fetchRiders,
   fetchRiderAccess,
   fetchRiderApplications,
+  fetchRiderOverview,
   reviewRiderApplication,
   revokeRiderAccess,
   setRiderAccess,
   setRiderArchived,
   setRiderStatus,
+  setRiderSuspended,
   upsertRider,
   type RiderAccess,
   type RiderApplication,
@@ -28,80 +30,44 @@ import { PaginatedDataTable } from "@/components/ui/paginated-data-table";
 import { EntityDialog, type DialogField } from "@/components/ui/entity-dialog";
 import { ArchiveButton } from "@/components/ui/archive-button";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select } from "@/components/ui/select";
-import { PlusIcon } from "@/components/ui/icons";
+import { Textarea } from "@/components/ui/textarea";
+import { PlusIcon, LinkIcon } from "@/components/ui/icons";
 import type { Column } from "@/components/ui/data-table";
 import { useAsyncData } from "@/lib/use-async-data";
 import { TableBoundary } from "@/components/ui/table-boundary";
-import type { Rider } from "@/lib/types";
-
-const baseColumns: Column<Rider>[] = [
-  {
-    key: "name",
-    header: "Rider",
-    cell: (row) => (
-      <span className="flex items-center gap-2.5">
-        <Avatar name={row.name} size="sm" />
-        <span>
-          <span className="block font-medium text-card-foreground">
-            {row.name}
-          </span>
-          <span className="block text-xs text-muted-foreground">
-            {row.email}
-          </span>
-        </span>
-      </span>
-    ),
-  },
-  { key: "city", header: "City", cell: (row) => row.city },
-  {
-    key: "vehicle",
-    header: "Vehicle",
-    cell: (row) => (
-      <Badge variant="secondary" size="sm">
-        {row.vehicle}
-      </Badge>
-    ),
-  },
-  {
-    key: "deliveries",
-    header: "Deliveries",
-    align: "right",
-    cell: (row) => (
-      <span className="text-card-foreground">{row.deliveries}</span>
-    ),
-  },
-  {
-    key: "rating",
-    header: "Rating",
-    align: "right",
-    cell: (row) => <span className="text-card-foreground">{row.rating} ★</span>,
-  },
-  {
-    key: "earnings",
-    header: "Earnings",
-    align: "right",
-    cell: (row) => (
-      <span className="font-medium text-card-foreground">
-        {formatCurrency(row.earnings)}
-      </span>
-    ),
-  },
-  {
-    key: "status",
-    header: "Status",
-    cell: (row) => (
-      <span className="flex items-center gap-1.5">
-        <StatusBadge status={row.status} />
-        {row.archivedAt ? (
-          <Badge variant="secondary" size="sm">
-            Archived
-          </Badge>
-        ) : null}
-      </span>
-    ),
-  },
-];
+import type { Rider, RiderOverview } from "@/lib/types";
+import { useRiderListView } from "@/lib/use-rider-list-view";
+import { compareRiders, type RiderFilter } from "@/lib/rider-list-params";
+import { riderFlags } from "@/lib/rider-flags";
+import {
+  friendlyRiderSaveError,
+  validateRiderFields,
+  type RiderFieldError,
+} from "@/lib/rider-validation";
+import {
+  ContactShortcuts,
+  RiderFlagBadges,
+  SuspendedBadge,
+} from "@/components/rider/rider-row-bits";
+import {
+  RiderInsightPanels,
+  RiderSummaryCards,
+  flagsInput,
+} from "@/components/rider/rider-summary";
+import { SuspendRiderDialog } from "@/components/rider/suspend-rider-dialog";
+import {
+  DOCUMENT_CHECKS,
+  EXTERNAL_LINK_PROPS,
+  classifyDocumentRef,
+  composeDecisionNote,
+  formatWaiting,
+  isWaitingTooLong,
+  parseDecisionNote,
+  type DocumentCheckKey,
+  type DocumentField,
+} from "@/lib/rider-applications";
 
 const FIELDS: DialogField[] = [
   { key: "name", label: "Name", required: true },
@@ -116,48 +82,251 @@ const FIELDS: DialogField[] = [
   { key: "status", label: "Status", options: ["online", "busy", "offline"] },
 ];
 
+type Mode =
+  | { kind: "reassign"; row: RiderAccess }
+  | { kind: "revoke"; row: RiderAccess }
+  | { kind: "review"; row: RiderApplication }
+  | { kind: "suspend"; rider: RiderOverview }
+  | { kind: "reinstate"; rider: RiderOverview }
+  | null;
+
 export default function RidersPage() {
   const router = useRouter();
-  const { data, loading, error, refetch } = useAsyncData(() => fetchRiders());
+  const overview = useAsyncData(() => fetchRiderOverview());
   const access = useAsyncData(() => fetchRiderAccess());
-  // Applications are a separate queue from the rider list: an applicant has no
-  // rider row yet, so it cannot appear in `rows`. Fetched unfiltered and split
-  // client-side because the same panel shows reviewed rows underneath pending
-  // ones, and the SQL already orders pending first.
+  // An applicant has no rider row yet, so it cannot appear in the rider list.
+  // Fetched unfiltered because the same panel shows reviewed rows underneath
+  // pending ones, and the SQL already orders pending first.
   const applications = useAsyncData(() => fetchRiderApplications());
-  const [editing, setEditing] = useState<Rider | null>(null);
-  const [open, setOpen] = useState(false);
-  const [showArchived, setShowArchived] = useState(false);
-  const [mode, setMode] = useState<
-    | { kind: "reassign"; row: RiderAccess }
-    | { kind: "revoke"; row: RiderAccess }
-    | { kind: "review"; row: RiderApplication; approve: boolean }
-    | null
-  >(null);
-  const [busy, setBusy] = useState(false);
-  const [accessError, setAccessError] = useState<string | null>(null);
-  const [accessNotice, setAccessNotice] = useState<string | null>(null);
+  const { params, set } = useRiderListView();
 
-  async function runAccess(action: () => Promise<void>, success?: string) {
+  const [open, setOpen] = useState(false);
+  const [mode, setMode] = useState<Mode>(null);
+  const [busy, setBusy] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionNotice, setActionNotice] = useState<string | null>(null);
+
+  /**
+   * One runner for every mutation, because each of them has the same three
+   * obligations: show a spinner, surface the database's message rather than a
+   * generic failure, and re-read whichever lists the change touched. Approving
+   * an application creates a rider row this page has never seen, which is why
+   * this refetches the overview instead of patching a row locally.
+   */
+  async function run(
+    action: () => Promise<void>,
+    success?: string,
+  ): Promise<void> {
     setBusy(true);
-    setAccessError(null);
-    setAccessNotice(null);
+    setActionError(null);
+    setActionNotice(null);
     try {
       await action();
-      setMode(null);
-      if (success) setAccessNotice(success);
-      await access.refetch();
+      if (success) setActionNotice(success);
     } catch (cause) {
-      setAccessError(
-        cause instanceof Error ? cause.message : "Could not save.",
-      );
+      setActionError(cause instanceof Error ? cause.message : "Could not save.");
+      // Keep the dialog open on failure: closing it would throw away the reason
+      // an admin typed into the suspension or decision field.
+      throw cause;
     } finally {
       setBusy(false);
     }
   }
 
-  const rows = (data ?? []).filter((r) => showArchived || !r.archivedAt);
-  const archivedCount = (data ?? []).length - rows.length;
+  const allRiders = overview.data ?? [];
+  const existingEmails = allRiders.map((rider) => rider.email);
+
+  const rows = allRiders
+    .filter((rider) => {
+      switch (params.filter) {
+        case "online":
+        case "busy":
+        case "offline":
+          // Archived and suspended riders keep whatever status they last had,
+          // so the status counts have to exclude them or "Online 3" can be
+          // sitting above three riders dispatch would never offer work to.
+          return (
+            !rider.archivedAt &&
+            !rider.suspendedAt &&
+            rider.status === params.filter
+          );
+        case "archived":
+          return Boolean(rider.archivedAt);
+        case "suspended":
+          return Boolean(rider.suspendedAt);
+        default:
+          return true;
+      }
+    })
+    .sort((a, b) =>
+      compareRiders(
+        a as unknown as Record<string, unknown>,
+        b as unknown as Record<string, unknown>,
+        params.sort,
+        params.dir,
+      ),
+    );
+
+  const riderColumns: Column<RiderOverview>[] = [
+    {
+      key: "name",
+      header: "Rider",
+      cell: (row) => (
+        <span className="flex items-center gap-2.5">
+          <Avatar name={row.name} size="sm" />
+          <span className="min-w-0">
+            <span className="block font-medium text-card-foreground">
+              {row.name}
+            </span>
+            <span className="block truncate text-xs text-muted-foreground">
+              {row.email || "No email on file"}
+            </span>
+          </span>
+          {row.archivedAt ? (
+            <Badge variant="secondary" size="sm">
+              Archived
+            </Badge>
+          ) : null}
+          <SuspendedBadge
+            suspendedAt={row.suspendedAt ?? null}
+            reason={row.suspendedReason ?? null}
+          />
+        </span>
+      ),
+    },
+    { key: "city", header: "City", cell: (row) => row.city },
+    {
+      key: "vehicle",
+      header: "Vehicle",
+      cell: (row) => (
+        <Badge variant="secondary" size="sm">
+          {row.vehicle}
+        </Badge>
+      ),
+    },
+    {
+      key: "current_order_reference",
+      header: "Current job",
+      cell: (row) =>
+        row.currentOrderReference ? (
+          <Link
+            href={`/dashboard/orders?order=${row.currentOrderReference}`}
+            className="inline-flex items-center gap-1 text-sm text-card-foreground underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <LinkIcon className="h-3.5 w-3.5" />
+            {row.currentOrderReference}
+          </Link>
+        ) : (
+          <span className="text-muted-foreground">Idle</span>
+        ),
+    },
+    {
+      key: "deliveries",
+      header: "Deliveries",
+      align: "right",
+      cell: (row) => (
+        <span className="text-card-foreground">{row.deliveries}</span>
+      ),
+    },
+    {
+      key: "rating",
+      header: "Rating",
+      align: "right",
+      cell: (row) => <span className="text-card-foreground">{row.rating} ★</span>,
+    },
+    {
+      key: "week_earnings",
+      header: "This week",
+      align: "right",
+      cell: (row) => (
+        <span className="font-medium text-card-foreground">
+          {formatCurrency(row.weekEarnings)}
+        </span>
+      ),
+    },
+    {
+      key: "earnings",
+      header: "Total",
+      align: "right",
+      cell: (row) => (
+        <span className="font-medium text-card-foreground">
+          {formatCurrency(row.earnings)}
+        </span>
+      ),
+    },
+    {
+      key: "flags",
+      header: "Flags",
+      cell: (row) => (
+        <RiderFlagBadges flags={riderFlags(flagsInput(row))} riderName={row.name} />
+      ),
+    },
+    {
+      key: "status",
+      header: "Status",
+      cell: (row) =>
+        row.archivedAt || row.suspendedAt ? (
+          <span className="text-muted-foreground">
+            {row.archivedAt ? "Archived" : "Suspended"}
+          </span>
+        ) : (
+          <Select
+            value={row.status}
+            aria-label={`Set status for ${row.name}`}
+            className="h-8 w-32"
+            onClick={(e) => e.stopPropagation()}
+            onChange={async (e) => {
+              await setRiderStatus(row.id, e.target.value as Rider["status"]);
+              await overview.refetch();
+            }}
+          >
+            <option value="online">Online</option>
+            <option value="busy">Busy</option>
+            <option value="offline">Offline</option>
+          </Select>
+        ),
+    },
+    {
+      key: "actions",
+      header: "",
+      align: "right",
+      cell: (row) => (
+        <span className="flex justify-end gap-2">
+          {row.suspendedAt ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                setMode({ kind: "reinstate", rider: row });
+              }}
+            >
+              Reinstate
+            </Button>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                setMode({ kind: "suspend", rider: row });
+              }}
+            >
+              Suspend
+            </Button>
+          )}
+          <ArchiveButton
+            name={row.name}
+            archived={Boolean(row.archivedAt)}
+            onChange={async (archived) => {
+              await setRiderArchived(row.id, archived);
+              await overview.refetch();
+            }}
+          />
+        </span>
+      ),
+    },
+  ];
 
   const accessColumns: Column<RiderAccess>[] = [
     {
@@ -216,6 +385,9 @@ export default function RidersPage() {
     },
   ];
 
+  const allApplications = applications.data ?? [];
+  const pendingCount = allApplications.filter((a) => a.status === "pending").length;
+
   const applicationColumns: Column<RiderApplication>[] = [
     {
       key: "fullName",
@@ -223,21 +395,14 @@ export default function RidersPage() {
       cell: (row) => (
         <span className="flex items-center gap-2.5">
           <Avatar name={row.fullName} size="sm" />
-          <span className="font-medium text-card-foreground">
-            {row.fullName}
+          <span>
+            <span className="block font-medium text-card-foreground">
+              {row.fullName}
+            </span>
+            <span className="block text-xs text-muted-foreground">
+              {row.applicantEmail}
+            </span>
           </span>
-        </span>
-      ),
-    },
-    {
-      key: "applicantEmail",
-      header: "Account",
-      cell: (row) => (
-        <span>
-          <span className="block font-medium text-card-foreground">
-            {row.applicantEmail}
-          </span>
-          <span className="block text-muted-foreground">{row.phone}</span>
         </span>
       ),
     },
@@ -251,20 +416,50 @@ export default function RidersPage() {
       ),
     },
     {
+      key: "phone",
+      header: "Phone",
+      cell: (row) => <span className="text-card-foreground">{row.phone}</span>,
+    },
+    {
+      key: "waitingDays",
+      header: "Waiting",
+      align: "right",
+      // Oldest first. The SQL already orders that way, but reviewed rows carry
+      // waiting_days 0 and pending rows do not, so the queue is re-sorted on the
+      // number the column actually shows.
+      cell: (row) => {
+        if (row.status !== "pending") {
+          return <span className="text-muted-foreground">—</span>;
+        }
+        const overdue = isWaitingTooLong(row.waitingDays);
+        return (
+          <span
+            className={overdue ? "font-medium text-destructive" : undefined}
+          >
+            {formatWaiting(row.createdAt)}
+          </span>
+        );
+      },
+    },
+    {
       key: "documents",
       header: "Documents",
-      cell: (row) => (
-        <span className="text-muted-foreground">
-          {[
-            ["Licence", row.licenceRef],
-            ["ORCR", row.orcrRef],
-            ["ID", row.governmentIdRef],
-          ]
-            .filter(([, ref]) => ref)
-            .map(([label, ref]) => `${label}: ${ref}`)
-            .join(" · ") || "None supplied"}
-        </span>
-      ),
+      cell: (row) => {
+        const supplied = [
+          ["Licence", row.licenceRef],
+          ["ORCR", row.orcrRef],
+          ["ID", row.governmentIdRef],
+        ].filter(([, ref]) => ref);
+        return (
+          <span className="text-muted-foreground">
+            {supplied.length === 3
+              ? "All 3 supplied"
+              : supplied.length > 0
+                ? `${supplied.length} of 3 supplied`
+                : "None supplied"}
+          </span>
+        );
+      },
     },
     {
       key: "status",
@@ -273,7 +468,9 @@ export default function RidersPage() {
         <span className="flex flex-col items-start gap-1">
           <StatusBadge status={row.status} />
           {row.decisionNote ? (
-            <span className="text-muted-foreground">{row.decisionNote}</span>
+            <span className="max-w-56 truncate text-xs text-muted-foreground">
+              {firstLine(row.decisionNote)}
+            </span>
           ) : null}
         </span>
       ),
@@ -284,69 +481,18 @@ export default function RidersPage() {
       align: "right",
       cell: (row) =>
         row.status === "pending" ? (
-          <span className="flex justify-end gap-2">
-            <Button
-              size="sm"
-              onClick={() => setMode({ kind: "review", row, approve: true })}
-            >
-              Approve
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setMode({ kind: "review", row, approve: false })}
-            >
-              Reject
-            </Button>
-          </span>
+          <Button size="sm" onClick={() => setMode({ kind: "review", row })}>
+            Review
+          </Button>
         ) : (
-          <span className="text-muted-foreground">Reviewed</span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setMode({ kind: "review", row })}
+          >
+            View
+          </Button>
         ),
-    },
-  ];
-
-  const accessRows = access.data ?? [];
-  const allApplications = applications.data ?? [];
-  const pendingApplications = allApplications.filter(
-    (a) => a.status === "pending",
-  );
-
-  const columns: Column<Rider>[] = [
-    ...baseColumns,
-    {
-      key: "statusToggle",
-      header: "Toggle",
-      cell: (row) => (
-        <Select
-          value={row.status}
-          aria-label={`Set status for ${row.name}`}
-          className="h-8 w-32"
-          onClick={(e) => e.stopPropagation()}
-          onChange={async (e) => {
-            await setRiderStatus(row.id, e.target.value as Rider["status"]);
-            refetch();
-          }}
-        >
-          <option value="online">Online</option>
-          <option value="busy">Busy</option>
-          <option value="offline">Offline</option>
-        </Select>
-      ),
-    },
-    {
-      key: "archive",
-      header: "",
-      align: "right",
-      cell: (row) => (
-        <ArchiveButton
-          name={row.name}
-          archived={Boolean(row.archivedAt)}
-          onChange={async (archived) => {
-            await setRiderArchived(row.id, archived);
-            refetch();
-          }}
-        />
-      ),
     },
   ];
 
@@ -356,46 +502,42 @@ export default function RidersPage() {
         title="Riders"
         description="Fleet of active delivery partners."
         actions={
-          <span className="flex items-center gap-2">
-            {archivedCount > 0 ? (
-              <Button
-                variant="outline"
-                aria-pressed={showArchived}
-                onClick={() => setShowArchived((v) => !v)}
-              >
-                {showArchived
-                  ? "Hide archived"
-                  : `Show archived (${archivedCount})`}
-              </Button>
-            ) : null}
-            <Button
-              onClick={() => {
-                setEditing(null);
-                setOpen(true);
-              }}
-            >
-              <PlusIcon className="h-4 w-4" />
-              Add Rider
-            </Button>
-          </span>
+          <Button onClick={() => setOpen(true)}>
+            <PlusIcon className="h-4 w-4" />
+            Add Rider
+          </Button>
         }
       />
+
+      <RiderSummaryCards
+        rows={allRiders}
+        filter={params.filter}
+        onFilterChange={(next: RiderFilter) => set({ filter: next })}
+      />
+      <RiderInsightPanels rows={allRiders} />
+
       <Section aria-label="Rider list">
         <TableBoundary
-          loading={loading}
-          error={error}
-          onRetry={refetch}
+          loading={overview.loading}
+          error={overview.error}
+          onRetry={overview.refetch}
           errorTitle="Could not load riders"
           skeletonRows={8}
-          skeletonColumns={9}
+          skeletonColumns={12}
         >
           <Card className="overflow-hidden">
-            <PaginatedDataTable<Rider>
-              columns={columns}
+            <PaginatedDataTable<RiderOverview>
+              columns={riderColumns}
               rows={rows}
               searchFields={["name", "email", "phone", "city", "id"]}
+              searchQuery={params.query}
               onRowClick={(row) => router.push(`/dashboard/riders/${row.id}`)}
               emptyTitle="No riders found"
+              emptyDescription={
+                params.filter === "all"
+                  ? "Add a rider, or approve an application below."
+                  : "No rider has this status right now."
+              }
               exportName="/dashboard/riders"
               exportColumns={[
                 { key: "name", header: "Rider" },
@@ -407,77 +549,55 @@ export default function RidersPage() {
                 { key: "earnings", header: "Earnings" },
                 { key: "status", header: "Status" },
               ]}
+              sort={{ key: params.sort, dir: params.dir }}
+              onSortChange={(next) => set({ sort: next.key as typeof params.sort, dir: next.dir })}
+              sortableKeys={[
+                "name",
+                "city",
+                "vehicle",
+                "deliveries",
+                "rating",
+                "earnings",
+                "week_earnings",
+                "current_order_reference",
+              ]}
+              page={params.page}
+              onPageChange={(next) => set({ page: next })}
+              mobileCard={(row) => <RiderMobileCard rider={row} />}
             />
           </Card>
         </TableBoundary>
       </Section>
 
-      <EntityDialog
-        key={editing?.id ?? "new"}
-        open={open}
-        title={editing ? `Edit ${editing.name}` : "Add Rider"}
-        fields={FIELDS}
-        initial={
-          editing
-            ? {
-                name: editing.name,
-                email: editing.email,
-                phone: editing.phone,
-                city: editing.city,
-                vehicle: editing.vehicle,
-                status: editing.status,
-              }
-            : { city: "", vehicle: "scooter", status: "offline" }
-        }
-        onClose={() => setOpen(false)}
-        onSave={async (v) => {
-          await upsertRider(
-            {
-              name: v.name,
-              email: v.email,
-              phone: v.phone,
-              city: v.city,
-              vehicle: v.vehicle as Rider["vehicle"],
-              status: v.status as Rider["status"],
-              deliveries: editing?.deliveries,
-              rating: editing?.rating,
-              earnings: editing?.earnings,
-            },
-            editing?.id,
-          );
-          refetch();
-        }}
-      />
-
-      {accessNotice ? (
+      {actionNotice ? (
         <p className="mt-3 text-sm text-muted-foreground" role="status">
-          {accessNotice}
+          {actionNotice}
         </p>
       ) : null}
-      {accessError && !mode ? (
+      {actionError && !mode ? (
         <p className="mt-3 text-sm text-destructive" role="alert">
-          {accessError}
+          {actionError}
         </p>
       ) : null}
 
       <Section aria-label="Rider applications" className="mt-8">
         <h2 className="mb-1 text-lg font-semibold text-card-foreground">
           Applications
-          {pendingApplications.length > 0 ? (
+          {pendingCount > 0 ? (
             <Badge variant="primary" size="sm" className="ml-2">
-              {pendingApplications.length} pending
+              {pendingCount} pending
             </Badge>
           ) : null}
         </h2>
         <p className="mb-3 text-sm text-muted-foreground">
-          People who applied to deliver from the app. Approving creates their
-          rider record and lets them sign in; it does not put them online, which
-          is their own tap on the availability toggle.
+          People who applied to deliver from the app, oldest request first.
+          Approving creates their rider record and lets them sign in; it does not
+          put them online, which is their own tap on the availability toggle.
         </p>
         <TableBoundary
           loading={applications.loading}
           error={applications.error}
-          onRetry={() => void applications.refetch()}
+          onRetry={applications.refetch}
           errorTitle="Could not load rider applications"
           skeletonRows={3}
         >
@@ -506,24 +626,52 @@ export default function RidersPage() {
         <TableBoundary
           loading={access.loading}
           error={access.error}
-          onRetry={() => void access.refetch()}
+          onRetry={access.refetch}
           errorTitle="Could not load rider access"
           skeletonRows={4}
         >
-          {accessRows.length === 0 ? (
+          {(access.data ?? []).length === 0 ? (
             <EmptyState
               title="No riders"
               description="Add a rider above, then attach an account to it."
             />
           ) : (
             <Card className="overflow-hidden">
-              <DataTable columns={accessColumns} rows={accessRows} />
+              <DataTable columns={accessColumns} rows={access.data ?? []} />
             </Card>
           )}
         </TableBoundary>
       </Section>
 
-      {mode?.kind === "reassign" && mode.row ? (
+      {open ? (
+        <RiderFormDialog
+          existingEmails={existingEmails}
+          onClose={() => setOpen(false)}
+          onSave={async (values) => {
+            await run(async () => {
+              try {
+                await upsertRider({
+                  name: values.name,
+                  email: values.email,
+                  phone: values.phone,
+                  city: values.city,
+                  vehicle: values.vehicle as Rider["vehicle"],
+                  status: values.status as Rider["status"],
+                });
+              } catch (cause) {
+                throw new Error(
+                  friendlyRiderSaveError(cause) ??
+                    (cause instanceof Error ? cause.message : "Could not save."),
+                );
+              }
+            }, `Added ${values.name}.`);
+            await overview.refetch();
+            setOpen(false);
+          }}
+        />
+      ) : null}
+
+      {mode?.kind === "reassign" ? (
         <EntityDialog
           open
           key={mode.row.riderId}
@@ -541,59 +689,221 @@ export default function RidersPage() {
             },
           ]}
           onSave={(values) =>
-            runAccess(async () => {
+            run(async () => {
               await setRiderAccess(values.email.trim(), mode.row.riderId);
+              await access.refetch();
+              await overview.refetch();
+              setMode(null);
             }, `${values.email.trim()} is now linked to ${mode.row.riderName}.`)
           }
         />
       ) : null}
 
-      {mode?.kind === "review" && mode.row ? (
-        <ReviewApplicationDialog
-          application={mode.row}
-          approve={mode.approve}
-          busy={busy}
-          onClose={() => setMode(null)}
-          onConfirm={(note) =>
-            runAccess(async () => {
-              const result = await reviewRiderApplication(
-                mode.row.id,
-                mode.approve,
-                note,
-              );
-              // Approving returns the new rider id; rejecting returns "rejected".
-              // Both then need the rider tables re-read, because approval creates
-              // a row this page has never seen.
-              await Promise.all([
-                applications.refetch(),
-                refetch(),
-                access.refetch(),
-              ]);
-              setAccessNotice(
-                mode.approve
-                  ? `Approved. ${mode.row.fullName} can now sign in as a rider (${result}).`
-                  : `Rejected ${mode.row.fullName}'s application.`,
-              );
-            })
-          }
-        />
-      ) : null}
-
-      {mode?.kind === "revoke" && mode.row ? (
+      {mode?.kind === "revoke" ? (
         <RevokeRiderDialog
           email={mode.row.email}
           riderName={mode.row.riderName}
           busy={busy}
           onClose={() => setMode(null)}
           onConfirm={() =>
-            runAccess(async () => {
+            run(async () => {
               await revokeRiderAccess(mode.row.email);
+              await access.refetch();
+              await overview.refetch();
+              setMode(null);
             }, `${mode.row.email} can no longer sign in as a rider. The login itself still exists.`)
           }
         />
       ) : null}
+
+      {mode?.kind === "suspend" || mode?.kind === "reinstate" ? (
+        <SuspendRiderDialog
+          riderName={mode.rider.name}
+          suspending={mode.kind === "suspend"}
+          busy={busy}
+          onClose={() => setMode(null)}
+          onConfirm={async (reason) => {
+            await run(async () => {
+              await setRiderSuspended(
+                mode.rider.id,
+                mode.kind === "suspend",
+                reason,
+              );
+              await overview.refetch();
+              setMode(null);
+            },
+            mode.kind === "suspend"
+              ? `${mode.rider.name} is suspended and will not be offered orders.`
+              : `${mode.rider.name} is reinstated.`);
+          }}
+        />
+      ) : null}
+
+      {mode?.kind === "review" ? (
+        <ReviewApplicationDialog
+          application={mode.row}
+          busy={busy}
+          // Client-side hint. review_rider_application() is what actually
+          // refuses the approval (0051), because a hint that can be bypassed is
+          // not an enforcement.
+          emailTaken={existingEmails.some(
+            (email) => email.trim().toLowerCase() === mode.row.applicantEmail.trim().toLowerCase(),
+          )}
+          onClose={() => setMode(null)}
+          onDecide={async (approve, note) => {
+            await run(async () => {
+              const result = await reviewRiderApplication(mode.row.id, approve, note);
+              await Promise.all([
+                applications.refetch(),
+                overview.refetch(),
+                access.refetch(),
+              ]);
+              setActionNotice(
+                approve
+                  ? `Approved. ${mode.row.fullName} can now sign in as a rider (${result}).`
+                  : `Rejected ${mode.row.fullName}'s application.`,
+              );
+              setMode(null);
+            });
+          }}
+        />
+      ) : null}
     </PageContainer>
   );
+}
+
+function firstLine(text: string): string {
+  return text.split("\n")[0];
+}
+
+/** Card layout below `md`, where the table would scroll horizontally. */
+function RiderMobileCard({ rider }: { rider: RiderOverview }) {
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-start justify-between gap-3">
+        <span className="flex min-w-0 items-center gap-2">
+          <Avatar name={rider.name} size="sm" />
+          <span className="min-w-0">
+            <span className="block font-medium text-card-foreground">
+              {rider.name}
+            </span>
+            <span className="block truncate text-xs text-muted-foreground">
+              {rider.email || "No email on file"}
+            </span>
+          </span>
+        </span>
+        <StatusBadge status={rider.status} />
+      </div>
+
+      <div className="flex flex-wrap gap-1.5">
+        {rider.archivedAt ? (
+          <Badge variant="secondary" size="sm">
+            Archived
+          </Badge>
+        ) : null}
+        <SuspendedBadge
+          suspendedAt={rider.suspendedAt ?? null}
+          reason={rider.suspendedReason ?? null}
+        />
+        <Badge variant="secondary" size="sm">
+          {rider.vehicle}
+        </Badge>
+        <span className="text-xs text-muted-foreground">{rider.city}</span>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+        {rider.currentOrderReference ? (
+          <Link
+            href={`/dashboard/orders?order=${rider.currentOrderReference}`}
+            className="inline-flex items-center gap-1 text-card-foreground underline-offset-2 hover:underline"
+          >
+            <LinkIcon className="h-3.5 w-3.5" />
+            {rider.currentOrderReference}
+          </Link>
+        ) : (
+          <span>Idle</span>
+        )}
+        <span>{rider.deliveries} deliveries</span>
+        <span>{rider.rating} ★</span>
+        <span>Week {formatCurrency(rider.weekEarnings)}</span>
+        <span>Total {formatCurrency(rider.earnings)}</span>
+      </div>
+
+      <RiderFlagBadges flags={riderFlags(flagsInput(rider))} riderName={rider.name} />
+
+      <div className="flex flex-wrap gap-2 pt-1">
+        <ContactShortcuts
+          name={rider.name}
+          phone={rider.phone}
+          email={rider.email}
+        />
+        {rider.suspendedAt ? (
+          <Button variant="outline" size="sm">
+            Reinstate
+          </Button>
+        ) : (
+          <Button variant="outline" size="sm">
+            Suspend
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Add/edit form.
+ *
+ * EntityDialog owns the field layout and only checks `required`, so the real
+ * rules -- PH mobile shape, email shape, duplicate email -- are validated on
+ * submit and reported per field. They run before the request rather than being
+ * left to the database, because a duplicate email otherwise surfaces as a 23505
+ * after the admin has finished typing.
+ */
+function RiderFormDialog({
+  existingEmails,
+  onClose,
+  onSave,
+}: {
+  existingEmails: readonly string[];
+  onClose: () => void;
+  onSave: (values: Record<string, string>) => Promise<void>;
+}) {
+  return (
+    <EntityDialog
+      open
+      title="Add Rider"
+      description="Email and phone are how dispatch reaches this rider. Both are required."
+      fields={FIELDS}
+      initial={{ city: "", vehicle: "scooter", status: "offline" }}
+      onClose={onClose}
+      onSave={async (values) => {
+        // EntityDialog catches and displays a thrown message, so every rule is
+        // reported at once rather than one round-trip per field.
+        const found = validateRiderFields(
+          {
+            name: values.name ?? "",
+            email: values.email ?? "",
+            phone: values.phone ?? "",
+            city: values.city ?? "",
+          },
+          existingEmails,
+        );
+        if (found.length > 0) {
+          throw new Error(
+            found
+              .map((error) => `${labelFor(error)}: ${error.message}`)
+              .join(" "),
+          );
+        }
+        await onSave(values);
+      }}
+    />
+  );
+}
+
+function labelFor(error: RiderFieldError): string {
+  return FIELDS.find((field) => field.key === error.field)?.label ?? error.field;
 }
 
 /**
@@ -611,7 +921,7 @@ function RevokeRiderDialog({
   riderName: string;
   busy: boolean;
   onClose: () => void;
-  onConfirm: () => void;
+  onConfirm: () => Promise<void>;
 }) {
   return (
     <Dialog
@@ -641,92 +951,274 @@ function RevokeRiderDialog({
     </Dialog>
   );
 }
+
+function DocumentLinks({ fields }: { fields: DocumentField[] }) {
+  return (
+    <ul className="flex flex-col gap-1.5">
+      {fields.map((field) => {
+        const doc = classifyDocumentRef(field.ref, field.label);
+        return (
+          <li key={field.label} className="text-sm">
+            <span className="text-muted-foreground">{field.label}: </span>
+            {doc.kind === "missing" ? (
+              <span className="text-destructive">not supplied</span>
+            ) : doc.kind === "link" ? (
+              <a
+                href={doc.href}
+                {...EXTERNAL_LINK_PROPS}
+                className="text-card-foreground underline underline-offset-2"
+              >
+                Open {doc.label.toLowerCase()}
+              </a>
+            ) : (
+              <span className="font-mono text-xs text-card-foreground">
+                {doc.label}
+              </span>
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 /**
- * Approving an application is the one action here that creates a rider and
- * changes somebody's sign-in privileges, so it states exactly what will happen
- * before the button is pressed. The note is optional on approve and encouraged
- * on reject: a rejected applicant sees it, so "documents unreadable" beats a
- * silent no.
+ * The application drawer: everything submitted, the document checklist, and the
+ * decision.
+ *
+ * The checklist is the point. `review_rider_application()` will happily approve
+ * an applicant whose documents were never looked at, so an admin can tick what
+ * they verified, or tick the override box and say in the note why. Approving
+ * with nothing ticked is allowed -- an override with a note is a record; a
+ * silent approval is not.
  */
 function ReviewApplicationDialog({
   application,
-  approve,
   busy,
+  emailTaken,
   onClose,
-  onConfirm,
+  onDecide,
 }: {
   application: RiderApplication;
-  approve: boolean;
   busy: boolean;
+  emailTaken: boolean;
   onClose: () => void;
-  onConfirm: (note: string) => void;
+  onDecide: (approve: boolean, note: string | undefined) => Promise<void>;
 }) {
+  const reviewed = application.status !== "pending";
+  const [checks, setChecks] = useState<DocumentCheckKey[]>([]);
+  const [overridden, setOverridden] = useState(false);
   const [note, setNote] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  const prior = parseDecisionNote(application.decisionNote);
+
+  async function decide(approve: boolean) {
+    if (approve && emailTaken) {
+      setError(
+        "That email already belongs to an existing rider. Approving would move their account. Reject this application instead.",
+      );
+      return;
+    }
+    if (approve && overridden && !note.trim()) {
+      setError("An override needs a note saying why.");
+      return;
+    }
+
+    const composed = composeDecisionNote({
+      checks,
+      overridden,
+      note: reviewed ? prior.note : note,
+    });
+
+    setError(null);
+    await onDecide(approve, composed);
+  }
 
   return (
-    <Dialog
-      open
-      onClose={busy ? () => {} : onClose}
-      title={approve ? "Approve this rider?" : "Reject this application?"}
-    >
-      <div className="space-y-4">
-        <div className="rounded-md border border-border bg-muted/40 p-3 text-sm">
-          <p className="font-medium text-card-foreground">
-            {application.fullName}
-          </p>
-          <p className="text-muted-foreground">{application.applicantEmail}</p>
-          <p className="text-muted-foreground">
-            {application.phone} · {application.vehicle} · {application.city}
-          </p>
-        </div>
+    <Dialog open onClose={busy ? () => {} : onClose} title={application.fullName}>
+      <div className="flex max-h-[70vh] flex-col gap-5 overflow-y-auto">
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+          <Detail label="Email">{application.applicantEmail}</Detail>
+          <Detail label="Phone">{application.phone}</Detail>
+          <Detail label="City">{application.city}</Detail>
+          <Detail label="Vehicle">{application.vehicle}</Detail>
+          <Detail label="Applied">
+            {new Date(application.createdAt).toLocaleString()}
+          </Detail>
+          <Detail label="Waiting">
+            {application.status === "pending" ? (
+              <span
+                className={
+                  isWaitingTooLong(application.waitingDays)
+                    ? "text-destructive"
+                    : undefined
+                }
+              >
+                {formatWaiting(application.createdAt)}
+              </span>
+            ) : (
+              "—"
+            )}
+          </Detail>
+        </dl>
 
-        {approve ? (
-          <p className="text-sm text-muted-foreground">
-            This creates their rider record and lets{" "}
-            {application.applicantEmail} sign in to the rider app. They start
-            offline, so they will not receive orders until they turn on
-            availability themselves.
-          </p>
-        ) : (
-          <p className="text-sm text-muted-foreground">
-            The application is declined. They can apply again after fixing their
-            details, and any note below is shown to them.
-          </p>
-        )}
+        <ContactShortcuts
+          name={application.fullName}
+          phone={application.phone}
+          email={application.applicantEmail}
+        />
 
-        <label className="block text-sm">
-          <span className="mb-1.5 block font-medium text-card-foreground">
-            Note {approve ? "(optional)" : "(shared with the applicant)"}
-          </span>
-          <input
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            placeholder={
-              approve
-                ? "Checked against the licence registry"
-                : "Licence photo is unreadable"
-            }
-            className="h-9 w-full rounded-md border border-border bg-background px-3 text-sm text-card-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          />
-        </label>
-
-        <div className="flex justify-end gap-2 pt-1">
-          <Button variant="outline" onClick={onClose} disabled={busy}>
-            Cancel
-          </Button>
-          <Button
-            variant={approve ? "primary" : "destructive"}
-            onClick={() => onConfirm(note)}
-            disabled={busy}
+        {emailTaken && !reviewed ? (
+          <p
+            className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive"
+            role="alert"
           >
-            {busy
-              ? "Saving…"
-              : approve
-                ? "Approve rider"
-                : "Reject application"}
-          </Button>
-        </div>
+            An existing rider already uses {application.applicantEmail}. Approval
+            would move that rider&apos;s account to this applicant and leave them
+            unable to sign in.
+          </p>
+        ) : null}
+
+        <section aria-label="Documents">
+          <h3 className="mb-2 text-sm font-semibold text-card-foreground">
+            Documents
+          </h3>
+          <DocumentLinks
+            fields={[
+              { label: "Licence", ref: application.licenceRef },
+              { label: "ORCR", ref: application.orcrRef },
+              { label: "Government ID", ref: application.governmentIdRef },
+            ]}
+          />
+        </section>
+
+        {reviewed ? (
+          <section aria-label="Decision">
+            <h3 className="mb-1 text-sm font-semibold text-card-foreground">
+              Decision — {application.status}
+            </h3>
+            <p className="whitespace-pre-wrap text-sm text-muted-foreground">
+              {prior.note || "No note recorded."}
+            </p>
+            {prior.checks.length > 0 || prior.overridden ? (
+              <p className="mt-1 text-xs text-muted-foreground">
+                {prior.checks.length > 0
+                  ? `Checked: ${prior.checks
+                      .map(
+                        (key) =>
+                          DOCUMENT_CHECKS.find((c) => c.key === key)?.label ?? key,
+                      )
+                      .join(", ")}.`
+                  : null}
+                {prior.overridden ? " Approved with an admin override." : null}
+              </p>
+            ) : null}
+            {application.reviewedAt ? (
+              <p className="mt-1 text-xs text-muted-foreground">
+                Reviewed {new Date(application.reviewedAt).toLocaleString()}
+              </p>
+            ) : null}
+          </section>
+        ) : (
+          <>
+            <section aria-label="Document checks">
+              <h3 className="mb-1 text-sm font-semibold text-card-foreground">
+                Document checks
+              </h3>
+              <ul className="flex flex-col gap-1.5">
+                {DOCUMENT_CHECKS.map((check) => (
+                  <li key={check.key} className="flex items-center gap-2">
+                    <Checkbox
+                      id={`check-${check.key}`}
+                      checked={checks.includes(check.key)}
+                      onChange={(e) =>
+                        setChecks((current) =>
+                          e.target.checked
+                            ? [...current, check.key]
+                            : current.filter((k) => k !== check.key),
+                        )
+                      }
+                    />
+                    <label
+                      htmlFor={`check-${check.key}`}
+                      className="text-sm text-card-foreground"
+                    >
+                      {check.label}
+                    </label>
+                  </li>
+                ))}
+              </ul>
+
+              <div className="mt-3 flex items-start gap-2">
+                <Checkbox
+                  id="override"
+                  checked={overridden}
+                  onChange={(e) => setOverridden(e.target.checked)}
+                />
+                <label htmlFor="override" className="text-sm text-card-foreground">
+                  Approve anyway (admin override)
+                </label>
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Recorded in the decision note so it can be found later. Needs a
+                reason.
+              </p>
+            </section>
+
+            <section aria-label="Decision note">
+              <label
+                htmlFor="decision-note"
+                className="mb-1 block text-sm font-semibold text-card-foreground"
+              >
+                Decision note
+              </label>
+              <Textarea
+                id="decision-note"
+                rows={3}
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder={
+                  overridden
+                    ? "Required: why are you approving without these checks?"
+                    : "Shown to the applicant if you reject."
+                }
+              />
+            </section>
+
+            {error ? (
+              <p className="text-sm text-destructive" role="alert">
+                {error}
+              </p>
+            ) : null}
+
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={onClose} disabled={busy}>
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => decide(false)}
+                disabled={busy}
+              >
+                {busy ? "Saving…" : "Reject"}
+              </Button>
+              <Button onClick={() => decide(true)} disabled={busy}>
+                {busy ? "Saving…" : "Approve"}
+              </Button>
+            </div>
+          </>
+        )}
       </div>
     </Dialog>
+  );
+}
+
+function Detail({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dd className="text-card-foreground">{children}</dd>
+    </div>
   );
 }
