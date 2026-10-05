@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { sendRiderPush } from "@/lib/server/push-notify";
+import { sendRiderPush, OFFERS_CHANNEL_ID } from "@/lib/server/push-notify";
 
 export const runtime = "nodejs";
 
@@ -137,6 +137,9 @@ export async function POST(req: Request) {
         "New delivery offer",
         `Order ${reference} is available${windowSeconds ? ` for ${Math.round(windowSeconds / 60)} min` : ""}. Open the app to accept it.`,
         { type: "dispatch_offer", orderId },
+        // Its own channel: an offer expires in minutes and is worth chasing, which
+        // is not true of order-status news sharing the same channel.
+        OFFERS_CHANNEL_ID,
       ),
     ),
   );

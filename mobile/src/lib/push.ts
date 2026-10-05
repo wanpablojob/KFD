@@ -25,6 +25,56 @@ const projectId = Constants.expoConfig?.extra?.eas?.projectId as string | undefi
 const DEVICE_ID_KEY = "kfd.push.deviceId";
 const REGISTERED_KEY = "kfd.push.registered";
 
+/**
+ * Android notification channel ids.
+ *
+ * These strings are a contract with the send path, not a local choice: the admin
+ * app puts `channelId` on the Expo message, and Android drops a message whose
+ * channel does not exist. The matching constant on the sending side is
+ * RIDER_OFFERS_CHANNEL_ID in admin/src/lib/server/push-notify.ts.
+ *
+ * `orders` is the app.json `defaultChannel`, so anything that does not name a
+ * channel lands there. Order-status alerts keep using it.
+ */
+export const ORDERS_CHANNEL_ID = "orders";
+export const OFFERS_CHANNEL_ID = "offers";
+
+/**
+ * Creates both Android channels. Called on app start rather than only when the
+ * rider opts in, because the offers channel has to exist before an offer can
+ * arrive: a rider who registered before this shipped still has no `offers`
+ * channel, and Android silently discards a message addressed to a missing
+ * channel rather than falling back to the default.
+ *
+ * Idempotent, and a no-op off Android. Best-effort -- a channel failure must not
+ * stop the app from starting, and the orders channel still gets created by
+ * enablePush().
+ */
+export async function ensureNotificationChannels(): Promise<void> {
+  if (Platform.OS !== "android") return;
+  try {
+    await Notifications.setNotificationChannelAsync(ORDERS_CHANNEL_ID, {
+      name: "Order alerts",
+      importance: Notifications.AndroidImportance.HIGH,
+    });
+    // Offers live 5 minutes and are worth real money, so this channel is HIGH
+    // with sound and vibration. MAX would head-up every offer; that is too
+    // aggressive once a rider has several at once.
+    await Notifications.setNotificationChannelAsync(OFFERS_CHANNEL_ID, {
+      name: "Delivery offers",
+      description: "New delivery jobs you can accept before they expire.",
+      importance: Notifications.AndroidImportance.HIGH,
+      sound: "default",
+      enableVibrate: true,
+      lightColor: "#ffd23f",
+      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+    });
+  } catch {
+    // A channel that cannot be created is a missing notification, not a crash.
+    // enablePush() retries both channels when the rider next toggles.
+  }
+}
+
 // Register/unregister calls must settle quickly; a hung admin API should not
 // leave the toggle spinning indefinitely.
 const REGISTER_TIMEOUT_MS = 10_000;
@@ -166,12 +216,7 @@ export async function enablePush(accessToken: string): Promise<PushStatus> {
 
   // Android 8+ needs a channel before any notification can show; the send path
   // addresses it by name.
-  if (Platform.OS === "android") {
-    await Notifications.setNotificationChannelAsync("orders", {
-      name: "Order alerts",
-      importance: Notifications.AndroidImportance.HIGH,
-    });
-  }
+  await ensureNotificationChannels();
 
   const { status } = await Notifications.requestPermissionsAsync();
   if (status !== "granted") {

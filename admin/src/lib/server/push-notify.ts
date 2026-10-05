@@ -151,12 +151,23 @@ export async function sendMerchantOrderPush(
  * accompanies has already landed, so a push failure is reported in the return
  * value and never raised back into the caller.
  */
+/**
+ * Android channel ids. These are a contract with the rider app, which creates
+ * them on launch: mobile/src/lib/push.ts, ORDERS_CHANNEL_ID / OFFERS_CHANNEL_ID.
+ * Android discards a message addressed to a channel that does not exist on the
+ * device, so the two sides have to agree and both have to actually create them.
+ */
+export const ORDERS_CHANNEL_ID = "orders";
+export const OFFERS_CHANNEL_ID = "offers";
+
 export async function sendUserPush(
   supabase: ServiceClient,
   userId: string,
   title: string,
   body: string,
-  data?: Record<string, unknown>
+  data?: Record<string, unknown>,
+  /** Defaults to the order-alert channel; offers override it. */
+  channelId: string = ORDERS_CHANNEL_ID,
 ): Promise<PushResult> {
   const { data: tokens, error: tokensError } = await supabase
     .from("push_tokens")
@@ -178,7 +189,7 @@ export async function sendUserPush(
   const messages: ExpoPushMessage[] = validTokens.map((to) => ({
     to,
     sound: "default",
-    channelId: "orders",
+    channelId,
     title,
     body,
     ...(data ? { data } : {}),
@@ -232,15 +243,22 @@ export async function sendUserPush(
   }
 }
 
-/** Named wrapper: push to a rider's own device(s). */
+/**
+ * Named wrapper: push to a rider's own device(s).
+ *
+ * `channelId` exists so an offer can land on the high-importance offers channel
+ * instead of sharing the order-alert channel with merchant news. Defaults keep
+ * every other caller unchanged.
+ */
 export async function sendRiderPush(
   supabase: ServiceClient,
   riderUserId: string,
   title: string,
   body: string,
-  data?: Record<string, unknown>
+  data?: Record<string, unknown>,
+  channelId?: string,
 ): Promise<PushResult> {
-  return sendUserPush(supabase, riderUserId, title, body, data);
+  return sendUserPush(supabase, riderUserId, title, body, data, channelId);
 }
 
 /** Named wrapper: push to a customer's device(s) about their own order. */

@@ -1,7 +1,9 @@
+import { useEffect } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Stack, usePathname, useRouter } from "expo-router";
 import { colors, spacing, type } from "../../lib/theme";
+import { ensureNotificationChannels } from "../../lib/push";
 
 /**
  * Rider surface (deliveries -> earnings -> profile), guarded as a group in the
@@ -13,6 +15,13 @@ import { colors, spacing, type } from "../../lib/theme";
  */
 export default function RiderLayout() {
   const pathname = usePathname();
+
+  // The dispatch offer channel has to exist before an offer can arrive, and a
+  // rider who registered before it shipped still has no such channel. Created on
+  // mount rather than on the push toggle, which they may never revisit.
+  useEffect(() => {
+    void ensureNotificationChannels();
+  }, []);
 
   return (
     <View style={styles.root}>
