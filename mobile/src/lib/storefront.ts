@@ -332,17 +332,62 @@ export interface RiderProfile {
   deliveries: number;
   rating: number;
   earnings: number;
+  gcash_qr_url: string | null;
+  gcash_name: string | null;
 }
 
 /** The calling rider's own row (RLS scopes it to user_id = auth.uid()). */
 export async function fetchRiderProfile(userId: string): Promise<RiderProfile | null> {
   const { data, error } = await supabase
     .from("riders")
-    .select("id, name, city, vehicle, status, deliveries, rating, earnings")
+    .select(
+      "id, name, city, vehicle, status, deliveries, rating, earnings, gcash_qr_url, gcash_name"
+    )
     .eq("user_id", userId)
     .maybeSingle();
   if (error) throw error;
   return (data as RiderProfile | null) ?? null;
+}
+
+/** Set or clear the calling rider's GCash QR URL and account name. */
+export async function setRiderGcash(
+  qrUrl: string | null,
+  name: string | null
+): Promise<void> {
+  const { error } = await supabase.rpc("rider_set_gcash", {
+    p_qr_url: qrUrl,
+    p_name: name,
+  });
+  if (error) throw error;
+}
+
+export interface RiderPayment {
+  reference: string;
+  riderName: string;
+  gcashQrUrl: string;
+  gcashName: string | null;
+}
+
+/**
+ * The assigned rider's GCash QR for an e_wallet order, or null. The server
+ * returns it only to the order's own customer and only once a rider with a QR
+ * is assigned; everyone else gets null and the tracker shows no payment block.
+ */
+export async function fetchOrderRiderPayment(
+  reference: string
+): Promise<RiderPayment | null> {
+  const { data, error } = await supabase.rpc("order_rider_payment", {
+    p_reference: reference,
+  });
+  if (error) throw error;
+  const row = (data ?? [])[0];
+  if (!row) return null;
+  return {
+    reference: row.reference,
+    riderName: row.rider_name,
+    gcashQrUrl: row.gcash_qr_url,
+    gcashName: row.gcash_name ?? null,
+  };
 }
 
 export interface CustomerOrder {

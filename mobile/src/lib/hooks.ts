@@ -9,6 +9,8 @@ import {
   cancelOrder,
   fetchMyRatings,
   rateOrder,
+  fetchOrderRiderPayment,
+  setRiderGcash,
   fetchTrackedOrder,
   fetchRiderOrdersPage,
   fetchRiderOffers,
@@ -164,6 +166,29 @@ export function useRateOrder() {
       queryClient.invalidateQueries({ queryKey: ["myRatings"] });
       queryClient.invalidateQueries({ queryKey: queryKeys.orders() });
     },
+  });
+}
+
+/**
+ * The assigned rider's GCash QR for an e_wallet order. Null (no block shown)
+ * unless the caller owns the order and a rider with a QR is assigned.
+ */
+export function useOrderRiderPayment(reference: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ["orderRiderPayment", reference],
+    queryFn: () => fetchOrderRiderPayment(reference),
+    enabled: enabled && reference.trim().length > 0,
+  });
+}
+
+/** A rider saving their GCash QR, refreshing their profile afterwards. */
+export function useSetRiderGcash() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ qrUrl, name }: { qrUrl: string | null; name: string | null }) =>
+      setRiderGcash(qrUrl, name),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["riderProfile"] }),
   });
 }
 

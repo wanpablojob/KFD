@@ -1,6 +1,7 @@
 import { useState } from "react";
 import {
   ActivityIndicator,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -12,9 +13,9 @@ import {
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useTrackOrder } from "../lib/hooks";
+import { useTrackOrder, useOrderRiderPayment } from "../lib/hooks";
 import { orderProgress, type ProgressStep } from "../lib/order-progress";
-import type { TrackedOrder } from "../lib/storefront";
+import type { TrackedOrder, RiderPayment } from "../lib/storefront";
 import { colors, radius, shadow, spacing, type } from "../lib/theme";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -58,6 +59,13 @@ export function TrackOrderScreen({
     isFetching,
     dataUpdatedAt,
   } = useTrackOrder(submitted, enabled);
+
+  // The assigned rider's GCash QR, only for an e_wallet order. The server
+  // returns it only to the order's own customer, so others see no block.
+  const { data: riderPayment } = useOrderRiderPayment(
+    submitted,
+    enabled && order?.payment === "e_wallet"
+  );
 
   function track() {
     const ref = reference.trim();
@@ -135,7 +143,12 @@ export function TrackOrderScreen({
         ) : null}
 
         {order ? (
-          <OrderCard order={order} updatedAt={dataUpdatedAt} refreshing={isFetching} />
+          <OrderCard
+            order={order}
+            updatedAt={dataUpdatedAt}
+            refreshing={isFetching}
+            riderPayment={riderPayment ?? null}
+          />
         ) : null}
       </ScrollView>
       <StatusBar style="dark" />
@@ -147,10 +160,12 @@ function OrderCard({
   order,
   updatedAt,
   refreshing,
+  riderPayment,
 }: {
   order: TrackedOrder;
   updatedAt: number;
   refreshing: boolean;
+  riderPayment: RiderPayment | null;
 }) {
   const cancelled = order.status === "cancelled";
   const steps = orderProgress(order.status);
@@ -224,6 +239,27 @@ function OrderCard({
         <View style={styles.addressBlock}>
           <Text style={styles.addressLabel}>Deliver to</Text>
           <Text style={styles.addressValue}>{order.delivery_address}</Text>
+        </View>
+      ) : null}
+
+      {/* GCash payment: the assigned rider's own QR. Server returns it only for
+          an e_wallet order to its own customer, so anon/others get nothing. */}
+      {riderPayment ? (
+        <View style={styles.payBlock}>
+          <Text style={styles.addressLabel}>Pay by GCash</Text>
+          <Image
+            source={{ uri: riderPayment.gcashQrUrl }}
+            style={styles.qr}
+            resizeMode="contain"
+          />
+          <Text style={styles.meta}>
+            {riderPayment.gcashName
+              ? `${riderPayment.gcashName} · rider ${riderPayment.riderName}`
+              : `Rider ${riderPayment.riderName}`}
+          </Text>
+          <Text style={styles.meta}>
+            Scan in GCash to send ₱{Number(order.total).toFixed(2)}.
+          </Text>
         </View>
       ) : null}
 
@@ -384,6 +420,18 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6,
   },
   addressValue: { ...type.body, color: colors.text },
+  payBlock: {
+    marginTop: spacing.sm,
+    gap: spacing.xs,
+    alignItems: "flex-start",
+  },
+  qr: {
+    width: 180,
+    height: 180,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface,
+    alignSelf: "center",
+  },
   footer: { gap: 2, marginTop: spacing.xs },
   meta: { ...type.caption, color: colors.textFaint },
 });

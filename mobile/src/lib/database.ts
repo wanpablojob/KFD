@@ -108,6 +108,9 @@ export type Database = {
           deliveries: number;
           rating: number;
           earnings: number;
+          /** GCash payment handle (migration 0057); null until the rider sets one. */
+          gcash_qr_url: string | null;
+          gcash_name: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -197,6 +200,24 @@ export type Database = {
           restaurant_rating: number;
           rider_rating: number | null;
           comment: string | null;
+        }[];
+      };
+      /** Rider sets/clears their own GCash QR (migration 0057). */
+      rider_set_gcash: {
+        Args: { p_qr_url: string | null; p_name: string | null };
+        Returns: unknown;
+      };
+      /**
+       * The assigned rider's GCash QR for an e_wallet order, returned only to
+       * the order's own customer (migration 0057).
+       */
+      order_rider_payment: {
+        Args: { p_reference: string };
+        Returns: {
+          reference: string;
+          rider_name: string;
+          gcash_qr_url: string;
+          gcash_name: string | null;
         }[];
       };
       rider_set_status: {
