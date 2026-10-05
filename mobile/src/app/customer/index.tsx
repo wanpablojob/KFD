@@ -79,8 +79,10 @@ export default function CustomerHomeScreen() {
         keyboardShouldPersistTaps="handled"
         ListHeaderComponent={
           <View style={styles.header}>
-            <Text style={styles.deliverTo}>DELIVER TO</Text>
-            <Text style={type.display}>Kabankalan City</Text>
+            {/* The brand name, not the customer's location: the app has no
+                location permission and must not imply it knows where they are. */}
+            <Text style={styles.brand}>KABANKALAN FOOD DELIVERY</Text>
+            <Text style={type.display}>What are you craving?</Text>
 
             <View style={[styles.search, shadow.card]}>
               <Text style={styles.searchGlyph}>⌕</Text>
@@ -129,7 +131,6 @@ export default function CustomerHomeScreen() {
 
             <View style={styles.promo}>
               <View style={styles.promoText}>
-                <Text style={styles.promoBadge}>FREE DELIVERY OVER ₱500</Text>
                 <Text style={styles.promoTitle}>Local food, delivered fast</Text>
               </View>
               <Text style={styles.promoGlyph}>🍲</Text>
@@ -172,7 +173,7 @@ function StorefrontEmpty({
     return (
       <View style={styles.empty}>
         <ActivityIndicator color={colors.primary} />
-        <Text style={type.caption}>Finding places near you…</Text>
+        <Text style={type.caption}>Finding places…</Text>
       </View>
     );
   }
@@ -252,8 +253,6 @@ function RestaurantCard({
               <Text style={type.caption}>₱{deliveryFee.toFixed(0)} delivery</Text>
             </>
           ) : null}
-          <Text style={styles.metaDot}>·</Text>
-          <Text style={type.caption}>20-30 min</Text>
         </View>
       </View>
 
@@ -266,7 +265,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
   list: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xxl },
   header: { gap: spacing.md, marginBottom: spacing.xs },
-  deliverTo: { ...type.eyebrow, color: colors.textFaint },
+  brand: { ...type.eyebrow, color: colors.textFaint },
   search: {
     flexDirection: "row",
     alignItems: "center",
@@ -305,7 +304,6 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
   },
   promoText: { flex: 1, gap: 2 },
-  promoBadge: { ...type.eyebrow, color: colors.secondary },
   promoTitle: { ...type.heading, color: colors.text },
   promoGlyph: { fontSize: 34 },
   card: {
