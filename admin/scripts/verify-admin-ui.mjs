@@ -763,6 +763,164 @@ for (const [path, label, noun] of [
   });
 }
 
+// -- Phase 4: the riders list ----------------------------------------------
+// Reuses the sign-in from above. Non-mutating throughout: the suspend check
+// opens the dialog, proves the reason is required, and cancels. Round-tripping
+// a real suspension in production to satisfy a script is not a trade worth
+// making, so the write path itself is verified by the SQL and unit tests.
+await goto("/riders");
+await waitFor(`document.querySelector('[aria-label="Filter riders by status"]')`, {
+  label: "the rider status cards",
+});
+
+await check("4.1", "the status cards are real toggles that filter the list", async () => {
+  const r = await ev(`(() => {
+    const group = document.querySelector('[aria-label="Filter riders by status"]');
+    const cards = [...group.querySelectorAll('button')];
+    return cards.map(c => ({ label: c.innerText.split('\\n')[0].trim(), pressed: c.getAttribute('aria-pressed') }));
+  })()`);
+
+  const labels = r.map((c) => c.label);
+  for (const want of ["Online", "Busy", "Offline", "Archived", "Suspended"]) {
+    must(labels.includes(want), `no "${want}" card (saw: ${labels.join(" / ")})`);
+  }
+  must(
+    r.every((c) => c.pressed === "true" || c.pressed === "false"),
+    `a card has no aria-pressed: ${JSON.stringify(r)}`,
+  );
+
+  // "All" is the default, and it is not a card -- so exactly one card starts
+  // pressed only once a status is chosen.
+  const online = await ev(`(() => {
+    const group = document.querySelector('[aria-label="Filter riders by status"]');
+    const card = [...group.querySelectorAll('button')].find(c => c.innerText.startsWith('Online'));
+    card.click();
+    return 'ok';
+  })()`);
+  must(online === "ok", "could not click the Online card");
+  await sleepIn(700);
+
+  const after = await ev(`(() => {
+    const group = document.querySelector('[aria-label="Filter riders by status"]');
+    const card = [...group.querySelectorAll('button')].find(c => c.innerText.startsWith('Online'));
+    return { pressed: card.getAttribute('aria-pressed'), url: location.search };
+  })()`);
+  must(after.pressed === "true", "the Online card is not pressed after being clicked");
+  must(/[?&]status=online/.test(after.url), `the URL does not carry the filter: "${after.url}"`);
+  return `${labels.length} cards, Online pressed, ${after.url}`;
+});
+
+await check("4.1", "a shared filter link survives a reload", async () => {
+  // The point of putting the filter in the URL: an admin can paste it into chat
+  // and the recipient lands on the same view.
+  await goto("/riders?status=archived");
+  await waitFor(`document.querySelector('[aria-label="Filter riders by status"]')`, {
+    label: "the rider status cards",
+  });
+  await sleepIn(1200);
+  const r = await ev(`(() => {
+    const group = document.querySelector('[aria-label="Filter riders by status"]');
+    const card = [...group.querySelectorAll('button')].find(c => c.innerText.startsWith('Archived'));
+    return { pressed: card?.getAttribute('aria-pressed') ?? null };
+  })()`);
+  must(r.pressed === "true", "the Archived card is not pressed when loaded from ?status=archived");
+  return "Archived card restored from the URL";
+});
+
+await check("4.3", "suspending requires a reason and explains that it is not archiving", async () => {
+  await goto("/riders");
+  await waitFor(`document.querySelector('tbody tr')`, { label: "the rider table" });
+  const opened = await ev(`(() => {
+    const row = [...document.querySelectorAll('tbody tr')].find(r =>
+      [...r.querySelectorAll('button')].some(b => /^Suspend$/.test(b.textContent.trim())));
+    if (!row) return "no-row";
+    [...row.querySelectorAll('button')].find(b => /^Suspend$/.test(b.textContent.trim())).click();
+    return 'ok';
+  })()`);
+  must(opened === "ok", `could not open the suspend dialog: ${opened}`);
+  await waitFor(`document.querySelector('[role="dialog"]')`, { label: "the suspend dialog" });
+  await sleepIn(400);
+
+  const r = await ev(`(() => {
+    const d = document.querySelector('[role="dialog"]');
+    const confirm = [...d.querySelectorAll('button')].find(b => /Suspend rider/.test(b.textContent));
+    return {
+      title: d.getAttribute('aria-label') ?? '',
+      text: d.innerText,
+      disabled: confirm?.disabled ?? null,
+      required: d.querySelector('textarea')?.getAttribute('aria-required') ?? null,
+    };
+  })()`);
+  must(/^Suspend .+\?$/.test(r.title), `dialog title is "${r.title}", expected "Suspend <name>?"`);
+  must(r.disabled === true, "the confirm button is enabled with no reason typed");
+  must(r.required === "true", "the reason field is not marked aria-required");
+  must(/separate from archiving/i.test(r.text), "the dialog does not distinguish suspension from archiving");
+  must(/history|kept/i.test(r.text), "the dialog does not say the rider record survives");
+
+  await ev(`(() => {
+    const d = document.querySelector('[role="dialog"]');
+    [...d.querySelectorAll('button')].find(b => /Cancel/i.test(b.textContent))?.click();
+  })()`);
+  await sleepIn(400);
+  const closed = await ev(`document.querySelectorAll('[role="dialog"]').length`);
+  must(closed === 0, "Cancel did not close the suspend dialog");
+  return `${r.title} -- blocked without a reason, then cancelled`;
+});
+
+await check("4.2", "the application drawer shows the full application and the checks", async () => {
+  await goto("/riders");
+  await waitFor(`document.querySelector('tbody tr')`, { label: "the rider table" });
+  const r = await ev(`(() => {
+    const text = document.body.innerText;
+    const review = [...document.querySelectorAll('tbody tr button')].filter(b =>
+      /^(Review|View)$/.test(b.textContent.trim()));
+    if (!review.length) return { applications: false, text };
+    review[0].click();
+    return { applications: true, text };
+  })()`);
+  must(r.applications, "no applications in the queue, so the drawer could not be checked");
+
+  await waitFor(`document.querySelector('[role="dialog"]')`, { label: "the application drawer" });
+  await sleepIn(500);
+
+  const d = await ev(`(() => {
+    const el = document.querySelector('[role="dialog"]');
+    const links = [...el.querySelectorAll('a[href]')];
+    return {
+      text: el.innerText,
+      links: links.map(a => ({ href: a.getAttribute('href'), rel: a.getAttribute('rel'), target: a.getAttribute('target') })),
+      checks: el.querySelectorAll('input[type="checkbox"]').length,
+    };
+  })()`);
+
+  for (const want of ["Email", "Phone", "Vehicle", "Documents", "Waiting"]) {
+    must(d.text.includes(want), `the drawer does not show "${want}"`);
+  }
+
+  if (d.checks > 0) {
+    for (const want of ["Licence legible", "ORCR matches vehicle", "ID matches name"]) {
+      must(d.text.includes(want), `the document checklist is missing "${want}"`);
+    }
+    must(/Approve anyway/i.test(d.text), "there is no admin override on the document checklist");
+  }
+
+  // Applicant-supplied references may be links. Anything clickable must be
+  // http(s) and must not hand the opener over.
+  const unsafe = d.links.filter((l) => !/^https?:/.test(l.href ?? "") || l.target !== "_blank" || !/noopener/.test(l.rel ?? ""));
+  must(unsafe.length === 0, `unsafe document link: ${JSON.stringify(unsafe[0])}`);
+
+  await ev(`(() => {
+    const el = document.querySelector('[role="dialog"]');
+    const btn = [...el.querySelectorAll('button')].find(b => /^(Cancel|Close)$/i.test(b.textContent.trim()));
+    if (btn) btn.click();
+    else document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  })()`);
+  await sleepIn(500);
+  const closed = await ev(`document.querySelectorAll('[role="dialog"]').length`);
+  must(closed === 0, "the application drawer did not close");
+  return `${d.checks} document check(s), ${d.links.length} link(s), all safe`;
+});
+
 // -- 4.x notifications -----------------------------------------------------
 // These run while still signed in as admin, so they go before the 3.4 checks
 // that sign out.
