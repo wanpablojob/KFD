@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -12,13 +12,15 @@ import {
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useOrderFees, useRestaurants, RestaurantRow } from "../../lib/hooks";
+import { useDebouncedValue } from "../../lib/use-debounced-value";
 import { colors, radius, shadow, spacing, type } from "../../lib/theme";
 
 export default function CustomerHomeScreen() {
   const insets = useSafeAreaInsets();
   const [query, setQuery] = useState("");
   const [cuisine, setCuisine] = useState<string | null>(null);
-  const [debouncedQuery, setDebouncedQuery] = useState("");
+  // The query the server actually searches on, held back until typing pauses.
+  const debouncedQuery = useDebouncedValue(query, 300);
 
   const {
     data: restaurants,
@@ -38,12 +40,6 @@ export default function CustomerHomeScreen() {
     const set = new Set((restaurants ?? []).map((r) => r.cuisine).filter(Boolean));
     return [...set].sort();
   }, [restaurants]);
-
-  // Debounce search input to avoid excessive RPC calls
-  useCallback(() => {
-    const timer = setTimeout(() => setDebouncedQuery(query), 300);
-    return () => clearTimeout(timer);
-  }, [query]);
 
   if (isLoading) {
     return (
