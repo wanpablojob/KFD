@@ -344,7 +344,15 @@ export async function fetchRiderProfile(userId: string): Promise<RiderProfile | 
 export interface CustomerOrder {
   reference: string;
   restaurant: string;
-  items: { name: string; quantity: number; price: number }[];
+  /** Null only for orders placed before restaurants were linked. */
+  restaurant_id: string | null;
+  items: {
+    name: string;
+    quantity: number;
+    price: number;
+    /** Absent on orders placed before 0053; reorder then falls back to name. */
+    menu_item_id?: string | null;
+  }[];
   subtotal: number;
   delivery_fee: number;
   service_fee: number;
@@ -360,7 +368,7 @@ export async function fetchMyOrders(): Promise<CustomerOrder[]> {
   const { data, error } = await supabase
     .from("orders")
     .select(
-      "reference, restaurant, items, subtotal, delivery_fee, service_fee, total, status, payment, placed_at, delivery_address"
+      "reference, restaurant, restaurant_id, items, subtotal, delivery_fee, service_fee, total, status, payment, placed_at, delivery_address"
     )
     .order("placed_at", { ascending: false })
     .limit(30);

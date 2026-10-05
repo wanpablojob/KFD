@@ -36,6 +36,8 @@ export interface CartContextValue {
   dismissPending: () => void;
   setQuantity: (menu_item_id: string, quantity: number) => void;
   remove: (menu_item_id: string) => void;
+  /** Replace the whole cart, e.g. when reordering a past order. */
+  replace: (lines: CartLine[]) => void;
   clear: () => void;
   count: number;
   subtotal: number;
@@ -52,6 +54,7 @@ export type Action =
   | { type: "add"; line: Omit<CartLine, "quantity"> }
   | { type: "setQuantity"; menu_item_id: string; quantity: number }
   | { type: "remove"; menu_item_id: string }
+  | { type: "replace"; lines: CartLine[] }
   | { type: "clear" }
   | { type: "acceptPending" }
   | { type: "dismissPending" };
@@ -85,6 +88,8 @@ export function reducer(state: CartState, action: Action): CartState {
       };
     case "remove":
       return { ...state, lines: removeLine(state.lines, action.menu_item_id) };
+    case "replace":
+      return { lines: action.lines, pending: null };
     case "clear":
       return INITIAL;
     case "acceptPending":
@@ -111,6 +116,7 @@ export function CartProvider({ children }: PropsWithChildren) {
       setQuantity: (menu_item_id, quantity) =>
         dispatch({ type: "setQuantity", menu_item_id, quantity }),
       remove: (menu_item_id) => dispatch({ type: "remove", menu_item_id }),
+      replace: (lines) => dispatch({ type: "replace", lines }),
       // No useCallback here: this arrow runs inside the useMemo factory, so
       // calling a hook would be a conditional hook call. dispatch is stable and
       // the value is already memoized on [lines, pending].

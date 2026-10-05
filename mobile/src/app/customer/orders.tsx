@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Pressable,
   RefreshControl,
@@ -12,6 +13,9 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useMyOrders, type CustomerOrder } from "../../lib/hooks";
 import { useSession } from "../../lib/session-context";
+import { useCart } from "../../lib/cart-context";
+import { fetchMenu } from "../../lib/storefront";
+import { buildReorder } from "../../lib/reorder";
 import { supabase } from "../../lib/supabase";
 import { colors, radius, shadow, spacing, type } from "../../lib/theme";
 
@@ -29,6 +33,70 @@ export default function CustomerOrdersScreen() {
   const { user } = useSession();
   const { data: orders, isLoading, isError, error, refetch } = useMyOrders();
   const [mounted, setMounted] = useState(false);
+  const { count, restaurantId, replace } = useCart();
+  const router = useRouter();
+  const [reorderingRef, setReorderingRef] = useState<string | null>(null);
+
+  /**
+   * Put a past order back in the cart. Rebuilds lines against today's menu (prices
+   * and availability are today's, not the old order's) and confirms once if the
+   * cart would be replaced or some items are gone -- a single dialog either way,
+   * so the customer is never surprised by a silently different cart.
+   */
+  async function reorder(order: CustomerOrder) {
+    if (reorderingRef) return;
+    if (!order.restaurant_id) {
+      Alert.alert("Cannot reorder", "This order is no longer linked to a place.");
+      return;
+    }
+    const restaurantIdForOrder = order.restaurant_id;
+    setReorderingRef(order.reference);
+    try {
+      const menu = await fetchMenu(restaurantIdForOrder);
+      const { lines, unavailable } = buildReorder(order.items, menu);
+      if (lines.length === 0) {
+        Alert.alert(
+          "Nothing available",
+          unavailable.length
+            ? `These items are no longer on the menu: ${unavailable.join(", ")}.`
+            : "None of this order's items are available right now."
+        );
+        return;
+      }
+
+      const cartLines = lines.map((l) => ({
+        ...l,
+        restaurantId: restaurantIdForOrder,
+        restaurantName: order.restaurant,
+      }));
+      const replacing =
+        count > 0 && !!restaurantId && restaurantId !== restaurantIdForOrder;
+      const go = () => {
+        replace(cartLines);
+        router.push("/customer/cart");
+      };
+
+      if (replacing || unavailable.length > 0) {
+        const parts: string[] = [];
+        if (replacing) parts.push(`Your cart has ${count} item(s) from another place.`);
+        if (unavailable.length > 0)
+          parts.push(`No longer available: ${unavailable.join(", ")}.`);
+        Alert.alert(`Reorder ${order.restaurant}?`, parts.join(" "), [
+          { text: "Cancel", style: "cancel" },
+          { text: "Reorder", onPress: go },
+        ]);
+      } else {
+        go();
+      }
+    } catch (cause) {
+      Alert.alert(
+        "Could not reorder",
+        cause instanceof Error ? cause.message : "Try again."
+      );
+    } finally {
+      setReorderingRef(null);
+    }
+  }
 
   // Realtime subscription for live order status updates
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
@@ -112,7 +180,13 @@ export default function CustomerOrdersScreen() {
             <Text style={type.body}>Your first order will show up here.</Text>
           </View>
         }
-        renderItem={({ item }) => <OrderCard order={item} />}
+        renderItem={({ item }) => (
+          <OrderCard
+            order={item}
+            onReorder={reorder}
+            reordering={reorderingRef === item.reference}
+          />
+        )}
         refreshControl={
           <RefreshControl refreshing={false} onRefresh={() => refetch()} />
         }
@@ -121,10 +195,19 @@ export default function CustomerOrdersScreen() {
   );
 }
 
-function OrderCard({ order }: { order: CustomerOrder }) {
+function OrderCard({
+  order,
+  onReorder,
+  reordering,
+}: {
+  order: CustomerOrder;
+  onReorder: (order: CustomerOrder) => void;
+  reordering: boolean;
+}) {
   const router = useRouter();
   const cancelled = order.status === "cancelled";
   const delivered = order.status === "delivered";
+  const canReorder = delivered || cancelled;
 
   return (
     <Pressable
@@ -170,6 +253,26 @@ function OrderCard({ order }: { order: CustomerOrder }) {
         </Text>
         <Text style={type.price}>₱{Number(order.total).toFixed(2)}</Text>
       </View>
+
+      {canReorder ? (
+        <Pressable
+          style={({ pressed }) => [
+            styles.reorderBtn,
+            reordering && styles.reorderDisabled,
+            pressed && !reordering && styles.reorderPressed,
+          ]}
+          onPress={() => onReorder(order)}
+          disabled={reordering}
+          accessibilityRole="button"
+          accessibilityLabel={`Reorder ${order.reference}`}
+        >
+          {reordering ? (
+            <ActivityIndicator color={colors.primary} size="small" />
+          ) : (
+            <Text style={styles.reorderLabel}>Reorder</Text>
+          )}
+        </Pressable>
+      ) : null}
     </Pressable>
   );
 }
@@ -226,4 +329,17 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
   },
   retryLabel: { ...type.label, color: colors.textInverse },
+  reorderBtn: {
+    marginTop: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    borderRadius: radius.pill,
+    paddingVertical: spacing.md,
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 40,
+  },
+  reorderDisabled: { opacity: 0.6 },
+  reorderPressed: { backgroundColor: colors.primarySoft },
+  reorderLabel: { ...type.label, color: colors.primary, fontWeight: "700" },
 });
