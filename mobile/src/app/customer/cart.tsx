@@ -27,8 +27,7 @@ import { colors, radius, shadow, spacing, type } from "../../lib/theme";
 
 const PAYMENTS: { key: PaymentChoice; label: string; glyph: string }[] = [
   { key: "cash", label: "Cash on delivery", glyph: "₱" },
-  { key: "e_wallet", label: "E-Wallet (GCash)", glyph: "◉" },
-  { key: "card", label: "Card", glyph: "▭" },
+  { key: "e_wallet", label: "GCash (scan rider's QR)", glyph: "◉" },
 ];
 
 /** Review -> address -> pay -> place. Every peso shown here comes from the server. */
