@@ -7,6 +7,8 @@ import {
   fetchMyOrders,
   placeCustomerOrder,
   cancelOrder,
+  fetchMyRatings,
+  rateOrder,
   fetchTrackedOrder,
   fetchRiderOrdersPage,
   fetchRiderOffers,
@@ -134,6 +136,32 @@ export function useCancelOrder() {
   return useMutation({
     mutationFn: (orderId: string) => cancelOrder(orderId),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.orders() });
+    },
+  });
+}
+
+/** The caller's own order ratings, so the list can show "Rated". */
+export function useMyRatings() {
+  return useQuery({
+    queryKey: ["myRatings"],
+    queryFn: fetchMyRatings,
+  });
+}
+
+/** Rate a delivered order, then refresh the ratings list. */
+export function useRateOrder() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (args: {
+      orderId: string;
+      restaurantRating: number;
+      riderRating?: number | null;
+      comment?: string | null;
+    }) => rateOrder(args),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["myRatings"] });
       queryClient.invalidateQueries({ queryKey: queryKeys.orders() });
     },
   });

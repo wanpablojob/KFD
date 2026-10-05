@@ -347,6 +347,8 @@ export interface CustomerOrder {
   restaurant: string;
   /** Null only for orders placed before restaurants were linked. */
   restaurant_id: string | null;
+  /** Null when no rider has been assigned; decides if the rider can be rated. */
+  rider_id: string | null;
   items: {
     name: string;
     quantity: number;
@@ -369,7 +371,7 @@ export async function fetchMyOrders(): Promise<CustomerOrder[]> {
   const { data, error } = await supabase
     .from("orders")
     .select(
-      "id, reference, restaurant, restaurant_id, items, subtotal, delivery_fee, service_fee, total, status, payment, placed_at, delivery_address"
+      "id, reference, restaurant, restaurant_id, rider_id, items, subtotal, delivery_fee, service_fee, total, status, payment, placed_at, delivery_address"
     )
     .order("placed_at", { ascending: false })
     .limit(30);
@@ -516,6 +518,39 @@ export async function placeCustomerOrder(args: {
  */
 export async function cancelOrder(orderId: string): Promise<void> {
   const { error } = await supabase.rpc("cancel_order", { p_order_id: orderId });
+  if (error) throw error;
+}
+
+export interface OrderRating {
+  order_id: string;
+  restaurant_rating: number;
+  rider_rating: number | null;
+  comment: string | null;
+}
+
+/** The caller's own ratings, keyed by order id via the list. */
+export async function fetchMyRatings(): Promise<OrderRating[]> {
+  const { data, error } = await supabase.rpc("my_ratings");
+  if (error) throw error;
+  return (data ?? []) as OrderRating[];
+}
+
+/**
+ * Rate a delivered order. The server enforces ownership, delivered status, and
+ * the 1-5 range, so its error is shown rather than pre-empted.
+ */
+export async function rateOrder(args: {
+  orderId: string;
+  restaurantRating: number;
+  riderRating?: number | null;
+  comment?: string | null;
+}): Promise<void> {
+  const { error } = await supabase.rpc("rate_order", {
+    p_order_id: args.orderId,
+    p_restaurant_rating: args.restaurantRating,
+    p_rider_rating: args.riderRating ?? null,
+    p_comment: args.comment ?? null,
+  });
   if (error) throw error;
 }
 

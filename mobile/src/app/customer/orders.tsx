@@ -3,15 +3,25 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
   Pressable,
   RefreshControl,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useMyOrders, useCancelOrder, type CustomerOrder } from "../../lib/hooks";
+import {
+  useMyOrders,
+  useCancelOrder,
+  useMyRatings,
+  useRateOrder,
+  type CustomerOrder,
+} from "../../lib/hooks";
 import { useSession } from "../../lib/session-context";
 import { useCart } from "../../lib/cart-context";
 import { fetchMenu } from "../../lib/storefront";
@@ -37,6 +47,55 @@ export default function CustomerOrdersScreen() {
   const router = useRouter();
   const [reorderingRef, setReorderingRef] = useState<string | null>(null);
   const cancel = useCancelOrder();
+
+  const { data: ratings } = useMyRatings();
+  const rate = useRateOrder();
+  const ratingByOrder = new Map((ratings ?? []).map((r) => [r.order_id, r]));
+
+  const [ratingTarget, setRatingTarget] = useState<CustomerOrder | null>(null);
+  const [restaurantStars, setRestaurantStars] = useState(0);
+  const [riderStars, setRiderStars] = useState(0);
+  const [comment, setComment] = useState("");
+
+  function openRating(order: CustomerOrder) {
+    const existing = ratingByOrder.get(order.id);
+    setRestaurantStars(existing?.restaurant_rating ?? 0);
+    setRiderStars(existing?.rider_rating ?? 0);
+    setComment(existing?.comment ?? "");
+    setRatingTarget(order);
+  }
+
+  function closeRating() {
+    setRatingTarget(null);
+    setRestaurantStars(0);
+    setRiderStars(0);
+    setComment("");
+  }
+
+  function submitRating() {
+    if (!ratingTarget) return;
+    if (restaurantStars < 1) {
+      Alert.alert("Add a rating", "Tap a star to rate the restaurant.");
+      return;
+    }
+    rate.mutate(
+      {
+        orderId: ratingTarget.id,
+        restaurantRating: restaurantStars,
+        // Ignored server-side when the order had no rider; sent only when it did.
+        riderRating: ratingTarget.rider_id ? riderStars || null : null,
+        comment: comment.trim() || null,
+      },
+      {
+        onSuccess: closeRating,
+        onError: (cause) =>
+          Alert.alert(
+            "Could not save rating",
+            cause instanceof Error ? cause.message : "Try again."
+          ),
+      }
+    );
+  }
 
   function handleCancel(order: CustomerOrder) {
     Alert.alert(
@@ -210,12 +269,102 @@ export default function CustomerOrdersScreen() {
             reordering={reorderingRef === item.reference}
             onCancel={handleCancel}
             cancelling={cancel.isPending && cancel.variables === item.id}
+            rating={ratingByOrder.get(item.id)}
+            onRate={openRating}
           />
         )}
         refreshControl={
           <RefreshControl refreshing={false} onRefresh={() => refetch()} />
         }
       />
+
+      <Modal
+        visible={ratingTarget !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={closeRating}
+      >
+        <Pressable
+          style={styles.backdrop}
+          accessibilityLabel="Dismiss"
+          onPress={closeRating}
+        >
+          <Pressable
+            style={[styles.sheet, { paddingBottom: spacing.xl + insets.bottom }]}
+            onPress={() => undefined}
+          >
+            <KeyboardAvoidingView
+              behavior={Platform.OS === "ios" ? "padding" : undefined}
+            >
+              <Text style={styles.sheetTitle}>
+                Rate {ratingTarget?.restaurant ?? "your order"}
+              </Text>
+              <Text style={styles.sheetLabel}>The restaurant</Text>
+              <StarRow value={restaurantStars} onChange={setRestaurantStars} />
+              {ratingTarget?.rider_id ? (
+                <>
+                  <Text style={styles.sheetLabel}>Your rider</Text>
+                  <StarRow value={riderStars} onChange={setRiderStars} />
+                </>
+              ) : null}
+              <TextInput
+                style={styles.commentInput}
+                value={comment}
+                onChangeText={setComment}
+                placeholder="Leave a comment (optional)"
+                placeholderTextColor={colors.textFaint}
+                multiline
+                numberOfLines={3}
+                maxLength={500}
+                editable={!rate.isPending}
+              />
+              <View style={styles.sheetActions}>
+                <Pressable
+                  style={[styles.sheetCancel, rate.isPending && styles.reorderDisabled]}
+                  onPress={closeRating}
+                  disabled={rate.isPending}
+                >
+                  <Text style={styles.sheetCancelLabel}>Cancel</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.sheetSubmit, rate.isPending && styles.reorderDisabled]}
+                  onPress={submitRating}
+                  disabled={rate.isPending}
+                >
+                  {rate.isPending ? (
+                    <ActivityIndicator color={colors.textInverse} size="small" />
+                  ) : (
+                    <Text style={styles.sheetSubmitLabel}>Submit</Text>
+                  )}
+                </Pressable>
+              </View>
+            </KeyboardAvoidingView>
+          </Pressable>
+        </Pressable>
+      </Modal>
+    </View>
+  );
+}
+
+function StarRow({
+  value,
+  onChange,
+}: {
+  value: number;
+  onChange: (value: number) => void;
+}) {
+  return (
+    <View style={styles.starRow}>
+      {[1, 2, 3, 4, 5].map((n) => (
+        <Pressable
+          key={n}
+          onPress={() => onChange(n)}
+          accessibilityRole="button"
+          accessibilityLabel={`${n} star${n === 1 ? "" : "s"}`}
+        >
+          <Text style={[styles.star, n <= value && styles.starActive]}>★</Text>
+        </Pressable>
+      ))}
     </View>
   );
 }
@@ -226,12 +375,16 @@ function OrderCard({
   reordering,
   onCancel,
   cancelling,
+  rating,
+  onRate,
 }: {
   order: CustomerOrder;
   onReorder: (order: CustomerOrder) => void;
   reordering: boolean;
   onCancel: (order: CustomerOrder) => void;
   cancelling: boolean;
+  rating: { restaurant_rating: number; rider_rating: number | null } | undefined;
+  onRate: (order: CustomerOrder) => void;
 }) {
   const router = useRouter();
   const cancelled = order.status === "cancelled";
@@ -323,6 +476,33 @@ function OrderCard({
           )}
         </Pressable>
       ) : null}
+
+      {delivered ? (
+        rating ? (
+          <View style={styles.ratedRow}>
+            <Text style={styles.ratedText}>
+              You rated ★ {rating.restaurant_rating}
+              {rating.rider_rating ? ` · rider ★ ${rating.rider_rating}` : ""}
+            </Text>
+            <Pressable
+              onPress={() => onRate(order)}
+              accessibilityRole="button"
+              accessibilityLabel={`Edit rating for ${order.reference}`}
+            >
+              <Text style={styles.ratedEdit}>Edit</Text>
+            </Pressable>
+          </View>
+        ) : (
+          <Pressable
+            style={({ pressed }) => [styles.rateBtn, pressed && styles.reorderPressed]}
+            onPress={() => onRate(order)}
+            accessibilityRole="button"
+            accessibilityLabel={`Rate ${order.reference}`}
+          >
+            <Text style={styles.rateLabel}>Rate order</Text>
+          </Pressable>
+        )
+      ) : null}
     </Pressable>
   );
 }
@@ -404,4 +584,69 @@ const styles = StyleSheet.create({
   },
   cancelPressed: { backgroundColor: colors.dangerSoft },
   cancelLabel: { ...type.label, color: colors.danger, fontWeight: "700" },
+  rateBtn: {
+    marginTop: spacing.sm,
+    backgroundColor: colors.primary,
+    borderRadius: radius.pill,
+    paddingVertical: spacing.md,
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 40,
+  },
+  rateLabel: { ...type.label, color: colors.textInverse, fontWeight: "700" },
+  ratedRow: {
+    marginTop: spacing.sm,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+  },
+  ratedText: { ...type.caption, color: colors.textMuted, flex: 1 },
+  ratedEdit: { ...type.label, color: colors.primary, fontWeight: "700" },
+  starRow: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.xs },
+  star: { fontSize: 30, color: colors.border },
+  starActive: { color: colors.accent },
+  backdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    justifyContent: "flex-end",
+  },
+  sheet: {
+    backgroundColor: colors.card,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    padding: spacing.lg,
+    gap: spacing.xs,
+  },
+  sheetTitle: { ...type.title, fontSize: 18, marginBottom: spacing.xs },
+  sheetLabel: { ...type.eyebrow, marginTop: spacing.sm },
+  commentInput: {
+    ...type.body,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    minHeight: 80,
+    marginTop: spacing.md,
+    textAlignVertical: "top",
+  },
+  sheetActions: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.md },
+  sheetCancel: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingVertical: spacing.md,
+    alignItems: "center",
+  },
+  sheetCancelLabel: { ...type.label, color: colors.textMuted },
+  sheetSubmit: {
+    flex: 1,
+    backgroundColor: colors.primary,
+    borderRadius: radius.md,
+    paddingVertical: spacing.md,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sheetSubmitLabel: { ...type.label, color: colors.textInverse, fontWeight: "700" },
 });

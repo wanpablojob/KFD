@@ -170,6 +170,33 @@ export type Database = {
           status: OrderStatus;
         }[];
       };
+      /**
+       * Rate a delivered order (migration 0055). restaurant_rating is required;
+       * rider_rating is ignored server-side when the order had no rider.
+       */
+      rate_order: {
+        Args: {
+          p_order_id: string;
+          p_restaurant_rating: number;
+          p_rider_rating?: number | null;
+          p_comment?: string | null;
+        };
+        Returns: {
+          order_id: string;
+          restaurant_rating: number;
+          rider_rating: number | null;
+        }[];
+      };
+      /** The caller's own ratings, for the "Rated" state on the orders list. */
+      my_ratings: {
+        Args: Record<string, never>;
+        Returns: {
+          order_id: string;
+          restaurant_rating: number;
+          rider_rating: number | null;
+          comment: string | null;
+        }[];
+      };
       rider_set_status: {
         Args: { p_status: RiderStatus };
         Returns: unknown;
