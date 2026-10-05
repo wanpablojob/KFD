@@ -352,6 +352,53 @@ export async function fetchMyOrders(): Promise<CustomerOrder[]> {
   return (data ?? []) as CustomerOrder[];
 }
 
+/**
+ * Public order tracking (anon-callable). `track_order` returns a fixed
+ * projection and null when the reference matches nothing, so the caller
+ * distinguishes "no such order" from a transport error.
+ *
+ * It does NOT return `service_fee` or `delivery_address` today, so the screen
+ * cannot show a complete fee breakdown or where the order is going. Adding
+ * those to the RPC is a migration, flagged rather than guessed at here.
+ */
+export interface TrackedOrder {
+  reference: string;
+  restaurant: string;
+  items: OrderLine[];
+  subtotal: number;
+  delivery_fee: number;
+  total: number;
+  status: string;
+  payment: string;
+  placed_at: string;
+}
+
+export async function fetchTrackedOrder(
+  reference: string
+): Promise<TrackedOrder | null> {
+  const { data, error } = await supabase.rpc("track_order", {
+    p_reference: reference,
+  });
+  if (error) throw error;
+
+  const row = ((data ?? []) as unknown as Record<string, unknown>[])[0];
+  if (!row) return null;
+
+  // items is jsonb; parse it rather than cast, same guard as the admin
+  // dispatch list and the rider order page.
+  return {
+    reference: String(row.reference),
+    restaurant: String(row.restaurant),
+    items: parseOrderItems(row.items),
+    subtotal: Number(row.subtotal),
+    delivery_fee: Number(row.delivery_fee),
+    total: Number(row.total),
+    status: String(row.status),
+    payment: String(row.payment),
+    placed_at: String(row.placed_at),
+  };
+}
+
 export interface PlaceOrderItem {
   menu_item_id: string;
   quantity: number;

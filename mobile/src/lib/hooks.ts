@@ -6,6 +6,7 @@ import {
   fetchMenu,
   fetchMyOrders,
   placeCustomerOrder,
+  fetchTrackedOrder,
   fetchRiderOrdersPage,
   fetchRiderOffers,
   fetchMyRiderApplication,
@@ -26,6 +27,7 @@ import {
   type PlaceOrderItem,
   type PaymentChoice,
 } from "./storefront";
+import { isTerminalStatus } from "./order-progress";
 
 export const queryKeys = {
   restaurants: (query: string, cuisine: string | null) =>
@@ -83,6 +85,27 @@ export function useMyOrders() {
     queryKey: queryKeys.orders(),
     queryFn: fetchMyOrders,
     placeholderData: (prev) => prev,
+  });
+}
+
+/**
+ * Live tracking for one reference. Polls while the order is still moving and
+ * stops the moment it reaches a terminal status; refetches when the app returns
+ * to the foreground (focusManager is wired to AppState) so a customer watching
+ * the screen sees the status move.
+ */
+export function useTrackOrder(reference: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ["trackOrder", reference],
+    queryFn: () => fetchTrackedOrder(reference),
+    enabled: enabled && reference.trim().length > 0,
+    refetchOnWindowFocus: true,
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      // undefined while the first fetch is in flight, which is not terminal.
+      if (status && isTerminalStatus(status)) return false;
+      return 15_000;
+    },
   });
 }
 

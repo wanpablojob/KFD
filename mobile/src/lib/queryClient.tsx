@@ -1,10 +1,11 @@
-import { QueryClient } from "@tanstack/react-query";
+import { QueryClient, focusManager } from "@tanstack/react-query";
 import {
   PersistQueryClientProvider,
   Persister,
   experimental_createQueryPersister,
 } from "@tanstack/react-query-persist-client";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { AppState } from "react-native";
 
 /**
  * Query client with persistent cache for offline-first experience.
@@ -31,6 +32,18 @@ const queryClient = new QueryClient({
       retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
     },
   },
+});
+
+// React Query's focusManager defaults to the web `window` focus event, which
+// does not exist in React Native, so `refetchOnWindowFocus` never fires. Point
+// it at AppState so screens that opt in (the order tracker) refetch when the app
+// returns to the foreground. The query default stays `refetchOnWindowFocus:
+// false`; only queries that ask for focus refetching are affected.
+focusManager.setEventListener((handleFocus) => {
+  const subscription = AppState.addEventListener("change", (state) => {
+    handleFocus(state === "active");
+  });
+  return () => subscription.remove();
 });
 
 // Experimental persister from TanStack Query v5
