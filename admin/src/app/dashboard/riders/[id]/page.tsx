@@ -7,6 +7,7 @@ import {
   addRiderNote,
   fetchOrdersByRider,
   fetchRiderActivity,
+  fetchRiderApplications,
   fetchRiderEarningsByDay,
   fetchRiderNotes,
   fetchRiderOverview,
@@ -106,6 +107,10 @@ export default function RiderDetailPage() {
   );
   const activity = useAsyncData(() => fetchRiderActivity(riderId));
   const notes = useAsyncData(() => fetchRiderNotes(riderId));
+  // Only to find this rider's own application. There is no rider_id on
+  // rider_applications -- the link is the auth user, so this matches on
+  // applicantUserId rather than needing a join column.
+  const applications = useAsyncData(() => fetchRiderApplications());
 
   const now = new Date();
   const earnings = useAsyncData(() =>
@@ -154,6 +159,21 @@ export default function RiderDetailPage() {
       </PageContainer>
     );
   }
+
+  // A rider who has been given work is worth understanding: what they could not
+  // deliver and why. The reason is rider-typed free text stored on the order
+  // (migration 0044) and deliberately kept after the order is reassigned.
+  const failedDeliveries = (orders.data ?? []).filter(
+    (order) => order.deliveryFailedReason !== null,
+  );
+
+  // A rider with no linked auth account never applied through the app, so there
+  // is nothing to link to rather than something that failed to load.
+  const application = rider.userId
+    ? (applications.data ?? []).find(
+        (candidate) => candidate.applicantUserId === rider.userId,
+      )
+    : undefined;
 
   const events = sortActivity(activity.data ?? []);
   const flags = riderFlags({
@@ -471,6 +491,104 @@ export default function RiderDetailPage() {
                 </ol>
               )}
             </TableBoundary>
+          </div>
+        </Card>
+      </Section>
+
+      <Section aria-label="Application" className="mb-8">
+        <Card>
+          <div className="p-5">
+            <h2 className="text-sm font-semibold text-card-foreground">
+              Application
+            </h2>
+            {application ? (
+              <div className="mt-2 flex flex-col gap-2">
+                <p className="text-sm text-muted-foreground">
+                  {application.vehicle} · {application.city} · applied{" "}
+                  {new Date(application.createdAt).toLocaleDateString()}
+                </p>
+                {/* The refs are whatever the applicant typed -- there is no upload
+                    bucket in this project -- so they are shown as text, never as a
+                    link. See rider-applications.ts for why a value that parses as
+                    a URL still may not be rendered as one. */}
+                <dl className="flex flex-col gap-1 text-sm">
+                  {(
+                    [
+                      ["Licence", application.licenceRef],
+                      ["ORCR", application.orcrRef],
+                      ["Government ID", application.governmentIdRef],
+                    ] as const
+                  ).map(([label, ref]) => (
+                    <div key={label}>
+                      <dt className="inline text-muted-foreground">{label}: </dt>
+                      <dd className="inline font-mono text-card-foreground">
+                        {ref || "not supplied"}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+                {application.decisionNote ? (
+                  <p className="whitespace-pre-wrap text-sm text-card-foreground">
+                    {application.decisionNote}
+                  </p>
+                ) : null}
+                <Link
+                  href="/dashboard/riders"
+                  className="text-sm text-primary underline underline-offset-2"
+                >
+                  Open the application queue
+                </Link>
+              </div>
+            ) : (
+              <p className="mt-2 text-sm text-muted-foreground">
+                {rider.userId
+                  ? "No application on file for this account. This rider was added directly."
+                  : "This rider is not linked to an account, so they never applied through the app."}
+              </p>
+            )}
+          </div>
+        </Card>
+      </Section>
+
+      <Section aria-label="Failed deliveries" className="mb-8">
+        <Card>
+          <div className="p-5">
+            <h2 className="text-sm font-semibold text-card-foreground">
+              Failed deliveries
+            </h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Reported by this rider in the app. Kept after the order is reassigned.
+            </p>
+            {failedDeliveries.length === 0 ? (
+              <p className="mt-3 text-sm text-muted-foreground">
+                None reported.
+              </p>
+            ) : (
+              <ul className="mt-3 flex flex-col gap-2">
+                {failedDeliveries.map((order) => (
+                  <li
+                    key={order.id}
+                    className="flex flex-wrap items-baseline gap-x-3 rounded-lg border border-border p-3"
+                  >
+                    <Link
+                      href={`/dashboard/orders?order=${order.reference}`}
+                      className="text-sm font-medium text-card-foreground underline underline-offset-2"
+                    >
+                      {order.reference}
+                    </Link>
+                    <span className="text-xs text-muted-foreground">
+                      {order.restaurant} ·{" "}
+                      {order.deliveryFailedAt
+                        ? new Date(order.deliveryFailedAt).toLocaleString()
+                        : "date not recorded"}
+                    </span>
+                    <span className="w-full text-sm text-card-foreground">
+                      {order.deliveryFailedReason}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </Card>
       </Section>
