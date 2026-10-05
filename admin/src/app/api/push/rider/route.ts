@@ -107,7 +107,7 @@ export async function POST(req: Request) {
     payout > 0
       ? `Order ${order.reference} is delivered. You earned ₱${payout.toFixed(2)}.`
       : `Order ${order.reference} is delivered.`,
-    { orderId: order.id, reference: order.reference }
+    { type: "delivery_completed", orderId: order.id }
   );
 
   // Always 200: the push is a courtesy on top of a write that already landed.

@@ -6,7 +6,7 @@ import {
   sendOrderEmail,
   type OrderEmailData,
 } from "@/lib/server/order-email";
-import { sendMerchantOrderPush } from "@/lib/server/push-notify";
+import { sendMerchantOrderPush, sendCustomerPush } from "@/lib/server/push-notify";
 
 /**
  * POST /api/orders/notify
@@ -39,6 +39,33 @@ interface NotifyBody {
 }
 
 export const runtime = "nodejs";
+
+/**
+ * Customer-facing push copy per status. Keys mirror the order_status enum; a
+ * status with no entry here produces no push rather than a generic one.
+ */
+const CUSTOMER_STATUS_PUSH: Record<string, (ref: string) => { title: string; body: string }> = {
+  confirmed: (r) => ({
+    title: "Order confirmed",
+    body: `Order ${r} was accepted by the restaurant.`,
+  }),
+  preparing: (r) => ({
+    title: "Order being prepared",
+    body: `Order ${r} is being prepared.`,
+  }),
+  out_for_delivery: (r) => ({
+    title: "Order on the way",
+    body: `Order ${r} is on the way.`,
+  }),
+  delivered: (r) => ({
+    title: "Order delivered",
+    body: `Order ${r} has been delivered.`,
+  }),
+  cancelled: (r) => ({
+    title: "Order cancelled",
+    body: `Order ${r} was cancelled.`,
+  }),
+};
 
 function serviceClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -208,10 +235,17 @@ export async function POST(req: Request) {
   }
 
   // status_changed
+  //
+  // Push the customer first and independently of email: it targets the order's
+  // customer_user_id and must still fire when there is no address on file. A
+  // legacy order placed before customer accounts existed has no user id, which
+  // is a skip, not an error. Best-effort -- the status write already landed.
+  const push = await pushCustomerStatus(supabase, order, reason);
+
   const mail = orderStatusEmail(emailData, order.status, reason);
   if (!mail) {
     return NextResponse.json(
-      { skipped: `no email for status ${order.status}` },
+      { skipped: `no email for status ${order.status}`, push },
       { status: 202 }
     );
   }
@@ -224,7 +258,7 @@ export async function POST(req: Request) {
 
   if (!customer?.email) {
     return NextResponse.json(
-      { skipped: "no email address for this customer" },
+      { skipped: "no email address for this customer", push },
       { status: 202 }
     );
   }
@@ -234,7 +268,34 @@ export async function POST(req: Request) {
   // A 202 keeps the merchant's accept/reject from failing just because email
   // is down; the status change is the thing that matters.
   return NextResponse.json(
-    { event, to: customer.email, result },
+    { event, to: customer.email, result, push },
     { status: result.ok ? 200 : 202 }
   );
+}
+
+/** Send the customer a push for this status, if the order and status allow it. */
+async function pushCustomerStatus(
+  supabase: NonNullable<ReturnType<typeof serviceClient>>,
+  order: { reference: string; status: string; customer_user_id: string | null },
+  reason?: string
+) {
+  if (!order.customer_user_id) {
+    return { ok: false, sent: 0, skipped: "order has no customer account" };
+  }
+
+  const copy = CUSTOMER_STATUS_PUSH[order.status];
+  if (!copy) {
+    return { ok: false, sent: 0, skipped: `no push for status ${order.status}` };
+  }
+
+  const { title, body } = copy(order.reference);
+  // The reason is customer-visible in the rejection email too, so it is safe
+  // here; it is capped by the same check earlier in the request.
+  const withReason =
+    order.status === "cancelled" && reason ? `${body} Reason: ${reason}` : body;
+
+  return sendCustomerPush(supabase, order.customer_user_id, title, withReason, {
+    type: "order_status",
+    reference: order.reference,
+  });
 }

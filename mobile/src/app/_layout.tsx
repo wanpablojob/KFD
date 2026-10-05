@@ -36,12 +36,27 @@ initSentry();
 function RootNavigator() {
   const { user, sessionLoading, role, roleError, retryRole, leave } = useSession();
 
-  // A tap on a delivered push ("New order KFD-…" with data.reference) opens the
-  // public tracking screen for that reference. getLastNotificationResponse
+  // A tap on a push routes by the payload's `type`, so a rider's dispatch offer
+  // opens the offers tab rather than the public tracker. getLastNotificationResponse
   // also covers the cold-start case (app launched by tapping a notification).
   useEffect(() => {
     function redirect(response: Notifications.NotificationResponse) {
-      const reference = response.notification.request.content.data?.reference;
+      const data = response.notification.request.content.data ?? {};
+      const pushType = typeof data.type === "string" ? data.type : undefined;
+
+      if (pushType === "dispatch_offer") {
+        // Riders only; the router guard rejects it for anyone else.
+        router.push("/rider/offers" as never);
+        return;
+      }
+      if (pushType === "delivery_completed") {
+        router.push("/rider" as never);
+        return;
+      }
+
+      // Order status (and legacy merchant) pushes carry a reference. /track is
+      // public, so this works signed out and for any role.
+      const reference = data.reference;
       if (typeof reference === "string" && reference) {
         router.push(`/track?ref=${encodeURIComponent(reference)}`);
       }

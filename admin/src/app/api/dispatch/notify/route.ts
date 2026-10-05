@@ -136,7 +136,7 @@ export async function POST(req: Request) {
         userId,
         "New delivery offer",
         `Order ${reference} is available${windowSeconds ? ` for ${Math.round(windowSeconds / 60)} min` : ""}. Open the app to accept it.`,
-        { orderId },
+        { type: "dispatch_offer", orderId },
       ),
     ),
   );

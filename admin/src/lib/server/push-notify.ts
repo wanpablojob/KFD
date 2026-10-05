@@ -140,9 +140,20 @@ export async function sendMerchantOrderPush(
  * or doesn't, and app_users has no rider row for a provisioned rider, which is
  * exactly how the rider path silently found nobody.
  */
-export async function sendRiderPush(
+/**
+ * Send a push to every device registered to one auth user.
+ *
+ * Generic on purpose: a rider's tokens hang off their auth user (no fan-out to
+ * resolve) and so do a customer's, so the same read serves both. The named
+ * wrappers below exist only to say which caller the message is for.
+ *
+ * Best-effort contract, same as sendMerchantOrderPush: whatever write this
+ * accompanies has already landed, so a push failure is reported in the return
+ * value and never raised back into the caller.
+ */
+export async function sendUserPush(
   supabase: ServiceClient,
-  riderUserId: string,
+  userId: string,
   title: string,
   body: string,
   data?: Record<string, unknown>
@@ -150,7 +161,7 @@ export async function sendRiderPush(
   const { data: tokens, error: tokensError } = await supabase
     .from("push_tokens")
     .select("token")
-    .eq("user_id", riderUserId);
+    .eq("user_id", userId);
 
   if (tokensError) {
     return { ok: false, sent: 0, detail: tokensError.message };
@@ -219,4 +230,26 @@ export async function sendRiderPush(
       detail: err instanceof Error ? err.message : "Expo push send failed",
     };
   }
+}
+
+/** Named wrapper: push to a rider's own device(s). */
+export async function sendRiderPush(
+  supabase: ServiceClient,
+  riderUserId: string,
+  title: string,
+  body: string,
+  data?: Record<string, unknown>
+): Promise<PushResult> {
+  return sendUserPush(supabase, riderUserId, title, body, data);
+}
+
+/** Named wrapper: push to a customer's device(s) about their own order. */
+export async function sendCustomerPush(
+  supabase: ServiceClient,
+  customerUserId: string,
+  title: string,
+  body: string,
+  data?: Record<string, unknown>
+): Promise<PushResult> {
+  return sendUserPush(supabase, customerUserId, title, body, data);
 }

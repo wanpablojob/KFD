@@ -1,9 +1,17 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useSession } from "../../lib/session-context";
 import { saveContactPhone, signOut } from "../../lib/auth";
+import { supabase } from "../../lib/supabase";
+import {
+  disablePush,
+  enablePush,
+  getPushStatus,
+  watchForTokenRotation,
+  type PushStatus,
+} from "../../lib/push";
 import { colors, radius, shadow, spacing, type } from "../../lib/theme";
 
 /**
@@ -33,6 +41,74 @@ export default function CustomerAccountScreen() {
   const [notice, setNotice] = useState<string | null>(null);
 
   const dirty = phone.trim() !== savedPhone;
+
+  const [push, setPush] = useState<PushStatus>({ granted: false, registered: false });
+  const [pushBusy, setPushBusy] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    void getPushStatus().then(setPush);
+  }, [user]);
+
+  // Re-register a rotated Expo token in place, so a customer with alerts on does
+  // not go silently deaf after a reinstall or permission change. Same wiring as
+  // the rider profile screen.
+  useEffect(() => {
+    if (!push.registered) return;
+    let active = true;
+    let subscription: { remove: () => void } | null = null;
+    void supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!active || !session?.access_token) return;
+      subscription = watchForTokenRotation(session.access_token, () => {
+        if (active) setPush({ granted: true, registered: true });
+      });
+    });
+    return () => {
+      active = false;
+      subscription?.remove();
+    };
+  }, [push.registered]);
+
+  async function signOutAndUnregister() {
+    if (push.granted && push.registered) {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (session?.access_token) {
+        await disablePush(session.access_token).catch(() => {
+          // Best-effort: a stale row is replaced on the next register.
+        });
+      }
+    }
+    await signOut();
+  }
+
+  async function togglePush() {
+    if (!user || pushBusy) return;
+    setPushBusy(true);
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) return;
+
+      if (push.granted && push.registered) {
+        await disablePush(token);
+        setPush({ granted: false, registered: false });
+      } else {
+        setPush(await enablePush(token));
+      }
+    } catch (cause) {
+      setPush({
+        granted: false,
+        registered: false,
+        error: cause instanceof Error ? cause.message : "Push failed. Try again.",
+      });
+    } finally {
+      setPushBusy(false);
+    }
+  }
 
   async function save() {
     setSaving(true);
@@ -97,6 +173,35 @@ export default function CustomerAccountScreen() {
         {notice ? <Text style={styles.notice}>{notice}</Text> : null}
       </View>
 
+      <View style={[styles.card, shadow.card, styles.pushCard]}>
+        <View style={styles.fieldHead}>
+          <Text style={styles.rowLabel}>Order notifications</Text>
+          <Text style={styles.hint}>
+            A push when your order is confirmed, on the way, or delivered.
+          </Text>
+        </View>
+        <Pressable
+          style={({ pressed }) => [styles.pushRow, pressed && styles.rowPressed]}
+          onPress={() => void togglePush()}
+          disabled={pushBusy}
+          accessibilityRole="switch"
+          accessibilityState={{ checked: push.granted && push.registered }}
+        >
+          <Text style={styles.pushState}>
+            {push.granted && push.registered ? "On" : "Off"}
+          </Text>
+          <View
+            style={[
+              styles.switchTrack,
+              push.granted && push.registered && styles.switchTrackOn,
+            ]}
+          >
+            <Text style={styles.switchHint}>{pushBusy ? "…" : ""}</Text>
+          </View>
+        </Pressable>
+        {push.error ? <Text style={styles.pushError}>{push.error}</Text> : null}
+      </View>
+
       <View style={[styles.card, shadow.card]}>
         <Row
           label="Your orders"
@@ -122,7 +227,7 @@ export default function CustomerAccountScreen() {
 
       <Pressable
         style={({ pressed }) => [styles.signOut, pressed && styles.signOutPressed]}
-        onPress={() => void signOut()}
+        onPress={() => void signOutAndUnregister()}
         accessibilityRole="button"
       >
         <Text style={styles.signOutLabel}>Sign out</Text>
@@ -226,6 +331,26 @@ const styles = StyleSheet.create({
   saveLabel: { fontSize: 15, fontWeight: "700", color: colors.textInverse },
   notice: { ...type.caption, color: colors.textMuted, marginTop: spacing.sm },
   divider: { height: 1, backgroundColor: colors.border },
+  pushCard: { paddingBottom: spacing.lg },
+  pushRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: spacing.sm,
+  },
+  pushState: { ...type.body, color: colors.textMuted },
+  switchTrack: {
+    minWidth: 46,
+    height: 26,
+    borderRadius: radius.pill,
+    backgroundColor: colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: spacing.sm,
+  },
+  switchTrackOn: { backgroundColor: colors.primary },
+  switchHint: { ...type.caption, color: colors.textInverse },
+  pushError: { ...type.caption, color: colors.danger },
   signOut: {
     backgroundColor: colors.card,
     borderRadius: radius.pill,
