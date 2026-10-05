@@ -1,4 +1,4 @@
-import { shouldSyncPage1, type DeliveryPage } from "./delivery-sync";
+import { mergeOrderPages, shouldSyncPage1, type DeliveryPage } from "./delivery-sync";
 
 function page(ids: string[], nextCursor: string | null = null): DeliveryPage {
   return {
@@ -64,5 +64,45 @@ describe("shouldSyncPage1", () => {
 
   it("treats a page with a next cursor as different from one without", () => {
     expect(shouldSyncPage1(page(["a"], "cursor-1"), page(["a"]))).toBe(true);
+  });
+});
+
+describe("mergeOrderPages", () => {
+  const row = (id: string) => ({ id, reference: `#KFD-${id}` });
+
+  it("appends a page that shares no orders", () => {
+    expect(mergeOrderPages([row("a")], [row("b"), row("c")]).map((r) => r.id)).toEqual([
+      "a",
+      "b",
+      "c",
+    ]);
+  });
+
+  it("drops an order that is already on screen", () => {
+    // The overlap that happens when an order changes status between the page-1
+    // fetch and a later page fetch.
+    expect(
+      mergeOrderPages([row("a"), row("b")], [row("b"), row("c")]).map((r) => r.id)
+    ).toEqual(["a", "b", "c"]);
+  });
+
+  it("keeps the copy already on screen when the same id arrives again", () => {
+    const existing = [{ id: "a", reference: "old" }];
+    const incoming = [{ id: "a", reference: "new" }];
+    expect(mergeOrderPages(existing, incoming)[0].reference).toBe("old");
+  });
+
+  it("does not duplicate when the whole page is a repeat", () => {
+    expect(mergeOrderPages([row("a"), row("b")], [row("a"), row("b")]).length).toBe(2);
+  });
+
+  it("returns the existing list when the page is empty", () => {
+    expect(mergeOrderPages([row("a")], []).map((r) => r.id)).toEqual(["a"]);
+  });
+
+  it("does not mutate the existing array", () => {
+    const existing = [row("a")];
+    mergeOrderPages(existing, [row("b")]);
+    expect(existing.length).toBe(1);
   });
 });
