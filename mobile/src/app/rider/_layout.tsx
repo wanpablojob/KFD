@@ -1,9 +1,11 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Stack, usePathname, useRouter } from "expo-router";
 import { colors, spacing, type } from "../../lib/theme";
 import { ensureNotificationChannels } from "../../lib/push";
+import { useRiderOffers } from "../../lib/hooks";
+import { countClaimableOffers } from "../../lib/offer-claimable";
 
 /**
  * Rider surface (deliveries -> earnings -> profile), guarded as a group in the
@@ -42,6 +44,8 @@ interface Tab {
   route: string;
   label: string;
   glyph: string;
+  /** Announced by the badge, not shown as text. */
+  badge?: number;
 }
 
 const TABS: Tab[] = [
@@ -55,15 +59,40 @@ const TABS: Tab[] = [
 
 function BottomNav({ pathname }: { pathname: string }) {
   const router = useRouter();
+
+  /**
+   * The offers query lives here, not only on the Available screen, because the
+   * Stack unmounts inactive tabs: while the rider is on Earnings, the offers
+   * screen is gone and so is its poll, which is exactly when a push arrives.
+   * Both observers use the same `["riderOffers"]` key, so this is one request
+   * and one 10s poll, not two -- and it also refetches on foreground now that
+   * focusManager is wired.
+   */
+  const { data: offers } = useRiderOffers();
+
+  // One shared tick, the same one the offer cards use, so the badge and the
+  // countdowns agree on what has expired.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const claimable = countClaimableOffers(offers ?? [], now);
+  const tabs = TABS.map((tab) =>
+    tab.route === "/rider/offers" ? { ...tab, badge: claimable } : tab
+  );
+
   return (
     <View style={styles.navWrap}>
       <SafeAreaView style={styles.nav} edges={["bottom"]}>
         <View style={styles.tabsWrapper}>
-          {TABS.map((tab) => {
+          {tabs.map((tab) => {
             const active =
               tab.route === "/rider"
                 ? pathname === "/rider" || pathname === "/rider/"
                 : pathname.startsWith(tab.route);
+            const badge = tab.badge ?? 0;
             return (
               <Pressable
                 key={tab.route}
@@ -71,10 +100,22 @@ function BottomNav({ pathname }: { pathname: string }) {
                 onPress={() => router.navigate(tab.route as never)}
                 accessibilityRole="tab"
                 accessibilityState={{ selected: active }}
+                accessibilityLabel={
+                  badge > 0
+                    ? `${tab.label}, ${badge} offer${badge === 1 ? "" : "s"} waiting`
+                    : tab.label
+                }
               >
-                <Text style={[styles.tabGlyph, active && styles.tabGlyphActive]}>
-                  {tab.glyph}
-                </Text>
+                <View>
+                  <Text style={[styles.tabGlyph, active && styles.tabGlyphActive]}>
+                    {tab.glyph}
+                  </Text>
+                  {badge > 0 ? (
+                    <View style={styles.badge}>
+                      <Text style={styles.badgeText}>{badge > 9 ? "9+" : badge}</Text>
+                    </View>
+                  ) : null}
+                </View>
                 <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>
                   {tab.label}
                 </Text>
@@ -117,6 +158,23 @@ const styles = StyleSheet.create({
   },
   tabGlyph: { fontSize: 20, color: colors.textFaint },
   tabGlyphActive: { color: colors.primary },
+  badge: {
+    position: "absolute",
+    top: -4,
+    right: -10,
+    minWidth: 16,
+    height: 16,
+    paddingHorizontal: 4,
+    borderRadius: 8,
+    backgroundColor: colors.danger,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  badgeText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: colors.textInverse,
+  },
   tabLabel: {
     ...type.caption,
     fontSize: 11,

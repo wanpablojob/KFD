@@ -13,6 +13,7 @@ import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { signOut } from "../lib/auth";
 import { offerWindowLabel } from "../lib/offer-window";
+import { isOfferClaimable, secondsUntilExpiry } from "../lib/offer-claimable";
 import {
   useAcceptOffer,
   useDeclineOffer,
@@ -31,15 +32,13 @@ const STATUS_LABEL: Record<string, string> = {
   cancelled: "Cancelled",
 };
 
-/** An offer on a cancelled order is still shown, but it cannot be accepted. */
-const UNCLAIMABLE = ["delivered", "cancelled"];
-
-function secondsLeft(expiresAt: string, now: number): number {
-  return Math.max(0, Math.round((new Date(expiresAt).getTime() - now) / 1000));
-}
-
+/**
+ * "An offer on a delivered or cancelled order is still shown, but it cannot be
+ * accepted" -- the rule itself lives in lib/offer-claimable.ts, shared with the
+ * tab badge so the number on the tab can never promise work this list refuses.
+ */
 function countdown(expiresAt: string, now: number): string {
-  const s = secondsLeft(expiresAt, now);
+  const s = secondsUntilExpiry(expiresAt, now);
   if (s <= 0) return "expired";
   if (s < 60) return `${s}s left`;
   return `${Math.floor(s / 60)}m ${s % 60}s left`;
@@ -191,8 +190,8 @@ export function RiderOffersScreen({ userId }: { userId: string }) {
           )
         }
         renderItem={({ item }) => {
-          const expired = secondsLeft(item.expiresAt, now) <= 0;
-          const claimable = !expired && !UNCLAIMABLE.includes(item.orderStatus);
+          const expired = secondsUntilExpiry(item.expiresAt, now) <= 0;
+          const claimable = isOfferClaimable(item, now);
           const busy = busyId === item.orderId;
           return (
             <View style={[styles.card, !claimable && styles.cardStale]}>
