@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Stack, router } from "expo-router";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -12,6 +12,12 @@ import { ConnectivityProvider, ConnectivityBanner } from "../lib/connectivity-co
 import { initSentry, setSentryUser, clearSentryUser } from "../lib/sentry";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { colors, radius, spacing, type } from "../lib/theme";
+import {
+  isRoleSettled,
+  pathForRoute,
+  routeForNotification,
+  type SessionRole,
+} from "../lib/notification-routing";
 
 /**
  * Initialize Sentry as early as possible.
@@ -39,36 +45,77 @@ function RootNavigator() {
   // A tap on a push routes by the payload's `type`, so a rider's dispatch offer
   // opens the offers tab rather than the public tracker. getLastNotificationResponse
   // also covers the cold-start case (app launched by tapping a notification).
+  //
+  // Cold start is the hard case, and it is why the decision is deferred rather
+  // than taken inline: getLastNotificationResponse() resolves long before the
+  // auth session does, and at that moment the Stack has not mounted the rider
+  // route at all, so router.push("/rider/offers") is dropped on the floor. The
+  // tap is parked until the role settles, then replayed exactly once.
+  const settled = isRoleSettled({
+    sessionLoading,
+    user,
+    role: role?.role ?? null,
+    roleError,
+  });
+
+  // Refs, not state: a response can arrive at any time, and re-rendering the
+  // navigator to stash one would be a re-render for a navigation side effect.
+  //
+  // Both the role and the settled flag are read through the ref rather than
+  // closed over. The listener below registers once on mount, so the closure it
+  // captures has `role === null` forever; reading a ref is what makes a tap that
+  // arrives an hour later route with the role as it is now.
+  const navRef = useRef<{ settled: boolean; role: SessionRole }>({
+    settled: false,
+    role: null,
+  });
+  const pendingRef = useRef<Notifications.NotificationResponse | null>(null);
+
+  // Written in an effect, not during render: the React compiler rules forbid a
+  // render-phase ref write. Declared before the effects that read it so the
+  // value is current within the same commit.
   useEffect(() => {
-    function redirect(response: Notifications.NotificationResponse) {
-      const data = response.notification.request.content.data ?? {};
-      const pushType = typeof data.type === "string" ? data.type : undefined;
+    navRef.current = { settled, role: role?.role ?? null };
+  }, [settled, role?.role]);
 
-      if (pushType === "dispatch_offer") {
-        // Riders only; the router guard rejects it for anyone else.
-        router.push("/rider/offers" as never);
+  const applyResponse = (response: Notifications.NotificationResponse) => {
+    const { settled: ready, role: currentRole } = navRef.current;
+    const route = routeForNotification(
+      response.notification.request.content.data,
+      ready ? currentRole : null
+    );
+    if (route) router.push(pathForRoute(route) as never);
+  };
+
+  useEffect(() => {
+    function onResponse(response: Notifications.NotificationResponse) {
+      if (!navRef.current.settled) {
+        // Cold start. Hold it until the role is known.
+        pendingRef.current = response;
         return;
       }
-      if (pushType === "delivery_completed") {
-        router.push("/rider" as never);
-        return;
-      }
-
-      // Order status (and legacy merchant) pushes carry a reference. /track is
-      // public, so this works signed out and for any role.
-      const reference = data.reference;
-      if (typeof reference === "string" && reference) {
-        router.push(`/track?ref=${encodeURIComponent(reference)}`);
-      }
+      applyResponse(response);
     }
 
     const last = Notifications.getLastNotificationResponse();
-    if (last) redirect(last);
+    if (last) onResponse(last);
 
     const subscription =
-      Notifications.addNotificationResponseReceivedListener(redirect);
+      Notifications.addNotificationResponseReceivedListener(onResponse);
     return () => subscription.remove();
+    // Registers once, and reads everything it needs through navRef, so a late
+    // role change needs no re-subscribe.
   }, []);
+
+  // Replay whatever the cold-start tap parked. `role` is a dependency because it
+  // is the input that was missing; without it this would run once and drop it.
+  useEffect(() => {
+    if (!settled) return;
+    const pending = pendingRef.current;
+    if (!pending) return;
+    pendingRef.current = null;
+    applyResponse(pending);
+  }, [settled, role]);
 
   if (sessionLoading) {
     return <LoadingScreen message="Restoring session…" />;
