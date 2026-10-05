@@ -10,6 +10,7 @@ import {
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRiderEarningsSummary, useRiderPayoutHistory } from "../../lib/hooks";
+import { BUCKET_LABEL, bucketTotal, groupPayoutsByDay } from "../../lib/payout-groups";
 import { useSession } from "../../lib/session-context";
 import { colors, radius, shadow, spacing, type } from "../../lib/theme";
 
@@ -83,7 +84,7 @@ export default function RiderEarningsRoute() {
   }
 
   const totals = summary.data;
-  const rows = history.data?.items ?? [];
+  const groups = groupPayoutsByDay(history.data?.items ?? [], new Date());
   const hasMore = history.data?.hasMore ?? false;
   const firstEarned = totals?.first_earned_at
     ? `Since ${new Date(totals.first_earned_at).toLocaleDateString()}`
@@ -120,7 +121,7 @@ export default function RiderEarningsRoute() {
       <View style={styles.section}>
         <Text style={type.eyebrow}>Each delivery</Text>
 
-        {rows.length === 0 ? (
+        {groups.length === 0 ? (
           <View style={[styles.empty, shadow.card]}>
             <Text style={styles.emptyTitle}>No completed deliveries yet</Text>
             <Text style={styles.emptyBody}>
@@ -130,21 +131,37 @@ export default function RiderEarningsRoute() {
             </Text>
           </View>
         ) : (
-          <View style={[styles.list, shadow.card]}>
-            {rows.map((row, index) => (
+          <View style={styles.groups}>
+            {groups.map((group, groupIndex) => (
               <View
-                key={row.order_id}
-                style={index === 0 ? styles.row : [styles.row, styles.rowDivided]}
+                key={group.bucket}
+                style={groupIndex === 0 ? undefined : styles.groupSpaced}
               >
-                <View style={styles.rowText}>
-                  <Text style={styles.rowTitle} numberOfLines={1}>
-                    {row.restaurant}
-                  </Text>
-                  <Text style={type.caption}>
-                    {row.order_reference} · {earnedLabel(row.earned_at)}
-                  </Text>
+                {/* The day is the heading because that is the question the rider
+                    is asking; the total is here because it is the other half of
+                    it. */}
+                <View style={styles.groupHeader}>
+                  <Text style={styles.groupLabel}>{BUCKET_LABEL[group.bucket]}</Text>
+                  <Text style={styles.groupTotal}>{peso(bucketTotal(group))}</Text>
                 </View>
-                <Text style={styles.rowAmount}>{peso(row.amount)}</Text>
+                <View style={[styles.list, shadow.card]}>
+                  {group.rows.map((row, index) => (
+                    <View
+                      key={row.order_id}
+                      style={index === 0 ? styles.row : [styles.row, styles.rowDivided]}
+                    >
+                      <View style={styles.rowText}>
+                        <Text style={styles.rowTitle} numberOfLines={1}>
+                          {row.restaurant}
+                        </Text>
+                        <Text style={type.caption}>
+                          {row.order_reference} · {earnedLabel(row.earned_at)}
+                        </Text>
+                      </View>
+                      <Text style={styles.rowAmount}>{peso(row.amount)}</Text>
+                    </View>
+                  ))}
+                </View>
               </View>
             ))}
           </View>
@@ -208,6 +225,17 @@ const styles = StyleSheet.create({
     paddingTop: spacing.sm,
   },
   section: { paddingHorizontal: spacing.lg, paddingTop: spacing.xl, gap: spacing.md },
+  groups: { gap: spacing.md },
+  groupSpaced: { marginTop: spacing.sm },
+  groupHeader: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    justifyContent: "space-between",
+    paddingHorizontal: spacing.xs,
+    paddingBottom: spacing.xs,
+  },
+  groupLabel: { ...type.eyebrow, color: colors.secondary },
+  groupTotal: { ...type.label, color: colors.textMuted },
   list: {
     backgroundColor: colors.card,
     borderRadius: radius.md,
