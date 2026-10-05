@@ -158,6 +158,18 @@ export type Database = {
           delivery_address: string | null;
         }[];
       };
+      /**
+       * Customer cancellation (migration 0054). Server enforces ownership and
+       * that the order is still pending/confirmed.
+       */
+      cancel_order: {
+        Args: { p_order_id: string };
+        Returns: {
+          order_id: string;
+          reference: string;
+          status: OrderStatus;
+        }[];
+      };
       rider_set_status: {
         Args: { p_status: RiderStatus };
         Returns: unknown;

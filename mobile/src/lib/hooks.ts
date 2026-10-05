@@ -6,6 +6,7 @@ import {
   fetchMenu,
   fetchMyOrders,
   placeCustomerOrder,
+  cancelOrder,
   fetchTrackedOrder,
   fetchRiderOrdersPage,
   fetchRiderOffers,
@@ -122,6 +123,18 @@ export function usePlaceOrder() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.orders() });
       queryClient.invalidateQueries({ queryKey: ["cart"] });
+    },
+  });
+}
+
+/** Cancel the caller's own order. Invalidates the orders list on success. */
+export function useCancelOrder() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (orderId: string) => cancelOrder(orderId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.orders() });
     },
   });
 }

@@ -342,6 +342,7 @@ export async function fetchRiderProfile(userId: string): Promise<RiderProfile | 
 }
 
 export interface CustomerOrder {
+  id: string;
   reference: string;
   restaurant: string;
   /** Null only for orders placed before restaurants were linked. */
@@ -368,7 +369,7 @@ export async function fetchMyOrders(): Promise<CustomerOrder[]> {
   const { data, error } = await supabase
     .from("orders")
     .select(
-      "reference, restaurant, restaurant_id, items, subtotal, delivery_fee, service_fee, total, status, payment, placed_at, delivery_address"
+      "id, reference, restaurant, restaurant_id, items, subtotal, delivery_fee, service_fee, total, status, payment, placed_at, delivery_address"
     )
     .order("placed_at", { ascending: false })
     .limit(30);
@@ -506,6 +507,16 @@ export async function placeCustomerOrder(args: {
     throw new Error("Order was not placed. Try again.");
   }
   return data[0];
+}
+
+/**
+ * Cancel the caller's own order. The server allows it only while the order is
+ * pending or confirmed and only for the order's customer, so the error message
+ * is the source of truth for "too late".
+ */
+export async function cancelOrder(orderId: string): Promise<void> {
+  const { error } = await supabase.rpc("cancel_order", { p_order_id: orderId });
+  if (error) throw error;
 }
 
 /**

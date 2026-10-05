@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useMyOrders, type CustomerOrder } from "../../lib/hooks";
+import { useMyOrders, useCancelOrder, type CustomerOrder } from "../../lib/hooks";
 import { useSession } from "../../lib/session-context";
 import { useCart } from "../../lib/cart-context";
 import { fetchMenu } from "../../lib/storefront";
@@ -36,6 +36,29 @@ export default function CustomerOrdersScreen() {
   const { count, restaurantId, replace } = useCart();
   const router = useRouter();
   const [reorderingRef, setReorderingRef] = useState<string | null>(null);
+  const cancel = useCancelOrder();
+
+  function handleCancel(order: CustomerOrder) {
+    Alert.alert(
+      "Cancel this order?",
+      `Order ${order.reference} will be cancelled. This cannot be undone.`,
+      [
+        { text: "Keep order", style: "cancel" },
+        {
+          text: "Cancel order",
+          style: "destructive",
+          onPress: () =>
+            cancel.mutate(order.id, {
+              onError: (cause) =>
+                Alert.alert(
+                  "Could not cancel",
+                  cause instanceof Error ? cause.message : "Try again."
+                ),
+            }),
+        },
+      ]
+    );
+  }
 
   /**
    * Put a past order back in the cart. Rebuilds lines against today's menu (prices
@@ -185,6 +208,8 @@ export default function CustomerOrdersScreen() {
             order={item}
             onReorder={reorder}
             reordering={reorderingRef === item.reference}
+            onCancel={handleCancel}
+            cancelling={cancel.isPending && cancel.variables === item.id}
           />
         )}
         refreshControl={
@@ -199,15 +224,20 @@ function OrderCard({
   order,
   onReorder,
   reordering,
+  onCancel,
+  cancelling,
 }: {
   order: CustomerOrder;
   onReorder: (order: CustomerOrder) => void;
   reordering: boolean;
+  onCancel: (order: CustomerOrder) => void;
+  cancelling: boolean;
 }) {
   const router = useRouter();
   const cancelled = order.status === "cancelled";
   const delivered = order.status === "delivered";
   const canReorder = delivered || cancelled;
+  const canCancel = order.status === "pending" || order.status === "confirmed";
 
   return (
     <Pressable
@@ -270,6 +300,26 @@ function OrderCard({
             <ActivityIndicator color={colors.primary} size="small" />
           ) : (
             <Text style={styles.reorderLabel}>Reorder</Text>
+          )}
+        </Pressable>
+      ) : null}
+
+      {canCancel ? (
+        <Pressable
+          style={({ pressed }) => [
+            styles.cancelBtn,
+            cancelling && styles.reorderDisabled,
+            pressed && !cancelling && styles.cancelPressed,
+          ]}
+          onPress={() => onCancel(order)}
+          disabled={cancelling}
+          accessibilityRole="button"
+          accessibilityLabel={`Cancel ${order.reference}`}
+        >
+          {cancelling ? (
+            <ActivityIndicator color={colors.danger} size="small" />
+          ) : (
+            <Text style={styles.cancelLabel}>Cancel order</Text>
           )}
         </Pressable>
       ) : null}
@@ -342,4 +392,16 @@ const styles = StyleSheet.create({
   reorderDisabled: { opacity: 0.6 },
   reorderPressed: { backgroundColor: colors.primarySoft },
   reorderLabel: { ...type.label, color: colors.primary, fontWeight: "700" },
+  cancelBtn: {
+    marginTop: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.danger,
+    borderRadius: radius.pill,
+    paddingVertical: spacing.md,
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 40,
+  },
+  cancelPressed: { backgroundColor: colors.dangerSoft },
+  cancelLabel: { ...type.label, color: colors.danger, fontWeight: "700" },
 });
