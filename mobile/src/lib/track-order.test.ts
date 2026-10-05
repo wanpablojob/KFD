@@ -35,10 +35,12 @@ describe("fetchTrackedOrder", () => {
           ],
           subtotal: 100,
           delivery_fee: 45,
+          service_fee: 5,
           total: 150,
           status: "preparing",
           payment: "cash",
           placed_at: "2026-10-01T00:00:00Z",
+          delivery_address: "123 Rizal St, Kabankalan",
         },
       ],
       error: null,
@@ -50,11 +52,37 @@ describe("fetchTrackedOrder", () => {
       items: [{ name: "Adobo", quantity: 2, price: 50 }],
       subtotal: 100,
       delivery_fee: 45,
+      service_fee: 5,
       total: 150,
       status: "preparing",
       payment: "cash",
       placed_at: "2026-10-01T00:00:00Z",
+      delivery_address: "123 Rizal St, Kabankalan",
     });
+  });
+
+  it("maps a null delivery address for a non-owner caller", async () => {
+    rpc.mockResolvedValue({
+      data: [
+        {
+          reference: "#KFD-2",
+          restaurant: "Test Kitchen",
+          items: [],
+          subtotal: 100,
+          delivery_fee: 45,
+          service_fee: 5,
+          total: 150,
+          status: "confirmed",
+          payment: "cash",
+          placed_at: "2026-10-01T00:00:00Z",
+          delivery_address: null,
+        },
+      ],
+      error: null,
+    });
+
+    const order = await fetchTrackedOrder("KFD-2");
+    expect(order?.delivery_address).toBeNull();
   });
 
   it("propagates a transport error instead of reporting no order", async () => {

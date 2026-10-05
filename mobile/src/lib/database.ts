@@ -149,10 +149,13 @@ export type Database = {
           items: OrderItem[];
           subtotal: number;
           delivery_fee: number;
+          service_fee: number;
           total: number;
           status: string;
           payment: string;
           placed_at: string;
+          /** Null unless the caller is the order's own customer (0012/0052). */
+          delivery_address: string | null;
         }[];
       };
       rider_set_status: {

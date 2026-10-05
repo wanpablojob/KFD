@@ -207,17 +207,25 @@ function OrderCard({
         ))}
       </View>
 
-      {/* What the customer paid. track_order returns subtotal, delivery_fee and
-          total, so those are shown; it does not return service_fee or the
-          delivery address, so neither is shown rather than derived or invented. */}
+      {/* What the customer paid. The full breakdown now that track_order
+          returns service_fee; the delivery address is returned only to the
+          order's own customer, so it is shown only when the server sends it. */}
       <View style={styles.fees}>
         <FeeRow label="Subtotal" value={order.subtotal} />
         <FeeRow label="Delivery fee" value={order.delivery_fee} />
+        <FeeRow label="Service fee" value={order.service_fee} />
         <View style={styles.totalRow}>
           <Text style={styles.totalLabel}>Total</Text>
           <Text style={styles.totalValue}>₱{Number(order.total).toFixed(2)}</Text>
         </View>
       </View>
+
+      {order.delivery_address ? (
+        <View style={styles.addressBlock}>
+          <Text style={styles.addressLabel}>Deliver to</Text>
+          <Text style={styles.addressValue}>{order.delivery_address}</Text>
+        </View>
+      ) : null}
 
       <View style={styles.footer}>
         <Text style={styles.meta}>
@@ -368,6 +376,14 @@ const styles = StyleSheet.create({
   },
   totalLabel: { ...type.body, fontWeight: "700" },
   totalValue: { ...type.price },
+  addressBlock: { marginTop: spacing.sm, gap: 2 },
+  addressLabel: {
+    ...type.caption,
+    color: colors.textFaint,
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+  },
+  addressValue: { ...type.body, color: colors.text },
   footer: { gap: 2, marginTop: spacing.xs },
   meta: { ...type.caption, color: colors.textFaint },
 });

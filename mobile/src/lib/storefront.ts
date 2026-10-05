@@ -357,9 +357,9 @@ export async function fetchMyOrders(): Promise<CustomerOrder[]> {
  * projection and null when the reference matches nothing, so the caller
  * distinguishes "no such order" from a transport error.
  *
- * It does NOT return `service_fee` or `delivery_address` today, so the screen
- * cannot show a complete fee breakdown or where the order is going. Adding
- * those to the RPC is a migration, flagged rather than guessed at here.
+ * It returns the fee breakdown (subtotal, delivery_fee, service_fee, total) and
+ * the delivery address. The address is PII and this RPC is anon-callable, so the
+ * server returns it only to the order's own customer; for anyone else it is null.
  */
 export interface TrackedOrder {
   reference: string;
@@ -367,10 +367,13 @@ export interface TrackedOrder {
   items: OrderLine[];
   subtotal: number;
   delivery_fee: number;
+  service_fee: number;
   total: number;
   status: string;
   payment: string;
   placed_at: string;
+  /** Null unless the caller is signed in as the order's own customer. */
+  delivery_address: string | null;
 }
 
 export async function fetchTrackedOrder(
@@ -392,10 +395,12 @@ export async function fetchTrackedOrder(
     items: parseOrderItems(row.items),
     subtotal: Number(row.subtotal),
     delivery_fee: Number(row.delivery_fee),
+    service_fee: Number(row.service_fee),
     total: Number(row.total),
     status: String(row.status),
     payment: String(row.payment),
     placed_at: String(row.placed_at),
+    delivery_address: (row.delivery_address as string | null) ?? null,
   };
 }
 
