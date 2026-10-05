@@ -44,17 +44,47 @@ interface Tab {
   route: string;
   label: string;
   glyph: string;
-  /** Announced by the badge, not shown as text. */
+  /**
+   * Spoken name of the glyph.
+   *
+   * The tab row is glyphs, and a screen reader reads a glyph's unicode point
+   * rather than what it stands for -- "black diamond containing white small
+   * diamond" for the offers queue. The label is already in the tree next to the
+   * glyph, but a label alone does not tell a screen reader which of the two
+   * things it should read as the control's name.
+   */
+  iconLabel: string;
+  /** Offer count, announced when greater than zero. */
   badge?: number;
 }
 
 const TABS: Tab[] = [
   // Available is first because it is the queue a rider opens the app to work.
   // Deliveries is what they already accepted.
-  { route: "/rider/offers", label: "Available", glyph: "◈" },
-  { route: "/rider", label: "Deliveries", glyph: "≡" },
-  { route: "/rider/earnings", label: "Earnings", glyph: "₱" },
-  { route: "/rider/profile", label: "Profile", glyph: "◍" },
+  {
+    route: "/rider/offers",
+    label: "Available",
+    glyph: "◈",
+    iconLabel: "Offers",
+  },
+  {
+    route: "/rider",
+    label: "Deliveries",
+    glyph: "≡",
+    iconLabel: "Deliveries",
+  },
+  {
+    route: "/rider/earnings",
+    label: "Earnings",
+    glyph: "₱",
+    iconLabel: "Earnings",
+  },
+  {
+    route: "/rider/profile",
+    label: "Profile",
+    glyph: "◍",
+    iconLabel: "Profile",
+  },
 ];
 
 function BottomNav({ pathname }: { pathname: string }) {
@@ -105,9 +135,16 @@ function BottomNav({ pathname }: { pathname: string }) {
                     ? `${tab.label}, ${badge} offer${badge === 1 ? "" : "s"} waiting`
                     : tab.label
                 }
+                accessibilityHint={`${tab.iconLabel} tab`}
               >
                 <View>
-                  <Text style={[styles.tabGlyph, active && styles.tabGlyphActive]}>
+                  {/* Glyph is decorative: the tab's name is its label, so a
+                      screen reader is not handed the unicode point name too. */}
+                  <Text
+                    accessibilityElementsHidden
+                    importantForAccessibility="no"
+                    style={[styles.tabGlyph, active && styles.tabGlyphActive]}
+                  >
                     {tab.glyph}
                   </Text>
                   {badge > 0 ? (
