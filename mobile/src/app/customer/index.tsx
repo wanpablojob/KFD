@@ -11,8 +11,17 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useOrderFees, useRestaurants, RestaurantRow } from "../../lib/hooks";
+import {
+  useActiveRestaurants,
+  useOrderFees,
+  useRestaurants,
+  RestaurantRow,
+} from "../../lib/hooks";
 import { useDebouncedValue } from "../../lib/use-debounced-value";
+import {
+  storefrontEmptyState,
+  type StorefrontEmptyKind,
+} from "../../lib/storefront-empty";
 import { colors, radius, shadow, spacing, type } from "../../lib/theme";
 
 export default function CustomerHomeScreen() {
@@ -31,40 +40,35 @@ export default function CustomerHomeScreen() {
     refetch,
   } = useRestaurants(debouncedQuery, cuisine);
 
+  // The unfiltered catalogue drives the cuisine chips. Deriving them from the
+  // already-filtered `restaurants` collapsed the chip row to whatever was
+  // selected, so a cuisine could never be un-chosen from the row.
+  const { data: catalogue } = useActiveRestaurants();
+
   // The advertised delivery price, straight from the server. Null until it
   // lands, in which case the card simply omits the claim rather than guessing.
   const { data: fees } = useOrderFees();
   const deliveryFee = fees?.delivery_fee ?? null;
 
   const cuisines = useMemo(() => {
-    const set = new Set((restaurants ?? []).map((r) => r.cuisine).filter(Boolean));
+    const set = new Set((catalogue ?? []).map((r) => r.cuisine).filter(Boolean));
     return [...set].sort();
-  }, [restaurants]);
-
-  if (isLoading) {
-    return (
-      <View style={[styles.screen, styles.center]}>
-        <ActivityIndicator color={colors.primary} />
-        <Text style={type.caption}>Finding places near you…</Text>
-      </View>
-    );
-  }
-
-  if (isError) {
-    return (
-      <View style={[styles.screen, styles.center]}>
-        <Text style={styles.errorTitle}>!</Text>
-        <Text style={styles.error}>
-          {error instanceof Error ? error.message : "Could not load restaurants."}
-        </Text>
-        <Pressable style={styles.retryButton} onPress={() => refetch()}>
-          <Text style={styles.retryLabel}>RETRY</Text>
-        </Pressable>
-      </View>
-    );
-  }
+  }, [catalogue]);
 
   const visible = restaurants ?? [];
+  const filtersActive = debouncedQuery.trim().length > 0 || cuisine !== null;
+  const emptyKind = storefrontEmptyState({
+    isLoading,
+    isError,
+    catalogueCount: (catalogue ?? []).length,
+    resultCount: visible.length,
+    filtersActive,
+  });
+
+  function clearFilters() {
+    setQuery("");
+    setCuisine(null);
+  }
 
   return (
     <View style={styles.screen}>
@@ -133,13 +137,12 @@ export default function CustomerHomeScreen() {
           </View>
         }
         ListEmptyComponent={
-          <View style={styles.empty}>
-            <Text style={styles.emptyTitle}>
-              {cuisines.length === 0
-                ? "No places are open for orders right now."
-                : "Try a different search or cuisine."}
-            </Text>
-          </View>
+          <StorefrontEmpty
+            kind={emptyKind}
+            error={error}
+            onRetry={() => refetch()}
+            onClearFilters={clearFilters}
+          />
         }
         renderItem={({ item }) => (
           <RestaurantCard row={item} deliveryFee={deliveryFee} />
@@ -148,6 +151,60 @@ export default function CustomerHomeScreen() {
           <RefreshControl refreshing={isFetching} onRefresh={() => refetch()} />
         }
       />
+    </View>
+  );
+}
+
+function StorefrontEmpty({
+  kind,
+  error,
+  onRetry,
+  onClearFilters,
+}: {
+  kind: StorefrontEmptyKind | null;
+  error: unknown;
+  onRetry: () => void;
+  onClearFilters: () => void;
+}) {
+  if (kind === null) return null;
+
+  if (kind === "loading") {
+    return (
+      <View style={styles.empty}>
+        <ActivityIndicator color={colors.primary} />
+        <Text style={type.caption}>Finding places near you…</Text>
+      </View>
+    );
+  }
+
+  if (kind === "error") {
+    return (
+      <View style={styles.empty}>
+        <Text style={styles.errorTitle}>!</Text>
+        <Text style={styles.error}>
+          {error instanceof Error ? error.message : "Could not load restaurants."}
+        </Text>
+        <Pressable style={styles.retryButton} onPress={onRetry}>
+          <Text style={styles.retryLabel}>RETRY</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
+  if (kind === "no_match") {
+    return (
+      <View style={styles.empty}>
+        <Text style={styles.emptyTitle}>No match for that search.</Text>
+        <Pressable style={styles.clearButton} onPress={onClearFilters}>
+          <Text style={styles.clearButtonLabel}>Clear filters</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.empty}>
+      <Text style={styles.emptyTitle}>No places are open for orders right now.</Text>
     </View>
   );
 }
@@ -207,7 +264,6 @@ function RestaurantCard({
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
-  center: { alignItems: "center", justifyContent: "center", gap: spacing.md },
   list: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xxl },
   header: { gap: spacing.md, marginBottom: spacing.xs },
   deliverTo: { ...type.eyebrow, color: colors.textFaint },
@@ -300,6 +356,16 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
   },
   retryLabel: { ...type.label, color: colors.textInverse },
+  clearButton: {
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.pill,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.xl,
+    marginTop: spacing.lg,
+  },
+  clearButtonLabel: { ...type.label, color: colors.primary },
 });
 
 export { RestaurantRow };

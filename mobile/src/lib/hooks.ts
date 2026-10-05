@@ -55,6 +55,20 @@ export function useRestaurants(query: string = "", cuisine: string | null = null
   });
 }
 
+/**
+ * The unfiltered active catalogue, for copy that has to survive filtering --
+ * currently the cuisine chips, which must keep offering every cuisine rather
+ * than collapsing to the one that was just selected. Separate key from
+ * useRestaurants so a search cannot evict it from the cache.
+ */
+export function useActiveRestaurants() {
+  return useQuery({
+    queryKey: ["restaurants", "catalogue"],
+    queryFn: fetchActiveRestaurants,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
 export function useMenu(restaurantId: string) {
   return useQuery({
     queryKey: queryKeys.menu(restaurantId),
