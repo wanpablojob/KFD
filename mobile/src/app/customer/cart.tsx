@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -14,6 +14,14 @@ import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCart } from "../../lib/cart-context";
 import { useCartQuote } from "../../lib/cart-quote";
+import { useSession } from "../../lib/session-context";
+import {
+  loadAddresses,
+  saveAddress,
+  deleteAddress,
+  validateAddress,
+  type SavedAddress,
+} from "../../lib/addresses";
 import { placeCustomerOrder, type PaymentChoice } from "../../lib/storefront";
 import { colors, radius, shadow, spacing, type } from "../../lib/theme";
 
@@ -29,10 +37,50 @@ export default function CustomerCartScreen() {
   const insets = useSafeAreaInsets();
   const { lines, setQuantity, remove, clear, restaurantId, restaurantName } = useCart();
   const { quote, loading: quoting, error: quoteError } = useCartQuote();
+  const { user } = useSession();
   const [address, setAddress] = useState("");
+  const [addresses, setAddresses] = useState<SavedAddress[]>([]);
   const [payment, setPayment] = useState<PaymentChoice>("cash");
   const [error, setError] = useState<string | null>(null);
   const [placing, setPlacing] = useState(false);
+  const [savingAddress, setSavingAddress] = useState(false);
+
+  // Saved addresses are per-user and live on the device. Prefill the newest so
+  // a returning customer does not retype the same barangay every order.
+  useEffect(() => {
+    if (!user) return;
+    let active = true;
+    void loadAddresses(user.id).then((rows) => {
+      if (!active) return;
+      setAddresses(rows);
+      setAddress((prev) => prev || rows[0]?.address || "");
+    });
+    return () => {
+      active = false;
+    };
+  }, [user]);
+
+  const addressProblem = address.trim() ? validateAddress(address) : null;
+  const canSaveAddress =
+    !!user &&
+    !addressProblem &&
+    !savingAddress &&
+    !addresses.some((a) => a.address === address.trim());
+
+  async function handleSaveAddress() {
+    if (!user || !canSaveAddress) return;
+    setSavingAddress(true);
+    try {
+      setAddresses(await saveAddress(user.id, address));
+    } finally {
+      setSavingAddress(false);
+    }
+  }
+
+  async function handleDeleteAddress(id: string) {
+    if (!user) return;
+    setAddresses(await deleteAddress(user.id, id));
+  }
 
   // No local arithmetic on purpose. A subtotal computed here would have to be
   // re-derived from prices that may have changed since the menu was cached, and
@@ -59,6 +107,13 @@ export default function CustomerCartScreen() {
     }
     if (!trimmedAddress) {
       setError("Enter a delivery address.");
+      return;
+    }
+    // Validate with the same rule the address book uses, so a saved and a typed
+    // address are held to one bar. The server stores whatever it is given.
+    const problem = validateAddress(trimmedAddress);
+    if (problem) {
+      setError(problem.message);
       return;
     }
     setError(null);
@@ -170,6 +225,47 @@ export default function CustomerCartScreen() {
         ))}
 
         <Text style={styles.fieldLabel}>DELIVERY ADDRESS</Text>
+        {addresses.length > 0 ? (
+          <View style={styles.savedAddresses}>
+            {addresses.map((a) => {
+              const active = a.address === address.trim();
+              return (
+                <View
+                  key={a.id}
+                  style={[styles.savedChip, active && styles.savedChipActive]}
+                >
+                  <Pressable
+                    style={styles.savedChipBody}
+                    onPress={() => setAddress(a.address)}
+                    disabled={placing}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: active }}
+                  >
+                    <Text
+                      style={[
+                        styles.savedChipLabel,
+                        active && styles.savedChipLabelActive,
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {a.label}
+                    </Text>
+                    <Text style={styles.savedChipText} numberOfLines={1}>
+                      {a.address}
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => void handleDeleteAddress(a.id)}
+                    disabled={placing}
+                    accessibilityLabel={`Delete ${a.label}`}
+                  >
+                    <Text style={styles.savedChipRemove}>✕</Text>
+                  </Pressable>
+                </View>
+              );
+            })}
+          </View>
+        ) : null}
         <TextInput
           style={styles.input}
           value={address}
@@ -179,6 +275,20 @@ export default function CustomerCartScreen() {
           autoCorrect={false}
           editable={!placing}
         />
+        {canSaveAddress ? (
+          <Pressable
+            style={styles.saveAddress}
+            onPress={() => void handleSaveAddress()}
+            disabled={savingAddress}
+          >
+            <Text style={styles.saveAddressLabel}>
+              {savingAddress ? "Saving…" : "Save this address"}
+            </Text>
+          </Pressable>
+        ) : null}
+        {addressProblem ? (
+          <Text style={styles.error}>{addressProblem.message}</Text>
+        ) : null}
 
         <Text style={styles.fieldLabel}>PAYMENT METHOD</Text>
         <View style={styles.payRow}>
@@ -334,6 +444,37 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   payRow: { flexDirection: "row", gap: spacing.sm },
+  savedAddresses: { gap: spacing.sm },
+  savedChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    backgroundColor: colors.card,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  savedChipActive: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
+  savedChipBody: { flex: 1, gap: 1 },
+  savedChipLabel: { ...type.label, color: colors.textMuted },
+  savedChipLabelActive: { color: colors.primaryDark },
+  savedChipText: { ...type.caption, color: colors.textFaint },
+  savedChipRemove: {
+    fontSize: 13,
+    color: colors.textFaint,
+    paddingHorizontal: spacing.xs,
+  },
+  saveAddress: {
+    alignSelf: "flex-start",
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.secondary,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+  },
+  saveAddressLabel: { ...type.label, color: colors.secondary },
   payCard: {
     flex: 1,
     alignItems: "center",

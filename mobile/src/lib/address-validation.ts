@@ -1,0 +1,57 @@
+/**
+ * Address validation, kept free of storage and native imports so it is
+ * testable and reusable from both the checkout and any future signup flow.
+ * Mirrors the split in lib/auth.ts (native) vs lib/auth-errors.ts (pure).
+ */
+
+export const ADDRESS_LIMIT = 6;
+
+/**
+ * Minimum bar for a deliverable address in the Philippines: a house or
+ * building number and a barangay, because that is what the rider navigates by
+ * and what the delivery zone is defined in terms of. The city is prefilled to
+ * Kabankalan and need not be retyped.
+ */
+const HOUSE_NUMBER = /\d/;
+const BARANGAY = /\b(barangay|brgy|blk|block|purok|sitio)\b/i;
+
+export interface AddressProblem {
+  field: "address";
+  message: string;
+}
+
+export function validateAddress(raw: string): AddressProblem | null {
+  const value = normaliseAddress(raw);
+  if (!value) return { field: "address", message: "Enter a delivery address." };
+  if (value.length < 8) {
+    return {
+      field: "address",
+      message: "Add more detail, for example “12 Katipunan St., Barangay Poblacion”.",
+    };
+  }
+  if (!HOUSE_NUMBER.test(value)) {
+    return { field: "address", message: "Include your house or building number." };
+  }
+  if (!BARANGAY.test(value)) {
+    return {
+      field: "address",
+      message: "Include your barangay so the rider can find you.",
+    };
+  }
+  return null;
+}
+
+export function normaliseAddress(raw: string): string {
+  return raw.trim().replace(/\s+/g, " ");
+}
+
+export function addressLabelFor(raw: string): string {
+  const match = normaliseAddress(raw).match(BARANGAY);
+  if (!match) return "Saved";
+  const word = match[0].replace(/^./, (c) => c.toUpperCase());
+  const after = normaliseAddress(raw)
+    .slice(match.index! + match[0].length)
+    .trim();
+  const firstWord = after.split(" ")[0];
+  return firstWord ? `${word} ${firstWord}` : word;
+}
