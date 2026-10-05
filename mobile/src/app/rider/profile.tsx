@@ -10,9 +10,14 @@ import {
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { signOut } from "../../lib/auth";
-import { useRiderProfile } from "../../lib/hooks";
+import { useRiderEarningsSummary, useRiderProfile } from "../../lib/hooks";
 import { useSession } from "../../lib/session-context";
 import { supabase } from "../../lib/supabase";
+import {
+  RIDER_STATUSES,
+  riderStatusMeta,
+  type RiderStatus,
+} from "../../lib/rider-status";
 import {
   disablePush,
   enablePush,
@@ -22,9 +27,6 @@ import {
 } from "../../lib/push";
 import { colors, radius, shadow, spacing, type } from "../../lib/theme";
 
-const RIDER_STATUSES = ["online", "busy", "offline"] as const;
-type RiderStatus = (typeof RIDER_STATUSES)[number];
-
 /**
  * Profile tab. Availability is the one write a rider makes about themselves,
  * an UPDATE on their own row via the rider_set_status RPC.
@@ -33,6 +35,9 @@ export default function RiderProfileRoute() {
   const insets = useSafeAreaInsets();
   const { user } = useSession();
   const { data: profile, isLoading, error, refetch } = useRiderProfile(user?.id ?? "");
+  // Ledger-derived, so these two lines cannot disagree with the Earnings tab.
+  // See the comment where they render.
+  const { data: earnings } = useRiderEarningsSummary();
   const [updating, setUpdating] = useState(false);
   const [statusError, setStatusError] = useState<string | null>(null);
   const [push, setPush] = useState<PushStatus>({ granted: false, registered: false });
@@ -166,6 +171,7 @@ export default function RiderProfileRoute() {
           <View style={styles.statusButtons}>
             {RIDER_STATUSES.map((s) => {
               const active = profile.status === s;
+              const meta = riderStatusMeta(s);
               return (
                 <Pressable
                   key={s}
@@ -176,6 +182,10 @@ export default function RiderProfileRoute() {
                   ]}
                   disabled={updating}
                   onPress={() => void setStatus(s)}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: active, disabled: updating }}
+                  accessibilityLabel={`${meta.label}. ${meta.description}`}
+                  accessibilityHint="Sets whether dispatch offers you deliveries"
                 >
                   <Text
                     style={[
@@ -183,25 +193,38 @@ export default function RiderProfileRoute() {
                       active && styles.statusButtonLabelActive,
                     ]}
                   >
-                    {s}
+                    {meta.label}
                   </Text>
                 </Pressable>
               );
             })}
           </View>
+          {/* Names the consequence of the current status, because the buttons
+              above are three words wide and cannot carry it. */}
+          <Text style={styles.statusHint}>
+            {riderStatusMeta(profile.status).description}
+          </Text>
           {statusError ? <Text style={styles.error}>{statusError}</Text> : null}
         </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>Delivery alerts</Text>
           <Text style={styles.pushCopy}>
-            Get a notification when you complete a delivery, including on your other
-            devices.
+            Get a notification when a new delivery is offered to you, and when a
+            delivery finishes on another device. Without this you will not hear about
+            offers while the app is closed — an offer only lasts a few minutes.
           </Text>
           <Pressable
             style={({ pressed }) => [styles.pushRow, pressed && styles.pushRowPressed]}
             onPress={() => void togglePush()}
             disabled={pushBusy}
+            accessibilityRole="switch"
+            accessibilityState={{
+              checked: push.granted && push.registered,
+              disabled: pushBusy,
+            }}
+            accessibilityLabel="Delivery alerts"
+            accessibilityHint="Notifications for new offers and completed deliveries"
           >
             <Text style={styles.meta}>
               {push.granted && push.registered ? "On" : "Off"}
@@ -220,10 +243,17 @@ export default function RiderProfileRoute() {
 
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>Account</Text>
-          <Text style={styles.meta}>Deliveries: {profile.deliveries}</Text>
+          <Text style={styles.meta}>Deliveries: {earnings?.delivery_count ?? 0}</Text>
           <Text style={styles.meta}>Rating: {Number(profile.rating).toFixed(1)}</Text>
           <Text style={styles.meta}>
-            Earnings: ₱{Number(profile.earnings).toFixed(2)}
+            Earnings: ₱{Number(earnings?.lifetime ?? 0).toFixed(2)}
+          </Text>
+          {/* Where these two numbers come from, so a rider comparing this screen
+              with the Earnings tab is not looking at two different figures. Both
+              sum the payout ledger; the riders row's own counters are not used
+              here because they were never reset when the ledger replaced them. */}
+          <Text style={styles.metaHint}>
+            Counted from your recorded delivery payouts.
           </Text>
         </View>
 
@@ -301,6 +331,8 @@ const styles = StyleSheet.create({
   switchTrackOn: { backgroundColor: colors.primary },
   switchHint: { ...type.caption, color: colors.textInverse },
   meta: { ...type.body, color: colors.textMuted },
+  metaHint: { ...type.caption, color: colors.textFaint },
+  statusHint: { ...type.caption, color: colors.textMuted },
   signOut: {
     alignSelf: "flex-start",
     borderWidth: 1,

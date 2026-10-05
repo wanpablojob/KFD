@@ -12,8 +12,10 @@ import {
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { signOut } from "../lib/auth";
+import { supabase } from "../lib/supabase";
 import { offerWindowLabel } from "../lib/offer-window";
 import { isOfferClaimable, secondsUntilExpiry } from "../lib/offer-claimable";
+import { riderStatusMeta } from "../lib/rider-status";
 import {
   useAcceptOffer,
   useDeclineOffer,
@@ -80,7 +82,7 @@ function offerSummary(offers: readonly RiderOffer[]): string {
 export function RiderOffersScreen({ userId }: { userId: string }) {
   const insets = useSafeAreaInsets();
   const { data: offers, error, isPending, refetch } = useRiderOffers();
-  const { data: profile } = useRiderProfile(userId);
+  const { data: profile, refetch: refetchProfile } = useRiderProfile(userId);
   const accept = useAcceptOffer();
   const decline = useDeclineOffer();
 
@@ -102,7 +104,28 @@ export function RiderOffersScreen({ userId }: { userId: string }) {
   }, [refetch]);
 
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [goingOnline, setGoingOnline] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+
+  async function goOnline() {
+    if (busyId || goingOnline) return;
+    setGoingOnline(true);
+    setActionError(null);
+    try {
+      const { error: rpcError } = await supabase.rpc("rider_set_status", {
+        p_status: "online",
+      });
+      if (rpcError) {
+        setActionError(rpcError.message);
+        return;
+      }
+      // The status is the rider's own row, so the profile behind the status is
+      // stale, and an offer arriving after this should clear the banner.
+      await Promise.all([refetch(), refetchProfile()]);
+    } finally {
+      setGoingOnline(false);
+    }
+  }
 
   async function onAccept(offer: RiderOffer) {
     if (busyId) return;
@@ -142,7 +165,9 @@ export function RiderOffersScreen({ userId }: { userId: string }) {
     );
   }
 
-  if (profile === null) {
+  // `!profile` rather than `=== null`: React Query's data is undefined before the
+  // first resolve, and that case was falling through to a crash in the header.
+  if (!profile) {
     return (
       <View style={[styles.center, { backgroundColor: colors.background }]}>
         <Text style={styles.error}>No rider profile is linked to this account.</Text>
@@ -162,16 +187,23 @@ export function RiderOffersScreen({ userId }: { userId: string }) {
         contentContainerStyle={styles.list}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
         ListHeaderComponent={
-          <View style={[styles.sectionHeader, { paddingTop: spacing.lg + insets.top }]}>
-            <View>
-              <Text style={styles.sectionTitle}>Available</Text>
-              <Text style={styles.subtitle}>
-                {(offers ?? []).length === 0
-                  ? "Nothing on offer right now."
-                  : offerSummary(offers ?? [])}
-              </Text>
+          <View>
+            <View
+              style={[styles.sectionHeader, { paddingTop: spacing.lg + insets.top }]}
+            >
+              <View>
+                <Text style={styles.sectionTitle}>Available</Text>
+                <Text style={styles.subtitle}>
+                  {(offers ?? []).length === 0
+                    ? "Nothing on offer right now."
+                    : offerSummary(offers ?? [])}
+                </Text>
+              </View>
+              <ActivityIndicator size="small" color={colors.textFaint} />
             </View>
-            <ActivityIndicator size="small" color={colors.textFaint} />
+            {profile.status !== "online" ? (
+              <OfflineBanner status={profile.status} onGoOnline={goOnline} />
+            ) : null}
           </View>
         }
         ListEmptyComponent={
@@ -183,8 +215,8 @@ export function RiderOffersScreen({ userId }: { userId: string }) {
             <View style={styles.empty}>
               <Text style={styles.emptyTitle}>No deliveries on offer</Text>
               <Text style={styles.emptyBody}>
-                Turn on your availability on the Profile tab. When an order comes in
-                near you it will appear here to accept.
+                Turn on your availability on the Profile tab and offers will appear here
+                to accept. Offers are only sent to riders who are online.
               </Text>
             </View>
           )
@@ -291,6 +323,44 @@ export function RiderOffersScreen({ userId }: { userId: string }) {
   );
 }
 
+/**
+ * Why the queue is empty when it looks like it should not be.
+ *
+ * Dispatch only inserts offers for riders whose status is `online`
+ * (admin_dispatch_order filters `d.status = 'online'`), so an offline or busy
+ * rider gets nothing and the empty state has to explain that -- otherwise the
+ * screen reads as broken. One tap back to online, because the alternative is a
+ * trip to the Profile tab to find one control.
+ */
+function OfflineBanner({
+  status,
+  onGoOnline,
+}: {
+  status: string;
+  onGoOnline: () => Promise<void>;
+}) {
+  const meta = riderStatusMeta(status);
+  return (
+    <View style={styles.banner} accessibilityRole="alert">
+      <View style={styles.bannerText}>
+        <Text style={styles.bannerTitle}>
+          {status === "busy" ? "You're on a delivery" : "You're offline"}
+        </Text>
+        <Text style={styles.bannerBody}>{meta.description}.</Text>
+      </View>
+      <Pressable
+        style={styles.bannerButton}
+        onPress={() => void onGoOnline()}
+        accessibilityRole="button"
+        accessibilityLabel="Go online"
+        accessibilityHint="Sets your availability to online so offers reach you"
+      >
+        <Text style={styles.bannerButtonLabel}>Go online</Text>
+      </Pressable>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   center: {
@@ -391,4 +461,26 @@ const styles = StyleSheet.create({
   },
   acceptLabel: { ...type.label, color: colors.textInverse },
   callRow: { marginTop: spacing.md, alignItems: "center" },
+  banner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.md,
+    backgroundColor: colors.goldSoft,
+    borderWidth: 1,
+    borderColor: colors.gold,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+  },
+  bannerText: { flex: 1, gap: 2 },
+  bannerTitle: { ...type.body, fontWeight: "700", color: colors.warning },
+  bannerBody: { ...type.caption, color: colors.textMuted },
+  bannerButton: {
+    borderRadius: radius.pill,
+    backgroundColor: colors.primary,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
+  },
+  bannerButtonLabel: { ...type.label, color: colors.textInverse },
 });
