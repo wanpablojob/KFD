@@ -2,14 +2,25 @@ import { TrendingDownIcon, TrendingUpIcon } from "./icons";
 import type { Kpi } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-export function StatCard({ kpi, className }: { kpi: Kpi; className?: string }) {
-  return (
-    <div
-      className={cn(
-        "rounded-(--radius-card) border border-border bg-card p-5 shadow-sm",
-        className,
-      )}
-    >
+export function StatCard({
+  kpi,
+  className,
+  active,
+  onClick,
+}: {
+  kpi: Kpi;
+  className?: string;
+  /**
+   * Optional filter mode. Passing `onClick` renders a real <button> with
+   * aria-pressed, so it is keyboard-operable and announced as a toggle. Passing
+   * neither keeps the original non-interactive <div>, which is what the
+   * dashboard KPIs are and must stay.
+   */
+  active?: boolean;
+  onClick?: () => void;
+}) {
+  const body = (
+    <>
       <p className="text-sm text-muted-foreground">{kpi.label}</p>
       <p className="mt-2 text-2xl font-bold tracking-tight text-card-foreground">
         {kpi.value}
@@ -25,7 +36,38 @@ export function StatCard({ kpi, className }: { kpi: Kpi; className?: string }) {
         )}
         <span className="text-muted-foreground">{kpi.hint}</span>
       </div>
-    </div>
+    </>
+  );
+
+  if (!onClick) {
+    return (
+      <div
+        className={cn(
+          "rounded-(--radius-card) border border-border bg-card p-5 shadow-sm",
+          className,
+        )}
+      >
+        {body}
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active ?? false}
+      className={cn(
+        "rounded-(--radius-card) border bg-card p-5 text-left shadow-sm transition-colors",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        active
+          ? "border-primary ring-1 ring-primary"
+          : "border-border hover:border-primary/40 hover:bg-muted/40",
+        className,
+      )}
+    >
+      {body}
+    </button>
   );
 }
 

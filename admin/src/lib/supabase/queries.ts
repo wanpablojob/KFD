@@ -7,6 +7,10 @@ import type {
   OrderItem,
   Restaurant,
   Rider,
+  RiderActivityEvent,
+  RiderEarningsDay,
+  RiderNote,
+  RiderOverview,
   VehicleType,
 } from "@/lib/types";
 
@@ -807,6 +811,12 @@ export type RiderApplication = {
   reviewedAt: string | null;
   applicantEmail: string;
   applicantUserId: string;
+  /**
+   * Whole days the application has been waiting, computed in SQL (migration
+   * 0051) so the queue's ordering and this number cannot disagree. 0 for
+   * reviewed rows, which no longer age.
+   */
+  waitingDays: number;
 };
 
 /**
@@ -841,6 +851,7 @@ export async function fetchRiderApplications(
       reviewedAt: row.reviewed_at == null ? null : String(row.reviewed_at),
       applicantEmail: String(row.applicant_email),
       applicantUserId: String(row.applicant_user_id),
+      waitingDays: Number(row.waiting_days ?? 0),
     })),
   );
 }
@@ -864,4 +875,141 @@ export async function reviewRiderApplication(
     p_note: note?.trim() ? note.trim() : undefined,
   });
   return requireOk(error, String(data ?? ""));
+}
+
+// ---------------------------------------------------------------------------
+// Rider operations (migration 0050 / 0051)
+//
+// Everything below goes through a security-definer RPC rather than a direct
+// table read or write. That is not a style preference: the admin UI holds a
+// user-scoped Supabase client, and these reads involve auth.users, rider_notes
+// and audit_log, none of which any authenticated role can see directly.
+// ---------------------------------------------------------------------------
+
+/**
+ * The riders list, with everything a row needs in one round trip.
+ *
+ * Replaces a per-row fetch for current job / failures / week earnings. Flag
+ * thresholds are applied by the caller in lib/rider-flags.ts rather than here,
+ * so they are not duplicated between SQL and TypeScript.
+ */
+export async function fetchRiderOverview(): Promise<RiderOverview[]> {
+  const { data, error } = await supabase.rpc("admin_rider_overview");
+
+  return requireOk(
+    error,
+    ((data ?? []) as Record<string, unknown>[]).map((row) => ({
+      id: String(row.rider_id),
+      name: String(row.name),
+      email: String(row.email),
+      phone: String(row.phone ?? ""),
+      city: String(row.city),
+      vehicle: String(row.vehicle) as Rider["vehicle"],
+      status: String(row.status) as Rider["status"],
+      deliveries: Number(row.deliveries),
+      rating: Number(row.rating),
+      earnings: Number(row.earnings),
+      archivedAt: row.archived_at == null ? null : String(row.archived_at),
+      suspendedAt: row.suspended_at == null ? null : String(row.suspended_at),
+      suspendedReason:
+        row.suspended_reason == null ? null : String(row.suspended_reason),
+      userId: row.user_id == null ? null : String(row.user_id),
+      currentOrderId: row.current_order_id == null ? null : String(row.current_order_id),
+      currentOrderReference:
+        row.current_order_reference == null ? null : String(row.current_order_reference),
+      currentOrderStatus:
+        row.current_order_status == null
+          ? null
+          : (String(row.current_order_status) as Order["status"]),
+      deliveredCount: Number(row.delivered_count ?? 0),
+      failedCount: Number(row.failed_count ?? 0),
+      weekEarnings: Number(row.week_earnings ?? 0),
+      updatedAt: row.updated_at == null ? null : String(row.updated_at),
+    })),
+  );
+}
+
+/**
+ * Suspend or reinstate a rider.
+ *
+ * The database requires a reason to suspend, refuses to let anything but this
+ * function change the suspension columns (trigger in 0050), and writes an
+ * audit row. The UI's required-reason field is a convenience, not the
+ * enforcement.
+ */
+export async function setRiderSuspended(
+  id: string,
+  suspended: boolean,
+  reason?: string,
+): Promise<void> {
+  const { error } = await supabase.rpc("admin_set_rider_suspended", {
+    p_rider_id: id,
+    p_suspended: suspended,
+    p_reason: reason?.trim() ? reason.trim() : undefined,
+  });
+  requireOk(error, undefined);
+}
+
+/** Payout amount and delivery count per day, empty days included as zero. */
+export async function fetchRiderEarningsByDay(
+  riderId: string,
+  from: Date,
+  to: Date,
+): Promise<RiderEarningsDay[]> {
+  const { data, error } = await supabase.rpc("admin_rider_earnings_by_day", {
+    p_rider_id: riderId,
+    p_from: from.toISOString(),
+    p_to: to.toISOString(),
+  });
+
+  return requireOk(
+    error,
+    ((data ?? []) as Record<string, unknown>[]).map((row) => ({
+      day: String(row.day),
+      amount: Number(row.amount ?? 0),
+      deliveries: Number(row.deliveries ?? 0),
+    })),
+  );
+}
+
+/** Status changes, suspension, account attach/revoke and note additions. */
+export async function fetchRiderActivity(riderId: string): Promise<RiderActivityEvent[]> {
+  const { data, error } = await supabase.rpc("admin_rider_activity", {
+    p_rider_id: riderId,
+  });
+
+  return requireOk(
+    error,
+    ((data ?? []) as Record<string, unknown>[]).map((row) => ({
+      id: Number(row.id),
+      event: String(row.event),
+      detail: (row.detail ?? null) as Record<string, unknown> | null,
+      actorEmail: row.actor_email == null ? null : String(row.actor_email),
+      changedAt: String(row.changed_at),
+    })),
+  );
+}
+
+export async function fetchRiderNotes(riderId: string): Promise<RiderNote[]> {
+  const { data, error } = await supabase.rpc("admin_rider_notes", {
+    p_rider_id: riderId,
+  });
+
+  return requireOk(
+    error,
+    ((data ?? []) as Record<string, unknown>[]).map((row) => ({
+      id: Number(row.id),
+      body: String(row.body),
+      authorEmail: row.author_email == null ? null : String(row.author_email),
+      createdAt: String(row.created_at),
+    })),
+  );
+}
+
+export async function addRiderNote(riderId: string, body: string): Promise<void> {
+  const { error } = await supabase.rpc("admin_add_rider_note", {
+    p_rider_id: riderId,
+    p_body: body,
+  });
+  requireOk(error, undefined);
 }

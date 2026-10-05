@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { Column } from "./data-table";
+import type { Column, SortState } from "./data-table";
 import { DataTable } from "./data-table";
 import { Button } from "./button";
 import { DownloadIcon } from "./icons";
@@ -10,6 +10,7 @@ import { EmptyState } from "./status";
 import { downloadCsv, timestampedFilename } from "@/lib/csv";
 import type { CsvColumn } from "@/lib/csv";
 import { matchesQuery, useGlobalSearch } from "@/lib/global-search";
+import { MD_AND_UP, useMediaQuery } from "@/lib/use-media-query";
 
 const PAGE_SIZE = 8;
 
@@ -22,6 +23,14 @@ export function PaginatedDataTable<T>({
   emptyDescription,
   exportName,
   exportColumns,
+  sort,
+  onSortChange,
+  sortableKeys,
+  searchQuery,
+  page,
+  onPageChange,
+  pageSize = PAGE_SIZE,
+  mobileCard,
 }: {
   columns: Column<T>[];
   rows: T[];
@@ -31,14 +40,50 @@ export function PaginatedDataTable<T>({
   emptyDescription?: string;
   exportName?: string;
   exportColumns?: CsvColumn<T>[];
-}) {
-  const query = useGlobalSearch();
-  const [page, setPage] = useState(1);
-  const [previousQuery, setPreviousQuery] = useState(query);
 
-  if (previousQuery !== query) {
+  /** Pass all three to make headers sortable. Omit and behaviour is unchanged. */
+  sort?: SortState;
+  onSortChange?: (next: SortState) => void;
+  sortableKeys?: readonly string[];
+
+  /**
+   * Overrides the global search store. The riders page owns its search term in
+   * the URL, so it passes the parsed value here rather than letting two
+   * sources of truth filter the same rows.
+   */
+  searchQuery?: string;
+
+  /** Pass `page` and `onPageChange` to keep paging in the URL. */
+  page?: number;
+  onPageChange?: (next: number) => void;
+  pageSize?: number;
+
+  /**
+   * Renders each row as a card below the `md` breakpoint instead of a
+   * horizontally scrolling table. One branch, not both rendered and hidden.
+   */
+  mobileCard?: (row: T) => React.ReactNode;
+}) {
+  const globalQuery = useGlobalSearch();
+  const query = searchQuery ?? globalQuery;
+  const isControlledPage = page !== undefined;
+  const [internalPage, setInternalPage] = useState(1);
+  const [previousQuery, setPreviousQuery] = useState(query);
+  const isWide = useMediaQuery(MD_AND_UP);
+  const showCards = Boolean(mobileCard) && !isWide;
+
+  const activePage = isControlledPage ? page : internalPage;
+
+  function setPage(next: number) {
+    if (!isControlledPage) setInternalPage(next);
+    onPageChange?.(next);
+  }
+
+  // Only for the uncontrolled case. A controlled page is reset by whoever owns
+  // the URL, and calling setPage here would fight their state.
+  if (!isControlledPage && previousQuery !== query) {
     setPreviousQuery(query);
-    setPage(1);
+    setInternalPage(1);
   }
 
   const filtered = useMemo(
@@ -67,15 +112,17 @@ export function PaginatedDataTable<T>({
   // with the corrected page, so no empty frame is ever painted. A
   // useEffect would be wrong here: it would paint the bad frame first and
   // flash the empty table.
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  if (page > totalPages) {
-    setPage(totalPages);
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const safePage = Math.min(activePage, totalPages);
+  if (!isControlledPage && activePage > totalPages) {
+    setInternalPage(totalPages);
   }
 
   const pageRows = useMemo(
-    () => filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
-    [filtered, page],
+    () => filtered.slice((safePage - 1) * pageSize, safePage * pageSize),
+    [filtered, safePage, pageSize],
   );
+
   return (
     <>
       <div className="mb-3 flex items-center justify-between gap-3">
@@ -102,9 +149,26 @@ export function PaginatedDataTable<T>({
         ) : null}
       </div>
 
-      <div className="overflow-hidden">
-        <DataTable columns={columns} rows={pageRows} onRowClick={onRowClick} />
-      </div>
+      {showCards ? (
+        <ul className="flex flex-col gap-3">
+          {pageRows.map((row, index) => (
+            <li key={index} className="rounded-(--radius-card) border border-border bg-card p-4">
+              {mobileCard!(row)}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <div className="overflow-hidden">
+          <DataTable
+            columns={columns}
+            rows={pageRows}
+            onRowClick={onRowClick}
+            sort={sort}
+            onSortChange={onSortChange}
+            sortableKeys={sortableKeys}
+          />
+        </div>
+      )}
       {filtered.length === 0 ? (
         <EmptyState
           title={emptyTitle ?? "No matching records"}
@@ -118,10 +182,10 @@ export function PaginatedDataTable<T>({
         />
       ) : null}
       <Pagination
-        page={page}
-        pageSize={PAGE_SIZE}
+        page={safePage}
+        pageSize={pageSize}
         total={filtered.length}
-        onPageChange={(next) => setPage(next)}
+        onPageChange={setPage}
       />
     </>
   );

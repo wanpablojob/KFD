@@ -75,6 +75,51 @@ export interface Rider {
   earnings: number;
   /** See `Restaurant.archivedAt`. */
   archivedAt: string | null;
+  /** See migration 0050. Independent of `archivedAt`. */
+  suspendedAt?: string | null;
+  suspendedReason?: string | null;
+}
+
+/**
+ * One row of the admin rider list, from admin_rider_overview().
+ *
+ * Wider than `Rider` because the list needs per-row derived data (who is on
+ * which order, how many deliveries failed) that would otherwise be one request
+ * per row. Flag thresholds are applied client-side in lib/rider-flags.ts, not
+ * here, so they stay in one tested place.
+ */
+export interface RiderOverview extends Rider {
+  userId: string | null;
+  currentOrderId: string | null;
+  currentOrderReference: string | null;
+  currentOrderStatus: OrderStatus | null;
+  deliveredCount: number;
+  failedCount: number;
+  weekEarnings: number;
+  updatedAt: string | null;
+}
+
+/** One bar on the earnings-per-day chart. */
+export interface RiderEarningsDay {
+  day: string;
+  amount: number;
+  deliveries: number;
+}
+
+/** One entry on the detail page's activity timeline. */
+export interface RiderActivityEvent {
+  id: number;
+  event: string;
+  detail: Record<string, unknown> | null;
+  actorEmail: string | null;
+  changedAt: string;
+}
+
+export interface RiderNote {
+  id: number;
+  body: string;
+  authorEmail: string | null;
+  createdAt: string;
 }
 
 export interface Customer {

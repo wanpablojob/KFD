@@ -51,36 +51,45 @@ export type Database = {
           action: string
           actor_user_id: string | null
           changed_at: string
+          detail: Json | null
+          event: string | null
           id: number
           new_restaurant_id: string | null
           new_role: Database["public"]["Enums"]["app_role"] | null
           old_restaurant_id: string | null
           old_role: Database["public"]["Enums"]["app_role"] | null
           record_id: string | null
+          rider_id: string | null
           table_name: string
         }
         Insert: {
           action: string
           actor_user_id?: string | null
           changed_at?: string
+          detail?: Json | null
+          event?: string | null
           id?: never
           new_restaurant_id?: string | null
           new_role?: Database["public"]["Enums"]["app_role"] | null
           old_restaurant_id?: string | null
           old_role?: Database["public"]["Enums"]["app_role"] | null
           record_id?: string | null
+          rider_id?: string | null
           table_name?: string
         }
         Update: {
           action?: string
           actor_user_id?: string | null
           changed_at?: string
+          detail?: Json | null
+          event?: string | null
           id?: never
           new_restaurant_id?: string | null
           new_role?: Database["public"]["Enums"]["app_role"] | null
           old_restaurant_id?: string | null
           old_role?: Database["public"]["Enums"]["app_role"] | null
           record_id?: string | null
+          rider_id?: string | null
           table_name?: string
         }
         Relationships: []
@@ -462,6 +471,30 @@ export type Database = {
         }
         Relationships: []
       }
+      rider_notes: {
+        Row: {
+          author_user_id: string | null
+          body: string
+          created_at: string
+          id: number
+          rider_id: string
+        }
+        Insert: {
+          author_user_id?: string | null
+          body: string
+          created_at?: string
+          id?: never
+          rider_id: string
+        }
+        Update: {
+          author_user_id?: string | null
+          body?: string
+          created_at?: string
+          id?: never
+          rider_id?: string
+        }
+        Relationships: []
+      }
       rider_payouts: {
         Row: {
           amount: number
@@ -514,6 +547,8 @@ export type Database = {
           phone: string | null
           rating: number
           status: Database["public"]["Enums"]["rider_status"]
+          suspended_at: string | null
+          suspended_reason: string | null
           updated_at: string
           user_id: string | null
           vehicle: Database["public"]["Enums"]["vehicle_type"]
@@ -530,6 +565,8 @@ export type Database = {
           phone?: string | null
           rating?: number
           status?: Database["public"]["Enums"]["rider_status"]
+          suspended_at?: string | null
+          suspended_reason?: string | null
           updated_at?: string
           user_id?: string | null
           vehicle?: Database["public"]["Enums"]["vehicle_type"]
@@ -546,6 +583,8 @@ export type Database = {
           phone?: string | null
           rating?: number
           status?: Database["public"]["Enums"]["rider_status"]
+          suspended_at?: string | null
+          suspended_reason?: string | null
           updated_at?: string
           user_id?: string | null
           vehicle?: Database["public"]["Enums"]["vehicle_type"]
@@ -563,6 +602,67 @@ export type Database = {
           offered_to: number
           order_id: string
         }[]
+      }
+      admin_add_rider_note: {
+        Args: { p_rider_id: string; p_body: string }
+        Returns: number
+      }
+      admin_rider_activity: {
+        Args: { p_rider_id: string }
+        Returns: {
+          actor_email: string
+          changed_at: string
+          detail: Json | null
+          event: string
+          id: number
+        }[]
+      }
+      admin_rider_earnings_by_day: {
+        Args: { p_rider_id: string; p_from: string; p_to: string }
+        Returns: {
+          amount: number
+          day: string
+          deliveries: number
+        }[]
+      }
+      admin_rider_notes: {
+        Args: { p_rider_id: string }
+        Returns: {
+          author_email: string
+          body: string
+          created_at: string
+          id: number
+        }[]
+      }
+      admin_rider_overview: {
+        Args: never
+        Returns: {
+          archived_at: string | null
+          city: string
+          current_order_id: string | null
+          current_order_reference: string | null
+          current_order_status: Database["public"]["Enums"]["order_status"] | null
+          delivered_count: number
+          deliveries: number
+          earnings: number
+          email: string
+          failed_count: number
+          name: string
+          phone: string
+          rating: number
+          rider_id: string
+          status: Database["public"]["Enums"]["rider_status"]
+          suspended_at: string | null
+          suspended_reason: string | null
+          updated_at: string
+          user_id: string | null
+          vehicle: Database["public"]["Enums"]["vehicle_type"]
+          week_earnings: number
+        }[]
+      }
+      admin_set_rider_suspended: {
+        Args: { p_rider_id: string; p_suspended: boolean; p_reason?: string }
+        Returns: undefined
       }
       available_jobs: {
         Args: never
@@ -666,6 +766,7 @@ export type Database = {
           reviewed_at: string
           status: Database["public"]["Enums"]["rider_application_status"]
           vehicle: Database["public"]["Enums"]["vehicle_type"]
+          waiting_days: number
         }[]
       }
       fetch_rider_offers: {
