@@ -16,6 +16,8 @@ import { supabase } from "../lib/supabase";
 import { offerWindowLabel } from "../lib/offer-window";
 import { isOfferClaimable, secondsUntilExpiry } from "../lib/offer-claimable";
 import { riderStatusMeta } from "../lib/rider-status";
+import { deviceMapsUrl, openInMaps } from "../lib/maps";
+import { useConnectivity } from "../lib/connectivity-context";
 import {
   useAcceptOffer,
   useDeclineOffer,
@@ -106,6 +108,10 @@ export function RiderOffersScreen({ userId }: { userId: string }) {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [goingOnline, setGoingOnline] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+
+  const connectivity = useConnectivity();
+  const offline =
+    connectivity.isConnected === false || connectivity.isInternetReachable === false;
 
   async function goOnline() {
     if (busyId || goingOnline) return;
@@ -204,6 +210,16 @@ export function RiderOffersScreen({ userId }: { userId: string }) {
             {profile.status !== "online" ? (
               <OfflineBanner status={profile.status} onGoOnline={goOnline} />
             ) : null}
+            {/* Accepting and declining both need a round trip; while offline the
+                buttons are disabled, so the screen says why. */}
+            {offline ? (
+              <View style={styles.offlineBanner} accessibilityRole="alert">
+                <Text style={styles.offlineText}>
+                  You&apos;re offline. Accepting or declining an offer needs a
+                  connection.
+                </Text>
+              </View>
+            ) : null}
           </View>
         }
         ListEmptyComponent={
@@ -250,6 +266,17 @@ export function RiderOffersScreen({ userId }: { userId: string }) {
                 {item.customer ? (
                   <Text style={styles.noPhone}>Customer: {item.customer}</Text>
                 ) : null}
+                {deviceMapsUrl(item.deliveryAddress) ? (
+                  <Pressable
+                    style={styles.navigateRow}
+                    accessibilityRole="link"
+                    accessibilityLabel={`Navigate to ${item.deliveryAddress}`}
+                    onPress={() => void openInMaps(item.deliveryAddress)}
+                  >
+                    <Text style={styles.navigateLabel}>Navigate to drop-off</Text>
+                    <Text style={styles.navigateHint}>Opens maps</Text>
+                  </Pressable>
+                ) : null}
               </View>
 
               <View style={styles.block}>
@@ -278,8 +305,11 @@ export function RiderOffersScreen({ userId }: { userId: string }) {
 
               <View style={styles.actions}>
                 <Pressable
-                  style={[styles.declineButton, (busy || expired) && styles.disabled]}
-                  disabled={busy || expired}
+                  style={[
+                    styles.declineButton,
+                    (busy || expired || offline) && styles.disabled,
+                  ]}
+                  disabled={busy || expired || offline}
                   accessibilityRole="button"
                   accessibilityLabel={`Decline ${item.reference}`}
                   onPress={() => void onDecline(item)}
@@ -287,8 +317,11 @@ export function RiderOffersScreen({ userId }: { userId: string }) {
                   <Text style={styles.declineLabel}>Decline</Text>
                 </Pressable>
                 <Pressable
-                  style={[styles.acceptButton, (!claimable || busy) && styles.disabled]}
-                  disabled={!claimable || busy}
+                  style={[
+                    styles.acceptButton,
+                    (!claimable || busy || offline) && styles.disabled,
+                  ]}
+                  disabled={!claimable || busy || offline}
                   accessibilityRole="button"
                   accessibilityLabel={`Accept ${item.reference}`}
                   onPress={() => void onAccept(item)}
@@ -483,4 +516,28 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
   },
   bannerButtonLabel: { ...type.label, color: colors.textInverse },
+  offlineBanner: {
+    backgroundColor: colors.goldSoft,
+    borderWidth: 1,
+    borderColor: colors.gold,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+  },
+  offlineText: { ...type.caption, color: colors.warning, fontWeight: "600" },
+  navigateRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.md,
+    marginTop: spacing.sm,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
+  },
+  navigateLabel: { ...type.body, color: colors.primary, fontWeight: "700" },
+  navigateHint: { ...type.caption, color: colors.textFaint },
 });
