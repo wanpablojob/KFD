@@ -1,13 +1,13 @@
 import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
-  FlatList,
   KeyboardAvoidingView,
   Linking,
   Modal,
   Platform,
   Pressable,
   RefreshControl,
+  SectionList,
   StyleSheet,
   Text,
   TextInput,
@@ -18,7 +18,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { supabase } from "../lib/supabase";
 import { signOut } from "../lib/auth";
 import { notifyRiderDelivered } from "../lib/push";
-import { shouldSyncPage1 } from "../lib/delivery-sync";
+import { mergeOrderPages, shouldSyncPage1 } from "../lib/delivery-sync";
+import { deviceMapsUrl, openInMaps } from "../lib/maps";
+import { isTerminalStatus } from "../lib/order-progress";
+import { isCashPayment, paymentLabel } from "../lib/payment-label";
+import { useConnectivity } from "../lib/connectivity-context";
 import {
   useRiderOrders,
   useRiderProfile,
@@ -62,6 +66,15 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
   const [failingId, setFailingId] = useState<string | null>(null);
   const [failReason, setFailReason] = useState("");
   const [reporting, setReporting] = useState(false);
+
+  // Marking delivered writes a payout and cannot be undone, and it sits beside
+  // the escape hatch. It gets a confirmation sheet showing the amount being
+  // settled, so neither button is a single irreversible tap.
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+
+  const connectivity = useConnectivity();
+  const offline =
+    connectivity.isConnected === false || connectivity.isInternetReachable === false;
 
   // Page 1: initial load
   const {
@@ -123,15 +136,27 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
     if (!hasMore || loadingMore || !nextCursor) return;
     setLoadingMore(true);
     try {
-      const { data } = await supabase.rpc("fetch_rider_orders_page", {
+      const { data, error } = await supabase.rpc("fetch_rider_orders_page", {
         p_cursor: nextCursor,
         p_limit: 20,
       });
+      // The error was ignored here. A failed page left `next` null, so hasMore
+      // went false and the failure read as "no more orders" -- the rider saw the
+      // list simply stop, with no way to retry and no hint that anything went
+      // wrong. Surface it and leave hasMore alone so the same cursor is tried
+      // again on the next scroll.
+      if (error) {
+        setFetchError(error.message);
+        return;
+      }
       const rows = (data ?? []) as (RiderOrderPageResult["items"][0] & {
         next_cursor: string | null;
       })[];
       const next = rows[0]?.next_cursor ?? null;
-      setOrders((prev) => [...prev, ...rows]);
+      // mergeOrderPages, not [...prev, ...rows]: an order that changed status
+      // between the page-1 fetch and this one can appear in both, and appending
+      // it twice gives two rows with the same key.
+      setOrders((prev) => mergeOrderPages(prev, rows));
       setNextCursor(next);
       setHasMore(!!next);
     } catch (cause) {
@@ -231,19 +256,50 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
     );
   }
 
+  // Active pinned at the top, history below, both derived from the one list the
+  // cursor pages into. Not a second query: a delivered order is still on this
+  // list until the next page-1 refetch, and two sources would disagree about
+  // which section it belongs in.
+  const active = orders.filter((o) => !isTerminalStatus(o.status));
+  const past = orders.filter((o) => isTerminalStatus(o.status));
+  const sections = [
+    ...(active.length > 0 ? [{ title: "Active", data: active }] : []),
+    ...(past.length > 0 ? [{ title: "Past", data: past }] : []),
+  ];
+
   return (
     <View style={styles.container}>
-      <FlatList
-        data={orders}
+      <SectionList
+        sections={sections}
         keyExtractor={(o) => o.id}
         contentContainerStyle={styles.list}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
         onEndReached={handleEndReached}
         onEndReachedThreshold={0.5}
+        stickySectionHeadersEnabled={false}
+        renderSectionHeader={({ section }) => (
+          <Text style={styles.groupLabel}>{section.title}</Text>
+        )}
         ListHeaderComponent={
-          <View style={[styles.sectionHeader, { paddingTop: spacing.lg + insets.top }]}>
-            <Text style={styles.sectionTitle}>Your deliveries</Text>
-            {loadingMore && <ActivityIndicator size="small" color={colors.secondary} />}
+          <View>
+            <View
+              style={[styles.sectionHeader, { paddingTop: spacing.lg + insets.top }]}
+            >
+              <Text style={styles.sectionTitle}>Your deliveries</Text>
+              {loadingMore && (
+                <ActivityIndicator size="small" color={colors.secondary} />
+              )}
+            </View>
+            {/* The write buttons below are disabled while offline, so the screen
+                has to say why -- an inert button with no reason reads as a bug. */}
+            {offline ? (
+              <View style={styles.offlineBanner} accessibilityRole="alert">
+                <Text style={styles.offlineText}>
+                  You&apos;re offline. Marking a delivery or reporting a problem needs a
+                  connection.
+                </Text>
+              </View>
+            ) : null}
           </View>
         }
         ListEmptyComponent={
@@ -256,15 +312,30 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
           )
         }
         renderItem={({ item }) => {
-          const canDeliver = !["delivered", "cancelled"].includes(item.status);
+          const canDeliver = !isTerminalStatus(item.status);
+          const cash = item.payment === "cash";
+          const busy = deliveringId !== null || reporting;
           return (
-            <View style={styles.orderCard}>
+            <View style={[styles.orderCard, !canDeliver && styles.orderCardPast]}>
               <View style={styles.orderHeader}>
                 <Text style={styles.orderRef}>{item.reference}</Text>
                 <Text style={styles.orderStatus}>
                   {STATUS_LABEL[item.status] ?? item.status}
                 </Text>
               </View>
+
+              {/* What the rider has to collect, only while there is still a
+                  delivery to make. Cash is the customer's money, not the
+                  rider's, so it is stated separately from the fee below and
+                  never added to it. */}
+              {canDeliver && cash ? (
+                <View style={styles.collect}>
+                  <Text style={styles.collectLabel}>Collect from customer</Text>
+                  <Text style={styles.collectAmount}>
+                    ₱{Number(item.total).toFixed(2)}
+                  </Text>
+                </View>
+              ) : null}
 
               <Text style={styles.orderRestaurant}>{item.restaurant}</Text>
 
@@ -277,6 +348,22 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
                   {item.delivery_address ? `\n${item.delivery_address}` : ""}
                 </Text>
               </View>
+
+              {/* Opens the phone's maps app with the address. No maps SDK and no
+                  location permission: a geo: URL hands the address to whatever
+                  the rider already uses. Hidden when there is no address to
+                  navigate to, rather than shown as a dead button. */}
+              {canDeliver && deviceMapsUrl(item.delivery_address) ? (
+                <Pressable
+                  style={styles.navigateRow}
+                  accessibilityRole="link"
+                  accessibilityLabel={`Navigate to ${item.delivery_address}`}
+                  onPress={() => void openInMaps(item.delivery_address)}
+                >
+                  <Text style={styles.navigateLabel}>Navigate</Text>
+                  <Text style={styles.navigateHint}>Opens maps</Text>
+                </Pressable>
+              ) : null}
 
               {/* How to reach them. No number on file is a real state, not an
                   error, so it says so instead of rendering a dead tel: link. */}
@@ -324,7 +411,8 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
                     : "Payout pending"}
                 </Text>
                 <Text style={styles.placedAt}>
-                  {item.payment} · {new Date(item.placed_at).toLocaleString()}
+                  {paymentLabel(item.payment)} ·{" "}
+                  {new Date(item.placed_at).toLocaleString()}
                 </Text>
               </View>
 
@@ -334,11 +422,8 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
                 // as reachable as the lie it replaces.
                 <View style={styles.actions}>
                   <Pressable
-                    style={[
-                      styles.failButton,
-                      (deliveringId !== null || reporting) && styles.disabled,
-                    ]}
-                    disabled={deliveringId !== null || reporting}
+                    style={[styles.failButton, (busy || offline) && styles.disabled]}
+                    disabled={busy || offline}
                     accessibilityRole="button"
                     accessibilityLabel={`Report ${item.reference} as not deliverable`}
                     onPress={() => openFailReport(item.id)}
@@ -349,10 +434,12 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
                   <Pressable
                     style={[
                       styles.deliverButton,
-                      deliveringId === item.id && styles.disabled,
+                      (deliveringId === item.id || busy) && styles.disabled,
                     ]}
-                    disabled={deliveringId !== null || reporting}
-                    onPress={() => void markDelivered(item.id)}
+                    disabled={busy || offline}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Mark ${item.reference} delivered`}
+                    onPress={() => setConfirmingId(item.id)}
                   >
                     {deliveringId === item.id ? (
                       <ActivityIndicator color={colors.textInverse} size="small" />
@@ -369,6 +456,75 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
           fetchError ? <Text style={styles.error}>{fetchError}</Text> : null
         }
       />
+
+      {/* Confirmation for the one irreversible action on this screen: it writes
+          the payout ledger row and cannot be undone. Shown as a sheet rather than
+          Alert.prompt because Alert is iOS-only and Android is where most riders
+          are. */}
+      <Modal
+        visible={confirmingId !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setConfirmingId(null)}
+      >
+        <Pressable
+          style={styles.backdrop}
+          accessibilityLabel="Dismiss"
+          onPress={() => setConfirmingId(null)}
+        >
+          <Pressable
+            style={[styles.sheet, { paddingBottom: spacing.xl + insets.bottom }]}
+            onPress={() => undefined}
+          >
+            <Text style={styles.sheetTitle}>Mark this delivery as complete?</Text>
+            {(() => {
+              const order = orders.find((o) => o.id === confirmingId);
+              if (!order) return null;
+              const cash = isCashPayment(order.payment);
+              return (
+                <>
+                  <Text style={styles.sheetBody}>
+                    {order.reference} · {order.restaurant}. This records your fee and
+                    cannot be undone.
+                  </Text>
+                  {cash ? (
+                    <View style={styles.collect}>
+                      <Text style={styles.collectLabel}>
+                        Collect from {order.customer}
+                      </Text>
+                      <Text style={styles.collectAmount}>
+                        ₱{Number(order.total).toFixed(2)}
+                      </Text>
+                    </View>
+                  ) : (
+                    <Text style={styles.sheetBody}>
+                      Payment method: {paymentLabel(order.payment)}. Nothing to collect.
+                    </Text>
+                  )}
+                </>
+              );
+            })()}
+            <View style={styles.sheetActions}>
+              <Pressable
+                style={styles.secondaryButton}
+                onPress={() => setConfirmingId(null)}
+              >
+                <Text style={styles.secondaryButtonLabel}>Not yet</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.deliverButton, styles.sheetPrimary]}
+                onPress={() => {
+                  const id = confirmingId;
+                  setConfirmingId(null);
+                  if (id) void markDelivered(id);
+                }}
+              >
+                <Text style={styles.deliverButtonLabel}>Yes, delivered</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       <Modal
         visible={failingId !== null}
@@ -486,6 +642,55 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     gap: spacing.sm,
   },
+  orderCardPast: { opacity: 0.7 },
+  groupLabel: {
+    ...type.eyebrow,
+    color: colors.secondary,
+    marginTop: spacing.md,
+    marginBottom: spacing.xs,
+  },
+  collect: {
+    backgroundColor: colors.goldSoft,
+    borderWidth: 1,
+    borderColor: colors.gold,
+    borderRadius: radius.md,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    marginTop: spacing.xs,
+  },
+  collectLabel: {
+    ...type.caption,
+    color: colors.warning,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+  },
+  collectAmount: { ...type.display, fontSize: 26, color: colors.text },
+  navigateRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.md,
+    marginTop: spacing.sm,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
+  },
+  navigateLabel: { ...type.body, color: colors.primary, fontWeight: "700" },
+  navigateHint: { ...type.caption, color: colors.textFaint },
+  offlineBanner: {
+    backgroundColor: colors.goldSoft,
+    borderWidth: 1,
+    borderColor: colors.gold,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  offlineText: { ...type.caption, color: colors.warning, fontWeight: "600" },
+  sheetPrimary: { flex: 1, marginTop: 0 },
   orderHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
