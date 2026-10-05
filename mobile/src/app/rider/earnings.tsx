@@ -18,11 +18,18 @@ import { colors, radius, shadow, spacing, type } from "../../lib/theme";
  *
  * Every peso figure here is summed from the `rider_payouts` ledger, which has
  * one row per completed delivery. The old screen divided `riders.earnings` by
- * `riders.deliveries`, and since nothing in the schema ever wrote `earnings`
- * that division was arithmetic on two fixture numbers from the 0001 seed --
- * a rider with zero deliveries in reality was shown a confident "₱15.60 per
- * delivery". Dividing an average is also the wrong question: a rider wants to
- * know what today paid and what each trip was worth.
+ * `riders.deliveries`, and at the time nothing in the schema wrote either --
+ * both were fixture numbers from the 0001 seed, so a rider with zero real
+ * deliveries was shown a confident "₱15.60 per delivery".
+ *
+ * Migration 0038 changed that: `rider_mark_delivered` now writes the ledger row
+ * and increments both counters in the same statement, and 0038 reconciled
+ * `riders.earnings` to the ledger sum. So the two columns are no longer fiction
+ * -- but `deliveries` was never reset, so it still carries pre-0038 counts the
+ * ledger has no record of. That is why this screen and the Profile tab both read
+ * the ledger instead of the counters, and it is why the counts here and on the
+ * Profile tab can differ from an admin's riders table by the deliveries that
+ * predate the ledger.
  */
 
 const PAGE = 20;
