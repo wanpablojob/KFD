@@ -128,6 +128,11 @@ Two traps worth remembering, both found the hard way:
   empty-cart guard and `mint_order_reference()`. Always diff the new body
   against the live one and assert only the intended lines differ. Same class of
   error: `rider_mark_delivered`'s real version is in `0025`, not `0018`.
+- **A guard on one door is not a guard.** Suspension was checked in
+  `claim_order` only: `rider_mark_delivered` and `rider_set_status` checked
+  neither, so a suspended rider could complete deliveries and put himself back
+  online. When adding a "blocked actor" rule, enumerate every function that
+  resolves `riders` from `auth.uid()` and add the check to all of them.
 - **`is distinct from`, never `<>`,** in an ownership guard. With a NULL
   `rider_id`, `null <> 'abc'` is NULL rather than true, so the check passes.
   `0025` already had this right; do not "simplify" it.
@@ -223,20 +228,31 @@ Phase 2 item 4 has an open product decision: showing `₱{total}` next to a
 customer's order implies it is rider pay. Do not invent a payout rate — either
 add a real per-trip payout column or drop the peso figure.
 
-## Known gap: `out_for_delivery` is unreachable
+## Fixed 2026-10-07 (migration 0071): `out_for_delivery` and the pending dead end
 
-Nothing in the running app ever sets `orders.status = 'out_for_delivery'`. Only
-the 0001 seed rows have it. `merchant-queries.ts` filters it out of
-`allowedTransitions()` on purpose, on the reasoning that "dispatch is the
-platform's job", but no platform function sets it either.
+This section used to describe an open gap. Both halves are closed; keep it as
+the record of what the fix was and why, because the trap recurred.
 
-Consequence: a rider who claims a still-`pending` order cannot finish it.
-`rider_mark_delivered` only accepts `out_for_delivery`, `confirmed`, or
-`preparing`, so the rider is stuck on "cannot be marked delivered from its
-current state (pending)" until the merchant advances it. Do not have
-`claim_order` force `out_for_delivery` without deciding this first — that would
-also lock the merchant out of the `confirmed -> preparing` step. This is a
-product decision, not a mechanical fix.
+**`out_for_delivery` is now reachable.** `rider_mark_picked_up(p_order_id)` sets
+it, driven by the RIDER and not the merchant. The existing decision stands --
+`merchant-queries.ts:90-93` keeps the `out_for_delivery -> delivered` leg out of
+the restaurant's hands -- and the rider is the one who physically has the food.
+It is the same fact the customer is waiting on, which is why their tracker could
+never leave "Being prepared".
+
+**Dispatch now requires merchant acceptance.** `admin_dispatch_order` and
+`dispatch_unassigned_orders` used to match `status in ('pending','confirmed')`.
+`pending` means the restaurant has not decided, so the platform was sending
+riders to collect food that might be rejected a minute later -- and
+`claim_order` handed them a `pending` order that `rider_mark_delivered` then
+refused. Dispatch and claim are now `confirmed` only, so a rider is never offered
+work the restaurant has not agreed to, and never holds an order they cannot
+complete.
+
+The client half is `mobile/src/lib/delivery-actions.ts`, a tested copy of the
+three server guards. The rider card used to gate on `!isTerminalStatus(status)`
+("not finished") rather than "can act on", which is what offered the dead
+button. If one list changes, the migration and that module change together.
 
 ## Rules
 
