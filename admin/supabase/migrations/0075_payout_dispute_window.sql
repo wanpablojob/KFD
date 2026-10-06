@@ -426,7 +426,7 @@ create or replace function public.admin_rider_payout_summary(p_rider_id text)
     first_earned_at timestamptz,
     last_earned_at timestamptz
   )
-  language sql
+  language plpgsql
   stable
   security definer
   set search_path = public
@@ -489,6 +489,20 @@ grant execute on function public.admin_rider_payout_summary(text) to authenticat
 --
 -- Additive columns only. Existing callers read the first six and are unaffected.
 -- --------------------------------------------------------------------------
+
+-- The drop is not optional. CREATE OR REPLACE cannot change a function's
+-- return type -- it is part of the function's identity -- so widening this
+-- result set to four more columns is rejected with "cannot change return type
+-- of existing function". Dropping and recreating is the only way, and the
+-- revoke/grant/comment statements below this definition restore everything the
+-- drop takes with it.
+--
+-- Checked for dependents before relying on it: no view, function or rule
+-- references admin_rider_payouts, and public holds no views at all, so the drop
+-- needs no cascade and cannot orphan anything. The admin app reaches it over
+-- PostgREST, which holds no database dependency.
+drop function if exists public.admin_rider_payouts(text, integer);
+
 create or replace function public.admin_rider_payouts(
   p_rider_id text,
   p_limit integer default 25
@@ -597,6 +611,13 @@ grant execute on function public.admin_disputed_payouts() to authenticated;
 --
 -- settlement_state is last so existing positional readers keep working.
 -- --------------------------------------------------------------------------
+
+-- Same return-type constraint as admin_rider_payouts above: the appended
+-- settlement_state column means CREATE OR REPLACE is rejected outright, so the
+-- 0038 version has to go first. No dependent views or functions exist on this
+-- one either.
+drop function if exists public.rider_payout_history(integer);
+
 create or replace function public.rider_payout_history(p_limit int default 20)
   returns table (
     order_id text,
