@@ -13,21 +13,8 @@ import { Badge } from "@/components/ui/badge";
 import { useAsyncData } from "@/lib/use-async-data";
 import { TableBoundary } from "@/components/ui/table-boundary";
 import type { CustomerStats } from "@/lib/customer-stats";
+import { tierLabelFor } from "@/lib/customer-tier";
 
-/** Thresholds live here for now; they move to lib/customer-tier.ts next. */
-const GOLD_MIN_SPEND = 400;
-const SILVER_MIN_SPEND = 200;
-
-/**
- * An unlinked row has no spend at all (null), which is not "Standard tier" --
- * it is a row we know nothing about. It is labelled, not ranked.
- */
-function tierOf(row: CustomerStats): "Gold" | "Silver" | "Standard" | "Not linked" {
-  if (row.totalSpend === null) return "Not linked";
-  if (row.totalSpend >= GOLD_MIN_SPEND) return "Gold";
-  if (row.totalSpend >= SILVER_MIN_SPEND) return "Silver";
-  return "Standard";
-}
 
 const columns: Column<CustomerStats>[] = [
   {
@@ -50,7 +37,7 @@ const columns: Column<CustomerStats>[] = [
     key: "tier",
     header: "Tier",
     cell: (row) => {
-      const tier = tierOf(row);
+      const tier = tierLabelFor(row.totalSpend);
       return (
         <Badge
           variant={
@@ -134,7 +121,7 @@ export default function CustomersPage() {
                 {
                   key: "totalSpend",
                   header: "Tier",
-                  format: (row) => tierOf(row),
+                  format: (row) => tierLabelFor(row.totalSpend),
                 },
                 { key: "ordersCount", header: "Orders" },
                 {
