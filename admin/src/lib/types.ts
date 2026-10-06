@@ -78,6 +78,12 @@ export interface Rider {
   /** See migration 0050. Independent of `archivedAt`. */
   suspendedAt?: string | null;
   suspendedReason?: string | null;
+  /**
+   * The linked auth user, or null when no account is attached -- which is why
+   * this rider cannot sign in to the rider app. A column on the row rather than
+   * something to join for, so a single-row read can carry it.
+   */
+  userId?: string | null;
 }
 
 /**

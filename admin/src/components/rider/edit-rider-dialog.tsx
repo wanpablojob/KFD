@@ -5,7 +5,7 @@ import {
   validateRiderFields,
   type RiderFieldError,
 } from "@/lib/rider-validation";
-import type { RiderOverview } from "@/lib/types";
+import type { Rider } from "@/lib/types";
 
 const FIELDS: DialogField[] = [
   { key: "name", label: "Name", required: true },
@@ -33,7 +33,7 @@ export function EditRiderDialog({
   onClose,
   onSave,
 }: {
-  rider: RiderOverview;
+  rider: Rider;
   existingEmails: readonly string[];
   onClose: () => void;
   onSave: (values: Record<string, string>) => Promise<void>;

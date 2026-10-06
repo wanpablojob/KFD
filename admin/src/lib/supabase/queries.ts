@@ -1,5 +1,11 @@
 import { supabase } from "./client";
 import { anyIlikeFilter } from "./ilike-filter";
+import {
+  RIDER_ORDER_COLUMNS,
+  mapRiderOrderRows,
+  riderOrderScope,
+  type RiderDeliveryPage,
+} from "@/lib/rider-orders";
 import type {
   Customer,
   MenuItem,
@@ -228,6 +234,26 @@ export async function fetchRestaurants(): Promise<Restaurant[]> {
   }));
 }
 
+function mapRider(row: Record<string, unknown>): Rider {
+  return {
+    id: String(row.id),
+    name: String(row.name),
+    email: String(row.email),
+    phone: row.phone == null ? "" : String(row.phone),
+    city: String(row.city),
+    vehicle: String(row.vehicle) as Rider["vehicle"],
+    status: String(row.status) as Rider["status"],
+    deliveries: Number(row.deliveries),
+    rating: Number(row.rating),
+    earnings: Number(row.earnings),
+    archivedAt: row.archived_at == null ? null : String(row.archived_at),
+    suspendedAt: row.suspended_at == null ? null : String(row.suspended_at),
+    suspendedReason:
+      row.suspended_reason == null ? null : String(row.suspended_reason),
+    userId: row.user_id == null ? null : String(row.user_id),
+  };
+}
+
 export async function fetchRiders(): Promise<Rider[]> {
   const { data, error } = await supabase
     .from("riders")
@@ -236,19 +262,96 @@ export async function fetchRiders(): Promise<Rider[]> {
 
   if (error) throw new Error(error.message);
 
-  return (data ?? []).map((r) => ({
-    id: r.id,
-    name: r.name,
-    email: r.email,
-    phone: r.phone ?? "",
-    city: r.city,
-    vehicle: r.vehicle,
-    status: r.status,
-    deliveries: Number(r.deliveries),
-    rating: Number(r.rating),
-    earnings: Number(r.earnings),
-    archivedAt: r.archived_at ? String(r.archived_at) : null,
+  return ((data ?? []) as unknown as Record<string, unknown>[]).map(mapRider);
+}
+
+/**
+ * Just id and email for every rider.
+ *
+ * The detail page needs this for one thing: telling an admin that the email they
+ * are saving already belongs to somebody else. That check must see the whole
+ * fleet, but it does not need deliveries, ratings or earnings, and the page
+ * should not have to pull the entire overview to get two columns.
+ */
+export async function fetchRiderEmails(): Promise<{ id: string; email: string }[]> {
+  const { data, error } = await supabase
+    .from("riders")
+    .select("id, email")
+    .order("name");
+
+  if (error) throw new Error(error.message);
+
+  return ((data ?? []) as unknown as Record<string, unknown>[]).map((row) => ({
+    id: String(row.id),
+    email: String(row.email ?? ""),
   }));
+}
+
+/**
+ * One rider by id.
+ *
+ * The detail page reads the rider directly rather than pulling the whole list
+ * and finding them in it. That is not only less work: the page used to resolve
+ * the rider's name from the list and then ask for orders by that name, and
+ * because useAsyncData captures its fetcher once on mount, the orders query ran
+ * before the list had resolved and went out with "". See fetchOrdersByRiderId.
+ */
+export async function fetchRiderById(id: string): Promise<Rider | null> {
+  const trimmed = id.trim();
+  if (!trimmed) return null;
+
+  const { data, error } = await supabase
+    .from("riders")
+    .select("*")
+    .eq("id", trimmed)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  return data ? mapRider(data as unknown as Record<string, unknown>) : null;
+}
+
+/**
+ * One rider's orders, by orders.rider_id, paginated.
+ *
+ * rider_id rather than the `rider` name text column: the name is not unique, so
+ * two same-named riders shared a history, and 0025 says outright that the text
+ * column is for receipts while rider_id is for exactly this.
+ *
+ * Throws on a missing id rather than returning nothing. The caller passes
+ * useParams' id, which is always present, so an empty string here means the
+ * page is being pointed at nothing -- and silently returning an empty list is
+ * what made this read look like "this rider has no deliveries" all along.
+ */
+export async function fetchOrdersByRiderId(
+  riderId: string,
+  options: { page?: number; limit?: number } = {},
+): Promise<RiderDeliveryPage> {
+  const scope = riderOrderScope(riderId);
+  if (!scope) {
+    throw new Error("A rider id is required to read a rider's deliveries.");
+  }
+
+  const page = Math.max(1, Math.trunc(options.page ?? 1));
+  const limit = Math.max(1, Math.trunc(options.limit ?? 20));
+  const from = (page - 1) * limit;
+  const to = from + limit - 1;
+
+  const { data, error, count } = await supabase
+    .from("orders")
+    .select(RIDER_ORDER_COLUMNS, { count: "exact" })
+    .eq(scope.column, scope.value)
+    .order("placed_at", { ascending: false })
+    .range(from, to);
+
+  if (error) throw new Error(error.message);
+
+  const rows = mapRiderOrderRows(data as unknown as Record<string, unknown>[] | null);
+  return {
+    rows,
+    page,
+    total: typeof count === "number" ? count : null,
+    hasMore: typeof count === "number" ? to < count : rows.length === limit,
+  };
 }
 
 /**

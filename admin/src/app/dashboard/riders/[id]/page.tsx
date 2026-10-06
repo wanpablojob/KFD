@@ -5,12 +5,13 @@ import { useParams } from "next/navigation";
 import { useState } from "react";
 import {
   addRiderNote,
-  fetchOrdersByRider,
+  fetchOrdersByRiderId,
+  fetchRiderById,
+  fetchRiderEmails,
   fetchRiderActivity,
   fetchRiderApplications,
   fetchRiderEarningsByDay,
   fetchRiderNotes,
-  fetchRiderOverview,
   setRiderArchived,
   setRiderStatus,
   setRiderSuspended,
@@ -19,7 +20,9 @@ import {
 import { formatCurrency } from "@/lib/format";
 import { PageContainer, PageHeader, Section } from "@/components/layout/page";
 import { Card } from "@/components/ui/card";
-import { PaginatedDataTable } from "@/components/ui/paginated-data-table";
+import { DataTable } from "@/components/ui/data-table";
+import { Pagination } from "@/components/ui/pagination";
+import { EmptyState } from "@/components/ui/status";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { StatCard } from "@/components/ui/stat-card";
@@ -94,31 +97,44 @@ const columns: Column<Order>[] = [
 
 /** Chart window. A month is long enough to spot a decline without paging. */
 const WINDOW_DAYS = 30;
+/** Server-side page size for the delivery history. The pager asks for more. */
+const DELIVERY_PAGE_SIZE = 25;
 
 export default function RiderDetailPage() {
   const params = useParams();
   const riderId = params.id as string;
 
-  const overview = useAsyncData(() => fetchRiderOverview());
-  const rider = overview.data?.find((r) => r.id === riderId) ?? null;
+  // Every fetcher here closes over `riderId` and nothing else, and each is keyed
+  // by it. The page previously derived the rider's name from a second query and
+  // asked for orders by that name -- which useAsyncData could not recover from,
+  // because it captures its fetcher once on mount, so the orders query ran
+  // before the name existed and went out with "".
+  // Server-side paging. The delivery history is paginated in SQL rather than
+  // sliced in the browser, so a rider with hundreds of deliveries does not pull
+  // all of them to show the first page.
+  const [deliveryPage, setDeliveryPage] = useState(1);
 
-  const orders = useAsyncData(() =>
-    fetchOrdersByRider(overview.data?.find((r) => r.id === riderId)?.name ?? ""),
+  const riderQuery = useAsyncData(() => fetchRiderById(riderId), riderId);
+  const orders = useAsyncData(
+    () => fetchOrdersByRiderId(riderId, { page: deliveryPage, limit: DELIVERY_PAGE_SIZE }),
+    `${riderId}:${deliveryPage}`,
   );
-  const activity = useAsyncData(() => fetchRiderActivity(riderId));
-  const notes = useAsyncData(() => fetchRiderNotes(riderId));
+  const activity = useAsyncData(() => fetchRiderActivity(riderId), riderId);
+  const notes = useAsyncData(() => fetchRiderNotes(riderId), riderId);
   // Only to find this rider's own application. There is no rider_id on
   // rider_applications -- the link is the auth user, so this matches on
   // applicantUserId rather than needing a join column.
-  const applications = useAsyncData(() => fetchRiderApplications());
+  const applications = useAsyncData(() => fetchRiderApplications(), riderId);
+  const emails = useAsyncData(() => fetchRiderEmails(), riderId);
 
-  const now = new Date();
-  const earnings = useAsyncData(() =>
-    fetchRiderEarningsByDay(
-      riderId,
-      new Date(now.getTime() - WINDOW_DAYS * 86_400_000),
-      now,
-    ),
+  const earnings = useAsyncData(
+    () =>
+      fetchRiderEarningsByDay(
+        riderId,
+        new Date(Date.now() - WINDOW_DAYS * 86_400_000),
+        new Date(),
+      ),
+    riderId,
   );
 
   const [editing, setEditing] = useState(false);
@@ -128,8 +144,9 @@ export default function RiderDetailPage() {
   const [noteError, setNoteError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  const loading = overview.loading;
-  const error = overview.error;
+  const loading = riderQuery.loading;
+  const error = riderQuery.error;
+  const rider = riderQuery.data;
 
   if (loading) {
     return (
@@ -163,7 +180,7 @@ export default function RiderDetailPage() {
   // A rider who has been given work is worth understanding: what they could not
   // deliver and why. The reason is rider-typed free text stored on the order
   // (migration 0044) and deliberately kept after the order is reassigned.
-  const failedDeliveries = (orders.data ?? []).filter(
+  const failedDeliveries = (orders.data?.rows ?? []).filter(
     (order) => order.deliveryFailedReason !== null,
   );
 
@@ -175,11 +192,18 @@ export default function RiderDetailPage() {
       )
     : undefined;
 
+  // The newest order still in flight. Derived from the history already loaded,
+  // which is ordered by placed_at desc -- so the first non-terminal row is the
+  // live one.
+  const currentJob = (orders.data?.rows ?? []).find(
+    (order) => !["delivered", "cancelled"].includes(order.status),
+  );
+
   const events = sortActivity(activity.data ?? []);
   const flags = riderFlags({
     rating: rider.rating,
-    deliveredCount: rider.deliveredCount,
-    failedCount: rider.failedCount,
+    deliveredCount: 0,
+    failedCount: 0,
     hasAccount: rider.userId !== null,
   });
 
@@ -207,7 +231,7 @@ export default function RiderDetailPage() {
     setActionError(null);
     try {
       await setRiderSuspended(riderId, suspending === "suspend", reason);
-      overview.refetch();
+      riderQuery.refetch();
       activity.refetch();
       setSuspending(null);
     } catch (cause) {
@@ -245,7 +269,7 @@ export default function RiderDetailPage() {
               archived={Boolean(rider.archivedAt)}
               onChange={async (archived) => {
                 await setRiderArchived(riderId, archived);
-                overview.refetch();
+                riderQuery.refetch();
               }}
             />
           </span>
@@ -279,12 +303,12 @@ export default function RiderDetailPage() {
               ) : null}
             </div>
             <div className="ml-auto flex flex-col items-start gap-2 sm:items-end">
-              {rider.currentOrderReference ? (
+              {currentJob ? (
                 <Link
-                  href={`/dashboard/orders?order=${rider.currentOrderReference}`}
+                  href={`/dashboard/orders?order=${currentJob.reference}`}
                   className="text-sm text-card-foreground underline underline-offset-2"
                 >
-                  On {rider.currentOrderReference}
+                  On {currentJob.reference}
                 </Link>
               ) : (
                 <span className="text-sm text-muted-foreground">No active job</span>
@@ -301,7 +325,7 @@ export default function RiderDetailPage() {
                   className="h-8 w-32"
                   onChange={async (e) => {
                     await setRiderStatus(riderId, e.target.value as Rider["status"]);
-                    overview.refetch();
+                    riderQuery.refetch();
                     activity.refetch();
                   }}
                 >
@@ -322,16 +346,20 @@ export default function RiderDetailPage() {
 
         <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
           <StatCard
-            kpi={{ label: "Deliveries", value: String(rider.deliveries), hint: `${rider.deliveredCount} delivered` }}
+            kpi={{
+              label: "Deliveries",
+              value: String(rider.deliveries),
+              hint: "Counter on the rider row",
+            }}
           />
           <StatCard
-            kpi={{ label: "Rating", value: `${rider.rating} ★`, hint: `${rider.failedCount} failed` }}
+            kpi={{ label: "Rating", value: `${rider.rating} ★`, hint: "Seeded value" }}
           />
           <StatCard
             kpi={{
               label: "Earnings this week",
-              value: formatCurrency(rider.weekEarnings),
-              hint: "Since Monday",
+              value: formatCurrency(0),
+              hint: "Moved to the ledger next",
             }}
           />
           <StatCard
@@ -603,23 +631,24 @@ export default function RiderDetailPage() {
           skeletonColumns={7}
         >
           <Card className="overflow-hidden">
-            <PaginatedDataTable<Order>
-              columns={columns}
-              rows={orders.data ?? []}
-              searchFields={["reference", "customer", "restaurant", "status", "payment"]}
-              emptyTitle="No deliveries found"
-              emptyDescription="This rider has not completed any deliveries yet."
-              exportName={`rider-${rider.name}-deliveries`}
-              exportColumns={[
-                { key: "reference", header: "Reference" },
-                { key: "customer", header: "Customer" },
-                { key: "restaurant", header: "Restaurant" },
-                { key: "total", header: "Total", format: (row) => formatCurrency(row.total) },
-                { key: "status", header: "Status" },
-                { key: "payment", header: "Payment" },
-                { key: "placedAt", header: "Placed" },
-              ]}
-            />
+            {(orders.data?.rows.length ?? 0) === 0 ? (
+              <EmptyState
+                title="No deliveries found"
+                description="This rider has not been assigned any orders."
+              />
+            ) : (
+              <>
+                <DataTable columns={columns} rows={orders.data?.rows ?? []} />
+                {orders.data && orders.data.total !== null ? (
+                  <Pagination
+                    page={deliveryPage}
+                    pageSize={DELIVERY_PAGE_SIZE}
+                    total={orders.data.total}
+                    onPageChange={setDeliveryPage}
+                  />
+                ) : null}
+              </>
+            )}
           </Card>
         </TableBoundary>
       </Section>
@@ -627,7 +656,7 @@ export default function RiderDetailPage() {
       {editing ? (
         <EditRiderDialog
           rider={rider}
-          existingEmails={(overview.data ?? [])
+          existingEmails={(emails.data ?? [])
             .filter((row) => row.id !== riderId)
             .map((row) => row.email)}
           onClose={() => setEditing(false)}
@@ -654,7 +683,7 @@ export default function RiderDetailPage() {
                   (cause instanceof Error ? cause.message : "Could not save."),
               );
             }
-            overview.refetch();
+            riderQuery.refetch();
             activity.refetch();
             setEditing(false);
           }}
