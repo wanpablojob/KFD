@@ -47,7 +47,11 @@ export type CustomerStatsTotals = {
   totalCustomers: number;
   newThisMonth: number;
   activeThisMonth: number;
-  /** Orders with no customer account. Counted here, attributed to nobody. */
+  /**
+   * Orders belonging to no customer row: either no customer_user_id, or one
+   * pointing at a deleted auth account. Counted here so their value is never
+   * lost between the per-customer totals and the platform total.
+   */
   walkInOrders: number;
   walkInSpend: number;
 };
@@ -71,7 +75,9 @@ function nullableNum(value: unknown): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-export function mapCustomerStatsRow(row: Record<string, unknown>): CustomerStats {
+export function mapCustomerStatsRow(
+  row: Record<string, unknown>,
+): CustomerStats {
   const userId = nullableStr(row.user_id);
   return {
     id: str(row.id),

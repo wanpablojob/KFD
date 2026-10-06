@@ -243,6 +243,145 @@ jobs:
 
               print("::notice::%s parses and runs." % os.path.basename(path))
 
+          # --- Rider money invariants -------------------------------------
+          # These exist because of a shipped defect, not a hypothetical. 0050
+          # rebuilt claim_order from a stale body and silently dropped the
+          # rider_payout freeze, so every real delivery recorded a permanent
+          # 0.00 payout and no check anywhere noticed: the ledger, the rider's
+          # Earnings tab and the admin payout page all agreed with each other
+          # and all reported zero. A structural check cannot see that -- the
+          # schema is perfectly correct while the money is wrong. These three
+          # compare the VALUES, which is the only place the bug was visible.
+          #
+          # Deliberately values, not schema. The payout defect passed every
+          # column and policy assertion above and still cost real deliveries
+          # their pay, so asserting more about the shape of the database would
+          # have added confidence without adding safety.
+          #
+          # Only meaningful once 0038 exists; before it the ledger is empty and
+          # a non-empty seeded rider would look like drift. Skip rather than
+          # fail if the ledger table is absent.
+          if query(
+              "select to_regclass('public.rider_payouts') is not null as ok"
+          )[0]["ok"]:
+              # 1. No completed delivery may be recorded at zero. This is the
+              #    exact signature of a missing payout freeze.
+              zero_rows = query(
+                  "select count(*) as n from public.rider_payouts where amount = 0"
+              )[0]["n"]
+              if zero_rows:
+                  failures.append(
+                      "%d rider_payouts row(s) record a 0.00 payout. A "
+                      "completed delivery cannot be worth nothing: claim_order "
+                      "is not freezing rider_payout. Backfill "
+                      "rider_payouts.amount for these orders before riders "
+                      "notice." % zero_rows
+                  )
+
+              # 2. riders.deliveries must equal the rider's ledger row count.
+              #    These are a denormalised copy that 0071 recomputes instead
+              #    of incrementing; this catches any other writer.
+              delivery_drift = query(
+                  "select count(*) as n from public.riders r "
+                  "where r.deliveries <> (select count(*)::int "
+                  "  from public.rider_payouts p where p.rider_id = r.id)"
+              )[0]["n"]
+              if delivery_drift:
+                  failures.append(
+                      "riders.deliveries disagrees with the payout ledger for "
+                      "%d rider(s); the counters are a cache of the ledger and "
+                      "must be recomputed from it" % delivery_drift
+                  )
+
+              # 3. riders.earnings must equal the ledger sum.
+              earning_drift = query(
+                  "select count(*) as n from public.riders r "
+                  "where r.earnings <> coalesce((select sum(p.amount) "
+                  "  from public.rider_payouts p where p.rider_id = r.id), 0)"
+              )[0]["n"]
+              if earning_drift:
+                  failures.append(
+                      "riders.earnings disagrees with the payout ledger for "
+                      "%d rider(s); the app and the admin page would show "
+                      "different totals for the same rider" % earning_drift
+                  )
+
+              # 4. No order may sit in a rider-deliverable state with no
+              #    frozen fee. 0071 refuses to complete such an order, so each
+              #    one is a rider who is already stuck.
+              unfrozen = query(
+                  "select count(*) as n from public.orders "
+                  "where rider_payout is null and rider_id is not null "
+                  "and status in ('confirmed','preparing','out_for_delivery')"
+              )[0]["n"]
+              if unfrozen:
+                  failures.append(
+                      "%d assigned order(s) have no frozen rider_payout; "
+                      "rider_mark_delivered refuses these, so they cannot be "
+                      "completed until the fee is backfilled" % unfrozen
+                  )
+
+          # --- Delivered spend must reconcile ----------------------------
+          # Every peso of delivered spend belongs to exactly one place: a
+          # customer's own total, or the unattributable bucket. If those two
+          # sides do not sum to the platform figure, money is being dropped --
+          # and dropping it is silent, because each individual number still
+          # looks right.
+          #
+          # The specific failure this catches: customers.user_id is
+          # `on delete set null`, so deleting an auth account orphans every order
+          # that referenced it. Those orders match no customer (the aggregate
+          # joins on customers.user_id) and are not walk-ins either under the
+          # narrower "customer_user_id is null" reading, so their value left
+          # both totals and the books stopped adding up.
+          #
+          # Computed from raw tables rather than by calling
+          # admin_customer_stats(): this connection has no JWT, so
+          # is_platform_admin() is false and the RPC would refuse. Deriving both
+          # sides independently also means the check does not simply agree with
+          # the function it is meant to verify.
+          if query(
+              "select exists (select 1 from information_schema.columns "
+              "where table_schema='public' and table_name='customers' "
+              "and column_name='user_id') as ok"
+          )[0]["ok"]:
+              platform = float(
+                  query(
+                      "select coalesce(sum(total) filter (where status='delivered'),0) as v "
+                      "from orders"
+                  )[0]["v"]
+              )
+              attributed = float(
+                  query(
+                      "select coalesce(sum(o.total),0) as v from orders o "
+                      "where o.status='delivered' and exists ("
+                      "  select 1 from customers c where c.user_id = o.customer_user_id)"
+                  )[0]["v"]
+              )
+              orphaned = float(
+                  query(
+                      "select coalesce(sum(o.total),0) as v from orders o "
+                      "where o.status='delivered' and o.customer_user_id is not null "
+                      "and not exists ("
+                      "  select 1 from customers c where c.user_id = o.customer_user_id)"
+                  )[0]["v"]
+              )
+              if abs(platform - attributed - orphaned) > 0.01:
+                  failures.append(
+                      "delivered spend does not reconcile: platform %.2f, "
+                      "attributed %.2f, unattributable %.2f. Every delivered peso "
+                      "must land in exactly one of the last two."
+                      % (platform, attributed, orphaned)
+                  )
+              if orphaned:
+                  # Not a failure: the bucket exists precisely so these are
+                  # counted. Said out loud so nobody reads a non-zero as a bug.
+                  print(
+                      "::notice::%.2f of delivered spend belongs to orders whose "
+                      "customer account no longer exists; it is counted in the "
+                      "walk-in bucket, not in any customer's total." % orphaned
+                  )
+
           if failures:
               for f in failures:
                   print("::error::" + f)

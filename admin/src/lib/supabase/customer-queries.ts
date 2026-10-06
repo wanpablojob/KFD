@@ -5,8 +5,14 @@ import {
   type CustomerStats,
   type CustomerStatsTotals,
 } from "@/lib/customer-stats";
-import { customerOrderScope, CUSTOMER_ORDER_COLUMNS } from "@/lib/customer-orders";
-import { mapCustomerSummary, type CustomerSummary } from "@/lib/customer-summary";
+import {
+  customerOrderScope,
+  CUSTOMER_ORDER_COLUMNS,
+} from "@/lib/customer-orders";
+import {
+  mapCustomerSummary,
+  type CustomerSummary,
+} from "@/lib/customer-summary";
 import type { Order, OrderItem } from "@/lib/types";
 
 /**
@@ -44,10 +50,13 @@ export async function fetchCustomerStats(): Promise<CustomerStats[]> {
 }
 
 /**
- * Customer counts for the stat cards, plus the walk-in figures. Walk-in orders
- * have no customer_user_id and belong to nobody, so they are reported here rather
- * than folded into anyone's spend -- otherwise real spend would silently not add
- * up to platform spend.
+ * Customer counts for the stat cards, plus the unattributable-order figures.
+ *
+ * "Unattributable" is deliberately wider than "customer_user_id is null": an
+ * order whose auth account has been deleted still holds that uuid while
+ * customers.user_id was set to null by the FK, so it matches no customer either.
+ * Counting only the null case would drop those orders from every total and make
+ * platform spend quietly stop reconciling.
  */
 export async function fetchCustomerStatsTotals(): Promise<CustomerStatsTotals> {
   const { data, error } = await supabase.rpc("admin_customer_stats_totals");
@@ -68,7 +77,9 @@ export async function fetchCustomerStatsTotals(): Promise<CustomerStatsTotals> {
  * can be an archived one -- the stats RPC returns archived rows too, so either
  * works, and a direct read is one fewer round trip and no list scan.
  */
-export async function fetchCustomerById(id: string): Promise<CustomerStats | null> {
+export async function fetchCustomerById(
+  id: string,
+): Promise<CustomerStats | null> {
   const trimmed = id.trim();
   if (!trimmed) return null;
 

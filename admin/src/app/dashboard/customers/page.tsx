@@ -42,7 +42,9 @@ const columns: Column<CustomerStats>[] = [
           <span className="block font-medium text-card-foreground">
             {row.name}
           </span>
-          <span className="block text-xs text-muted-foreground">{row.email}</span>
+          <span className="block text-xs text-muted-foreground">
+            {row.email}
+          </span>
         </span>
       </span>
     ),
@@ -56,7 +58,11 @@ const columns: Column<CustomerStats>[] = [
       return (
         <Badge
           variant={
-            tier === "Gold" ? "warning" : tier === "Silver" ? "secondary" : "outline"
+            tier === "Gold"
+              ? "warning"
+              : tier === "Silver"
+                ? "secondary"
+                : "outline"
           }
           size="sm"
         >
@@ -69,7 +75,11 @@ const columns: Column<CustomerStats>[] = [
     key: "ordersCount",
     header: "Orders",
     align: "right",
-    cell: (row) => <span className="text-card-foreground">{row.linked ? row.ordersCount : "—"}</span>,
+    cell: (row) => (
+      <span className="text-card-foreground">
+        {row.linked ? row.ordersCount : "—"}
+      </span>
+    ),
   },
   {
     key: "totalSpend",
@@ -94,7 +104,9 @@ const columns: Column<CustomerStats>[] = [
     key: "joinedAt",
     header: "Joined",
     cell: (row) => (
-      <span className="whitespace-nowrap text-muted-foreground">{row.joinedAt}</span>
+      <span className="whitespace-nowrap text-muted-foreground">
+        {row.joinedAt}
+      </span>
     ),
   },
 ];
@@ -131,7 +143,8 @@ export default function CustomersPage() {
         if (params.city && row.city !== params.city) return false;
         if (params.state === "blocked" && row.blockedAt === null) return false;
         if (params.state === "active" && row.blockedAt !== null) return false;
-        if (params.state === "archived" && row.archivedAt === null) return false;
+        if (params.state === "archived" && row.archivedAt === null)
+          return false;
         return true;
       }),
     [rows, params.tier, params.city, params.state],
@@ -223,7 +236,9 @@ export default function CustomersPage() {
                 className="h-9 w-52"
                 value={params.city || "all"}
                 onChange={(e) =>
-                  update({ city: e.target.value === "all" ? "" : e.target.value })
+                  update({
+                    city: e.target.value === "all" ? "" : e.target.value,
+                  })
                 }
               >
                 <option value="all">All cities</option>
@@ -252,7 +267,9 @@ export default function CustomersPage() {
               columns={columns}
               rows={visible}
               searchFields={["name", "email", "phone", "city", "id"]}
-              onRowClick={(row) => router.push(`/dashboard/customers/${row.id}`)}
+              onRowClick={(row) =>
+                router.push(`/dashboard/customers/${row.id}`)
+              }
               emptyTitle="No customers found"
               exportName="/dashboard/customers"
               // The CSV is built from the same rows the table is showing, so it
@@ -262,17 +279,29 @@ export default function CustomersPage() {
                 { key: "email", header: "Email" },
                 { key: "phone", header: "Phone (customer record)" },
                 { key: "city", header: "City" },
-                { key: "totalSpend", header: "Tier", format: (row) => tierLabelFor(row.totalSpend) },
-                { key: "ordersCount", header: "Orders", format: (row) => (row.linked ? row.ordersCount : "—") },
+                {
+                  key: "totalSpend",
+                  header: "Tier",
+                  format: (row) => tierLabelFor(row.totalSpend),
+                },
+                {
+                  key: "ordersCount",
+                  header: "Orders",
+                  format: (row) => (row.linked ? row.ordersCount : "—"),
+                },
                 {
                   key: "totalSpend",
                   header: "Total spent",
-                  format: (row) => (row.totalSpend === null ? "—" : formatCurrency(row.totalSpend)),
+                  format: (row) =>
+                    row.totalSpend === null
+                      ? "—"
+                      : formatCurrency(row.totalSpend),
                 },
                 {
                   key: "lastOrderAt",
                   header: "Last order",
-                  format: (row) => (row.lastOrderAt ? row.lastOrderAt.slice(0, 10) : "—"),
+                  format: (row) =>
+                    row.lastOrderAt ? row.lastOrderAt.slice(0, 10) : "—",
                 },
                 { key: "joinedAt", header: "Joined" },
               ]}
@@ -317,8 +346,10 @@ function CustomerStatsNote() {
       role="note"
     >
       Orders, total spent and tier are computed from each customer&apos;s own
-      delivered orders. Rows without a linked account (seed fixtures) show “—”,
-      and orders placed without an account are counted separately as walk-ins.
+      delivered orders. Rows without a linked account (seed fixtures) show “—”.
+      Orders that belong to no customer — placed without an account, or by an
+      account that has since been deleted — are counted separately, so platform
+      spend always adds up to the customers plus that remainder.
     </p>
   );
 }

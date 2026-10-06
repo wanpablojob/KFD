@@ -6,7 +6,11 @@ import {
   sendOrderEmail,
   type OrderEmailData,
 } from "@/lib/server/order-email";
-import { sendMerchantOrderPush, sendCustomerPush } from "@/lib/server/push-notify";
+import { resolveCustomerEmail } from "@/lib/notify-customer";
+import {
+  sendMerchantOrderPush,
+  sendCustomerPush,
+} from "@/lib/server/push-notify";
 
 /**
  * POST /api/orders/notify
@@ -44,7 +48,10 @@ export const runtime = "nodejs";
  * Customer-facing push copy per status. Keys mirror the order_status enum; a
  * status with no entry here produces no push rather than a generic one.
  */
-const CUSTOMER_STATUS_PUSH: Record<string, (ref: string) => { title: string; body: string }> = {
+const CUSTOMER_STATUS_PUSH: Record<
+  string,
+  (ref: string) => { title: string; body: string }
+> = {
   confirmed: (r) => ({
     title: "Order confirmed",
     body: `Order ${r} was accepted by the restaurant.`,
@@ -85,14 +92,15 @@ export async function POST(req: Request) {
   if (!orderId || !event) {
     return NextResponse.json(
       { error: "orderId and event are required" },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
   // The reason is written into the email body, so cap it here as well as
   // escaping it downstream: a bound on length is cheaper than letting an
   // authenticated caller push arbitrary bulk through the mail provider.
-  const reason = typeof body.reason === "string" ? body.reason.slice(0, 280) : undefined;
+  const reason =
+    typeof body.reason === "string" ? body.reason.slice(0, 280) : undefined;
 
   const authHeader = req.headers.get("authorization") ?? "";
   const token = authHeader.replace(/^Bearer\s+/i, "");
@@ -108,7 +116,7 @@ export async function POST(req: Request) {
   if (!url || !anonKey || !supabase) {
     return NextResponse.json(
       { error: "Server is missing Supabase configuration" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 
@@ -184,7 +192,7 @@ export async function POST(req: Request) {
     if (!order.restaurant_id) {
       return NextResponse.json(
         { skipped: "order has no restaurant_id" },
-        { status: 202 }
+        { status: 202 },
       );
     }
 
@@ -198,7 +206,7 @@ export async function POST(req: Request) {
     if (userIds.length === 0) {
       return NextResponse.json(
         { skipped: "no merchant user for this restaurant" },
-        { status: 202 }
+        { status: 202 },
       );
     }
 
@@ -211,13 +219,13 @@ export async function POST(req: Request) {
     if (recipients.length === 0) {
       return NextResponse.json(
         { skipped: "merchant users have no email address" },
-        { status: 202 }
+        { status: 202 },
       );
     }
 
     const mail = newOrderEmail(emailData);
     const results = await Promise.all(
-      recipients.map((to) => sendOrderEmail(to, mail.subject, mail.html))
+      recipients.map((to) => sendOrderEmail(to, mail.subject, mail.html)),
     );
 
     // Expo Push for the same merchant accounts (Prompt 6.2). Best-effort like
@@ -228,7 +236,7 @@ export async function POST(req: Request) {
     const pushResult = await sendMerchantOrderPush(
       supabase,
       order.restaurant_id,
-      order.reference
+      order.reference,
     );
 
     return NextResponse.json({ event, recipients, results, push: pushResult });
@@ -246,30 +254,26 @@ export async function POST(req: Request) {
   if (!mail) {
     return NextResponse.json(
       { skipped: `no email for status ${order.status}`, push },
-      { status: 202 }
+      { status: 202 },
     );
   }
 
-  const { data: customer } = await supabase
-    .from("customers")
-    .select("email")
-    .eq("name", order.customer)
-    .maybeSingle();
+  const email = await resolveCustomerEmail(supabase, order);
 
-  if (!customer?.email) {
+  if (!email) {
     return NextResponse.json(
       { skipped: "no email address for this customer", push },
-      { status: 202 }
+      { status: 202 },
     );
   }
 
-  const result = await sendOrderEmail(customer.email, mail.subject, mail.html);
+  const result = await sendOrderEmail(email, mail.subject, mail.html);
 
   // A 202 keeps the merchant's accept/reject from failing just because email
   // is down; the status change is the thing that matters.
   return NextResponse.json(
-    { event, to: customer.email, result, push },
-    { status: result.ok ? 200 : 202 }
+    { event, to: email, result, push },
+    { status: result.ok ? 200 : 202 },
   );
 }
 
@@ -277,7 +281,7 @@ export async function POST(req: Request) {
 async function pushCustomerStatus(
   supabase: NonNullable<ReturnType<typeof serviceClient>>,
   order: { reference: string; status: string; customer_user_id: string | null },
-  reason?: string
+  reason?: string,
 ) {
   if (!order.customer_user_id) {
     return { ok: false, sent: 0, skipped: "order has no customer account" };
@@ -285,7 +289,11 @@ async function pushCustomerStatus(
 
   const copy = CUSTOMER_STATUS_PUSH[order.status];
   if (!copy) {
-    return { ok: false, sent: 0, skipped: `no push for status ${order.status}` };
+    return {
+      ok: false,
+      sent: 0,
+      skipped: `no push for status ${order.status}`,
+    };
   }
 
   const { title, body } = copy(order.reference);
