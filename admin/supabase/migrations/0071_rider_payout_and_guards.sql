@@ -55,6 +55,66 @@
 -- --------------------------------------------------------------------------
 -- claim_order: rebuilt from 0043, plus 0050's guards
 -- --------------------------------------------------------------------------
+-- ---------------------------------------------------------------------------
+-- PREFLIGHT: refuse to install the null-payout guard until the backfill has run
+-- ---------------------------------------------------------------------------
+--
+-- This migration makes rider_mark_delivered REFUSE a delivery whose
+-- rider_payout is null, with 'This delivery has no agreed fee recorded'. That
+-- is the right trade -- the old behaviour wrote coalesce(NULL, 0) into
+-- rider_payouts, and unique (order_id) means that 0.00 row can never be
+-- corrected. A blocked delivery an operator can unblock beats a wrong ledger
+-- entry that is permanent.
+--
+-- But it is only safe if nothing is mid-delivery at the moment it lands. An
+-- in-flight order with no frozen fee would start failing for a real rider, in
+-- production, until someone noticed. Previously that ordering requirement lived
+-- only in a comment, which is not a control.
+--
+-- So it is checked here. supabase db push now stops with the remediation
+-- rather than installing a guard that breaks live deliveries.
+--
+-- Deliberately NOT auto-backfilled. Setting a historical fee at the current
+-- rate invents a number, which is the same fiction 0038 refused:
+-- "Deliveries already marked complete are not backfilled... Inventing one from
+-- a historical rate would be the same fiction this migration exists to remove."
+-- An operator decides what an old delivery was worth; this migration refuses to
+-- guess on their behalf.
+--
+-- To clear this, look at the two lists and then run the repairs at the end of
+-- this file:
+--
+--   select p.id, p.order_id, p.rider_id, p.earned_at
+--     from rider_payouts p where p.amount = 0 order by p.earned_at;
+--
+--   select o.id, o.reference, o.rider_id, o.placed_at
+--     from orders o
+--    where o.rider_id is not null and o.rider_payout is null
+--      and o.status in ('confirmed', 'preparing', 'out_for_delivery')
+--    order by o.placed_at;
+do $$
+declare
+  v_zero_ledger integer;
+  v_inflight integer;
+begin
+  select count(*) into v_zero_ledger
+    from public.rider_payouts p where p.amount = 0;
+
+  select count(*) into v_inflight
+    from public.orders o
+   where o.rider_id is not null
+     and o.rider_payout is null
+     and o.status in ('confirmed', 'preparing', 'out_for_delivery');
+
+  if v_zero_ledger > 0 or v_inflight > 0 then
+    raise exception
+      '0071 preflight: % ledger row(s) with a 0.00 amount and % in-flight order(s) with no frozen fee. rider_mark_delivered will refuse those deliveries until they are repaired. See the repair queries at the end of this migration.',
+      v_zero_ledger, v_inflight
+      using errcode = 'P0001';
+  end if;
+end;
+$$;
+
 create or replace function public.claim_order(p_order_id text)
 returns table (
   order_id text,
