@@ -123,11 +123,18 @@ to go, what to pick up, how to call the customer, and what the rider earns.
 Two traps worth remembering, both found the hard way:
 
 - **Rebuilding a function means rebuilding it from its *latest* definer, not
-  its first.** `customer_place_order` was last redefined in `0033`, not `0023`.
-  Writing from `0023` silently dropped the closed-restaurant check, the
-  empty-cart guard and `mint_order_reference()`. Always diff the new body
-  against the live one and assert only the intended lines differ. Same class of
-  error: `rider_mark_delivered`'s real version is in `0025`, not `0018`.
+  its first, and this has now bitten twice.** `customer_place_order` was last
+  redefined in `0033`, not `0023`. Writing from `0023` silently dropped the
+  closed-restaurant check, the empty-cart guard and `mint_order_reference()`.
+  Then `0050_rider_suspension` rebuilt `claim_order` from the 0035/0036 body and
+  dropped the `rider_payout` freeze that `0037`/`0043` added, so every real
+  delivery has recorded a permanent 0.00 payout ever since
+  (`rider_mark_delivered` writes `coalesce(rider_payout, 0)` and
+  `rider_payouts` has `unique (order_id)`). Always diff the new body against the
+  live one and assert only the intended lines differ. Cheap tell: run
+  `grep -c <column>` on the candidate file — zero in a rewrite of a function
+  that should touch that column *is* the bug. Same class of error:
+  `rider_mark_delivered`'s real version is in `0038`, not `0025` or `0018`.
 - **A guard on one door is not a guard.** Suspension was checked in
   `claim_order` only: `rider_mark_delivered` and `rider_set_status` checked
   neither, so a suspended rider could complete deliveries and put himself back
