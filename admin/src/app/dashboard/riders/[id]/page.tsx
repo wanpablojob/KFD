@@ -97,7 +97,7 @@ export default function RiderDetailPage() {
   // from riders.user_id: the list already resolves the email and knows whether an
   // account is attached, which is what the revoke flow needs.
   const account = (access.data ?? []).find((row) => row.riderId === riderId);
-  // The ledger is the source of truth for money. Needs migration 0058.
+  // The ledger is the source of truth for money. Needs migration 0058 (admin_rider_payout_summary).
   const payoutSummary = useAsyncData(
     () => fetchRiderPayoutSummary(riderId),
     riderId,
