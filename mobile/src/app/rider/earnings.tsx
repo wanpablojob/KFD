@@ -10,7 +10,12 @@ import {
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRiderEarningsSummary, useRiderPayoutHistory } from "../../lib/hooks";
-import { BUCKET_LABEL, bucketTotal, groupPayoutsByDay } from "../../lib/payout-groups";
+import {
+  BUCKET_LABEL,
+  bucketTotal,
+  groupPayoutsByDay,
+  needsRiderAttention,
+} from "../../lib/payout-groups";
 import { useSession } from "../../lib/session-context";
 import { colors, radius, shadow, spacing, type } from "../../lib/theme";
 
@@ -157,6 +162,16 @@ export default function RiderEarningsRoute() {
                         <Text style={type.caption}>
                           {row.order_reference} · {earnedLabel(row.earned_at)}
                         </Text>
+                        {/* 0075. The rider is still paid either way, so this is
+                            not an error state -- it says the delivery is being
+                            looked into. Shown only for 'disputed': every new
+                            delivery is 'pending_review', and a badge that is
+                            always on tells the rider nothing. */}
+                        {needsRiderAttention(row.settlement_state) ? (
+                          <Text style={styles.disputedLabel}>
+                            Under review — an admin is looking into this delivery
+                          </Text>
+                        ) : null}
                       </View>
                       <Text style={styles.rowAmount}>{peso(row.amount)}</Text>
                     </View>
@@ -269,6 +284,9 @@ const styles = StyleSheet.create({
   },
   morePressed: { backgroundColor: colors.surface },
   moreLabel: { ...type.label, color: colors.primary },
+  // Warning, not danger: the payout is already counted as the rider's and is not
+  // at risk. The rider needs to know a claim is open, not that something broke.
+  disputedLabel: { ...type.caption, color: colors.warning },
   footnote: {
     ...type.caption,
     color: colors.textFaint,

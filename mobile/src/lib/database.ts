@@ -146,6 +146,14 @@ export type Database = {
     };
     Views: Record<never, never>;
     Functions: {
+      report_delivery_issue: {
+        Args: { p_reference: string; p_reason: string };
+        Returns: {
+          order_id: string;
+          reference: string;
+          state: string;
+        }[];
+      };
       track_order: {
         Args: { p_reference: string };
         Returns: {
@@ -435,6 +443,11 @@ export type Database = {
           earned_at: string;
           /** True when the rider has more deliveries than the limit returned. */
           has_more: boolean;
+          /**
+           * 0075. Optional because the column does not exist until that migration
+           * is applied, and the client must not care which it is reading.
+           */
+          settlement_state?: string;
         }[];
       };
     };

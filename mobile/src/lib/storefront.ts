@@ -307,6 +307,15 @@ export async function fetchRiderEarningsSummary(): Promise<RiderEarningsSummary>
   };
 }
 
+/**
+ * Where a payout sits in its 24-hour review window (migration 0075).
+ *
+ * Absent before 0075 is applied; the earnings screen treats anything other than
+ * 'disputed' as final, which is the old behaviour and the safe one.
+ */
+export type PayoutSettlementState =
+  "pending_review" | "settled" | "disputed" | "reversed";
+
 /** One completed delivery and what it was worth. */
 export interface RiderPayoutRow {
   order_id: string;
@@ -314,6 +323,8 @@ export interface RiderPayoutRow {
   restaurant: string;
   amount: number;
   earned_at: string;
+  /** 0075. */
+  settlement_state?: PayoutSettlementState;
 }
 
 export interface RiderPayoutHistory {
@@ -336,6 +347,16 @@ export async function fetchRiderPayoutHistory(limit = 20): Promise<RiderPayoutHi
       restaurant: row.restaurant,
       amount: row.amount,
       earned_at: row.earned_at,
+      // Narrow the wire's plain string to the four known states, defaulting to
+      // pending_review for anything unrecognised (including pre-0075, where the
+      // column is absent). The Earnings screen only reacts to 'disputed', so an
+      // unknown value reads as an ordinary payout rather than a broken one.
+      settlement_state:
+        row.settlement_state === "settled" ||
+        row.settlement_state === "disputed" ||
+        row.settlement_state === "reversed"
+          ? row.settlement_state
+          : "pending_review",
     })),
     hasMore: rows[0]?.has_more ?? false,
   };
@@ -468,6 +489,37 @@ export interface TrackedOrder {
   placed_at: string;
   /** Null unless the caller is signed in as the order's own customer. */
   delivery_address: string | null;
+}
+
+/**
+ * Report a problem with a completed delivery (migration 0075, anon-callable).
+ *
+ * The recovery half of the dispute window: a payout is reversible for 24 hours,
+ * and this is how a customer actually reaches that. It takes the receipt
+ * reference rather than an order id because the customer has the receipt and not
+ * the id, and it is anon-callable because walk-in customers have no account --
+ * the same posture as track_order, and the reference is high-entropy.
+ *
+ * Moves no money. It flags the payout for an admin, who releases it to the rider
+ * or reverses it. The rider's pay is never withheld while that is pending.
+ */
+export async function reportDeliveryIssue(
+  reference: string,
+  reason: string
+): Promise<{ orderId: string; reference: string }> {
+  const { data, error } = await supabase.rpc("report_delivery_issue", {
+    p_reference: reference,
+    p_reason: reason,
+  });
+  if (error) throw error;
+
+  const row = ((data ?? []) as unknown as Record<string, unknown>[])[0];
+  if (!row) {
+    // The RPC raises rather than returning empty, so this means the row vanished
+    // mid-flight rather than "nothing was wrong".
+    throw new Error("Could not report that delivery. Try again.");
+  }
+  return { orderId: String(row.order_id), reference: String(row.reference) };
 }
 
 export async function fetchTrackedOrder(

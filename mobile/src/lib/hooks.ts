@@ -12,6 +12,7 @@ import {
   fetchOrderRiderPayment,
   setRiderGcash,
   fetchTrackedOrder,
+  reportDeliveryIssue,
   fetchRiderOrdersPage,
   fetchRiderOffers,
   fetchMyRiderApplication,
@@ -140,6 +141,22 @@ export function useCancelOrder() {
     mutationFn: (orderId: string) => cancelOrder(orderId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.orders() });
+    },
+  });
+}
+
+/**
+ * Report a problem with a delivery (0075). Refreshes the tracked order so the
+ * screen reflects that it was reported rather than leaving the rider to wonder
+ * whether the tap worked.
+ */
+export function useReportDeliveryIssue(reference: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (reason: string) => reportDeliveryIssue(reference, reason),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["trackOrder", reference] });
     },
   });
 }

@@ -1,13 +1,12 @@
 import { supabase } from "./client";
 import { anyIlikeFilter } from "./ilike-filter";
-import {
-  riderProfilePatch,
-  type RiderProfileInput,
-} from "@/lib/rider-profile";
+import { riderProfilePatch, type RiderProfileInput } from "@/lib/rider-profile";
 import { describeRpcFailure } from "@/lib/missing-migration";
 import {
+  mapDisputedPayouts,
   mapPayouts,
   mapPayoutSummary,
+  type DisputedPayout,
   type RiderPayout,
   type RiderPayoutSummary,
 } from "@/lib/rider-ledger";
@@ -317,7 +316,9 @@ export async function fetchRiders(): Promise<Rider[]> {
  * fleet, but it does not need deliveries, ratings or earnings, and the page
  * should not have to pull the entire overview to get two columns.
  */
-export async function fetchRiderEmails(): Promise<{ id: string; email: string }[]> {
+export async function fetchRiderEmails(): Promise<
+  { id: string; email: string }[]
+> {
   const { data, error } = await supabase
     .from("riders")
     .select("id, email")
@@ -389,7 +390,9 @@ export async function fetchOrdersByRiderId(
 
   if (error) throw new Error(error.message);
 
-  const rows = mapRiderOrderRows(data as unknown as Record<string, unknown>[] | null);
+  const rows = mapRiderOrderRows(
+    data as unknown as Record<string, unknown>[] | null,
+  );
   return {
     rows,
     page,
@@ -1095,9 +1098,12 @@ export async function fetchRiderOverview(): Promise<RiderOverview[]> {
       suspendedReason:
         row.suspended_reason == null ? null : String(row.suspended_reason),
       userId: row.user_id == null ? null : String(row.user_id),
-      currentOrderId: row.current_order_id == null ? null : String(row.current_order_id),
+      currentOrderId:
+        row.current_order_id == null ? null : String(row.current_order_id),
       currentOrderReference:
-        row.current_order_reference == null ? null : String(row.current_order_reference),
+        row.current_order_reference == null
+          ? null
+          : String(row.current_order_reference),
       currentOrderStatus:
         row.current_order_status == null
           ? null
@@ -1136,6 +1142,8 @@ export async function setRiderSuspended(
 const LEDGER_MIGRATION = "0058_admin_rider_ledger.sql";
 /** Same, for the application reviewer's email. */
 const APPLICATION_REVIEWER_MIGRATION = "0064_rider_application_reviewer.sql";
+/** Same, for the 24-hour dispute window on payouts. */
+const DISPUTE_WINDOW_MIGRATION = "0075_payout_dispute_window.sql";
 
 /**
  * A rider's earnings, summed from the payout ledger.
@@ -1156,7 +1164,9 @@ export async function fetchRiderPayoutSummary(
   requireMigration(error, null, LEDGER_MIGRATION);
 
   // The function returns exactly one row by construction.
-  return mapPayoutSummary((data ?? [])[0] as Record<string, unknown> | undefined);
+  return mapPayoutSummary(
+    (data ?? [])[0] as Record<string, unknown> | undefined,
+  );
 }
 
 /** One rider's per-delivery payout rows, newest first. Requires migration 0058. */
@@ -1171,6 +1181,54 @@ export async function fetchRiderPayouts(
   requireMigration(error, null, LEDGER_MIGRATION);
 
   return mapPayouts((data ?? []) as unknown as Record<string, unknown>[]);
+}
+
+/**
+ * Every disputed payout across the fleet, soonest window first (0075).
+ *
+ * This is the operator's work queue. Without it the only way to find a row
+ * needing a decision is to open each rider and read every payout state, which
+ * means in practice nobody does.
+ */
+export async function fetchDisputedPayouts(): Promise<DisputedPayout[]> {
+  const { data, error } = await supabase.rpc("admin_disputed_payouts");
+  requireMigration(error, null, DISPUTE_WINDOW_MIGRATION);
+  return mapDisputedPayouts(
+    (data ?? []) as unknown as Record<string, unknown>[],
+  );
+}
+
+/**
+ * Close every elapsed review window. Returns how many payouts settled.
+ *
+ * Called when the dispute queue loads rather than on a schedule: there is no
+ * scheduler in this database, and settlement is only needed before somebody looks
+ * at the ledger. Idempotent, so calling it on every load is fine.
+ */
+export async function settleExpiredPayouts(): Promise<number> {
+  const { data, error } = await supabase.rpc("rider_settle_expired_payouts");
+  requireMigration(error, null, DISPUTE_WINDOW_MIGRATION);
+  const row = ((data ?? []) as unknown as Record<string, unknown>[])[0];
+  return row ? Number(row.rider_settle_expired_payouts) : 0;
+}
+
+/**
+ * Resolve a disputed payout: release pays the rider, reverse stops it counting.
+ *
+ * The note is kept separate from the customer's own reason (0075 appends rather
+ * than overwrites), so resolving does not erase the complaint.
+ */
+export async function resolveDeliveryIssue(
+  orderId: string,
+  action: "release" | "reverse",
+  note?: string,
+): Promise<void> {
+  const { error } = await supabase.rpc("resolve_delivery_issue", {
+    p_order_id: orderId,
+    p_action: action,
+    p_note: note?.trim() ? note.trim() : null,
+  });
+  requireMigration(error, null, DISPUTE_WINDOW_MIGRATION);
 }
 
 export async function fetchRiderEarningsByDay(
@@ -1195,7 +1253,9 @@ export async function fetchRiderEarningsByDay(
 }
 
 /** Status changes, suspension, account attach/revoke and note additions. */
-export async function fetchRiderActivity(riderId: string): Promise<RiderActivityEvent[]> {
+export async function fetchRiderActivity(
+  riderId: string,
+): Promise<RiderActivityEvent[]> {
   const { data, error } = await supabase.rpc("admin_rider_activity", {
     p_rider_id: riderId,
   });
@@ -1228,7 +1288,10 @@ export async function fetchRiderNotes(riderId: string): Promise<RiderNote[]> {
   );
 }
 
-export async function addRiderNote(riderId: string, body: string): Promise<void> {
+export async function addRiderNote(
+  riderId: string,
+  body: string,
+): Promise<void> {
   const { error } = await supabase.rpc("admin_add_rider_note", {
     p_rider_id: riderId,
     p_body: body,

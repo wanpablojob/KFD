@@ -3,6 +3,7 @@ import {
   bucketTotal,
   dayBucket,
   groupPayoutsByDay,
+  needsRiderAttention,
 } from "./payout-groups";
 
 const now = new Date(2026, 4, 15, 23, 30); // 15 May 2026, 11:30pm local
@@ -91,4 +92,29 @@ describe("bucketTotal", () => {
   it("is zero for an empty section", () => {
     expect(bucketTotal({ bucket: "earlier", rows: [] })).toBe(0);
   });
+});
+
+// ---------------------------------------------------------------------------
+// 0075: the 24-hour dispute window
+// ---------------------------------------------------------------------------
+// Only a disputed payout earns a badge. Marking pending_review would put a
+// "under review" chip on every single row the rider ever sees, since that is the
+// state all new deliveries land in -- and a badge that is always on is not
+// information.
+
+test("a disputed payout is the only state that needs the rider's attention", () => {
+  expect(needsRiderAttention("disputed")).toBe(true);
+});
+
+test("every other state is ordinary money and stays unlabelled", () => {
+  expect(needsRiderAttention("pending_review")).toBe(false);
+  expect(needsRiderAttention("settled")).toBe(false);
+  expect(needsRiderAttention("reversed")).toBe(false);
+});
+
+test("an absent state is not attention-worthy", () => {
+  // Pre-0075 rows have no state at all, and this is the safe direction: missing
+  // a badge costs one missed signal, showing it wrongly cries wolf on every row.
+  expect(needsRiderAttention(undefined)).toBe(false);
+  expect(needsRiderAttention("something_new")).toBe(false);
 });

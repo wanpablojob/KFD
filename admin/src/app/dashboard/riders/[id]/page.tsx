@@ -59,8 +59,6 @@ import { EntityDialog } from "@/components/ui/entity-dialog";
 import { useRiderAction } from "@/components/rider/use-rider-action";
 import { RevokeRiderDialog } from "@/components/riders/revoke-rider-dialog";
 
-
-
 /** Chart window. A month is long enough to spot a decline without paging. */
 const WINDOW_DAYS = 30;
 /** Server-side page size for the delivery history. The pager asks for more. */
@@ -82,7 +80,11 @@ export default function RiderDetailPage() {
 
   const riderQuery = useAsyncData(() => fetchRiderById(riderId), riderId);
   const orders = useAsyncData(
-    () => fetchOrdersByRiderId(riderId, { page: deliveryPage, limit: DELIVERY_PAGE_SIZE }),
+    () =>
+      fetchOrdersByRiderId(riderId, {
+        page: deliveryPage,
+        limit: DELIVERY_PAGE_SIZE,
+      }),
     `${riderId}:${deliveryPage}`,
   );
   const activity = useAsyncData(() => fetchRiderActivity(riderId), riderId);
@@ -115,7 +117,9 @@ export default function RiderDetailPage() {
   );
 
   const [editing, setEditing] = useState(false);
-  const [suspending, setSuspending] = useState<"suspend" | "reinstate" | null>(null);
+  const [suspending, setSuspending] = useState<"suspend" | "reinstate" | null>(
+    null,
+  );
   const [attaching, setAttaching] = useState(false);
   const [revoking, setRevoking] = useState(false);
   const [noteBody, setNoteBody] = useState("");
@@ -144,10 +148,7 @@ export default function RiderDetailPage() {
   if (error) {
     return (
       <PageContainer>
-        <PageHeader
-          title="Could not load this rider"
-          description={error}
-        />
+        <PageHeader title="Could not load this rider" description={error} />
       </PageContainer>
     );
   }
@@ -155,7 +156,10 @@ export default function RiderDetailPage() {
   if (!rider) {
     return (
       <PageContainer>
-        <PageHeader title="Rider not found" description="The requested rider does not exist." />
+        <PageHeader
+          title="Rider not found"
+          description="The requested rider does not exist."
+        />
       </PageContainer>
     );
   }
@@ -210,7 +214,9 @@ export default function RiderDetailPage() {
       notes.refetch();
       activity.refetch();
     } catch (cause) {
-      setNoteError(cause instanceof Error ? cause.message : "Could not save the note.");
+      setNoteError(
+        cause instanceof Error ? cause.message : "Could not save the note.",
+      );
     } finally {
       setNoteBusy(false);
     }
@@ -239,7 +245,11 @@ export default function RiderDetailPage() {
                 Back to Riders
               </Button>
             </Link>
-            <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setEditing(true)}
+            >
               Edit
             </Button>
             <Button
@@ -255,10 +265,16 @@ export default function RiderDetailPage() {
               name={rider.name}
               archived={Boolean(rider.archivedAt)}
               onChange={(archived) =>
-                action.run("archive", async () => {
-                  await setRiderArchived(riderId, archived);
-                  riderQuery.refetch();
-                }, { rethrow: true }).then(() => undefined)
+                action
+                  .run(
+                    "archive",
+                    async () => {
+                      await setRiderArchived(riderId, archived);
+                      riderQuery.refetch();
+                    },
+                    { rethrow: true },
+                  )
+                  .then(() => undefined)
               }
             />
           </span>
@@ -300,7 +316,9 @@ export default function RiderDetailPage() {
                   On {currentJob.reference}
                 </Link>
               ) : (
-                <span className="text-sm text-muted-foreground">No active job</span>
+                <span className="text-sm text-muted-foreground">
+                  No active job
+                </span>
               )}
               <ContactShortcuts
                 name={rider.name}
@@ -436,9 +454,7 @@ export default function RiderDetailPage() {
               skeletonRows={2}
             >
               {(notes.data ?? []).length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  No notes yet.
-                </p>
+                <p className="text-sm text-muted-foreground">No notes yet.</p>
               ) : (
                 <ul className="flex flex-col gap-3">
                   {(notes.data ?? []).map((note) => (
@@ -469,7 +485,8 @@ export default function RiderDetailPage() {
               Activity
             </h2>
             <p className="mt-1 text-xs text-muted-foreground">
-              Status changes, suspension, account access and notes, newest first.
+              Status changes, suspension, account access and notes, newest
+              first.
             </p>
           </div>
           <div className="p-5 pt-4">
@@ -533,9 +550,11 @@ export default function RiderDetailPage() {
               Payout history
             </h2>
             <p className="mt-1 text-xs text-muted-foreground">
-              One row per completed delivery, from the earnings ledger. The amount
-              was frozen when the order was claimed, so it does not move if the fee
-              changes later.
+              One row per completed delivery, from the earnings ledger. The
+              amount was frozen when the order was claimed, so it does not move
+              if the fee changes later. Each payout stays reviewable for 24
+              hours after the delivery; a disputed one is held until an admin
+              resolves it.
             </p>
           </div>
           <TableBoundary
@@ -585,7 +604,9 @@ export default function RiderDetailPage() {
                     ] as const
                   ).map(([label, ref]) => (
                     <div key={label}>
-                      <dt className="inline text-muted-foreground">{label}: </dt>
+                      <dt className="inline text-muted-foreground">
+                        {label}:{" "}
+                      </dt>
                       <dd className="inline font-mono text-card-foreground">
                         {ref || "not supplied"}
                       </dd>
@@ -623,8 +644,8 @@ export default function RiderDetailPage() {
             </h2>
             <p className="mt-1 text-xs text-muted-foreground">
               The auth account this rider signs in with. Attaching one is what
-              lets them open the rider app; without it they are a row with no way
-              in.
+              lets them open the rider app; without it they are a row with no
+              way in.
             </p>
             <div className="mt-3 flex flex-wrap items-center gap-3">
               {account?.userId ? (
@@ -639,7 +660,8 @@ export default function RiderDetailPage() {
               ) : (
                 <>
                   <span className="text-muted-foreground">
-                    No account linked — this rider cannot sign in to the rider app.
+                    No account linked — this rider cannot sign in to the rider
+                    app.
                   </span>
                   <Badge variant="secondary" size="sm">
                     No access
@@ -678,7 +700,8 @@ export default function RiderDetailPage() {
               Failed deliveries
             </h2>
             <p className="mt-1 text-xs text-muted-foreground">
-              Reported by this rider in the app. Kept after the order is reassigned.
+              Reported by this rider in the app. Kept after the order is
+              reassigned.
             </p>
             {failedDeliveries.length === 0 ? (
               <p className="mt-3 text-sm text-muted-foreground">
@@ -743,7 +766,10 @@ export default function RiderDetailPage() {
               />
             ) : (
               <>
-                <DataTable columns={deliveryColumns} rows={orders.data?.rows ?? []} />
+                <DataTable
+                  columns={deliveryColumns}
+                  rows={orders.data?.rows ?? []}
+                />
                 {orders.data && orders.data.total !== null ? (
                   <Pagination
                     page={deliveryPage}
@@ -832,12 +858,14 @@ export default function RiderDetailPage() {
           busy={action.isPending("revoke")}
           onClose={() => setRevoking(false)}
           onConfirm={() =>
-            action.run("revoke", async () => {
-              await revokeRiderAccess(account.email);
-              await access.refetch();
-              await riderQuery.refetch();
-              setRevoking(false);
-            }).then(() => undefined)
+            action
+              .run("revoke", async () => {
+                await revokeRiderAccess(account.email);
+                await access.refetch();
+                await riderQuery.refetch();
+                setRevoking(false);
+              })
+              .then(() => undefined)
           }
         />
       ) : null}

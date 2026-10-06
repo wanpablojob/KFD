@@ -13,7 +13,11 @@ import {
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useTrackOrder, useOrderRiderPayment } from "../lib/hooks";
+import {
+  useTrackOrder,
+  useOrderRiderPayment,
+  useReportDeliveryIssue,
+} from "../lib/hooks";
 import { orderProgress, type ProgressStep } from "../lib/order-progress";
 import type { TrackedOrder, RiderPayment } from "../lib/storefront";
 import { colors, radius, shadow, spacing, type } from "../lib/theme";
@@ -66,6 +70,23 @@ export function TrackOrderScreen({
     submitted,
     enabled && order?.payment === "e_wallet"
   );
+
+  // 0075: report a problem with a delivery. Held here rather than in OrderCard
+  // so the dismissed state survives a status poll re-rendering the card.
+  const reporting = useReportDeliveryIssue(submitted);
+  const [reportingOpen, setReportingOpen] = useState(false);
+  const [reported, setReported] = useState(false);
+
+  async function submitReport(reason: string) {
+    try {
+      await reporting.mutateAsync(reason);
+      setReported(true);
+      setReportingOpen(false);
+    } catch {
+      // The mutation's error is rendered below the form; leaving it open keeps
+      // the customer's words so they can retry rather than retyping.
+    }
+  }
 
   function track() {
     const ref = reference.trim();
@@ -148,6 +169,15 @@ export function TrackOrderScreen({
             updatedAt={dataUpdatedAt}
             refreshing={isFetching}
             riderPayment={riderPayment ?? null}
+            reporting={{
+              open: reportingOpen,
+              busy: reporting.isPending,
+              error: reporting.error instanceof Error ? reporting.error.message : null,
+              done: reported,
+              onOpen: () => setReportingOpen(true),
+              onClose: () => setReportingOpen(false),
+              onSubmit: submitReport,
+            }}
           />
         ) : null}
       </ScrollView>
@@ -156,16 +186,121 @@ export function TrackOrderScreen({
   );
 }
 
+/**
+ * The 24-hour recovery window, from the customer's side (0075).
+ *
+ * Only on a delivered order, because that is the only state with a payout to
+ * dispute. Deliberately plain text rather than a modal: the customer has just
+ * told us the food did not arrive and wants a way to say so, not a flow.
+ *
+ * Does not promise a refund. The rider's payout is what is under review, and the
+ * customer is not party to that decision, so the wording says an admin will look
+ * into the delivery and nothing about money coming back.
+ */
+function ReportProblem({
+  order,
+  reporting,
+}: {
+  order: TrackedOrder;
+  reporting: {
+    open: boolean;
+    busy: boolean;
+    error: string | null;
+    done: boolean;
+    onOpen: () => void;
+    onClose: () => void;
+    onSubmit: (reason: string) => void;
+  };
+}) {
+  const [reason, setReason] = useState("");
+
+  if (reporting.done) {
+    return (
+      <View style={styles.reportBlock}>
+        <Text style={styles.reportDone}>
+          Reported. An admin will look into this delivery and follow up.
+        </Text>
+      </View>
+    );
+  }
+
+  if (!reporting.open) {
+    return (
+      <View style={styles.reportBlock}>
+        <Text style={styles.reportIntro}>
+          {order.status === "delivered" ? "Wrong order, or it never arrived?" : null}
+        </Text>
+        {order.status === "delivered" ? (
+          <Text
+            style={styles.reportLink}
+            onPress={reporting.onOpen}
+            accessibilityRole="button"
+          >
+            Report a problem with this delivery
+          </Text>
+        ) : null}
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.reportBlock}>
+      <Text style={styles.reportIntro}>
+        Tell us what went wrong. An admin reads this and follows up — you will not be
+        charged for anything.
+      </Text>
+      <TextInput
+        style={styles.reportInput}
+        value={reason}
+        onChangeText={setReason}
+        placeholder="The food never arrived."
+        placeholderTextColor={colors.textFaint}
+        multiline
+        editable={!reporting.busy}
+      />
+      {reporting.error ? (
+        <Text style={styles.reportError}>{reporting.error}</Text>
+      ) : null}
+      <View style={styles.reportActions}>
+        <Text
+          style={styles.reportCancel}
+          onPress={reporting.onClose}
+          disabled={reporting.busy}
+        >
+          Cancel
+        </Text>
+        <Text
+          style={[styles.reportSubmit, reporting.busy && styles.reportSubmitBusy]}
+          onPress={() => reporting.onSubmit(reason.trim())}
+          disabled={reporting.busy || reason.trim().length === 0}
+        >
+          {reporting.busy ? "Sending…" : "Send report"}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
 function OrderCard({
   order,
   updatedAt,
   refreshing,
   riderPayment,
+  reporting,
 }: {
   order: TrackedOrder;
   updatedAt: number;
   refreshing: boolean;
   riderPayment: RiderPayment | null;
+  reporting: {
+    open: boolean;
+    busy: boolean;
+    error: string | null;
+    done: boolean;
+    onOpen: () => void;
+    onClose: () => void;
+    onSubmit: (reason: string) => void;
+  };
 }) {
   const cancelled = order.status === "cancelled";
   const steps = orderProgress(order.status);
@@ -262,6 +397,8 @@ function OrderCard({
           </Text>
         </View>
       ) : null}
+
+      <ReportProblem order={order} reporting={reporting} />
 
       <View style={styles.footer}>
         <Text style={styles.meta}>
@@ -432,6 +569,40 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     alignSelf: "center",
   },
+  // 0075. Warning-toned, not destructive: the rider is still paid while the
+  // dispute is open, and the customer is reporting a delivery, not hitting an
+  // error screen.
+  reportBlock: {
+    marginTop: spacing.lg,
+    paddingTop: spacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  reportIntro: { ...type.caption, color: colors.textMuted, lineHeight: 17 },
+  reportDone: { ...type.caption, color: colors.success, lineHeight: 17 },
+  reportError: { ...type.caption, color: colors.danger, marginTop: spacing.sm },
+  reportInput: {
+    ...type.body,
+    marginTop: spacing.sm,
+    minHeight: 72,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    color: colors.text,
+    textAlignVertical: "top",
+  },
+  reportActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    alignItems: "center",
+    gap: spacing.lg,
+    marginTop: spacing.md,
+  },
+  reportCancel: { ...type.label, color: colors.textMuted },
+  reportSubmit: { ...type.label, color: colors.primary },
+  reportSubmitBusy: { color: colors.textFaint },
+  reportLink: { ...type.label, color: colors.primary, marginTop: spacing.sm },
   footer: { gap: 2, marginTop: spacing.xs },
   meta: { ...type.caption, color: colors.textFaint },
 });

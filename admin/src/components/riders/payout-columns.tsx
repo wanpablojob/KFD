@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import type { Column } from "@/components/ui/data-table";
+import { Badge } from "@/components/ui/badge";
 import { formatCurrency } from "@/lib/format";
-import type { RiderPayout } from "@/lib/rider-ledger";
+import { isDisputable, type RiderPayout } from "@/lib/rider-ledger";
 
 /**
  * What this rider earned, per delivery.
@@ -60,4 +61,49 @@ export const payoutColumns: Column<RiderPayout>[] = [
       </span>
     ),
   },
+  {
+    // The column that makes 0075 usable rather than merely present. Without it a
+    // disputed delivery is a normal-looking row and nobody opens it, which would
+    // leave the recovery path built and unreachable.
+    key: "settlementState",
+    header: "Status",
+    cell: (row) => <SettlementBadge payout={row} />,
+  },
 ];
+
+/**
+ * One word, chosen to answer "does this need me?".
+ *
+ * pending_review deliberately says "reviewable until <time>" rather than just
+ * "under review": the window is the whole feature, and an operator deciding
+ * whether to worry needs to know it will close on its own.
+ */
+function SettlementBadge({ payout }: { payout: RiderPayout }) {
+  if (payout.settlementState === "disputed") {
+    // The customer's own words, as the tooltip. They are the reason this row is
+    // flagged, and hiding them behind a click would make the queue unactionable.
+    return (
+      <span title={payout.disputeReason ?? undefined}>
+        <Badge variant="destructive">Disputed</Badge>
+      </span>
+    );
+  }
+  if (payout.settlementState === "reversed") {
+    // Rare and serious: the rider was paid for a delivery that did not stand up.
+    return <Badge variant="destructive">Reversed</Badge>;
+  }
+  if (payout.settlementState === "settled" || !isDisputable(payout)) {
+    // Pending with no window left reads as settled on purpose: nobody swept the
+    // row, but an operator needs to act on neither case.
+    return <Badge variant="neutral">Settled</Badge>;
+  }
+  return (
+    <Badge variant="outline" className="whitespace-nowrap">
+      Reviewable until{" "}
+      {new Date(payout.reviewExpiresAt as string).toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      })}
+    </Badge>
+  );
+}

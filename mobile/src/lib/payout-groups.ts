@@ -76,3 +76,20 @@ export function bucketTotal<T extends PayoutRow & { amount: number }>(
 ): number {
   return group.rows.reduce((sum, row) => sum + Number(row.amount), 0);
 }
+
+/**
+ * Does this payout need the rider to know about it? (migration 0075)
+ *
+ * Only 'disputed' does. The other three states are the rider's business only
+ * in the sense that the money is theirs and nothing is happening to it, so
+ * showing a badge for them would be noise on a screen a rider reads dozens of
+ * times a day. A disputed one is different: their delivery is being questioned,
+ * and they should not have to notice the total moved later.
+ *
+ * An absent or unrecognised state returns false. That is the pre-0075 case --
+ * nothing to report -- and it is also the safe default, since a false negative
+ * costs one missed badge while a false positive would cry wolf on every row.
+ */
+export function needsRiderAttention(settlementState?: string): boolean {
+  return settlementState === "disputed";
+}

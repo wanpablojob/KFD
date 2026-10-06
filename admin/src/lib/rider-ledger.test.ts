@@ -1,6 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mapPayoutSummary, successRate } from "./rider-ledger.ts";
+import {
+  isDisputable,
+  mapPayouts,
+  mapPayoutSummary,
+  successRate,
+  type RiderPayout,
+} from "./rider-ledger.ts";
 
 /**
  * The numbers on /dashboard/riders/[id] used to be orders.total and
@@ -56,7 +62,11 @@ test("treats a null sum as zero rather than NaN", () => {
   assert.equal(summary.lifetime, 0);
   assert.equal(summary.deliveredCount, 0);
   assert.equal(summary.payoutCount, 0);
-  for (const value of [summary.lifetime, summary.earnedToday, summary.earnedWeek]) {
+  for (const value of [
+    summary.lifetime,
+    summary.earnedToday,
+    summary.earnedWeek,
+  ]) {
     assert.equal(Number.isFinite(value), true);
   }
 });
@@ -78,4 +88,100 @@ test("a rider who failed everything has a rate of zero, not null", () => {
   // Four failures are four attempts, so the rate is a real 0 rather than an
   // absence of one.
   assert.equal(successRate({ deliveredCount: 0, failedCount: 4 }), 0);
+});
+// ---------------------------------------------------------------------------
+// 0075: the 24-hour dispute window
+// ---------------------------------------------------------------------------
+// The state is what makes a disputed delivery visible. Without it the ledger row
+// looks like any other and the operator has no reason to look at it; the whole
+// recovery path depends on this mapping surfacing 'disputed' rather than
+// quietly defaulting it to something ordinary.
+
+function payout(over: Partial<RiderPayout> = {}): RiderPayout {
+  return {
+    orderId: "o1",
+    reference: "KFD-1",
+    restaurant: "R",
+    amount: 25,
+    earnedAt: "2026-01-01T00:00:00Z",
+    settlementState: "pending_review",
+    reviewExpiresAt: null,
+    disputeReason: null,
+    disputedAt: null,
+    ...over,
+  };
+}
+
+test("maps the settlement state off the RPC row", () => {
+  const rows = mapPayouts([
+    { order_id: "a", settlement_state: "disputed" },
+    { order_id: "b", settlement_state: "settled" },
+    { order_id: "c", settlement_state: "reversed" },
+  ]);
+  assert.equal(rows[0].settlementState, "disputed");
+  assert.equal(rows[1].settlementState, "settled");
+  assert.equal(rows[2].settlementState, "reversed");
+});
+
+test("an absent or unknown state reads as still under review, not as settled", () => {
+  // Both directions of a wrong default are dangerous: calling an unrecognised
+  // state 'settled' would hide a dispute, and dropping the row would hide the
+  // money. pending_review is the safe middle -- visible, and not yet final.
+  const rows = mapPayouts([
+    { order_id: "a" },
+    { order_id: "b", settlement_state: "something_new" },
+    { order_id: "c", settlement_state: null },
+  ]);
+  for (const row of rows) assert.equal(row.settlementState, "pending_review");
+});
+
+test("carries the dispute reason and expiry through", () => {
+  const [row] = mapPayouts([
+    {
+      order_id: "a",
+      settlement_state: "disputed",
+      review_expires_at: "2026-01-02T00:00:00Z",
+      dispute_reason: "Wrong address, food never arrived.",
+      disputed_at: "2026-01-01T12:00:00Z",
+    },
+  ]);
+  assert.equal(row.reviewExpiresAt, "2026-01-02T00:00:00Z");
+  assert.equal(row.disputeReason, "Wrong address, food never arrived.");
+  assert.equal(row.disputedAt, "2026-01-01T12:00:00Z");
+});
+
+test("a payout is disputable only inside its window", () => {
+  const now = new Date("2026-01-02T00:00:00Z");
+  assert.equal(
+    isDisputable(payout({ reviewExpiresAt: "2026-01-03T00:00:00Z" }), now),
+    true,
+  );
+  // Exactly at expiry is closed: the window is 24 hours, not 24 hours and a bit.
+  assert.equal(
+    isDisputable(payout({ reviewExpiresAt: "2026-01-02T00:00:00Z" }), now),
+    false,
+  );
+  assert.equal(
+    isDisputable(payout({ reviewExpiresAt: "2026-01-01T00:00:00Z" }), now),
+    false,
+  );
+});
+
+test("a disputed or reversed payout is never disputable again", () => {
+  const future = "2026-06-01T00:00:00Z";
+  for (const state of ["disputed", "settled", "reversed"] as const) {
+    assert.equal(
+      isDisputable(payout({ settlementState: state, reviewExpiresAt: future })),
+      false,
+    );
+  }
+});
+
+test("a missing or unparseable expiry is treated as never disputable", () => {
+  // Deliberate, and the opposite of the state fallback above. An unknown state
+  // might be a new dispute state, so it stays visible; an unknown expiry means
+  // the window cannot be shown to have closed, and letting an unverifiable row
+  // be disputed is the worse failure.
+  assert.equal(isDisputable(payout({ reviewExpiresAt: null })), false);
+  assert.equal(isDisputable(payout({ reviewExpiresAt: "not a date" })), false);
 });

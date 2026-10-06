@@ -66,6 +66,24 @@ export function mapPayoutSummary(
   };
 }
 
+/**
+ * Where a payout sits in its 24-hour review window (migration 0075).
+ *
+ * pending_review is the state every new delivery lands in and the one that needs
+ * no attention; settled means the window closed clean. disputed is the only one
+ * an operator has to act on, so the UI keys off that and treats the rest as
+ * ordinary. Unknown values fall back to pending_review rather than being
+ * dropped, so a future state shows up as "still reviewing" instead of vanishing.
+ */
+export type SettlementState =
+  "pending_review" | "settled" | "disputed" | "reversed";
+
+function settlementState(value: unknown): SettlementState {
+  return value === "settled" || value === "disputed" || value === "reversed"
+    ? value
+    : "pending_review";
+}
+
 /** One row of the per-delivery payout table. */
 export interface RiderPayout {
   orderId: string;
@@ -73,6 +91,14 @@ export interface RiderPayout {
   restaurant: string;
   amount: number;
   earnedAt: string;
+  /** 0075. Absent before that migration; treated as pending_review. */
+  settlementState: SettlementState;
+  /** 0075. Null when the window has no expiry stamped. */
+  reviewExpiresAt: string | null;
+  /** 0075. What the customer or merchant reported, in their words. */
+  disputeReason: string | null;
+  /** 0075. When the dispute was raised. */
+  disputedAt: string | null;
 }
 
 export function mapPayouts(
@@ -84,7 +110,49 @@ export function mapPayouts(
     restaurant: String(row.restaurant ?? ""),
     amount: num(row.amount),
     earnedAt: String(row.earned_at ?? ""),
+    settlementState: settlementState(row.settlement_state),
+    reviewExpiresAt: text(row.review_expires_at),
+    disputeReason: text(row.dispute_reason),
+    disputedAt: text(row.disputed_at),
   }));
+}
+
+/** One row of the fleet-wide dispute queue (0075). */
+export interface DisputedPayout {
+  orderId: string;
+  reference: string;
+  restaurant: string;
+  riderId: string;
+  riderName: string;
+  amount: number;
+  /** What the customer or merchant reported, in their words. */
+  reason: string | null;
+  disputedAt: string | null;
+  reviewExpiresAt: string | null;
+}
+
+export function mapDisputedPayouts(
+  rows: readonly Record<string, unknown>[] | null | undefined,
+): DisputedPayout[] {
+  return (rows ?? []).map((row) => ({
+    orderId: String(row.order_id ?? ""),
+    reference: String(row.order_reference ?? ""),
+    restaurant: String(row.restaurant ?? ""),
+    riderId: String(row.rider_id ?? ""),
+    riderName: String(row.rider_name ?? ""),
+    amount: num(row.amount),
+    reason: text(row.dispute_reason),
+    disputedAt: text(row.disputed_at),
+    reviewExpiresAt: text(row.review_expires_at),
+  }));
+}
+
+/** True while the payout can still be disputed. Null expiry means never. */
+export function isDisputable(payout: RiderPayout, now = new Date()): boolean {
+  if (payout.settlementState !== "pending_review") return false;
+  if (!payout.reviewExpiresAt) return false;
+  const expiry = new Date(payout.reviewExpiresAt);
+  return !Number.isNaN(expiry.getTime()) && expiry.getTime() > now.getTime();
 }
 
 /**

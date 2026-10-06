@@ -4,1108 +4,1156 @@ export type Json =
   | boolean
   | null
   | { [key: string]: Json | undefined }
-  | Json[]
+  | Json[];
 
 export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
-  }
+    PostgrestVersion: "14.5";
+  };
   public: {
     Tables: {
       app_users: {
         Row: {
-          created_at: string
-          last_notification_seen_at: string | null
-          restaurant_id: string | null
-          role: Database["public"]["Enums"]["app_role"]
-          user_id: string
-        }
+          created_at: string;
+          last_notification_seen_at: string | null;
+          restaurant_id: string | null;
+          role: Database["public"]["Enums"]["app_role"];
+          user_id: string;
+        };
         Insert: {
-          created_at?: string
-          last_notification_seen_at?: string | null
-          restaurant_id?: string | null
-          role?: Database["public"]["Enums"]["app_role"]
-          user_id: string
-        }
+          created_at?: string;
+          last_notification_seen_at?: string | null;
+          restaurant_id?: string | null;
+          role?: Database["public"]["Enums"]["app_role"];
+          user_id: string;
+        };
         Update: {
-          created_at?: string
-          last_notification_seen_at?: string | null
-          restaurant_id?: string | null
-          role?: Database["public"]["Enums"]["app_role"]
-          user_id?: string
-        }
+          created_at?: string;
+          last_notification_seen_at?: string | null;
+          restaurant_id?: string | null;
+          role?: Database["public"]["Enums"]["app_role"];
+          user_id?: string;
+        };
         Relationships: [
           {
-            foreignKeyName: "app_users_restaurant_id_fkey"
-            columns: ["restaurant_id"]
-            isOneToOne: false
-            referencedRelation: "restaurants"
-            referencedColumns: ["id"]
+            foreignKeyName: "app_users_restaurant_id_fkey";
+            columns: ["restaurant_id"];
+            isOneToOne: false;
+            referencedRelation: "restaurants";
+            referencedColumns: ["id"];
           },
-        ]
-      }
+        ];
+      };
       audit_log: {
         Row: {
-          action: string
-          actor_user_id: string | null
-          changed_at: string
-          detail: Json | null
-          event: string | null
-          id: number
-          new_restaurant_id: string | null
-          new_role: Database["public"]["Enums"]["app_role"] | null
-          old_restaurant_id: string | null
-          old_role: Database["public"]["Enums"]["app_role"] | null
-          record_id: string | null
-          rider_id: string | null
-          table_name: string
-        }
+          action: string;
+          actor_user_id: string | null;
+          changed_at: string;
+          detail: Json | null;
+          event: string | null;
+          id: number;
+          new_restaurant_id: string | null;
+          new_role: Database["public"]["Enums"]["app_role"] | null;
+          old_restaurant_id: string | null;
+          old_role: Database["public"]["Enums"]["app_role"] | null;
+          record_id: string | null;
+          rider_id: string | null;
+          table_name: string;
+        };
         Insert: {
-          action: string
-          actor_user_id?: string | null
-          changed_at?: string
-          detail?: Json | null
-          event?: string | null
-          id?: never
-          new_restaurant_id?: string | null
-          new_role?: Database["public"]["Enums"]["app_role"] | null
-          old_restaurant_id?: string | null
-          old_role?: Database["public"]["Enums"]["app_role"] | null
-          record_id?: string | null
-          rider_id?: string | null
-          table_name?: string
-        }
+          action: string;
+          actor_user_id?: string | null;
+          changed_at?: string;
+          detail?: Json | null;
+          event?: string | null;
+          id?: never;
+          new_restaurant_id?: string | null;
+          new_role?: Database["public"]["Enums"]["app_role"] | null;
+          old_restaurant_id?: string | null;
+          old_role?: Database["public"]["Enums"]["app_role"] | null;
+          record_id?: string | null;
+          rider_id?: string | null;
+          table_name?: string;
+        };
         Update: {
-          action?: string
-          actor_user_id?: string | null
-          changed_at?: string
-          detail?: Json | null
-          event?: string | null
-          id?: never
-          new_restaurant_id?: string | null
-          new_role?: Database["public"]["Enums"]["app_role"] | null
-          old_restaurant_id?: string | null
-          old_role?: Database["public"]["Enums"]["app_role"] | null
-          record_id?: string | null
-          rider_id?: string | null
-          table_name?: string
-        }
-        Relationships: []
-      }
+          action?: string;
+          actor_user_id?: string | null;
+          changed_at?: string;
+          detail?: Json | null;
+          event?: string | null;
+          id?: never;
+          new_restaurant_id?: string | null;
+          new_role?: Database["public"]["Enums"]["app_role"] | null;
+          old_restaurant_id?: string | null;
+          old_role?: Database["public"]["Enums"]["app_role"] | null;
+          record_id?: string | null;
+          rider_id?: string | null;
+          table_name?: string;
+        };
+        Relationships: [];
+      };
       customers: {
         Row: {
-          city: string
-          created_at: string
-          email: string
-          id: string
-          joined_at: string
-          name: string
-          orders_count: number
-          phone: string | null
-          total_spend: number
+          city: string;
+          created_at: string;
+          email: string;
+          id: string;
+          joined_at: string;
+          name: string;
+          orders_count: number;
+          phone: string | null;
+          total_spend: number;
           /** NULL for a row never linked to an auth account (0058). */
-          user_id: string | null
+          user_id: string | null;
           /** Set when archived rather than deleted; NULL means live. */
-          archived_at: string | null
+          archived_at: string | null;
           /** Set when the customer may no longer order; NULL means allowed. */
-          blocked_at: string | null
-          notes: string | null
-        }
+          blocked_at: string | null;
+          notes: string | null;
+        };
         Insert: {
-          city?: string
-          created_at?: string
-          email: string
-          id: string
-          joined_at?: string
-          name: string
-          orders_count?: number
-          phone?: string | null
-          total_spend?: number
-          user_id?: string | null
-          archived_at?: string | null
-          blocked_at?: string | null
-          notes?: string | null
-        }
+          city?: string;
+          created_at?: string;
+          email: string;
+          id: string;
+          joined_at?: string;
+          name: string;
+          orders_count?: number;
+          phone?: string | null;
+          total_spend?: number;
+          user_id?: string | null;
+          archived_at?: string | null;
+          blocked_at?: string | null;
+          notes?: string | null;
+        };
         Update: {
-          city?: string
-          created_at?: string
-          email?: string
-          id?: string
-          joined_at?: string
-          name?: string
-          orders_count?: number
-          phone?: string | null
-          total_spend?: number
-          user_id?: string | null
-          archived_at?: string | null
-          blocked_at?: string | null
-          notes?: string | null
-        }
-        Relationships: []
-      }
+          city?: string;
+          created_at?: string;
+          email?: string;
+          id?: string;
+          joined_at?: string;
+          name?: string;
+          orders_count?: number;
+          phone?: string | null;
+          total_spend?: number;
+          user_id?: string | null;
+          archived_at?: string | null;
+          blocked_at?: string | null;
+          notes?: string | null;
+        };
+        Relationships: [];
+      };
       leads: {
         Row: {
-          consent_at: string
-          contact: string
-          created_at: string
-          id: number
-          kind: string
-          name: string
-          note: string | null
-        }
+          consent_at: string;
+          contact: string;
+          created_at: string;
+          id: number;
+          kind: string;
+          name: string;
+          note: string | null;
+        };
         Insert: {
-          consent_at?: string
-          contact: string
-          created_at?: string
-          id?: never
-          kind: string
-          name: string
-          note?: string | null
-        }
+          consent_at?: string;
+          contact: string;
+          created_at?: string;
+          id?: never;
+          kind: string;
+          name: string;
+          note?: string | null;
+        };
         Update: {
-          consent_at?: string
-          contact?: string
-          created_at?: string
-          id?: never
-          kind?: string
-          name?: string
-          note?: string | null
-        }
-        Relationships: []
-      }
+          consent_at?: string;
+          contact?: string;
+          created_at?: string;
+          id?: never;
+          kind?: string;
+          name?: string;
+          note?: string | null;
+        };
+        Relationships: [];
+      };
       menu_items: {
         Row: {
-          available: boolean
-          category: string
-          created_at: string
-          id: string
-          name: string
-          price: number
-          restaurant: string
-          restaurant_id: string
-        }
+          available: boolean;
+          category: string;
+          created_at: string;
+          id: string;
+          name: string;
+          price: number;
+          restaurant: string;
+          restaurant_id: string;
+        };
         Insert: {
-          available?: boolean
-          category: string
-          created_at?: string
-          id: string
-          name: string
-          price?: number
-          restaurant: string
-          restaurant_id: string
-        }
+          available?: boolean;
+          category: string;
+          created_at?: string;
+          id: string;
+          name: string;
+          price?: number;
+          restaurant: string;
+          restaurant_id: string;
+        };
         Update: {
-          available?: boolean
-          category?: string
-          created_at?: string
-          id?: string
-          name?: string
-          price?: number
-          restaurant?: string
-          restaurant_id?: string
-        }
+          available?: boolean;
+          category?: string;
+          created_at?: string;
+          id?: string;
+          name?: string;
+          price?: number;
+          restaurant?: string;
+          restaurant_id?: string;
+        };
         Relationships: [
           {
-            foreignKeyName: "menu_items_restaurant_id_fkey"
-            columns: ["restaurant_id"]
-            isOneToOne: false
-            referencedRelation: "restaurants"
-            referencedColumns: ["id"]
+            foreignKeyName: "menu_items_restaurant_id_fkey";
+            columns: ["restaurant_id"];
+            isOneToOne: false;
+            referencedRelation: "restaurants";
+            referencedColumns: ["id"];
           },
-        ]
-      }
+        ];
+      };
       order_offers: {
         Row: {
-          claimed_at: string | null
-          decline_reason: string | null
-          expires_at: string
-          id: number
-          offered_at: string
-          order_id: string
-          rider_id: string
-          status: Database["public"]["Enums"]["offer_status"]
-        }
+          claimed_at: string | null;
+          decline_reason: string | null;
+          expires_at: string;
+          id: number;
+          offered_at: string;
+          order_id: string;
+          rider_id: string;
+          status: Database["public"]["Enums"]["offer_status"];
+        };
         Insert: {
-          claimed_at?: string | null
-          decline_reason?: string | null
-          expires_at: string
-          id?: never
-          offered_at?: string
-          order_id: string
-          rider_id: string
-          status?: Database["public"]["Enums"]["offer_status"]
-        }
+          claimed_at?: string | null;
+          decline_reason?: string | null;
+          expires_at: string;
+          id?: never;
+          offered_at?: string;
+          order_id: string;
+          rider_id: string;
+          status?: Database["public"]["Enums"]["offer_status"];
+        };
         Update: {
-          claimed_at?: string | null
-          decline_reason?: string | null
-          expires_at?: string
-          id?: never
-          offered_at?: string
-          order_id?: string
-          rider_id?: string
-          status?: Database["public"]["Enums"]["offer_status"]
-        }
+          claimed_at?: string | null;
+          decline_reason?: string | null;
+          expires_at?: string;
+          id?: never;
+          offered_at?: string;
+          order_id?: string;
+          rider_id?: string;
+          status?: Database["public"]["Enums"]["offer_status"];
+        };
         Relationships: [
           {
-            foreignKeyName: "order_offers_order_id_fkey"
-            columns: ["order_id"]
-            isOneToOne: false
-            referencedRelation: "orders"
-            referencedColumns: ["id"]
+            foreignKeyName: "order_offers_order_id_fkey";
+            columns: ["order_id"];
+            isOneToOne: false;
+            referencedRelation: "orders";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: "order_offers_rider_id_fkey"
-            columns: ["rider_id"]
-            isOneToOne: false
-            referencedRelation: "riders"
-            referencedColumns: ["id"]
+            foreignKeyName: "order_offers_rider_id_fkey";
+            columns: ["rider_id"];
+            isOneToOne: false;
+            referencedRelation: "riders";
+            referencedColumns: ["id"];
           },
-        ]
-      }
+        ];
+      };
       orders: {
         Row: {
-          created_at: string
-          customer: string
-          customer_phone: string | null
-          customer_user_id: string | null
-          delivery_address: string | null
-          delivery_failed_at: string | null
-          delivery_failed_by: string | null
-          delivery_failed_reason: string | null
-          delivery_fee: number
-          id: string
-          items: Json
-          payment: Database["public"]["Enums"]["payment_method"]
-          placed_at: string
-          reference: string
-          rejection_reason: string | null
-          restaurant: string
-          restaurant_id: string | null
-          rider: string | null
-          rider_id: string | null
-          rider_payout: number | null
-          service_fee: number
-          status: Database["public"]["Enums"]["order_status"]
-          subtotal: number
-          total: number
-          updated_at: string
-        }
+          created_at: string;
+          customer: string;
+          customer_phone: string | null;
+          customer_user_id: string | null;
+          delivery_address: string | null;
+          delivery_failed_at: string | null;
+          delivery_failed_by: string | null;
+          delivery_failed_reason: string | null;
+          delivery_fee: number;
+          id: string;
+          items: Json;
+          payment: Database["public"]["Enums"]["payment_method"];
+          placed_at: string;
+          reference: string;
+          rejection_reason: string | null;
+          restaurant: string;
+          restaurant_id: string | null;
+          rider: string | null;
+          rider_id: string | null;
+          rider_payout: number | null;
+          service_fee: number;
+          status: Database["public"]["Enums"]["order_status"];
+          subtotal: number;
+          total: number;
+          updated_at: string;
+        };
         Insert: {
-          created_at?: string
-          customer: string
-          customer_phone?: string | null
-          customer_user_id?: string | null
-          delivery_address?: string | null
-          delivery_failed_at?: string | null
-          delivery_failed_by?: string | null
-          delivery_failed_reason?: string | null
-          delivery_fee?: number
-          id?: string
-          items?: Json
-          payment?: Database["public"]["Enums"]["payment_method"]
-          placed_at?: string
-          reference: string
-          rejection_reason?: string | null
-          restaurant: string
-          restaurant_id?: string | null
-          rider?: string | null
-          rider_id?: string | null
-          rider_payout?: number | null
-          service_fee?: number
-          status?: Database["public"]["Enums"]["order_status"]
-          subtotal?: number
-          total?: number
-          updated_at?: string
-        }
+          created_at?: string;
+          customer: string;
+          customer_phone?: string | null;
+          customer_user_id?: string | null;
+          delivery_address?: string | null;
+          delivery_failed_at?: string | null;
+          delivery_failed_by?: string | null;
+          delivery_failed_reason?: string | null;
+          delivery_fee?: number;
+          id?: string;
+          items?: Json;
+          payment?: Database["public"]["Enums"]["payment_method"];
+          placed_at?: string;
+          reference: string;
+          rejection_reason?: string | null;
+          restaurant: string;
+          restaurant_id?: string | null;
+          rider?: string | null;
+          rider_id?: string | null;
+          rider_payout?: number | null;
+          service_fee?: number;
+          status?: Database["public"]["Enums"]["order_status"];
+          subtotal?: number;
+          total?: number;
+          updated_at?: string;
+        };
         Update: {
-          created_at?: string
-          customer?: string
-          customer_phone?: string | null
-          customer_user_id?: string | null
-          delivery_address?: string | null
-          delivery_failed_at?: string | null
-          delivery_failed_by?: string | null
-          delivery_failed_reason?: string | null
-          delivery_fee?: number
-          id?: string
-          items?: Json
-          payment?: Database["public"]["Enums"]["payment_method"]
-          placed_at?: string
-          reference?: string
-          rejection_reason?: string | null
-          restaurant?: string
-          restaurant_id?: string | null
-          rider?: string | null
-          rider_id?: string | null
-          rider_payout?: number | null
-          service_fee?: number
-          status?: Database["public"]["Enums"]["order_status"]
-          subtotal?: number
-          total?: number
-          updated_at?: string
-        }
+          created_at?: string;
+          customer?: string;
+          customer_phone?: string | null;
+          customer_user_id?: string | null;
+          delivery_address?: string | null;
+          delivery_failed_at?: string | null;
+          delivery_failed_by?: string | null;
+          delivery_failed_reason?: string | null;
+          delivery_fee?: number;
+          id?: string;
+          items?: Json;
+          payment?: Database["public"]["Enums"]["payment_method"];
+          placed_at?: string;
+          reference?: string;
+          rejection_reason?: string | null;
+          restaurant?: string;
+          restaurant_id?: string | null;
+          rider?: string | null;
+          rider_id?: string | null;
+          rider_payout?: number | null;
+          service_fee?: number;
+          status?: Database["public"]["Enums"]["order_status"];
+          subtotal?: number;
+          total?: number;
+          updated_at?: string;
+        };
         Relationships: [
           {
-            foreignKeyName: "orders_restaurant_id_fkey"
-            columns: ["restaurant_id"]
-            isOneToOne: false
-            referencedRelation: "restaurants"
-            referencedColumns: ["id"]
+            foreignKeyName: "orders_restaurant_id_fkey";
+            columns: ["restaurant_id"];
+            isOneToOne: false;
+            referencedRelation: "restaurants";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: "orders_rider_id_fkey"
-            columns: ["rider_id"]
-            isOneToOne: false
-            referencedRelation: "riders"
-            referencedColumns: ["id"]
+            foreignKeyName: "orders_rider_id_fkey";
+            columns: ["rider_id"];
+            isOneToOne: false;
+            referencedRelation: "riders";
+            referencedColumns: ["id"];
           },
-        ]
-      }
+        ];
+      };
       push_tokens: {
         Row: {
-          created_at: string
-          id: string
-          platform: string
-          token: string
-          user_id: string
-        }
+          created_at: string;
+          id: string;
+          platform: string;
+          token: string;
+          user_id: string;
+        };
         Insert: {
-          created_at?: string
-          id: string
-          platform: string
-          token: string
-          user_id: string
-        }
+          created_at?: string;
+          id: string;
+          platform: string;
+          token: string;
+          user_id: string;
+        };
         Update: {
-          created_at?: string
-          id?: string
-          platform?: string
-          token?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
+          created_at?: string;
+          id?: string;
+          platform?: string;
+          token?: string;
+          user_id?: string;
+        };
+        Relationships: [];
+      };
       restaurants: {
         Row: {
-          archived_at: string | null
-          city: string
-          created_at: string
-          cuisine: string
-          id: string
-          joined_at: string
-          name: string
-          orders_count: number
-          rating: number
-          revenue: number
-          status: Database["public"]["Enums"]["restaurant_status"]
-          updated_at: string
-        }
+          archived_at: string | null;
+          city: string;
+          created_at: string;
+          cuisine: string;
+          id: string;
+          joined_at: string;
+          name: string;
+          orders_count: number;
+          rating: number;
+          revenue: number;
+          status: Database["public"]["Enums"]["restaurant_status"];
+          updated_at: string;
+        };
         Insert: {
-          archived_at?: string | null
-          city?: string
-          created_at?: string
-          cuisine: string
-          id: string
-          joined_at?: string
-          name: string
-          orders_count?: number
-          rating?: number
-          revenue?: number
-          status?: Database["public"]["Enums"]["restaurant_status"]
-          updated_at?: string
-        }
+          archived_at?: string | null;
+          city?: string;
+          created_at?: string;
+          cuisine: string;
+          id: string;
+          joined_at?: string;
+          name: string;
+          orders_count?: number;
+          rating?: number;
+          revenue?: number;
+          status?: Database["public"]["Enums"]["restaurant_status"];
+          updated_at?: string;
+        };
         Update: {
-          archived_at?: string | null
-          city?: string
-          created_at?: string
-          cuisine?: string
-          id?: string
-          joined_at?: string
-          name?: string
-          orders_count?: number
-          rating?: number
-          revenue?: number
-          status?: Database["public"]["Enums"]["restaurant_status"]
-          updated_at?: string
-        }
-        Relationships: []
-      }
+          archived_at?: string | null;
+          city?: string;
+          created_at?: string;
+          cuisine?: string;
+          id?: string;
+          joined_at?: string;
+          name?: string;
+          orders_count?: number;
+          rating?: number;
+          revenue?: number;
+          status?: Database["public"]["Enums"]["restaurant_status"];
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       rider_applications: {
         Row: {
-          city: string
-          created_at: string
-          decision_note: string | null
-          full_name: string
-          government_id_ref: string | null
-          id: string
-          licence_ref: string | null
-          orcr_ref: string | null
-          phone: string
-          reviewed_at: string | null
-          reviewed_by: string | null
-          status: Database["public"]["Enums"]["rider_application_status"]
-          updated_at: string
-          user_id: string
-          vehicle: Database["public"]["Enums"]["vehicle_type"]
-        }
+          city: string;
+          created_at: string;
+          decision_note: string | null;
+          full_name: string;
+          government_id_ref: string | null;
+          id: string;
+          licence_ref: string | null;
+          orcr_ref: string | null;
+          phone: string;
+          reviewed_at: string | null;
+          reviewed_by: string | null;
+          status: Database["public"]["Enums"]["rider_application_status"];
+          updated_at: string;
+          user_id: string;
+          vehicle: Database["public"]["Enums"]["vehicle_type"];
+        };
         Insert: {
-          city?: string
-          created_at?: string
-          decision_note?: string | null
-          full_name: string
-          government_id_ref?: string | null
-          id?: string
-          licence_ref?: string | null
-          orcr_ref?: string | null
-          phone: string
-          reviewed_at?: string | null
-          reviewed_by?: string | null
-          status?: Database["public"]["Enums"]["rider_application_status"]
-          updated_at?: string
-          user_id: string
-          vehicle?: Database["public"]["Enums"]["vehicle_type"]
-        }
+          city?: string;
+          created_at?: string;
+          decision_note?: string | null;
+          full_name: string;
+          government_id_ref?: string | null;
+          id?: string;
+          licence_ref?: string | null;
+          orcr_ref?: string | null;
+          phone: string;
+          reviewed_at?: string | null;
+          reviewed_by?: string | null;
+          status?: Database["public"]["Enums"]["rider_application_status"];
+          updated_at?: string;
+          user_id: string;
+          vehicle?: Database["public"]["Enums"]["vehicle_type"];
+        };
         Update: {
-          city?: string
-          created_at?: string
-          decision_note?: string | null
-          full_name?: string
-          government_id_ref?: string | null
-          id?: string
-          licence_ref?: string | null
-          orcr_ref?: string | null
-          phone?: string
-          reviewed_at?: string | null
-          reviewed_by?: string | null
-          status?: Database["public"]["Enums"]["rider_application_status"]
-          updated_at?: string
-          user_id?: string
-          vehicle?: Database["public"]["Enums"]["vehicle_type"]
-        }
-        Relationships: []
-      }
+          city?: string;
+          created_at?: string;
+          decision_note?: string | null;
+          full_name?: string;
+          government_id_ref?: string | null;
+          id?: string;
+          licence_ref?: string | null;
+          orcr_ref?: string | null;
+          phone?: string;
+          reviewed_at?: string | null;
+          reviewed_by?: string | null;
+          status?: Database["public"]["Enums"]["rider_application_status"];
+          updated_at?: string;
+          user_id?: string;
+          vehicle?: Database["public"]["Enums"]["vehicle_type"];
+        };
+        Relationships: [];
+      };
       rider_notes: {
         Row: {
-          author_user_id: string | null
-          body: string
-          created_at: string
-          id: number
-          rider_id: string
-        }
+          author_user_id: string | null;
+          body: string;
+          created_at: string;
+          id: number;
+          rider_id: string;
+        };
         Insert: {
-          author_user_id?: string | null
-          body: string
-          created_at?: string
-          id?: never
-          rider_id: string
-        }
+          author_user_id?: string | null;
+          body: string;
+          created_at?: string;
+          id?: never;
+          rider_id: string;
+        };
         Update: {
-          author_user_id?: string | null
-          body?: string
-          created_at?: string
-          id?: never
-          rider_id?: string
-        }
-        Relationships: []
-      }
+          author_user_id?: string | null;
+          body?: string;
+          created_at?: string;
+          id?: never;
+          rider_id?: string;
+        };
+        Relationships: [];
+      };
       rider_payouts: {
         Row: {
-          amount: number
-          earned_at: string
-          id: number
-          order_id: string
-          rider_id: string
-        }
+          amount: number;
+          earned_at: string;
+          id: number;
+          order_id: string;
+          rider_id: string;
+        };
         Insert: {
-          amount: number
-          earned_at?: string
-          id?: never
-          order_id: string
-          rider_id: string
-        }
+          amount: number;
+          earned_at?: string;
+          id?: never;
+          order_id: string;
+          rider_id: string;
+        };
         Update: {
-          amount?: number
-          earned_at?: string
-          id?: never
-          order_id?: string
-          rider_id?: string
-        }
+          amount?: number;
+          earned_at?: string;
+          id?: never;
+          order_id?: string;
+          rider_id?: string;
+        };
         Relationships: [
           {
-            foreignKeyName: "rider_payouts_order_id_fkey"
-            columns: ["order_id"]
-            isOneToOne: true
-            referencedRelation: "orders"
-            referencedColumns: ["id"]
+            foreignKeyName: "rider_payouts_order_id_fkey";
+            columns: ["order_id"];
+            isOneToOne: true;
+            referencedRelation: "orders";
+            referencedColumns: ["id"];
           },
           {
-            foreignKeyName: "rider_payouts_rider_id_fkey"
-            columns: ["rider_id"]
-            isOneToOne: false
-            referencedRelation: "riders"
-            referencedColumns: ["id"]
+            foreignKeyName: "rider_payouts_rider_id_fkey";
+            columns: ["rider_id"];
+            isOneToOne: false;
+            referencedRelation: "riders";
+            referencedColumns: ["id"];
           },
-        ]
-      }
+        ];
+      };
       riders: {
         Row: {
-          archived_at: string | null
-          city: string
-          created_at: string
-          deliveries: number
-          earnings: number
-          email: string
-          id: string
-          name: string
-          phone: string | null
-          rating: number
-          status: Database["public"]["Enums"]["rider_status"]
-          suspended_at: string | null
-          suspended_reason: string | null
-          updated_at: string
-          user_id: string | null
-          vehicle: Database["public"]["Enums"]["vehicle_type"]
-        }
+          archived_at: string | null;
+          city: string;
+          created_at: string;
+          deliveries: number;
+          earnings: number;
+          email: string;
+          id: string;
+          name: string;
+          phone: string | null;
+          rating: number;
+          status: Database["public"]["Enums"]["rider_status"];
+          suspended_at: string | null;
+          suspended_reason: string | null;
+          updated_at: string;
+          user_id: string | null;
+          vehicle: Database["public"]["Enums"]["vehicle_type"];
+        };
         Insert: {
-          archived_at?: string | null
-          city?: string
-          created_at?: string
-          deliveries?: number
-          earnings?: number
-          email: string
-          id: string
-          name: string
-          phone?: string | null
-          rating?: number
-          status?: Database["public"]["Enums"]["rider_status"]
-          suspended_at?: string | null
-          suspended_reason?: string | null
-          updated_at?: string
-          user_id?: string | null
-          vehicle?: Database["public"]["Enums"]["vehicle_type"]
-        }
+          archived_at?: string | null;
+          city?: string;
+          created_at?: string;
+          deliveries?: number;
+          earnings?: number;
+          email: string;
+          id: string;
+          name: string;
+          phone?: string | null;
+          rating?: number;
+          status?: Database["public"]["Enums"]["rider_status"];
+          suspended_at?: string | null;
+          suspended_reason?: string | null;
+          updated_at?: string;
+          user_id?: string | null;
+          vehicle?: Database["public"]["Enums"]["vehicle_type"];
+        };
         Update: {
-          archived_at?: string | null
-          city?: string
-          created_at?: string
-          deliveries?: number
-          earnings?: number
-          email?: string
-          id?: string
-          name?: string
-          phone?: string | null
-          rating?: number
-          status?: Database["public"]["Enums"]["rider_status"]
-          suspended_at?: string | null
-          suspended_reason?: string | null
-          updated_at?: string
-          user_id?: string | null
-          vehicle?: Database["public"]["Enums"]["vehicle_type"]
-        }
-        Relationships: []
-      }
-    }
+          archived_at?: string | null;
+          city?: string;
+          created_at?: string;
+          deliveries?: number;
+          earnings?: number;
+          email?: string;
+          id?: string;
+          name?: string;
+          phone?: string | null;
+          rating?: number;
+          status?: Database["public"]["Enums"]["rider_status"];
+          suspended_at?: string | null;
+          suspended_reason?: string | null;
+          updated_at?: string;
+          user_id?: string | null;
+          vehicle?: Database["public"]["Enums"]["vehicle_type"];
+        };
+        Relationships: [];
+      };
+    };
     Views: {
-      [_ in never]: never
-    }
+      [_ in never]: never;
+    };
     Functions: {
       /** Per-customer live aggregates, admin-checked inside (0061). */
       admin_customer_stats: {
-        Args: Record<PropertyKey, never>
+        Args: Record<PropertyKey, never>;
         Returns: {
-          id: string
-          user_id: string | null
-          name: string
-          email: string
-          phone: string | null
-          city: string
-          joined_at: string
-          archived_at: string | null
-          blocked_at: string | null
-          notes: string | null
-          orders_count: number
-          delivered_count: number
-          cancelled_count: number
-          failed_count: number
-          total_spend: number | null
-          avg_order_value: number | null
-          last_order_at: string | null
-        }[]
-      }
+          id: string;
+          user_id: string | null;
+          name: string;
+          email: string;
+          phone: string | null;
+          city: string;
+          joined_at: string;
+          archived_at: string | null;
+          blocked_at: string | null;
+          notes: string | null;
+          orders_count: number;
+          delivered_count: number;
+          cancelled_count: number;
+          failed_count: number;
+          total_spend: number | null;
+          avg_order_value: number | null;
+          last_order_at: string | null;
+        }[];
+      };
       /** Customer counts plus walk-in figures, admin-checked inside (0061). */
       admin_customer_stats_totals: {
-        Args: Record<PropertyKey, never>
+        Args: Record<PropertyKey, never>;
         Returns: {
-          total_customers: number
-          new_this_month: number
-          active_this_month: number
-          walk_in_orders: number
-          walk_in_spend: number
-        }[]
-      }
+          total_customers: number;
+          new_this_month: number;
+          active_this_month: number;
+          walk_in_orders: number;
+          walk_in_spend: number;
+        }[];
+      };
       /** Status mix, payment mix, addresses for one customer (0062). */
       admin_customer_summary: {
-        Args: { p_customer_user_id: string }
-        Returns: Json | null
-      }
+        Args: { p_customer_user_id: string };
+        Returns: Json | null;
+      };
       admin_customer_update_contact: {
         Args: {
-          p_customer_id: string
-          p_name: string
-          p_phone: string
-          p_city: string
-          p_notes: string
-        }
-        Returns: undefined
-      }
+          p_customer_id: string;
+          p_name: string;
+          p_phone: string;
+          p_city: string;
+          p_notes: string;
+        };
+        Returns: undefined;
+      };
       admin_customer_set_blocked: {
-        Args: { p_customer_id: string; p_blocked: boolean }
-        Returns: undefined
-      }
+        Args: { p_customer_id: string; p_blocked: boolean };
+        Returns: undefined;
+      };
       admin_customer_set_archived: {
-        Args: { p_customer_id: string; p_archived: boolean }
-        Returns: undefined
-      }
+        Args: { p_customer_id: string; p_archived: boolean };
+        Returns: undefined;
+      };
       admin_dispatch_order: {
-        Args: { p_order_id: string; p_rider_ids?: string[] }
+        Args: { p_order_id: string; p_rider_ids?: string[] };
         Returns: {
-          offered_to: number
-          order_id: string
-        }[]
-      }
+          offered_to: number;
+          order_id: string;
+        }[];
+      };
       admin_add_rider_note: {
-        Args: { p_rider_id: string; p_body: string }
-        Returns: number
-      }
+        Args: { p_rider_id: string; p_body: string };
+        Returns: number;
+      };
       admin_rider_activity: {
-        Args: { p_rider_id: string }
+        Args: { p_rider_id: string };
         Returns: {
-          actor_email: string
-          changed_at: string
-          detail: Json | null
-          event: string
-          id: number
-        }[]
-      }
+          actor_email: string;
+          changed_at: string;
+          detail: Json | null;
+          event: string;
+          id: number;
+        }[];
+      };
       admin_rider_earnings_by_day: {
-        Args: { p_rider_id: string; p_from: string; p_to: string }
+        Args: { p_rider_id: string; p_from: string; p_to: string };
         Returns: {
-          amount: number
-          day: string
-          deliveries: number
-        }[]
-      }
+          amount: number;
+          day: string;
+          deliveries: number;
+        }[];
+      };
       admin_rider_payout_summary: {
-        Args: { p_rider_id: string }
+        Args: { p_rider_id: string };
         Returns: {
-          delivered_count: number
-          earned_today: number
-          earned_week: number
-          failed_count: number
-          first_earned_at: string | null
-          last_earned_at: string | null
-          lifetime: number
-          payout_count: number
-        }[]
-      }
+          delivered_count: number;
+          earned_today: number;
+          earned_week: number;
+          failed_count: number;
+          first_earned_at: string | null;
+          last_earned_at: string | null;
+          lifetime: number;
+          payout_count: number;
+        }[];
+      };
+      admin_disputed_payouts: {
+        Args: Record<PropertyKey, never>;
+        Returns: {
+          amount: number;
+          disputed_at: string | null;
+          dispute_reason: string | null;
+          order_id: string;
+          order_reference: string;
+          restaurant: string;
+          review_expires_at: string | null;
+          rider_id: string;
+          rider_name: string;
+        }[];
+      };
       admin_rider_payouts: {
-        Args: { p_rider_id: string; p_limit?: number }
+        Args: { p_rider_id: string; p_limit?: number };
         Returns: {
-          amount: number
-          earned_at: string
-          order_id: string
-          order_reference: string
-          payout_id: number
-          restaurant: string
-        }[]
-      }
+          amount: number;
+          // 0075: dispute window. Null before that migration is applied.
+          disputed_at: string | null;
+          dispute_reason: string | null;
+          earned_at: string;
+          order_id: string;
+          order_reference: string;
+          payout_id: number;
+          restaurant: string;
+          review_expires_at: string | null;
+          settlement_state: string;
+        }[];
+      };
       admin_rider_notes: {
-        Args: { p_rider_id: string }
+        Args: { p_rider_id: string };
         Returns: {
-          author_email: string
-          body: string
-          created_at: string
-          id: number
-        }[]
-      }
+          author_email: string;
+          body: string;
+          created_at: string;
+          id: number;
+        }[];
+      };
       admin_rider_overview: {
-        Args: never
+        Args: never;
         Returns: {
-          archived_at: string | null
-          city: string
-          current_order_id: string | null
-          current_order_reference: string | null
-          current_order_status: Database["public"]["Enums"]["order_status"] | null
-          delivered_count: number
-          deliveries: number
-          earnings: number
-          email: string
-          failed_count: number
-          name: string
-          phone: string
-          rating: number
-          rider_id: string
-          status: Database["public"]["Enums"]["rider_status"]
-          suspended_at: string | null
-          suspended_reason: string | null
-          updated_at: string
-          user_id: string | null
-          vehicle: Database["public"]["Enums"]["vehicle_type"]
-          week_earnings: number
-        }[]
-      }
+          archived_at: string | null;
+          city: string;
+          current_order_id: string | null;
+          current_order_reference: string | null;
+          current_order_status:
+            Database["public"]["Enums"]["order_status"] | null;
+          delivered_count: number;
+          deliveries: number;
+          earnings: number;
+          email: string;
+          failed_count: number;
+          name: string;
+          phone: string;
+          rating: number;
+          rider_id: string;
+          status: Database["public"]["Enums"]["rider_status"];
+          suspended_at: string | null;
+          suspended_reason: string | null;
+          updated_at: string;
+          user_id: string | null;
+          vehicle: Database["public"]["Enums"]["vehicle_type"];
+          week_earnings: number;
+        }[];
+      };
       admin_set_rider_suspended: {
-        Args: { p_rider_id: string; p_suspended: boolean; p_reason?: string }
-        Returns: undefined
-      }
+        Args: { p_rider_id: string; p_suspended: boolean; p_reason?: string };
+        Returns: undefined;
+      };
       available_jobs: {
-        Args: never
+        Args: never;
         Returns: {
-          city: string
-          delivery_address: string
-          expires_at: string
-          items: Json
-          order_id: string
-          payment: Database["public"]["Enums"]["payment_method"]
-          placed_at: string
-          reference: string
-          restaurant: string
-          total: number
-        }[]
-      }
+          city: string;
+          delivery_address: string;
+          expires_at: string;
+          items: Json;
+          order_id: string;
+          payment: Database["public"]["Enums"]["payment_method"];
+          placed_at: string;
+          reference: string;
+          restaurant: string;
+          total: number;
+        }[];
+      };
       claim_order: {
-        Args: { p_order_id: string }
+        Args: { p_order_id: string };
         Returns: {
-          delivery_address: string
-          items: Json
-          order_id: string
-          payment: Database["public"]["Enums"]["payment_method"]
-          placed_at: string
-          reference: string
-          restaurant: string
-          rider_payout: number
-          total: number
-        }[]
-      }
-      current_merchant_restaurant: { Args: never; Returns: string }
-      current_rider_id: { Args: never; Returns: string }
+          delivery_address: string;
+          items: Json;
+          order_id: string;
+          payment: Database["public"]["Enums"]["payment_method"];
+          placed_at: string;
+          reference: string;
+          restaurant: string;
+          rider_payout: number;
+          total: number;
+        }[];
+      };
+      current_merchant_restaurant: { Args: never; Returns: string };
+      current_rider_id: { Args: never; Returns: string };
       customer_place_order: {
         Args: {
-          p_delivery_address: string
-          p_items: Json
-          p_payment: Database["public"]["Enums"]["payment_method"]
-          p_restaurant_id: string
-        }
+          p_delivery_address: string;
+          p_items: Json;
+          p_payment: Database["public"]["Enums"]["payment_method"];
+          p_restaurant_id: string;
+        };
         Returns: {
-          order_id: string
-          reference: string
-          status: Database["public"]["Enums"]["order_status"]
-          total: number
-        }[]
-      }
+          order_id: string;
+          reference: string;
+          status: Database["public"]["Enums"]["order_status"];
+          total: number;
+        }[];
+      };
       decline_order: {
-        Args: { p_order_id: string; p_reason?: string }
-        Returns: undefined
-      }
+        Args: { p_order_id: string; p_reason?: string };
+        Returns: undefined;
+      };
       dispatch_riders: {
-        Args: never
+        Args: never;
         Returns: {
-          active_offers: number
-          city: string
-          claimed_today: number
-          deliveries: number
-          name: string
-          phone: string
-          rating: number
-          rider_id: string
-          status: Database["public"]["Enums"]["rider_status"]
-          vehicle: Database["public"]["Enums"]["vehicle_type"]
-        }[]
-      }
+          active_offers: number;
+          city: string;
+          claimed_today: number;
+          deliveries: number;
+          name: string;
+          phone: string;
+          rating: number;
+          rider_id: string;
+          status: Database["public"]["Enums"]["rider_status"];
+          vehicle: Database["public"]["Enums"]["vehicle_type"];
+        }[];
+      };
       dispatch_unassigned_orders: {
-        Args: never
+        Args: never;
         Returns: {
-          city: string
-          customer: string
-          declines: number
-          delivery_address: string
-          items: Json
-          live_offers: number
-          offers_made: number
-          online_riders_in_city: number
-          order_id: string
-          placed_at: string
-          reference: string
-          restaurant: string
-          restaurant_id: string
-          status: Database["public"]["Enums"]["order_status"]
-          total: number
-        }[]
-      }
-      expire_stale_offers: { Args: never; Returns: undefined }
+          city: string;
+          customer: string;
+          declines: number;
+          delivery_address: string;
+          items: Json;
+          live_offers: number;
+          offers_made: number;
+          online_riders_in_city: number;
+          order_id: string;
+          placed_at: string;
+          reference: string;
+          restaurant: string;
+          restaurant_id: string;
+          status: Database["public"]["Enums"]["order_status"];
+          total: number;
+        }[];
+      };
+      expire_stale_offers: { Args: never; Returns: undefined };
       fetch_rider_applications: {
-        Args: { p_status?: string }
+        Args: { p_status?: string };
         Returns: {
-          applicant_email: string
-          applicant_user_id: string
-          city: string
-          created_at: string
-          decision_note: string
-          full_name: string
-          government_id_ref: string
-          id: string
-          licence_ref: string
-          orcr_ref: string
-          phone: string
-          reviewed_at: string
-          status: Database["public"]["Enums"]["rider_application_status"]
-          vehicle: Database["public"]["Enums"]["vehicle_type"]
-          waiting_days: number
-        }[]
-      }
+          applicant_email: string;
+          applicant_user_id: string;
+          city: string;
+          created_at: string;
+          decision_note: string;
+          full_name: string;
+          government_id_ref: string;
+          id: string;
+          licence_ref: string;
+          orcr_ref: string;
+          phone: string;
+          reviewed_at: string;
+          status: Database["public"]["Enums"]["rider_application_status"];
+          vehicle: Database["public"]["Enums"]["vehicle_type"];
+          waiting_days: number;
+        }[];
+      };
       fetch_rider_offers: {
-        Args: never
+        Args: never;
         Returns: {
-          city: string
-          customer: string
-          delivery_address: string
-          expires_at: string
-          items: Json
-          offer_id: number
-          offered_at: string
-          order_id: string
-          order_status: Database["public"]["Enums"]["order_status"]
-          payout_per_delivery: number
-          reference: string
-          restaurant: string
-          rider_payout: number
-          total: number
-        }[]
-      }
+          city: string;
+          customer: string;
+          delivery_address: string;
+          expires_at: string;
+          items: Json;
+          offer_id: number;
+          offered_at: string;
+          order_id: string;
+          order_status: Database["public"]["Enums"]["order_status"];
+          payout_per_delivery: number;
+          reference: string;
+          restaurant: string;
+          rider_payout: number;
+          total: number;
+        }[];
+      };
       fetch_rider_orders_page: {
-        Args: { p_cursor?: string; p_limit?: number }
+        Args: { p_cursor?: string; p_limit?: number };
         Returns: {
-          customer: string
-          customer_phone: string
-          delivery_address: string
-          id: string
-          items: Json
-          next_cursor: string
-          payment: Database["public"]["Enums"]["payment_method"]
-          placed_at: string
-          reference: string
-          restaurant: string
-          rider_payout: number
-          status: Database["public"]["Enums"]["order_status"]
-          total: number
-        }[]
-      }
-      is_admin: { Args: never; Returns: boolean }
-      is_customer: { Args: never; Returns: boolean }
-      is_platform_admin: { Args: never; Returns: boolean }
-      mark_notifications_seen: { Args: never; Returns: string }
+          customer: string;
+          customer_phone: string;
+          delivery_address: string;
+          id: string;
+          items: Json;
+          next_cursor: string;
+          payment: Database["public"]["Enums"]["payment_method"];
+          placed_at: string;
+          reference: string;
+          restaurant: string;
+          rider_payout: number;
+          status: Database["public"]["Enums"]["order_status"];
+          total: number;
+        }[];
+      };
+      is_admin: { Args: never; Returns: boolean };
+      is_customer: { Args: never; Returns: boolean };
+      is_platform_admin: { Args: never; Returns: boolean };
+      mark_notifications_seen: { Args: never; Returns: string };
       merchant_access_list: {
-        Args: never
+        Args: never;
         Returns: {
-          created_at: string
-          email: string
-          restaurant_id: string
-          restaurant_name: string
-          role: Database["public"]["Enums"]["app_role"]
-          user_id: string
-        }[]
-      }
-      mint_order_reference: { Args: never; Returns: string }
+          created_at: string;
+          email: string;
+          restaurant_id: string;
+          restaurant_name: string;
+          role: Database["public"]["Enums"]["app_role"];
+          user_id: string;
+        }[];
+      };
+      mint_order_reference: { Args: never; Returns: string };
       my_rider_application: {
-        Args: never
+        Args: never;
         Returns: {
-          city: string
-          created_at: string
-          decision_note: string
-          full_name: string
-          government_id_ref: string
-          id: string
-          licence_ref: string
-          orcr_ref: string
-          phone: string
-          reviewed_at: string
-          status: Database["public"]["Enums"]["rider_application_status"]
-          vehicle: Database["public"]["Enums"]["vehicle_type"]
-        }[]
-      }
-      next_rider_id: { Args: never; Returns: string }
+          city: string;
+          created_at: string;
+          decision_note: string;
+          full_name: string;
+          government_id_ref: string;
+          id: string;
+          licence_ref: string;
+          orcr_ref: string;
+          phone: string;
+          reviewed_at: string;
+          status: Database["public"]["Enums"]["rider_application_status"];
+          vehicle: Database["public"]["Enums"]["vehicle_type"];
+        }[];
+      };
+      next_rider_id: { Args: never; Returns: string };
       order_fees: {
-        Args: never
+        Args: never;
         Returns: {
-          delivery_fee: number
-          service_fee: number
-        }[]
-      }
+          delivery_fee: number;
+          service_fee: number;
+        }[];
+      };
       quote_order: {
-        Args: { p_items: Json; p_restaurant_id: string }
+        Args: { p_items: Json; p_restaurant_id: string };
         Returns: {
-          delivery_fee: number
-          service_fee: number
-          subtotal: number
-          total: number
-        }[]
-      }
+          delivery_fee: number;
+          service_fee: number;
+          subtotal: number;
+          total: number;
+        }[];
+      };
       refresh_restaurant_aggregates: {
-        Args: { p_ids: string[] }
-        Returns: undefined
-      }
-      register_customer: { Args: never; Returns: undefined }
+        Args: { p_ids: string[] };
+        Returns: undefined;
+      };
+      register_customer: { Args: never; Returns: undefined };
       review_rider_application: {
-        Args: { p_application_id: string; p_approve: boolean; p_note?: string }
-        Returns: string
-      }
-      revoke_merchant_access: { Args: { p_email: string }; Returns: undefined }
-      revoke_rider_access: { Args: { p_email: string }; Returns: undefined }
+        Args: { p_application_id: string; p_approve: boolean; p_note?: string };
+        Returns: string;
+      };
+      revoke_merchant_access: { Args: { p_email: string }; Returns: undefined };
+      revoke_rider_access: { Args: { p_email: string }; Returns: undefined };
       rider_access_list: {
-        Args: never
+        Args: never;
         Returns: {
-          archived_at: string
-          email: string
-          rider_id: string
-          rider_name: string
-          user_id: string
-        }[]
-      }
-      rider_earned_on: { Args: { p_at: string }; Returns: string }
+          archived_at: string;
+          email: string;
+          rider_id: string;
+          rider_name: string;
+          user_id: string;
+        }[];
+      };
+      rider_earned_on: { Args: { p_at: string }; Returns: string };
       rider_earnings_summary: {
-        Args: never
+        Args: never;
         Returns: {
-          delivery_count: number
-          earned_today: number
-          earned_week: number
-          first_earned_at: string
-          last_earned_at: string
-          lifetime: number
-        }[]
-      }
-      rider_mark_delivered: { Args: { p_order_id: string }; Returns: undefined }
+          delivery_count: number;
+          earned_today: number;
+          earned_week: number;
+          first_earned_at: string;
+          last_earned_at: string;
+          lifetime: number;
+        }[];
+      };
+      rider_mark_delivered: {
+        Args: { p_order_id: string };
+        Returns: undefined;
+      };
+      report_delivery_issue: {
+        Args: { p_reference: string; p_reason: string };
+        Returns: {
+          order_id: string;
+          reference: string;
+          state: string;
+        }[];
+      };
+      resolve_delivery_issue: {
+        Args: { p_order_id: string; p_action: string; p_note?: string | null };
+        Returns: {
+          order_id: string;
+          reference: string;
+          state: string;
+        }[];
+      };
+      rider_settle_expired_payouts: {
+        Args: Record<PropertyKey, never>;
+        Returns: number[];
+      };
       rider_payout_history: {
-        Args: { p_limit?: number }
+        Args: { p_limit?: number };
         Returns: {
-          amount: number
-          earned_at: string
-          has_more: boolean
-          order_id: string
-          order_reference: string
-          restaurant: string
-        }[]
-      }
-      rider_payout_per_delivery: { Args: never; Returns: number }
+          amount: number;
+          earned_at: string;
+          has_more: boolean;
+          order_id: string;
+          order_reference: string;
+          restaurant: string;
+          // 0075: absent before that migration is applied.
+          settlement_state?: string;
+        }[];
+      };
+      rider_payout_per_delivery: { Args: never; Returns: number };
       rider_report_failed_delivery: {
-        Args: { p_order_id: string; p_reason: string }
+        Args: { p_order_id: string; p_reason: string };
         Returns: {
-          order_id: string
-          reference: string
-          status: Database["public"]["Enums"]["order_status"]
-        }[]
-      }
-      rider_set_status: { Args: { p_status: string }; Returns: undefined }
+          order_id: string;
+          reference: string;
+          status: Database["public"]["Enums"]["order_status"];
+        }[];
+      };
+      rider_set_status: { Args: { p_status: string }; Returns: undefined };
       search_restaurants: {
-        Args: { p_cuisine?: string; p_query?: string }
+        Args: { p_cuisine?: string; p_query?: string };
         Returns: {
-          archived_at: string
-          city: string
-          cuisine: string
-          id: string
-          name: string
-          rating: number
-          status: Database["public"]["Enums"]["restaurant_status"]
-        }[]
-      }
+          archived_at: string;
+          city: string;
+          cuisine: string;
+          id: string;
+          name: string;
+          rating: number;
+          status: Database["public"]["Enums"]["restaurant_status"];
+        }[];
+      };
       set_merchant_access: {
-        Args: { p_email: string; p_restaurant_id: string }
-        Returns: string
-      }
+        Args: { p_email: string; p_restaurant_id: string };
+        Returns: string;
+      };
       set_rider_access: {
-        Args: { p_email: string; p_rider_id: string }
-        Returns: string
-      }
+        Args: { p_email: string; p_rider_id: string };
+        Returns: string;
+      };
       submit_lead: {
         Args: {
-          p_consent?: boolean
-          p_contact: string
-          p_kind: string
-          p_name: string
-          p_note?: string
-        }
-        Returns: undefined
-      }
+          p_consent?: boolean;
+          p_contact: string;
+          p_kind: string;
+          p_name: string;
+          p_note?: string;
+        };
+        Returns: undefined;
+      };
       submit_rider_application: {
         Args: {
-          p_city?: string
-          p_full_name: string
-          p_government_id_ref?: string
-          p_licence_ref?: string
-          p_orcr_ref?: string
-          p_phone: string
-          p_vehicle?: Database["public"]["Enums"]["vehicle_type"]
-        }
-        Returns: string
-      }
+          p_city?: string;
+          p_full_name: string;
+          p_government_id_ref?: string;
+          p_licence_ref?: string;
+          p_orcr_ref?: string;
+          p_phone: string;
+          p_vehicle?: Database["public"]["Enums"]["vehicle_type"];
+        };
+        Returns: string;
+      };
       track_order: {
-        Args: { p_reference: string }
+        Args: { p_reference: string };
         Returns: {
-          delivery_fee: number
-          items: Json
-          payment: Database["public"]["Enums"]["payment_method"]
-          placed_at: string
-          reference: string
-          restaurant: string
-          status: Database["public"]["Enums"]["order_status"]
-          subtotal: number
-          total: number
-        }[]
-      }
-    }
+          delivery_fee: number;
+          items: Json;
+          payment: Database["public"]["Enums"]["payment_method"];
+          placed_at: string;
+          reference: string;
+          restaurant: string;
+          status: Database["public"]["Enums"]["order_status"];
+          subtotal: number;
+          total: number;
+        }[];
+      };
+    };
     Enums: {
-      app_role: "admin" | "merchant" | "rider" | "customer"
-      offer_status: "offered" | "claimed" | "declined" | "expired"
+      app_role: "admin" | "merchant" | "rider" | "customer";
+      offer_status: "offered" | "claimed" | "declined" | "expired";
       order_status:
         | "pending"
         | "confirmed"
         | "preparing"
         | "out_for_delivery"
         | "delivered"
-        | "cancelled"
-      payment_method: "cash" | "card" | "e_wallet"
-      restaurant_status: "active" | "approval" | "suspended"
-      rider_application_status: "pending" | "approved" | "rejected"
-      rider_status: "online" | "busy" | "offline"
-      vehicle_type: "bicycle" | "scooter" | "motorcycle" | "car"
-    }
+        | "cancelled";
+      payment_method: "cash" | "card" | "e_wallet";
+      restaurant_status: "active" | "approval" | "suspended";
+      rider_application_status: "pending" | "approved" | "rejected";
+      rider_status: "online" | "busy" | "offline";
+      vehicle_type: "bicycle" | "scooter" | "motorcycle" | "car";
+    };
     CompositeTypes: {
-      [_ in never]: never
-    }
-  }
-}
+      [_ in never]: never;
+    };
+  };
+};
 
-type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">;
 
-type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
+type DefaultSchema = DatabaseWithoutInternals[Extract<
+  keyof Database,
+  "public"
+>];
 
 export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
   TableName extends (DefaultSchemaTableNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
+    schema: keyof DatabaseWithoutInternals;
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
     : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
+  schema: keyof DatabaseWithoutInternals;
 }
   ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
       DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
-      Row: infer R
+      Row: infer R;
     }
     ? R
     : never
@@ -1113,95 +1161,92 @@ export type Tables<
         DefaultSchema["Views"])
     ? (DefaultSchema["Tables"] &
         DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
-        Row: infer R
+        Row: infer R;
       }
       ? R
       : never
-    : never
+    : never;
 
 export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
-    | keyof DefaultSchema["Tables"]
-    | { schema: keyof DatabaseWithoutInternals },
+    keyof DefaultSchema["Tables"] | { schema: keyof DatabaseWithoutInternals },
   TableName extends (DefaultSchemaTableNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
+    schema: keyof DatabaseWithoutInternals;
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
     : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
+  schema: keyof DatabaseWithoutInternals;
 }
   ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
-      Insert: infer I
+      Insert: infer I;
     }
     ? I
     : never
   : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
     ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
-        Insert: infer I
+        Insert: infer I;
       }
       ? I
       : never
-    : never
+    : never;
 
 export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
-    | keyof DefaultSchema["Tables"]
-    | { schema: keyof DatabaseWithoutInternals },
+    keyof DefaultSchema["Tables"] | { schema: keyof DatabaseWithoutInternals },
   TableName extends (DefaultSchemaTableNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
+    schema: keyof DatabaseWithoutInternals;
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
     : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
+  schema: keyof DatabaseWithoutInternals;
 }
   ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
-      Update: infer U
+      Update: infer U;
     }
     ? U
     : never
   : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
     ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
-        Update: infer U
+        Update: infer U;
       }
       ? U
       : never
-    : never
+    : never;
 
 export type Enums<
   DefaultSchemaEnumNameOrOptions extends
-    | keyof DefaultSchema["Enums"]
-    | { schema: keyof DatabaseWithoutInternals },
+    keyof DefaultSchema["Enums"] | { schema: keyof DatabaseWithoutInternals },
   EnumName extends (DefaultSchemaEnumNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
+    schema: keyof DatabaseWithoutInternals;
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
     : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
+  schema: keyof DatabaseWithoutInternals;
 }
   ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
   : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
     ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
-    : never
+    : never;
 
 export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
   CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
-    schema: keyof DatabaseWithoutInternals
+    schema: keyof DatabaseWithoutInternals;
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
     : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
-  schema: keyof DatabaseWithoutInternals
+  schema: keyof DatabaseWithoutInternals;
 }
   ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
   : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
     ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
-    : never
+    : never;
 
 export const Constants = {
   public: {
@@ -1223,4 +1268,4 @@ export const Constants = {
       vehicle_type: ["bicycle", "scooter", "motorcycle", "car"],
     },
   },
-} as const
+} as const;

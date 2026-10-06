@@ -243,6 +243,68 @@ jobs:
 
               print("::notice::%s parses and runs." % os.path.basename(path))
 
+          # --- Dispute window (0075) --------------------------------------
+          # Two failures specific to the recovery feature, both silent:
+          #   * a reversed payout still counted in earnings, so the rider's app
+          #     and the admin dashboard would show different totals for the same
+          #     rider -- the exact thing the checks below exist to prevent, which
+          #     is why 0075 excluded reversed rows in both RPCs rather than
+          #     trusting a UI to filter them
+          #   * a dispute still open after its window closed, which means no
+          #     sweep ran and a row is sitting in the one state an operator has
+          #     to act on
+          #
+          # The earnings check below compares against the reversed-aware sum; if
+          # 0075 widened a function and missed one, these two disagree and CI
+          # fails rather than the disagreement reaching a rider's bank statement.
+          if query(
+              "select exists (select 1 from information_schema.columns "
+              "where table_schema='public' and table_name='rider_payouts' "
+              "and column_name='settlement_state') as ok"
+          )[0]["ok"]:
+              stale_disputes = query(
+                  "select count(*) as n from public.rider_payouts "
+                  "where settlement_state = 'disputed' "
+                  "and review_expires_at is not null "
+                  "and review_expires_at <= now()"
+              )[0]["n"]
+              if stale_disputes:
+                  failures.append(
+                      "%d disputed payout(s) are past their review window. "
+                      "The rider cannot be paid or clawed back until an admin "
+                      "calls rider_settle_expired_payouts() or "
+                      "resolve_delivery_issue()." % stale_disputes
+                  )
+
+              # No reversed row may still be inside a window someone could
+              # dispute: it is a terminal state, and leaving review_expires_at
+              # in the future would let a second dispute be raised against a
+              # payout that has already been clawed back.
+              reversible_reversed = query(
+                  "select count(*) as n from public.rider_payouts "
+                  "where settlement_state = 'reversed' "
+                  "and review_expires_at is not null "
+                  "and review_expires_at > now()"
+              )[0]["n"]
+              if reversible_reversed:
+                  failures.append(
+                      "%d reversed payout(s) still carry a future review window; "
+                      "a terminal state must not be disputable" % reversible_reversed
+                  )
+
+              # Every payout must carry an expiry, or it can never be disputed
+              # and the recovery path is silently dead for that row.
+              missing_expiry = query(
+                  "select count(*) as n from public.rider_payouts "
+                  "where review_expires_at is null"
+              )[0]["n"]
+              if missing_expiry:
+                  failures.append(
+                      "%d payout(s) have no review_expires_at; they can never be "
+                      "disputed and the 24h window does not apply to them"
+                      % missing_expiry
+                  )
+
           # --- Rider money invariants -------------------------------------
           # These exist because of a shipped defect, not a hypothetical. 0050
           # rebuilt claim_order from a stale body and silently dropped the
