@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import {
@@ -10,28 +9,25 @@ import {
   reviewRiderApplication,
   revokeRiderAccess,
   setRiderAccess,
-  setRiderArchived,
-  setRiderStatus,
   setRiderSuspended,
   createRider,
   type RiderAccess,
   type RiderApplication,
 } from "@/lib/supabase/queries";
-import { formatCurrency } from "@/lib/format";
 import { PageContainer, PageHeader, Section } from "@/components/layout/page";
-import { Avatar } from "@/components/ui/avatar";
+import { PlusIcon } from "@/components/ui/icons";
 import { Badge } from "@/components/ui/badge";
-import { StatusBadge } from "@/components/ui/status-badge";
+import { Select } from "@/components/ui/select";
+import {
+  RiderInsightPanels,
+  RiderSummaryCards,
+} from "@/components/rider/rider-summary";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/status";
 import { PaginatedDataTable } from "@/components/ui/paginated-data-table";
-import { EntityDialog, type DialogField } from "@/components/ui/entity-dialog";
-import { ArchiveButton } from "@/components/ui/archive-button";
+import { EntityDialog } from "@/components/ui/entity-dialog";
 import { Button } from "@/components/ui/button";
-import { Select } from "@/components/ui/select";
 import { Label } from "@/components/ui/field";
-import { PlusIcon, LinkIcon } from "@/components/ui/icons";
-import type { Column } from "@/components/ui/data-table";
 import { useAsyncData } from "@/lib/use-async-data";
 import { TableBoundary } from "@/components/ui/table-boundary";
 import type { Rider, RiderOverview } from "@/lib/types";
@@ -42,44 +38,19 @@ import {
   matchesRiderFacets,
   type RiderFilter,
 } from "@/lib/rider-list-params";
-import { riderFlags } from "@/lib/rider-flags";
-import {
-  friendlyRiderSaveError,
-  validateRiderFields,
-  type RiderFieldError,
-} from "@/lib/rider-validation";
-import {
-  ContactShortcuts,
-  RiderFlagBadges,
-  SuspendedBadge,
-} from "@/components/rider/rider-row-bits";
-import {
-  RiderInsightPanels,
-  RiderSummaryCards,
-  flagsInput,
-} from "@/components/rider/rider-summary";
+import { friendlyRiderSaveError } from "@/lib/rider-validation";
 import { SuspendRiderDialog } from "@/components/rider/suspend-rider-dialog";
 import { useRiderAction } from "@/components/rider/use-rider-action";
 import { RevokeRiderDialog } from "@/components/riders/revoke-rider-dialog";
+import { RiderMobileCard } from "@/components/riders/rider-mobile-card";
+import { buildRiderColumns } from "@/components/riders/rider-columns";
+import { buildApplicationColumns } from "@/components/riders/application-columns";
+import { RiderFormDialog } from "@/components/riders/add-rider-dialog";
 import { ReviewApplicationDialog } from "@/components/riders/review-application-dialog";
-import { formatWaiting, isWaitingTooLong } from "@/lib/rider-applications";
 
 /** Keys for useRiderAction, so two rows never share a pending state. */
 const statusKey = (riderId: string) => `status:${riderId}`;
 const archiveKey = (riderId: string) => `archive:${riderId}`;
-
-const FIELDS: DialogField[] = [
-  { key: "name", label: "Name", required: true },
-  { key: "email", label: "Email", required: true },
-  { key: "phone", label: "Phone" },
-  { key: "city", label: "City" },
-  {
-    key: "vehicle",
-    label: "Vehicle",
-    options: ["bicycle", "scooter", "motorcycle", "car"],
-  },
-  { key: "status", label: "Status", options: ["online", "busy", "offline"] },
-];
 
 type Mode =
   | { kind: "reassign"; row: RiderAccess }
@@ -147,6 +118,24 @@ export default function RidersPage() {
   const accountByRiderId = new Map(
     (access.data ?? []).map((row) => [row.riderId, row]),
   );
+  const riderColumns = buildRiderColumns({
+    onSuspend: (rider) => setMode({ kind: "suspend", rider }),
+    onReinstate: (rider) => setMode({ kind: "reinstate", rider }),
+    onAttach: (row) => setMode({ kind: "reassign", row }),
+    onRevoke: (row) => setMode({ kind: "revoke", row }),
+    onChanged: async () => {
+      await overview.refetch();
+      await access.refetch();
+    },
+    accounts: accountByRiderId,
+    isPending: action.isPending,
+    statusKey,
+    archiveKey,
+    runAction: action.run,
+  });
+  const applicationColumns = buildApplicationColumns((row) =>
+    setMode({ kind: "review", row }),
+  );
   const cities = facetValues(allRiders, "city");
   const vehicles = facetValues(allRiders, "vehicle");
 
@@ -182,234 +171,6 @@ export default function RidersPage() {
       ),
     );
 
-  const riderColumns: Column<RiderOverview>[] = [
-    {
-      key: "name",
-      header: "Rider",
-      cell: (row) => (
-        <span className="flex items-center gap-2.5">
-          <Avatar name={row.name} size="sm" />
-          <span className="min-w-0">
-            <span className="block font-medium text-card-foreground">
-              {row.name}
-            </span>
-            <span className="block truncate text-xs text-muted-foreground">
-              {row.email || "No email on file"}
-            </span>
-          </span>
-          {row.archivedAt ? (
-            <Badge variant="secondary" size="sm">
-              Archived
-            </Badge>
-          ) : null}
-          <SuspendedBadge
-            suspendedAt={row.suspendedAt ?? null}
-            reason={row.suspendedReason ?? null}
-          />
-        </span>
-      ),
-    },
-    { key: "city", header: "City", cell: (row) => row.city },
-    {
-      key: "vehicle",
-      header: "Vehicle",
-      cell: (row) => (
-        <Badge variant="secondary" size="sm">
-          {row.vehicle}
-        </Badge>
-      ),
-    },
-    {
-      key: "current_order_reference",
-      header: "Current job",
-      cell: (row) =>
-        row.currentOrderReference ? (
-          <Link
-            href={`/dashboard/orders?order=${row.currentOrderReference}`}
-            className="inline-flex items-center gap-1 text-sm text-card-foreground underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <LinkIcon className="h-3.5 w-3.5" />
-            {row.currentOrderReference}
-          </Link>
-        ) : (
-          <span className="text-muted-foreground">Idle</span>
-        ),
-    },
-    {
-      key: "deliveries",
-      header: "Deliveries",
-      align: "right",
-      // deliveredCount, not riders.deliveries. That column is a counter the
-      // schema increments but never reset when the payout ledger replaced it in
-      // 0038, so it still carries pre-ledger history and disagrees with the
-      // rider's own Earnings tab. delivered_count counts delivered orders, which
-      // is also what /dashboard/riders/[id] reports.
-      cell: (row) => (
-        <span className="text-card-foreground">{row.deliveredCount}</span>
-      ),
-    },
-    {
-      key: "rating",
-      header: "Rating",
-      align: "right",
-      cell: (row) => <span className="text-card-foreground">{row.rating} ★</span>,
-    },
-    {
-      key: "week_earnings",
-      header: "This week",
-      align: "right",
-      cell: (row) => (
-        <span className="font-medium text-card-foreground">
-          {formatCurrency(row.weekEarnings)}
-        </span>
-      ),
-    },
-    {
-      key: "earnings",
-      header: "Total earned",
-      align: "right",
-      // riders.earnings is maintained by rider_mark_delivered in the same
-      // statement that writes the ledger row, and 0038 reconciled it to the
-      // ledger sum -- so it is ledger-consistent and safe to read here. It is
-      // still the denormalised column, not a live sum.
-      cell: (row) => (
-        <span className="font-medium text-card-foreground">
-          {formatCurrency(row.earnings)}
-        </span>
-      ),
-    },
-    {
-      key: "flags",
-      header: "Flags",
-      cell: (row) => (
-        <RiderFlagBadges flags={riderFlags(flagsInput(row))} riderName={row.name} />
-      ),
-    },
-    {
-      key: "status",
-      header: "Status",
-      cell: (row) =>
-        row.archivedAt || row.suspendedAt ? (
-          <span className="text-muted-foreground">
-            {row.archivedAt ? "Archived" : "Suspended"}
-          </span>
-        ) : (
-          <Select
-            value={row.status}
-            aria-label={`Set status for ${row.name}`}
-            className="h-8 w-32"
-            disabled={action.isPending(statusKey(row.id))}
-            onClick={(e) => e.stopPropagation()}
-            onChange={(e) => {
-              const next = e.target.value as Rider["status"];
-              void action.run(statusKey(row.id), async () => {
-                await setRiderStatus(row.id, next);
-                await overview.refetch();
-              });
-            }}
-          >
-            <option value="online">Online</option>
-            {/* admin_dispatch_order inserts offers only where status = 'online',
-                so "Busy" takes a rider out of dispatch exactly as "Offline"
-                does. It is kept because it is a valid rider self-declaration
-                (rider_set_status accepts it) and the distinction is meaningful to
-                a dispatcher, but it is not a separate dispatch state and the
-                label says so rather than implying one. */}
-            <option value="busy">Busy — not offered work</option>
-            <option value="offline">Offline — not offered work</option>
-          </Select>
-        ),
-    },
-    {
-      // The account the rider signs in with, and whether they have one at all.
-      // This replaces the standalone "Rider access" table, which listed the same
-      // rows as the fleet list with the same attach/revoke buttons -- so every
-      // rider appeared twice on one page with two ways to change the same thing.
-      key: "account",
-      header: "Account",
-      cell: (row) => {
-        const linked = accountByRiderId.get(row.id);
-        if (!linked) {
-          return (
-            <span className="text-muted-foreground">
-              No account — cannot sign in
-            </span>
-          );
-        }
-        return (
-          <span className="flex flex-col items-start gap-1">
-            <span className="text-card-foreground">{linked.email}</span>
-            <span className="flex gap-1.5">
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setMode({ kind: "reassign", row: linked });
-                }}
-              >
-                {linked.userId ? "Reassign" : "Attach"}
-              </Button>
-              {linked.userId ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setMode({ kind: "revoke", row: linked });
-                  }}
-                >
-                  Revoke
-                </Button>
-              ) : null}
-            </span>
-          </span>
-        );
-      },
-    },
-    {
-      key: "actions",
-      header: "",
-      align: "right",
-      cell: (row) => (
-        <span className="flex justify-end gap-2">
-          {row.suspendedAt ? (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={(e) => {
-                e.stopPropagation();
-                setMode({ kind: "reinstate", rider: row });
-              }}
-            >
-              Reinstate
-            </Button>
-          ) : (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={(e) => {
-                e.stopPropagation();
-                setMode({ kind: "suspend", rider: row });
-              }}
-            >
-              Suspend
-            </Button>
-          )}
-          <ArchiveButton
-            name={row.name}
-            archived={Boolean(row.archivedAt)}
-            onChange={(archived) =>
-              action.run(archiveKey(row.id), async () => {
-                await setRiderArchived(row.id, archived);
-                await overview.refetch();
-              }, { rethrow: true }).then(() => undefined)
-            }
-          />
-        </span>
-      ),
-    },
-  ];
 
 
   const allApplications = applications.data ?? [];
@@ -418,138 +179,6 @@ export default function RidersPage() {
     (a) => applicationFilter === "all" || a.status === applicationFilter,
   );
 
-  const applicationColumns: Column<RiderApplication>[] = [
-    {
-      key: "fullName",
-      header: "Applicant",
-      cell: (row) => (
-        <span className="flex items-center gap-2.5">
-          <Avatar name={row.fullName} size="sm" />
-          <span>
-            <span className="block font-medium text-card-foreground">
-              {row.fullName}
-            </span>
-            <span className="block text-xs text-muted-foreground">
-              {row.applicantEmail}
-            </span>
-          </span>
-        </span>
-      ),
-    },
-    {
-      key: "vehicle",
-      header: "Vehicle",
-      cell: (row) => (
-        <span className="text-card-foreground">
-          {row.vehicle} · {row.city}
-        </span>
-      ),
-    },
-    {
-      key: "phone",
-      header: "Phone",
-      cell: (row) => <span className="text-card-foreground">{row.phone}</span>,
-    },
-    {
-      key: "waitingDays",
-      header: "Waiting",
-      align: "right",
-      // Oldest first. The SQL already orders that way, but reviewed rows carry
-      // waiting_days 0 and pending rows do not, so the queue is re-sorted on the
-      // number the column actually shows.
-      cell: (row) => {
-        if (row.status !== "pending") {
-          return <span className="text-muted-foreground">—</span>;
-        }
-        const overdue = isWaitingTooLong(row.waitingDays);
-        return (
-          <span
-            className={overdue ? "font-medium text-destructive" : undefined}
-          >
-            {formatWaiting(row.createdAt)}
-          </span>
-        );
-      },
-    },
-    {
-      key: "documents",
-      header: "Documents",
-      cell: (row) => {
-        const supplied = [
-          ["Licence", row.licenceRef],
-          ["ORCR", row.orcrRef],
-          ["ID", row.governmentIdRef],
-        ].filter(([, ref]) => ref);
-        return (
-          <span className="text-muted-foreground">
-            {supplied.length === 3
-              ? "All 3 supplied"
-              : supplied.length > 0
-                ? `${supplied.length} of 3 supplied`
-                : "None supplied"}
-          </span>
-        );
-      },
-    },
-    {
-      key: "status",
-      header: "Status",
-      cell: (row) => (
-        <span className="flex flex-col items-start gap-1">
-          <StatusBadge status={row.status} />
-          {row.decisionNote ? (
-            <span className="max-w-56 truncate text-xs text-muted-foreground">
-              {firstLine(row.decisionNote)}
-            </span>
-          ) : null}
-        </span>
-      ),
-    },
-    {
-      // Who decided. Null while pending, and "(deleted account)" if the
-      // reviewer's auth row is gone -- both read differently from a blank cell,
-      // which would say nobody reviewed it.
-      key: "reviewerEmail",
-      header: "Reviewed by",
-      cell: (row) =>
-        row.reviewerEmail ? (
-          <span className="text-card-foreground">{row.reviewerEmail}</span>
-        ) : (
-          <span className="text-muted-foreground">—</span>
-        ),
-    },
-    {
-      key: "reviewedAt",
-      header: "Reviewed",
-      cell: (row) =>
-        row.reviewedAt ? (
-          <span className="whitespace-nowrap text-muted-foreground">
-            {new Date(row.reviewedAt).toLocaleDateString()}
-          </span>
-        ) : (
-          <span className="text-muted-foreground">—</span>
-        ),
-    },
-    {
-      key: "actions",
-      header: "",
-      align: "right",
-      cell: (row) =>
-        row.status === "pending" ? (
-          <Button size="sm" onClick={() => setMode({ kind: "review", row })}>
-            Review
-          </Button>
-        ) : (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setMode({ kind: "review", row })}
-          >
-            View
-          </Button>
-        ),
-    },
-  ];
 
   return (
     <PageContainer>
@@ -906,144 +535,4 @@ export default function RidersPage() {
     </PageContainer>
   );
 }
-
-function firstLine(text: string): string {
-  return text.split("\n")[0];
-}
-
-/** Card layout below `md`, where the table would scroll horizontally. */
-function RiderMobileCard({ rider }: { rider: RiderOverview }) {
-  return (
-    <div className="flex flex-col gap-2">
-      <div className="flex items-start justify-between gap-3">
-        <span className="flex min-w-0 items-center gap-2">
-          <Avatar name={rider.name} size="sm" />
-          <span className="min-w-0">
-            <span className="block font-medium text-card-foreground">
-              {rider.name}
-            </span>
-            <span className="block truncate text-xs text-muted-foreground">
-              {rider.email || "No email on file"}
-            </span>
-          </span>
-        </span>
-        <StatusBadge status={rider.status} />
-      </div>
-
-      <div className="flex flex-wrap gap-1.5">
-        {rider.archivedAt ? (
-          <Badge variant="secondary" size="sm">
-            Archived
-          </Badge>
-        ) : null}
-        <SuspendedBadge
-          suspendedAt={rider.suspendedAt ?? null}
-          reason={rider.suspendedReason ?? null}
-        />
-        <Badge variant="secondary" size="sm">
-          {rider.vehicle}
-        </Badge>
-        <span className="text-xs text-muted-foreground">{rider.city}</span>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-        {rider.currentOrderReference ? (
-          <Link
-            href={`/dashboard/orders?order=${rider.currentOrderReference}`}
-            className="inline-flex items-center gap-1 text-card-foreground underline-offset-2 hover:underline"
-          >
-            <LinkIcon className="h-3.5 w-3.5" />
-            {rider.currentOrderReference}
-          </Link>
-        ) : (
-          <span>Idle</span>
-        )}
-        <span>{rider.deliveredCount} deliveries</span>
-        <span>{rider.rating} ★</span>
-        <span>Week {formatCurrency(rider.weekEarnings)}</span>
-        <span>Total {formatCurrency(rider.earnings)}</span>
-      </div>
-
-      <RiderFlagBadges flags={riderFlags(flagsInput(rider))} riderName={rider.name} />
-
-      <div className="flex flex-wrap gap-2 pt-1">
-        <ContactShortcuts
-          name={rider.name}
-          phone={rider.phone}
-          email={rider.email}
-        />
-        {rider.suspendedAt ? (
-          <Button variant="outline" size="sm">
-            Reinstate
-          </Button>
-        ) : (
-          <Button variant="outline" size="sm">
-            Suspend
-          </Button>
-        )}
-      </div>
-    </div>
-  );
-}
-
-/**
- * Add/edit form.
- *
- * EntityDialog owns the field layout and only checks `required`, so the real
- * rules -- PH mobile shape, email shape, duplicate email -- are validated on
- * submit and reported per field. They run before the request rather than being
- * left to the database, because a duplicate email otherwise surfaces as a 23505
- * after the admin has finished typing.
- */
-function RiderFormDialog({
-  existingEmails,
-  onClose,
-  onSave,
-}: {
-  existingEmails: readonly string[];
-  onClose: () => void;
-  onSave: (values: Record<string, string>) => Promise<void>;
-}) {
-  return (
-    <EntityDialog
-      open
-      title="Add Rider"
-      description="Email and phone are how dispatch reaches this rider. Both are required."
-      fields={FIELDS}
-      initial={{ city: "", vehicle: "scooter", status: "offline" }}
-      onClose={onClose}
-      onSave={async (values) => {
-        // EntityDialog catches and displays a thrown message, so every rule is
-        // reported at once rather than one round-trip per field.
-        const found = validateRiderFields(
-          {
-            name: values.name ?? "",
-            email: values.email ?? "",
-            phone: values.phone ?? "",
-            city: values.city ?? "",
-          },
-          existingEmails,
-        );
-        if (found.length > 0) {
-          throw new Error(
-            found
-              .map((error) => `${labelFor(error)}: ${error.message}`)
-              .join(" "),
-          );
-        }
-        await onSave(values);
-      }}
-    />
-  );
-}
-
-function labelFor(error: RiderFieldError): string {
-  return FIELDS.find((field) => field.key === error.field)?.label ?? error.field;
-}
-
-
-
-
-
-
 

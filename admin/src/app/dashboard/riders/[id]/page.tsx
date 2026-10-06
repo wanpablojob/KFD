@@ -40,10 +40,7 @@ import { Label } from "@/components/ui/field";
 import { ArrowLeftIcon } from "@/components/ui/icons";
 import { useAsyncData } from "@/lib/use-async-data";
 import { TableBoundary } from "@/components/ui/table-boundary";
-import type { Column } from "@/components/ui/data-table";
 import type { Rider } from "@/lib/types";
-import type { RiderPayout } from "@/lib/rider-ledger";
-import type { RiderDelivery } from "@/lib/rider-orders";
 import { riderFlags } from "@/lib/rider-flags";
 import { friendlyRiderSaveError } from "@/lib/rider-validation";
 import { describeEvent, sortActivity } from "@/lib/rider-activity";
@@ -56,104 +53,13 @@ import {
 } from "@/components/rider/rider-row-bits";
 import { SuspendRiderDialog } from "@/components/rider/suspend-rider-dialog";
 import { EditRiderDialog } from "@/components/rider/edit-rider-dialog";
+import { deliveryColumns } from "@/components/riders/delivery-columns";
+import { payoutColumns } from "@/components/riders/payout-columns";
 import { EntityDialog } from "@/components/ui/entity-dialog";
 import { useRiderAction } from "@/components/rider/use-rider-action";
 import { RevokeRiderDialog } from "@/components/riders/revoke-rider-dialog";
 
-const deliveryColumns: Column<RiderDelivery>[] = [
-  {
-    key: "reference",
-    header: "Reference",
-    cell: (row) => <span className="font-medium text-card-foreground">{row.reference}</span>,
-  },
-  {
-    key: "customer",
-    header: "Customer",
-    cell: (row) => (
-      <span className="flex items-center gap-2.5">
-        <Avatar name={row.customer} size="sm" />
-        <span className="text-card-foreground">{row.customer}</span>
-      </span>
-    ),
-  },
-  {
-    key: "restaurant",
-    header: "Restaurant",
-    cell: (row) => row.restaurant,
-  },
-  {
-    key: "total",
-    header: "Total",
-    align: "right",
-    cell: (row) => <span className="font-medium text-card-foreground">{formatCurrency(row.total)}</span>,
-  },
-  {
-    key: "status",
-    header: "Status",
-    cell: (row) => <StatusBadge status={row.status} />,
-  },
-  {
-    key: "payment",
-    header: "Payment",
-    cell: (row) => (
-      <Badge variant="secondary" size="sm">{row.payment.replace(/_/g, " ")}</Badge>
-    ),
-  },
-  {
-    key: "placedAt",
-    header: "Placed",
-    cell: (row) => <span className="whitespace-nowrap text-muted-foreground">{row.placedAt}</span>,
-  },
-];
 
-/**
- * What this rider earned, per delivery.
- *
- * The ledger's own rows, not orders.total. The delivery history table further
- * down still shows total because there it means "what the customer paid", which
- * is a legitimate column of an order; here the column is money the rider earned
- * and the two were never the same number.
- */
-const payoutColumns: Column<RiderPayout>[] = [
-  {
-    key: "earnedAt",
-    header: "Earned",
-    cell: (row) => (
-      <span className="whitespace-nowrap text-muted-foreground">
-        {new Date(row.earnedAt).toLocaleString()}
-      </span>
-    ),
-  },
-  {
-    key: "restaurant",
-    header: "Restaurant",
-    cell: (row) => (
-      <span className="font-medium text-card-foreground">{row.restaurant}</span>
-    ),
-  },
-  {
-    key: "reference",
-    header: "Order",
-    cell: (row) => (
-      <Link
-        href={`/dashboard/orders?order=${row.reference}`}
-        className="text-card-foreground underline underline-offset-2"
-      >
-        {row.reference}
-      </Link>
-    ),
-  },
-  {
-    key: "amount",
-    header: "Earned",
-    align: "right",
-    cell: (row) => (
-      <span className="font-medium text-card-foreground">
-        {formatCurrency(row.amount)}
-      </span>
-    ),
-  },
-];
 
 /** Chart window. A month is long enough to spot a decline without paging. */
 const WINDOW_DAYS = 30;
