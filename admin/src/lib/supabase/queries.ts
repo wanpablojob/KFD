@@ -1,6 +1,10 @@
 import { supabase } from "./client";
 import { anyIlikeFilter } from "./ilike-filter";
 import {
+  riderProfilePatch,
+  type RiderProfileInput,
+} from "@/lib/rider-profile";
+import {
   mapPayouts,
   mapPayoutSummary,
   type RiderPayout,
@@ -37,16 +41,14 @@ export type RestaurantInput = {
   joinedAt?: string;
 };
 
-export type RiderInput = {
-  name: string;
-  email: string;
-  phone?: string;
-  city?: string;
+/**
+ * A new rider. `status` is set here because a rider is created with an
+ * availability choice; nothing else is set, because everything else on the row
+ * is the database's to maintain.
+ */
+export type RiderInput = RiderProfileInput & {
   vehicle: Rider["vehicle"];
   status: Rider["status"];
-  deliveries?: number;
-  rating?: number;
-  earnings?: number;
 };
 
 export type MenuItemInput = {
@@ -89,26 +91,61 @@ export async function upsertRestaurant(
   if (error) throw new Error(error.message);
 }
 
-export async function upsertRider(
-  input: RiderInput,
-  existingId?: string,
+/**
+ * Create a rider.
+ *
+ * The three counters are written explicitly as zero rather than left out: this
+ * is an insert, so the columns need a value, and a default of 0 is the truth
+ * for a rider who has not delivered anything. It is only safe here because an
+ * insert cannot overwrite anything -- which is exactly why this is not the
+ * function an edit uses.
+ */
+export async function createRider(input: RiderInput): Promise<string> {
+  const id = makeId("rdr");
+  const patch = riderProfilePatch(input);
+  const { error } = await supabase.from("riders").insert({
+    id,
+    name: patch.name,
+    email: patch.email,
+    phone: patch.phone,
+    city: patch.city,
+    vehicle: input.vehicle,
+    status: input.status,
+    deliveries: 0,
+    rating: 0,
+    earnings: 0,
+  });
+  if (error) throw new Error(error.message);
+  return id;
+}
+
+/**
+ * Update a rider's profile.
+ *
+ * Sends only name, email, phone, city and vehicle. Deliveries, earnings and
+ * rating are maintained by rider_mark_delivered; status has its own control
+ * because it decides whether dispatch offers this rider work; archived_at and
+ * suspended_at have their own RPCs so the audit row cannot be bypassed.
+ *
+ * A `.update`, never an upsert: an upsert would write the whole row, so passing
+ * a stale read of the counters would roll back whatever the database has
+ * written since the page loaded. See lib/rider-profile.ts.
+ */
+export async function updateRiderProfile(
+  id: string,
+  input: RiderProfileInput & { vehicle: Rider["vehicle"] },
 ): Promise<void> {
-  const id = existingId ?? makeId("rdr");
-  const { error } = await supabase.from("riders").upsert(
-    {
-      id,
-      name: input.name,
-      email: input.email,
-      phone: input.phone ?? "",
-      city: input.city ?? "Kabankalan City Proper",
+  const patch = riderProfilePatch(input);
+  const { error } = await supabase
+    .from("riders")
+    .update({
+      name: patch.name,
+      email: patch.email,
+      phone: patch.phone,
+      city: patch.city,
       vehicle: input.vehicle,
-      status: input.status,
-      deliveries: input.deliveries ?? 0,
-      rating: input.rating ?? 0,
-      earnings: input.earnings ?? 0,
-    },
-    { onConflict: "id" },
-  );
+    })
+    .eq("id", id);
   if (error) throw new Error(error.message);
 }
 

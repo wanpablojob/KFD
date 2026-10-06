@@ -17,7 +17,7 @@ import {
   setRiderArchived,
   setRiderStatus,
   setRiderSuspended,
-  upsertRider,
+  updateRiderProfile,
 } from "@/lib/supabase/queries";
 import { formatCurrency } from "@/lib/format";
 import { PageContainer, PageHeader, Section } from "@/components/layout/page";
@@ -773,20 +773,18 @@ export default function RiderDetailPage() {
           onSave={async (values) => {
             setActionError(null);
             try {
-              await upsertRider(
-                {
-                  name: values.name,
-                  email: values.email,
-                  phone: values.phone,
-                  city: values.city,
-                  vehicle: values.vehicle as Rider["vehicle"],
-                  status: values.status as Rider["status"],
-                  deliveries: rider.deliveries,
-                  rating: rider.rating,
-                  earnings: rider.earnings,
-                },
-                riderId,
-              );
+              // Profile fields only. Status is a separate control on this page
+              // because it decides dispatch availability, and deliveries /
+              // earnings / rating belong to the database -- sending the values
+              // this page happened to load would roll back whatever was written
+              // while the dialog was open.
+              await updateRiderProfile(riderId, {
+                name: values.name,
+                email: values.email,
+                phone: values.phone,
+                city: values.city,
+                vehicle: values.vehicle as Rider["vehicle"],
+              });
             } catch (cause) {
               throw new Error(
                 friendlyRiderSaveError(cause) ??

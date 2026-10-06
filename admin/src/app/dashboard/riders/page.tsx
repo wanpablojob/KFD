@@ -13,7 +13,7 @@ import {
   setRiderArchived,
   setRiderStatus,
   setRiderSuspended,
-  upsertRider,
+  createRider,
   type RiderAccess,
   type RiderApplication,
 } from "@/lib/supabase/queries";
@@ -659,7 +659,7 @@ export default function RidersPage() {
           onSave={async (values) => {
             await run(async () => {
               try {
-                await upsertRider({
+                await createRider({
                   name: values.name,
                   email: values.email,
                   phone: values.phone,
