@@ -105,6 +105,13 @@ export type Database = {
           orders_count: number
           phone: string | null
           total_spend: number
+          /** NULL for a row never linked to an auth account (0058). */
+          user_id: string | null
+          /** Set when archived rather than deleted; NULL means live. */
+          archived_at: string | null
+          /** Set when the customer may no longer order; NULL means allowed. */
+          blocked_at: string | null
+          notes: string | null
         }
         Insert: {
           city?: string
@@ -116,6 +123,10 @@ export type Database = {
           orders_count?: number
           phone?: string | null
           total_spend?: number
+          user_id?: string | null
+          archived_at?: string | null
+          blocked_at?: string | null
+          notes?: string | null
         }
         Update: {
           city?: string
@@ -127,6 +138,10 @@ export type Database = {
           orders_count?: number
           phone?: string | null
           total_spend?: number
+          user_id?: string | null
+          archived_at?: string | null
+          blocked_at?: string | null
+          notes?: string | null
         }
         Relationships: []
       }
@@ -623,6 +638,29 @@ export type Database = {
           amount: number
           day: string
           deliveries: number
+        }[]
+      }
+      admin_rider_payout_summary: {
+        Args: { p_rider_id: string }
+        Returns: {
+          delivery_count: number
+          earned_today: number
+          earned_week: number
+          failed_count: number
+          first_earned_at: string | null
+          last_earned_at: string | null
+          lifetime: number
+        }[]
+      }
+      admin_rider_payouts: {
+        Args: { p_rider_id: string; p_limit?: number }
+        Returns: {
+          amount: number
+          earned_at: string
+          order_id: string
+          order_reference: string
+          payout_id: number
+          restaurant: string
         }[]
       }
       admin_rider_notes: {
