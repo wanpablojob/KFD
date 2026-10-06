@@ -202,10 +202,14 @@ begin
   update orders
      set status = 'delivered'
    where id = p_order_id
-     and status = any (array['out_for_delivery', 'confirmed', 'preparing']);
+     -- Cast required. `array['a','b']` is text[], and orders.status is the
+     -- order_status enum, so without this Postgres reports
+     -- "operator does not exist: order_status = text" (42883) and the whole
+     -- function raises -- for every delivery, not just an odd status.
+     and status = any (array['out_for_delivery', 'confirmed', 'preparing']::order_status[]);
 
   if not found then
-    raise exception 'That order is no longer yours to complete.', using errcode = 'P0001';
+    raise exception 'That order is no longer yours to complete.' using errcode = 'P0001';
   end if;
 
   -- A NULL payout here means the claim predates the freeze being restored. It
@@ -436,6 +440,18 @@ language plpgsql
 security definer
 set search_path = public
 as $$
+-- Required, and required as the first line inside the block (0041).
+-- Returns TABLE(order_id text, ...), so `order_id` in the body is a PL/pgSQL
+-- variable while order_offers also has an order_id column, and the ON CONFLICT
+-- inference clause cannot tell them apart: ERROR 42702, column reference
+-- "order_id" is ambiguous. Qualifying does not help -- Postgres rejects
+-- `on conflict (o.order_id, ...)` with a syntax error.
+--
+-- This directive was lost when the body was rebuilt from an older copy. It is
+-- not cosmetic: admin_dispatch_order is the only writer of order_offers, and
+-- claim_order refuses any order the rider was never offered, so with dispatch
+-- raising 42702 no rider can ever claim anything.
+#variable_conflict use_column
 declare
   v_city text;
   v_count integer;
@@ -623,10 +639,11 @@ begin
   update orders
      set status = 'out_for_delivery'
    where id = p_order_id
-     and status = any (array['confirmed', 'preparing']);
+     -- Same cast as above; enum compared against a text[] otherwise.
+     and status = any (array['confirmed', 'preparing']::order_status[]);
 
   if not found then
-    raise exception 'That order is no longer yours to run.', using errcode = 'P0001';
+    raise exception 'That order is no longer yours to run.' using errcode = 'P0001';
   end if;
 
   return query

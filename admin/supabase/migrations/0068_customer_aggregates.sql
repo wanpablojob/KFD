@@ -22,11 +22,25 @@
 -- policy for historical reasons (see the later migration that closes it); these
 -- functions must be admin-only regardless of that.
 --
--- Walk-in orders: orders whose customer_user_id IS NULL (placed before 0012, or
--- created by hand) belong to nobody. They are never attributed to a customer --
--- that would require a name join, which is precisely the misattribution this
--- migration exists to end -- and are reported separately as platform-level
--- walk-in counts in admin_customer_stats_totals().
+-- Unattributable orders belong to nobody. That is TWO populations, not one, and
+-- the second one is easy to miss:
+--
+--   a) orders.customer_user_id IS NULL -- placed before 0012, or created by hand.
+--   b) orders.customer_user_id points at an auth account that no longer has a
+--      customers row. customers.user_id is `on delete set null`, so deleting an
+--      auth account leaves the ORDERS holding a uuid that now matches no
+--      customer. Those orders are not in any customer's aggregate (the join is
+--      on customers.user_id) and were not counted as walk-ins either -- so their
+--      money simply vanished from every total. Platform spend silently stopped
+--      reconciling with the sum of customer spend.
+--
+-- The walk-in bucket is therefore "no matching customer row", which covers both,
+-- and guarantees the invariant: platform delivered spend = sum of per-customer
+-- spend + walk-in spend. A test asserts that identity; it only holds if the
+-- bucket is defined this way.
+--
+-- Neither population is attributed to a customer -- that would require a name
+-- join, which is precisely the misattribution this migration exists to end.
 -- --------------------------------------------------------------------------
 
 -- --------------------------------------------------------------------------
@@ -151,18 +165,30 @@ begin
       (select count(distinct o.customer_user_id) from orders o
         where o.customer_user_id is not null
           and o.placed_at >= date_trunc('month', now())),
-      -- Walk-ins: nobody to attribute, so they are reported here instead of
-      -- inflating anybody's spend or tier.
-      (select count(*) from orders where customer_user_id is null),
-      -- Value of those walk-in orders, delivered only, on the same basis as
+      -- Unattributable: no customer row to hold them. Counted here instead of
+      -- inflating anybody's spend or tier -- and, critically, so that their
+      -- value is still in the totals. Defined as "no matching customer row"
+      -- rather than "customer_user_id is null", which would silently drop
+      -- orders whose auth account was deleted (see the header).
+      (select count(*)
+         from orders o
+        where o.customer_user_id is null
+           or not exists (
+             select 1 from customers c where c.user_id = o.customer_user_id
+           )),
+      -- Value of those orders, delivered only, on the same basis as
       -- per-customer spend.
-      (select round(coalesce(sum(total) filter (where status = 'delivered'), 0)::numeric, 2)
-         from orders where customer_user_id is null);
+      (select round(coalesce(sum(o.total) filter (where o.status = 'delivered'), 0)::numeric, 2)
+         from orders o
+        where o.customer_user_id is null
+           or not exists (
+             select 1 from customers c where c.user_id = o.customer_user_id
+           ));
 end;
 $$;
 
 comment on function public.admin_customer_stats_totals()
-  is 'Customer counts for the stat cards plus walk-in order count and value. Admin-only (checked inside). Archived rows excluded from the customer counts.';
+  is 'Customer counts for the stat cards plus the count and value of orders that belong to no customer row -- either customer_user_id is null, or it points at a deleted auth account. Admin-only (checked inside). Archived rows excluded from the customer counts.';
 
 revoke all on function public.admin_customer_stats_totals() from public;
 revoke all on function public.admin_customer_stats_totals() from anon;

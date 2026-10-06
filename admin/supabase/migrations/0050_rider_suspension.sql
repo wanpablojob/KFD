@@ -122,6 +122,17 @@ grant execute on function public.current_rider_id() to authenticated;
 -- display mirror too. It therefore has to repeat the suspended check, or a
 -- rider who accepted an offer moments before being suspended could still claim
 -- it.
+-- NOTE on rider_payout: this column is in the signature and must stay in it.
+-- 0042 added it, and CREATE OR REPLACE cannot change a function's return type,
+-- so dropping it here makes this migration fail outright with "cannot change
+-- return type of existing function" -- which takes every migration after it
+-- down as well. An earlier version of this file rebuilt the body from the 0035
+-- copy, which predates the freeze, and silently lost the column.
+--
+-- The freeze itself has to stay for a second reason: rider_mark_delivered reads
+-- o.rider_payout and writes coalesce(v_payout, 0) into the ledger, so a claim
+-- that does not freeze one records a permanent 0.00 payout. Since 0038 the ledger
+-- is the only source for every money figure in the product.
 create or replace function public.claim_order(p_order_id text)
 returns table (
   order_id text,
@@ -130,6 +141,7 @@ returns table (
   delivery_address text,
   items jsonb,
   total numeric,
+  rider_payout numeric,
   payment payment_method,
   placed_at timestamptz
 )
@@ -167,14 +179,17 @@ begin
      set rider_id = v_rider_id,
          -- Display mirror for admin (queries.ts still selects orders.rider).
          -- Written here and nowhere else; rider_id remains the source of truth.
-         rider = v_rider_name
+         rider = v_rider_name,
+         -- Frozen now, not read at payout time. See the note above: without this
+         -- the ledger records 0.00 for every delivery.
+         rider_payout = public.rider_payout_per_delivery()
    where o.id = p_order_id
      and o.rider_id is null
      and o.status in ('pending', 'confirmed')
   returning o.id, o.reference, o.restaurant, o.delivery_address,
-            o.items, o.total, o.payment, o.placed_at
+            o.items, o.total, o.rider_payout, o.payment, o.placed_at
     into order_id, reference, restaurant, delivery_address,
-         items, total, payment, placed_at;
+         items, total, rider_payout, payment, placed_at;
 
   if order_id is null then
     raise exception 'Someone else already took this delivery.' using errcode = 'P0001';
@@ -343,6 +358,18 @@ language plpgsql
 security definer
 set search_path = public
 as $$
+-- Required, and required here as the first line inside the block (0041).
+-- admin_dispatch_order returns TABLE(order_id text, ...), so `order_id` in the
+-- body is a PL/pgSQL variable while order_offers also has an order_id column,
+-- and the ON CONFLICT inference clause cannot tell them apart:
+-- ERROR 42702: column reference "order_id" is ambiguous.
+-- Qualifying does not help -- Postgres rejects `on conflict (o.order_id)` with a
+-- syntax error. This directive tells plpgsql to prefer the column.
+--
+-- A rebuild from an older copy silently drops it, and admin_dispatch_order is
+-- the only writer of order_offers, so with it broken no rider can ever claim
+-- anything. Restored here for the same reason claim_order's rider_payout was.
+#variable_conflict use_column
 declare
   v_city text;
   v_count integer;

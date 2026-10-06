@@ -281,7 +281,9 @@ export default function RidersPage() {
                 { key: "vehicle", header: "Vehicle" },
                 { key: "deliveredCount", header: "Deliveries" },
                 { key: "rating", header: "Rating" },
-                { key: "earnings", header: "Earnings" },
+                // Matches the on-screen header. It is riders.earnings, which is
+                // the ledger-consistent counter, not orders.total.
+                { key: "earnings", header: "Total earned" },
                 { key: "status", header: "Status" },
               ]}
               sort={{ key: params.sort, dir: params.dir }}
