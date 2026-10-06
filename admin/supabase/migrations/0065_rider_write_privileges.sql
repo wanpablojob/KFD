@@ -89,6 +89,11 @@ create policy "admins manage riders" on riders
 -- Column-level writes. The blanket UPDATE goes first: a table-level grant would
 -- otherwise still cover every column and make the per-column grants below
 -- meaningless.
+--
+-- INSERT is deliberately untouched. Supabase grants table-level INSERT to
+-- authenticated, createRider sets the three counters to zero explicitly, and a
+-- row that does not exist yet cannot be "overwritten" -- the lost-update bug
+-- this whole file exists to prevent cannot happen on an insert.
 revoke update on public.riders from authenticated;
 
 grant update (name, email, phone, city, vehicle, status, archived_at, updated_at)
@@ -97,36 +102,24 @@ grant update (name, email, phone, city, vehicle, status, archived_at, updated_at
 comment on policy "admins manage riders" on public.riders is
   'Admin-only full access, renamed from "authenticated full access: riders" which misdescribed it since 0002. A rider reads their own row via the additive "riders read own profile" policy.';
 
--- Guard rail for the columns the database owns. Belt to the column privileges'
--- braces: if a later migration re-grants a blanket UPDATE, this trigger still
--- refuses the counters for a non-owner caller.
-create or replace function public.riders_guard_ledger_columns()
-returns trigger
-language plpgsql
-security definer
-set search_path = public
-as $$
-begin
-  -- current_user is 'authenticated' for a PostgREST call and the table owner
-  -- for a security-definer function, which is the distinction being relied on.
-  if current_user in ('authenticated', 'anon') then
-    if new.deliveries is distinct from old.deliveries
-       or new.earnings   is distinct from old.earnings
-       or new.rating     is distinct from old.rating then
-      raise exception
-        'deliveries, earnings and rating are maintained by rider_mark_delivered and cannot be set directly.'
-        using errcode = '42501';
-    end if;
-  end if;
-  return new;
-end;
-$$;
-
-comment on function public.riders_guard_ledger_columns() is
-  'Defence in depth behind the column privileges above: refuses direct writes to the payout-owned counters from a client session. No-op for the security-definer function that legitimately writes them.';
-
-drop trigger if exists riders_ledger_guard on riders;
-create trigger riders_ledger_guard
-  before update on riders
-  for each row
-  execute function public.riders_guard_ledger_columns();
+-- No trigger, deliberately.
+--
+-- An earlier draft of this file added a BEFORE UPDATE trigger to refuse the
+-- counters, as defence in depth against a future blanket re-grant. It was cut
+-- for two reasons, and both are worth recording so nobody re-adds it:
+--
+--   1. It would not have fired. Written as SECURITY DEFINER, `current_user`
+--      inside the function is the function owner, not the caller -- so a check
+--      for `current_user in ('authenticated', 'anon')` is always false and the
+--      guard is silently inert. (Detecting the caller here would mean
+--      session_user, which is a different and less portable assumption.)
+--
+--   2. It protects nothing. Column privileges are checked before any trigger
+--      runs, so an authenticated session cannot reach those columns in the
+--      first place. A second mechanism that looks like protection and is not is
+--      worse than no mechanism: it reads as a safety net in review and in an
+--      incident.
+--
+-- If a later migration does re-grant a blanket UPDATE on riders, the thing to
+-- do is to notice it in review -- the fix is to drop the blanket grant, not to
+-- bolt a trigger onto it.
