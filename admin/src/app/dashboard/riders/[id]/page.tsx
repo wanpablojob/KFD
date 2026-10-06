@@ -53,6 +53,7 @@ import {
 } from "@/components/rider/rider-row-bits";
 import { SuspendRiderDialog } from "@/components/rider/suspend-rider-dialog";
 import { EditRiderDialog } from "@/components/rider/edit-rider-dialog";
+import { useRiderAction } from "@/components/rider/use-rider-action";
 
 const deliveryColumns: Column<RiderDelivery>[] = [
   {
@@ -202,7 +203,11 @@ export default function RiderDetailPage() {
   const [noteBody, setNoteBody] = useState("");
   const [noteBusy, setNoteBusy] = useState(false);
   const [noteError, setNoteError] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
+  // Status, archive and suspension all go through here, so a rejected write
+  // shows its message rather than becoming an unhandled rejection and leaving
+  // the control looking like it worked.
+  const action = useRiderAction();
+  const statusBusy = action.isPending("status");
 
   const loading = riderQuery.loading;
   const error = riderQuery.error;
@@ -294,15 +299,13 @@ export default function RiderDetailPage() {
   }
 
   async function suspend(reason: string) {
-    setActionError(null);
-    try {
-      await setRiderSuspended(riderId, suspending === "suspend", reason);
+    const suspendingNow = suspending === "suspend";
+    await action.run("suspend", async () => {
+      await setRiderSuspended(riderId, suspendingNow, reason);
       riderQuery.refetch();
       activity.refetch();
       setSuspending(null);
-    } catch (cause) {
-      setActionError(cause instanceof Error ? cause.message : "Could not save.");
-    }
+    });
   }
 
   return (
@@ -333,10 +336,12 @@ export default function RiderDetailPage() {
             <ArchiveButton
               name={rider.name}
               archived={Boolean(rider.archivedAt)}
-              onChange={async (archived) => {
-                await setRiderArchived(riderId, archived);
-                riderQuery.refetch();
-              }}
+              onChange={(archived) =>
+                action.run("archive", async () => {
+                  await setRiderArchived(riderId, archived);
+                  riderQuery.refetch();
+                }, { rethrow: true }).then(() => undefined)
+              }
             />
           </span>
         }
@@ -389,10 +394,14 @@ export default function RiderDetailPage() {
                   value={rider.status}
                   aria-label={`Set status for ${rider.name}`}
                   className="h-8 w-32"
-                  onChange={async (e) => {
-                    await setRiderStatus(riderId, e.target.value as Rider["status"]);
-                    riderQuery.refetch();
-                    activity.refetch();
+                  disabled={statusBusy}
+                  onChange={(e) => {
+                    const next = e.target.value as Rider["status"];
+                    void action.run("status", async () => {
+                      await setRiderStatus(riderId, next);
+                      riderQuery.refetch();
+                      activity.refetch();
+                    });
                   }}
                 >
                   <option value="online">Online</option>
@@ -404,9 +413,9 @@ export default function RiderDetailPage() {
           </div>
         </Card>
 
-        {actionError ? (
+        {action.error ? (
           <p className="mb-6 text-sm text-destructive" role="alert">
-            {actionError}
+            {action.error}
           </p>
         ) : null}
 
@@ -771,7 +780,7 @@ export default function RiderDetailPage() {
             .map((row) => row.email)}
           onClose={() => setEditing(false)}
           onSave={async (values) => {
-            setActionError(null);
+            action.clearError();
             try {
               // Profile fields only. Status is a separate control on this page
               // because it decides dispatch availability, and deliveries /
@@ -802,7 +811,7 @@ export default function RiderDetailPage() {
         <SuspendRiderDialog
           riderName={rider.name}
           suspending={suspending === "suspend"}
-          busy={false}
+          busy={action.isPending("suspend")}
           onClose={() => setSuspending(null)}
           onConfirm={suspend}
         />

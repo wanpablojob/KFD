@@ -57,6 +57,7 @@ import {
   flagsInput,
 } from "@/components/rider/rider-summary";
 import { SuspendRiderDialog } from "@/components/rider/suspend-rider-dialog";
+import { useRiderAction } from "@/components/rider/use-rider-action";
 import {
   DOCUMENT_CHECKS,
   EXTERNAL_LINK_PROPS,
@@ -68,6 +69,10 @@ import {
   type DocumentCheckKey,
   type DocumentField,
 } from "@/lib/rider-applications";
+
+/** Keys for useRiderAction, so two rows never share a pending state. */
+const statusKey = (riderId: string) => `status:${riderId}`;
+const archiveKey = (riderId: string) => `archive:${riderId}`;
 
 const FIELDS: DialogField[] = [
   { key: "name", label: "Name", required: true },
@@ -103,8 +108,10 @@ export default function RidersPage() {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<Mode>(null);
   const [busy, setBusy] = useState(false);
-  const [actionError, setActionError] = useState<string | null>(null);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
+  // Per-row status writes and archive writes go through here, so a rejected
+  // write shows its message instead of vanishing into an unhandled rejection.
+  const action = useRiderAction();
 
   /**
    * One runner for every mutation, because each of them has the same three
@@ -114,19 +121,21 @@ export default function RidersPage() {
    * this refetches the overview instead of patching a row locally.
    */
   async function run(
-    action: () => Promise<void>,
+    write: () => Promise<void>,
     success?: string,
   ): Promise<void> {
     setBusy(true);
-    setActionError(null);
+    action.clearError();
     setActionNotice(null);
     try {
-      await action();
+      await write();
       if (success) setActionNotice(success);
     } catch (cause) {
-      setActionError(cause instanceof Error ? cause.message : "Could not save.");
-      // Keep the dialog open on failure: closing it would throw away the reason
-      // an admin typed into the suspension or decision field.
+      action.run("report", async () => {
+        throw cause;
+      });
+      // Re-thrown: the caller keeps its dialog open, because closing it would
+      // throw away the reason an admin typed into the suspension field.
       throw cause;
     } finally {
       setBusy(false);
@@ -283,10 +292,14 @@ export default function RidersPage() {
             value={row.status}
             aria-label={`Set status for ${row.name}`}
             className="h-8 w-32"
+            disabled={action.isPending(statusKey(row.id))}
             onClick={(e) => e.stopPropagation()}
-            onChange={async (e) => {
-              await setRiderStatus(row.id, e.target.value as Rider["status"]);
-              await overview.refetch();
+            onChange={(e) => {
+              const next = e.target.value as Rider["status"];
+              void action.run(statusKey(row.id), async () => {
+                await setRiderStatus(row.id, next);
+                await overview.refetch();
+              });
             }}
           >
             <option value="online">Online</option>
@@ -327,10 +340,12 @@ export default function RidersPage() {
           <ArchiveButton
             name={row.name}
             archived={Boolean(row.archivedAt)}
-            onChange={async (archived) => {
-              await setRiderArchived(row.id, archived);
-              await overview.refetch();
-            }}
+            onChange={(archived) =>
+              action.run(archiveKey(row.id), async () => {
+                await setRiderArchived(row.id, archived);
+                await overview.refetch();
+              }, { rethrow: true }).then(() => undefined)
+            }
           />
         </span>
       ),
@@ -583,9 +598,9 @@ export default function RidersPage() {
           {actionNotice}
         </p>
       ) : null}
-      {actionError && !mode ? (
+      {action.error && !mode ? (
         <p className="mt-3 text-sm text-destructive" role="alert">
-          {actionError}
+          {action.error}
         </p>
       ) : null}
 
