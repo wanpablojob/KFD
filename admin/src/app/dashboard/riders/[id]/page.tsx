@@ -16,8 +16,11 @@ import {
   fetchRiderPayoutSummary,
   setRiderArchived,
   setRiderStatus,
+  setRiderAccess,
   setRiderSuspended,
+  revokeRiderAccess,
   updateRiderProfile,
+  fetchRiderAccess,
 } from "@/lib/supabase/queries";
 import { formatCurrency } from "@/lib/format";
 import { PageContainer, PageHeader, Section } from "@/components/layout/page";
@@ -53,7 +56,9 @@ import {
 } from "@/components/rider/rider-row-bits";
 import { SuspendRiderDialog } from "@/components/rider/suspend-rider-dialog";
 import { EditRiderDialog } from "@/components/rider/edit-rider-dialog";
+import { EntityDialog } from "@/components/ui/entity-dialog";
 import { useRiderAction } from "@/components/rider/use-rider-action";
+import { RevokeRiderDialog } from "@/components/riders/revoke-rider-dialog";
 
 const deliveryColumns: Column<RiderDelivery>[] = [
   {
@@ -181,6 +186,11 @@ export default function RiderDetailPage() {
   // applicantUserId rather than needing a join column.
   const applications = useAsyncData(() => fetchRiderApplications(), riderId);
   const emails = useAsyncData(() => fetchRiderEmails(), riderId);
+  const access = useAsyncData(() => fetchRiderAccess(), riderId);
+  // This rider's own account row, read from the same fleet-wide list rather than
+  // from riders.user_id: the list already resolves the email and knows whether an
+  // account is attached, which is what the revoke flow needs.
+  const account = (access.data ?? []).find((row) => row.riderId === riderId);
   // The ledger is the source of truth for money. Needs migration 0058.
   const payoutSummary = useAsyncData(
     () => fetchRiderPayoutSummary(riderId),
@@ -200,6 +210,8 @@ export default function RiderDetailPage() {
 
   const [editing, setEditing] = useState(false);
   const [suspending, setSuspending] = useState<"suspend" | "reinstate" | null>(null);
+  const [attaching, setAttaching] = useState(false);
+  const [revoking, setRevoking] = useState(false);
   const [noteBody, setNoteBody] = useState("");
   const [noteBusy, setNoteBusy] = useState(false);
   const [noteError, setNoteError] = useState<string | null>(null);
@@ -697,6 +709,62 @@ export default function RiderDetailPage() {
         </Card>
       </Section>
 
+      <Section aria-label="Linked account" className="mb-8">
+        <Card>
+          <div className="p-5">
+            <h2 className="text-sm font-semibold text-card-foreground">
+              Rider app access
+            </h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              The auth account this rider signs in with. Attaching one is what
+              lets them open the rider app; without it they are a row with no way
+              in.
+            </p>
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              {account?.userId ? (
+                <>
+                  <span className="font-medium text-card-foreground">
+                    {account.email}
+                  </span>
+                  <Badge variant="secondary" size="sm">
+                    Can sign in
+                  </Badge>
+                </>
+              ) : (
+                <>
+                  <span className="text-muted-foreground">
+                    No account linked — this rider cannot sign in to the rider app.
+                  </span>
+                  <Badge variant="secondary" size="sm">
+                    No access
+                  </Badge>
+                </>
+              )}
+            </div>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setAttaching(true)}
+                disabled={action.pendingKey !== null}
+              >
+                {account?.userId ? "Reassign account" : "Attach account"}
+              </Button>
+              {account?.userId ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setRevoking(true)}
+                  disabled={action.pendingKey !== null}
+                >
+                  Revoke access
+                </Button>
+              ) : null}
+            </div>
+          </div>
+        </Card>
+      </Section>
+
       <Section aria-label="Failed deliveries" className="mb-8">
         <Card>
           <div className="p-5">
@@ -732,6 +800,18 @@ export default function RiderDetailPage() {
                     <span className="w-full text-sm text-card-foreground">
                       {order.deliveryFailedReason}
                     </span>
+                    {/* delivery_failed_by is riders.id, not a name, and it
+                        survives reassignment on purpose -- this page is showing
+                        the rider who reported it, which is this rider by
+                        construction. A mismatch would mean the order belongs in
+                        another rider's list, so it is stated rather than
+                        assumed. */}
+                    {order.deliveryFailedBy &&
+                    order.deliveryFailedBy !== riderId ? (
+                      <span className="w-full text-xs text-muted-foreground">
+                        Reported by rider {order.deliveryFailedBy}
+                      </span>
+                    ) : null}
                   </li>
                 ))}
               </ul>
@@ -804,6 +884,55 @@ export default function RiderDetailPage() {
             activity.refetch();
             setEditing(false);
           }}
+        />
+      ) : null}
+
+      {attaching ? (
+        <EntityDialog
+          open
+          key={`attach-${riderId}`}
+          title={`Attach account to ${rider.name}`}
+          description="If the account already rides for someone else, it moves here and the other rider keeps their delivery history. The account has to exist in Supabase Auth already."
+          onClose={() => setAttaching(false)}
+          initial={{ email: account?.email ?? "" }}
+          fields={[
+            {
+              key: "email",
+              label: "Account email",
+              type: "text",
+              required: true,
+              placeholder: "rider@example.com",
+            },
+          ]}
+          onSave={async (values) => {
+            await action.run(
+              "attach",
+              async () => {
+                await setRiderAccess(values.email.trim(), riderId);
+                await access.refetch();
+                await riderQuery.refetch();
+                setAttaching(false);
+              },
+              { rethrow: true },
+            );
+          }}
+        />
+      ) : null}
+
+      {revoking && account?.userId ? (
+        <RevokeRiderDialog
+          email={account.email}
+          riderName={rider.name}
+          busy={action.isPending("revoke")}
+          onClose={() => setRevoking(false)}
+          onConfirm={() =>
+            action.run("revoke", async () => {
+              await revokeRiderAccess(account.email);
+              await access.refetch();
+              await riderQuery.refetch();
+              setRevoking(false);
+            }).then(() => undefined)
+          }
         />
       ) : null}
 
