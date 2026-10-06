@@ -4,7 +4,7 @@
 -- `customers.orders_count` and `customers.total_spend` are seed constants written
 -- once by 0001 and never maintained -- 0008 declined to fix them because
 -- `orders.customer` was free text with no foreign key. That stopped being true
--- at 0012 (orders.customer_user_id), and 0059 added the matching
+-- at 0012 (orders.customer_user_id), and 0066 added the matching
 -- `customers.user_id`. These two functions are the replacement.
 --
 -- A recompute, not a maintained counter. Deltas drift the moment an order is

@@ -161,7 +161,7 @@ grant execute on function public.admin_customer_update_contact(text, text, text,
 -- --------------------------------------------------------------------------
 -- Block / unblock
 --
--- Blocking is what stops an order being placed: customer_place_order (0060)
+-- Blocking is what stops an order being placed: customer_place_order (0067)
 -- refuses a blocked account before pricing anything. Archiving is separate and
 -- only a data-hygiene flag (0010 reasoning) -- it does not by itself block, but
 -- customer_place_order refuses an archived row too, because an archived row is
@@ -216,7 +216,7 @@ end;
 $$;
 
 comment on function public.admin_customer_set_blocked(text, boolean)
-  is 'Block or unblock a customer. A blocked account is refused by customer_place_order (0060). Admin-only (checked inside).';
+  is 'Block or unblock a customer. A blocked account is refused by customer_place_order (0067). Admin-only (checked inside).';
 
 comment on function public.admin_customer_set_archived(text, boolean)
   is 'Archive or restore a customer record (0010 reasoning). Admin-only (checked inside).';

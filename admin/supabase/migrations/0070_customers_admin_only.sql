@@ -11,7 +11,7 @@
 -- `for all` means the merchant portal, the rider app AND a signed-in customer
 -- could each SELECT every row -- and INSERT, UPDATE and DELETE any of them.
 -- That is not hypothetical write access either: with (name, email) both
--- operator-editable and now also written by register_customer (0060), a
+-- operator-editable and now also written by register_customer (0067), a
 -- signed-in customer could rewrite an arbitrary customer's email, which is the
 -- field /api/orders/notify resolves to find out where to send order mail.
 --
@@ -20,10 +20,10 @@
 --
 -- The writes this table still needs are all definer functions, so no write
 -- policy is created and none is needed:
---   register_customer()                   0060  creates the row at signup
---   admin_customer_update_contact()       0062  contact + note
---   admin_customer_set_blocked()          0062  block / unblock
---   admin_customer_set_archived()         0062  archive / restore
+--   register_customer()                   0067  creates the row at signup
+--   admin_customer_update_contact()       0069  contact + note
+--   admin_customer_set_blocked()          0069  block / unblock
+--   admin_customer_set_archived()         0069  archive / restore
 --
 -- WHO LOSES ACCESS
 --

@@ -18,7 +18,7 @@
 -- ordering, which is a different action with different consequences.
 --
 -- `notes` is the operator's own note about the customer. Free text, written by
--- admins only (0059 puts the writes behind admin-checked functions).
+-- admins only (0066 puts the writes behind admin-checked functions).
 --
 -- `orders_count` / `total_spend` are left in place but are no longer read: they
 -- are seed constants that nothing maintains. Dropping them is a separate,

@@ -1,14 +1,14 @@
 -- --------------------------------------------------------------------------
 -- register_customer also creates the customers row; blocked customers cannot order
 --
--- Two related gaps closed here, both because 0058 gave customers.user_id:
+-- Two related gaps closed here, both because 0066 gave customers.user_id:
 --
 --   * A signup produced an app_users row and nothing else, so the person never
 --     appeared on /dashboard/customers. register_customer now writes the
 --     `customers` row in the same transaction-ish call, which is what makes the
 --     storefront's accounts visible to the operator at all.
 --
---   * `archived_at` / `blocked_at` (0058) would have been decorative without an
+--   * `archived_at` / `blocked_at` (0066) would have been decorative without an
 --     enforcement point. customer_place_order now refuses a blocked or archived
 --     account, which is the only place a customer turns into an order.
 --
@@ -84,7 +84,7 @@ end;
 $$;
 
 comment on function public.register_customer()
-  is 'Insert an app_users row making the current signed-in user a customer, plus the operator-facing customers row (0058). Idempotent: no-op when the account already has any role or customer row.';
+  is 'Insert an app_users row making the current signed-in user a customer, plus the operator-facing customers row (0066). Idempotent: no-op when the account already has any role or customer row.';
 
 revoke all on function public.register_customer() from public;
 revoke all on function public.register_customer() from anon;
@@ -142,7 +142,7 @@ begin
       using errcode = '42501';
   end if;
 
-  -- Blocked or archived (0058). Security definer, so this holds whatever the
+  -- Blocked or archived (0066). Security definer, so this holds whatever the
   -- table policies say, and it is checked before anything is priced so a
   -- blocked account learns why without a cart being quoted.
   if exists (
@@ -252,7 +252,7 @@ end;
 $$;
 
 comment on function public.customer_place_order(text, jsonb, text, payment_method)
-  is 'Price a storefront cart from menu_items and create a pending order for the caller. Customers only, and not blocked or archived (0058). Totals are never accepted from the client. Fees come from order_fees(). Each line carries menu_item_id so reorder is exact.';
+  is 'Price a storefront cart from menu_items and create a pending order for the caller. Customers only, and not blocked or archived (0066). Totals are never accepted from the client. Fees come from order_fees(). Each line carries menu_item_id so reorder is exact.';
 
 revoke all on function public.customer_place_order(text, jsonb, text, payment_method) from public;
 revoke all on function public.customer_place_order(text, jsonb, text, payment_method) from anon;
