@@ -28,6 +28,13 @@ export interface DeliveryList {
  * React Query's `placeholderData: (prev) => prev` covers a background refetch
  * while mounted, but not a remount: there is no previous observer to inherit
  * from, so the guard has to live here.
+ *
+ * The same screen also gated its rider-profile check on `profile === null`,
+ * which treats a still-loading profile as a present one. Both defects were the
+ * same mistake -- reading "not known yet" as a definite answer -- and they
+ * produced opposite symptoms: the list vanished on remount while a null-check
+ * let a loading profile through. riderProfileGate in rider-profile-gate.ts is
+ * the three-way version of the same decision.
  */
 export function shouldSyncPage1(
   incoming: DeliveryPage | undefined,

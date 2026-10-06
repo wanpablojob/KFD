@@ -30,6 +30,8 @@ import {
   watchForTokenRotation,
   type PushStatus,
 } from "../../lib/push";
+import { riderProfileGate } from "../../lib/rider-profile-gate";
+import type { RiderProfile } from "../../lib/storefront";
 import { colors, radius, shadow, spacing, type } from "../../lib/theme";
 
 /**
@@ -39,7 +41,9 @@ import { colors, radius, shadow, spacing, type } from "../../lib/theme";
 export default function RiderProfileRoute() {
   const insets = useSafeAreaInsets();
   const { user } = useSession();
-  const { data: profile, isLoading, error, refetch } = useRiderProfile(user?.id ?? "");
+  const profileQuery = useRiderProfile(user?.id ?? "");
+  const { refetch } = profileQuery;
+  const gate = riderProfileGate(profileQuery);
   // Ledger-derived, so these two lines cannot disagree with the Earnings tab.
   // See the comment where they render.
   const { data: earnings } = useRiderEarningsSummary();
@@ -128,7 +132,11 @@ export default function RiderProfileRoute() {
     setUpdating(false);
   }
 
-  if (isLoading) {
+  // Was the most correct of the three -- it did read its own query -- but the
+  // gate below was still a two-way `!profile`, so a failed refetch with no
+  // cached row would report "no rider profile" and offer to sign out. Now all
+  // three screens share one decision. See lib/rider-profile-gate.ts.
+  if (gate.kind === "loading") {
     return (
       <View style={[styles.center, { backgroundColor: colors.background }]}>
         <ActivityIndicator size="large" color={colors.primary} />
@@ -138,18 +146,19 @@ export default function RiderProfileRoute() {
     );
   }
 
-  if (error) {
+  if (gate.kind === "error") {
     return (
       <View style={[styles.center, { backgroundColor: colors.background }]}>
-        <Text style={styles.error}>
-          {error instanceof Error ? error.message : "Failed to load profile."}
-        </Text>
+        <Text style={styles.error}>{gate.message}</Text>
+        <Pressable style={styles.signOut} onPress={() => void refetch()}>
+          <Text style={styles.signOutLabel}>Try again</Text>
+        </Pressable>
         <StatusBar style="dark" />
       </View>
     );
   }
 
-  if (!profile) {
+  if (gate.kind === "missing") {
     return (
       <View style={[styles.center, { backgroundColor: colors.background }]}>
         <Text style={styles.error}>No rider profile is linked to this account.</Text>
@@ -160,6 +169,8 @@ export default function RiderProfileRoute() {
       </View>
     );
   }
+
+  const profile = gate.profile as RiderProfile;
 
   return (
     <View style={styles.container}>

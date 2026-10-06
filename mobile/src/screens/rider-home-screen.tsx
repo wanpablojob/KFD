@@ -19,6 +19,7 @@ import { supabase } from "../lib/supabase";
 import { signOut } from "../lib/auth";
 import { notifyRiderDelivered } from "../lib/push";
 import { mergeOrderPages, shouldSyncPage1 } from "../lib/delivery-sync";
+import { riderProfileGate } from "../lib/rider-profile-gate";
 import { deviceMapsUrl, openInMaps } from "../lib/maps";
 import { isTerminalStatus } from "../lib/order-progress";
 import { deliveryActions } from "../lib/delivery-actions";
@@ -87,7 +88,7 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
     refetch: refetchPage1,
     isPending,
   } = useRiderOrders(null, 20);
-  const { data: profile } = useRiderProfile(userId);
+  const profileQuery = useRiderProfile(userId);
 
   // Reset pagination whenever page 1 resolves to a new result. Adjusting state
   // during render (rather than in an effect) is React's documented pattern for
@@ -263,7 +264,40 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
     );
   }
 
-  if (profile === null) {
+  // Three-way state, not two. `profile === null` was wrong in the other
+  // direction from Available: undefined (still resolving) is not null, so it fell
+  // through to the list while the profile was unknown. Both screens were wrong
+  // from the same conflation, in opposite directions -- which is why this read as
+  // two unrelated bugs. See lib/rider-profile-gate.ts.
+  const gate = riderProfileGate(profileQuery);
+
+  if (gate.kind === "loading") {
+    return (
+      <View style={[styles.center, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={type.caption}>Loading…</Text>
+        <StatusBar style="dark" />
+      </View>
+    );
+  }
+
+  if (gate.kind === "error") {
+    return (
+      <View style={[styles.center, { backgroundColor: colors.background }]}>
+        <Text style={styles.error}>{gate.message}</Text>
+        <Pressable
+          style={styles.linkButton}
+          onPress={() => void profileQuery.refetch()}
+        >
+          <Text style={styles.linkLabel}>Try again</Text>
+        </Pressable>
+        <StatusBar style="dark" />
+      </View>
+    );
+  }
+
+  // The only genuine dead end: the query resolved and there is no rider row.
+  if (gate.kind === "missing") {
     return (
       <View style={[styles.center, { backgroundColor: colors.background }]}>
         <Text style={styles.error}>No rider profile is linked to this account.</Text>

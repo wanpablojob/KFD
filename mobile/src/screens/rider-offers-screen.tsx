@@ -18,6 +18,7 @@ import { isOfferClaimable, secondsUntilExpiry } from "../lib/offer-claimable";
 import { riderStatusMeta } from "../lib/rider-status";
 import { deviceMapsUrl, openInMaps } from "../lib/maps";
 import { useConnectivity } from "../lib/connectivity-context";
+import { riderProfileGate } from "../lib/rider-profile-gate";
 import {
   useAcceptOffer,
   useDeclineOffer,
@@ -26,6 +27,7 @@ import {
 } from "../lib/hooks";
 import { colors, radius, spacing, type } from "../lib/theme";
 import type { RiderOffer } from "../lib/hooks";
+import type { RiderProfile } from "../lib/storefront";
 
 const STATUS_LABEL: Record<string, string> = {
   pending: "Pending",
@@ -84,7 +86,8 @@ function offerSummary(offers: readonly RiderOffer[]): string {
 export function RiderOffersScreen({ userId }: { userId: string }) {
   const insets = useSafeAreaInsets();
   const { data: offers, error, isPending, refetch } = useRiderOffers();
-  const { data: profile, refetch: refetchProfile } = useRiderProfile(userId);
+  const profileQuery = useRiderProfile(userId);
+  const { refetch: refetchProfile } = profileQuery;
   const accept = useAcceptOffer();
   const decline = useDeclineOffer();
 
@@ -171,9 +174,40 @@ export function RiderOffersScreen({ userId }: { userId: string }) {
     );
   }
 
-  // `!profile` rather than `=== null`: React Query's data is undefined before the
-  // first resolve, and that case was falling through to a crash in the header.
-  if (!profile) {
+  // The profile's own query state, not a sibling's. This used to read the
+  // OFFERS query's isPending and then gate on `!profile`, so the moment offers
+  // resolved the screen checked a profile that was still in flight -- undefined
+  // is falsy -- and rendered the "no rider profile, sign out" dead end for
+  // riders who had one.
+  const gate = riderProfileGate(profileQuery);
+
+  if (gate.kind === "loading") {
+    return (
+      <View style={[styles.center, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={type.caption}>Loading…</Text>
+        <StatusBar style="dark" />
+      </View>
+    );
+  }
+
+  if (gate.kind === "error") {
+    return (
+      <View style={[styles.center, { backgroundColor: colors.background }]}>
+        <Text style={styles.error}>{gate.message}</Text>
+        <Pressable
+          style={styles.linkButton}
+          onPress={() => void profileQuery.refetch()}
+        >
+          <Text style={styles.linkLabel}>Try again</Text>
+        </Pressable>
+        <StatusBar style="dark" />
+      </View>
+    );
+  }
+
+  // The only genuine dead end: the query resolved and there is no rider row.
+  if (gate.kind === "missing") {
     return (
       <View style={[styles.center, { backgroundColor: colors.background }]}>
         <Text style={styles.error}>No rider profile is linked to this account.</Text>
@@ -184,6 +218,8 @@ export function RiderOffersScreen({ userId }: { userId: string }) {
       </View>
     );
   }
+
+  const profile = gate.profile as RiderProfile;
 
   return (
     <View style={styles.container}>
