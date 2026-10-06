@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --experimental-strip-types --test src/lib/dashboard-metrics.test.ts src/lib/notify-errors.test.ts src/lib/notification-cursor.test.ts src/lib/role-routing.test.ts src/lib/rider-activity.test.ts src/lib/rider-applications.test.ts src/lib/rider-flags.test.ts src/lib/rider-ledger.test.ts src/lib/rider-list-params.test.ts src/lib/rider-orders.test.ts src/lib/rider-validation.test.ts src/lib/supabase/ilike-filter.test.ts src/lib/pixel-sprites.test.ts src/lib/table-names.test.ts src/lib/track-reference.test.ts",
+    "test": "node --experimental-strip-types --test src/lib/customer-stats.test.ts src/lib/dashboard-metrics.test.ts src/lib/notify-errors.test.ts src/lib/notification-cursor.test.ts src/lib/role-routing.test.ts src/lib/rider-activity.test.ts src/lib/rider-applications.test.ts src/lib/rider-flags.test.ts src/lib/rider-ledger.test.ts src/lib/rider-list-params.test.ts src/lib/rider-orders.test.ts src/lib/rider-validation.test.ts src/lib/supabase/ilike-filter.test.ts src/lib/pixel-sprites.test.ts src/lib/table-names.test.ts src/lib/track-reference.test.ts",
     "typecheck": "next typegen && tsc --noEmit"
   },
   "dependencies": {

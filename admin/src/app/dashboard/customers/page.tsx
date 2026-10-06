@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 
-import { fetchCustomers } from "@/lib/supabase/queries";
+import { fetchCustomerStats } from "@/lib/supabase/customer-queries";
 import { formatCurrency } from "@/lib/format";
 import { PageContainer, PageHeader, Section } from "@/components/layout/page";
 import { Avatar } from "@/components/ui/avatar";
@@ -12,12 +12,24 @@ import type { Column } from "@/components/ui/data-table";
 import { Badge } from "@/components/ui/badge";
 import { useAsyncData } from "@/lib/use-async-data";
 import { TableBoundary } from "@/components/ui/table-boundary";
-import type { Customer } from "@/lib/types";
+import type { CustomerStats } from "@/lib/customer-stats";
 
-const gold = (row: Customer) => row.totalSpend >= 400;
-const silver = (row: Customer) => row.totalSpend >= 200 && !gold(row);
+/** Thresholds live here for now; they move to lib/customer-tier.ts next. */
+const GOLD_MIN_SPEND = 400;
+const SILVER_MIN_SPEND = 200;
 
-const columns: Column<Customer>[] = [
+/**
+ * An unlinked row has no spend at all (null), which is not "Standard tier" --
+ * it is a row we know nothing about. It is labelled, not ranked.
+ */
+function tierOf(row: CustomerStats): "Gold" | "Silver" | "Standard" | "Not linked" {
+  if (row.totalSpend === null) return "Not linked";
+  if (row.totalSpend >= GOLD_MIN_SPEND) return "Gold";
+  if (row.totalSpend >= SILVER_MIN_SPEND) return "Silver";
+  return "Standard";
+}
+
+const columns: Column<CustomerStats>[] = [
   {
     key: "name",
     header: "Customer",
@@ -36,28 +48,38 @@ const columns: Column<Customer>[] = [
   { key: "city", header: "City", cell: (row) => row.city },
   {
     key: "tier",
-    header: "Tier (sample)",
-    cell: (row) => (
-      <Badge variant={gold(row) ? "warning" : silver(row) ? "secondary" : "outline"} size="sm">
-        {gold(row) ? "Gold" : silver(row) ? "Silver" : "Standard"}
-      </Badge>
-    ),
+    header: "Tier",
+    cell: (row) => {
+      const tier = tierOf(row);
+      return (
+        <Badge
+          variant={
+            tier === "Gold" ? "warning" : tier === "Silver" ? "secondary" : "outline"
+          }
+          size="sm"
+        >
+          {tier}
+        </Badge>
+      );
+    },
   },
   {
     key: "ordersCount",
-    header: "Orders (sample)",
+    header: "Orders",
     align: "right",
     cell: (row) => (
-      <span className="text-card-foreground">{row.ordersCount}</span>
+      <span className="text-card-foreground">
+        {row.linked ? row.ordersCount : "—"}
+      </span>
     ),
   },
   {
     key: "totalSpend",
-    header: "Total spent (sample)",
+    header: "Total spent",
     align: "right",
     cell: (row) => (
       <span className="font-medium text-card-foreground">
-        {formatCurrency(row.totalSpend)}
+        {row.totalSpend === null ? "—" : formatCurrency(row.totalSpend)}
       </span>
     ),
   },
@@ -74,9 +96,12 @@ const columns: Column<Customer>[] = [
 
 export default function CustomersPage() {
   const router = useRouter();
-  const { data, loading, error, refetch } = useAsyncData(() =>
-    fetchCustomers(),
-  );
+  const {
+    data,
+    loading,
+    error,
+    refetch,
+  } = useAsyncData(() => fetchCustomerStats());
 
   return (
     <PageContainer>
@@ -94,25 +119,8 @@ export default function CustomersPage() {
           skeletonColumns={6}
         >
           <Card className="overflow-hidden">
-            {/* Prompt 2.4, customer half. `orders.customer` is free text with
-                no foreign key to `/dashboard/customers`, so a correct per-customer
-                aggregate cannot be maintained -- the only available join is on
-                a name string, which silently misattributes orders between
-                same-named customers. The restaurant aggregates WERE made real
-                (0008_aggregate_refresh.sql); these were not.
-
-                So the Orders, Total spent and Tier columns below are seed-time
-                constants, not live figures. They are labelled as sample data
-                rather than quietly presented as a leaderboard. */}
-            <p
-              className="border-b border-border bg-muted/40 px-4 py-2.5 text-xs text-muted-foreground"
-              role="note"
-            >
-              Orders, Total spent and Tier are sample values from the seed data,
-              not live aggregates. A customer cannot yet be linked to their
-              orders by id, so these figures do not update.
-            </p>
-            <PaginatedDataTable<Customer>
+            <CustomerStatsNote />
+            <PaginatedDataTable<CustomerStats>
               columns={columns}
               rows={data ?? []}
               searchFields={["name", "email", "phone", "city", "id"]}
@@ -125,12 +133,16 @@ export default function CustomersPage() {
                 { key: "city", header: "City" },
                 {
                   key: "totalSpend",
-                  header: "Tier (sample)",
-                  format: (row) =>
-                    gold(row) ? "Gold" : silver(row) ? "Silver" : "Standard",
+                  header: "Tier",
+                  format: (row) => tierOf(row),
                 },
-                { key: "ordersCount", header: "Orders (sample)" },
-                { key: "totalSpend", header: "Total spent (sample)" },
+                { key: "ordersCount", header: "Orders" },
+                {
+                  key: "totalSpend",
+                  header: "Total spent",
+                  format: (row) =>
+                    row.totalSpend === null ? "—" : formatCurrency(row.totalSpend),
+                },
                 { key: "joinedAt", header: "Joined" },
               ]}
             />
@@ -138,5 +150,28 @@ export default function CustomersPage() {
         </TableBoundary>
       </Section>
     </PageContainer>
+  );
+}
+
+/**
+ * The note that used to sit here claimed Orders/Total spent/Tier were seed
+ * constants and that a customer could not be linked to their orders by id. Both
+ * stopped being true at 0012 and 0059, so it is gone rather than reworded.
+ *
+ * What replaces it is narrower and still true: a row with no auth account has no
+ * orders of its own, and saying "—" is the honest cell. Migration 0061 excludes
+ * walk-in orders (no customer_user_id) from every per-customer aggregate and
+ * reports them as a platform total instead, so they cannot inflate a spend here.
+ */
+function CustomerStatsNote() {
+  return (
+    <p
+      className="border-b border-border bg-muted/40 px-4 py-2.5 text-xs text-muted-foreground"
+      role="note"
+    >
+      Orders, total spent and tier are computed from each customer&apos;s own
+      delivered orders. Rows without a linked account (seed fixtures) show “—”,
+      and orders placed without an account are counted separately as walk-ins.
+    </p>
   );
 }

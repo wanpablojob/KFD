@@ -611,6 +611,40 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      /** Per-customer live aggregates, admin-checked inside (0061). */
+      admin_customer_stats: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          id: string
+          user_id: string | null
+          name: string
+          email: string
+          phone: string | null
+          city: string
+          joined_at: string
+          archived_at: string | null
+          blocked_at: string | null
+          notes: string | null
+          orders_count: number
+          delivered_count: number
+          cancelled_count: number
+          failed_count: number
+          total_spend: number | null
+          avg_order_value: number | null
+          last_order_at: string | null
+        }[]
+      }
+      /** Customer counts plus walk-in figures, admin-checked inside (0061). */
+      admin_customer_stats_totals: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          total_customers: number
+          new_this_month: number
+          active_this_month: number
+          walk_in_orders: number
+          walk_in_spend: number
+        }[]
+      }
       admin_dispatch_order: {
         Args: { p_order_id: string; p_rider_ids?: string[] }
         Returns: {
