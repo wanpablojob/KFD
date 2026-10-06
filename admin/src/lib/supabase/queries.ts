@@ -4,6 +4,7 @@ import {
   riderProfilePatch,
   type RiderProfileInput,
 } from "@/lib/rider-profile";
+import { describeRpcFailure } from "@/lib/missing-migration";
 import {
   mapPayouts,
   mapPayoutSummary,
@@ -843,6 +844,26 @@ function requireOk<T>(error: { message: string } | null, value: T): T {
   return value;
 }
 
+/**
+ * For reads whose function lives in a migration that may not be applied yet.
+ *
+ * The raw PostgREST error names an internal symbol and tells the deployer
+ * nothing. This names the migration, and distinguishes "not applied" from
+ * "applied but the schema cache has not reloaded" -- which look identical in
+ * the browser and have opposite fixes.
+ */
+function requireMigration<T>(
+  error: { message: string; code?: string } | null,
+  value: T,
+  migration: string,
+): T {
+  if (error) {
+    const described = describeRpcFailure(error, migration);
+    throw new Error(described ?? error.message);
+  }
+  return value;
+}
+
 export async function fetchMerchantAccess(): Promise<MerchantAccess[]> {
   const { data, error } = await supabase.rpc("merchant_access_list");
 
@@ -984,7 +1005,10 @@ export async function fetchRiderApplications(
     p_status: status,
   });
 
-  return requireOk(
+  // The reviewer column arrives with 0064. Until then this read still works --
+  // reviewerEmail maps to null -- so the named migration is only reported when
+  // the function itself is unreachable, not merely out of date.
+  return requireMigration(
     error,
     ((data ?? []) as Record<string, unknown>[]).map((row) => ({
       id: String(row.id),
@@ -1009,6 +1033,7 @@ export async function fetchRiderApplications(
       applicantUserId: String(row.applicant_user_id),
       waitingDays: Number(row.waiting_days ?? 0),
     })),
+    APPLICATION_REVIEWER_MIGRATION,
   );
 }
 
@@ -1107,6 +1132,11 @@ export async function setRiderSuspended(
 }
 
 /** Payout amount and delivery count per day, empty days included as zero. */
+/** The migration that has to be applied before the ledger reads work. */
+const LEDGER_MIGRATION = "0058_admin_rider_ledger.sql";
+/** Same, for the application reviewer's email. */
+const APPLICATION_REVIEWER_MIGRATION = "0064_rider_application_reviewer.sql";
+
 /**
  * A rider's earnings, summed from the payout ledger.
  *
@@ -1123,7 +1153,7 @@ export async function fetchRiderPayoutSummary(
   const { data, error } = await supabase.rpc("admin_rider_payout_summary", {
     p_rider_id: riderId,
   });
-  if (error) throw new Error(error.message);
+  requireMigration(error, null, LEDGER_MIGRATION);
 
   // The function returns exactly one row by construction.
   return mapPayoutSummary((data ?? [])[0] as Record<string, unknown> | undefined);
@@ -1138,7 +1168,7 @@ export async function fetchRiderPayouts(
     p_rider_id: riderId,
     p_limit: limit,
   });
-  if (error) throw new Error(error.message);
+  requireMigration(error, null, LEDGER_MIGRATION);
 
   return mapPayouts((data ?? []) as unknown as Record<string, unknown>[]);
 }
