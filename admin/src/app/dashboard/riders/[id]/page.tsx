@@ -12,6 +12,8 @@ import {
   fetchRiderApplications,
   fetchRiderEarningsByDay,
   fetchRiderNotes,
+  fetchRiderPayouts,
+  fetchRiderPayoutSummary,
   setRiderArchived,
   setRiderStatus,
   setRiderSuspended,
@@ -36,10 +38,13 @@ import { ArrowLeftIcon } from "@/components/ui/icons";
 import { useAsyncData } from "@/lib/use-async-data";
 import { TableBoundary } from "@/components/ui/table-boundary";
 import type { Column } from "@/components/ui/data-table";
-import type { Order, Rider } from "@/lib/types";
+import type { Rider } from "@/lib/types";
+import type { RiderPayout } from "@/lib/rider-ledger";
+import type { RiderDelivery } from "@/lib/rider-orders";
 import { riderFlags } from "@/lib/rider-flags";
 import { friendlyRiderSaveError } from "@/lib/rider-validation";
 import { describeEvent, sortActivity } from "@/lib/rider-activity";
+import { successRateLabel } from "@/lib/rider-ledger";
 import { EarningsChart } from "@/components/charts/earnings-chart";
 import {
   ContactShortcuts,
@@ -49,7 +54,7 @@ import {
 import { SuspendRiderDialog } from "@/components/rider/suspend-rider-dialog";
 import { EditRiderDialog } from "@/components/rider/edit-rider-dialog";
 
-const columns: Column<Order>[] = [
+const deliveryColumns: Column<RiderDelivery>[] = [
   {
     key: "reference",
     header: "Reference",
@@ -95,6 +100,55 @@ const columns: Column<Order>[] = [
   },
 ];
 
+/**
+ * What this rider earned, per delivery.
+ *
+ * The ledger's own rows, not orders.total. The delivery history table further
+ * down still shows total because there it means "what the customer paid", which
+ * is a legitimate column of an order; here the column is money the rider earned
+ * and the two were never the same number.
+ */
+const payoutColumns: Column<RiderPayout>[] = [
+  {
+    key: "earnedAt",
+    header: "Earned",
+    cell: (row) => (
+      <span className="whitespace-nowrap text-muted-foreground">
+        {new Date(row.earnedAt).toLocaleString()}
+      </span>
+    ),
+  },
+  {
+    key: "restaurant",
+    header: "Restaurant",
+    cell: (row) => (
+      <span className="font-medium text-card-foreground">{row.restaurant}</span>
+    ),
+  },
+  {
+    key: "reference",
+    header: "Order",
+    cell: (row) => (
+      <Link
+        href={`/dashboard/orders?order=${row.reference}`}
+        className="text-card-foreground underline underline-offset-2"
+      >
+        {row.reference}
+      </Link>
+    ),
+  },
+  {
+    key: "amount",
+    header: "Earned",
+    align: "right",
+    cell: (row) => (
+      <span className="font-medium text-card-foreground">
+        {formatCurrency(row.amount)}
+      </span>
+    ),
+  },
+];
+
 /** Chart window. A month is long enough to spot a decline without paging. */
 const WINDOW_DAYS = 30;
 /** Server-side page size for the delivery history. The pager asks for more. */
@@ -126,6 +180,12 @@ export default function RiderDetailPage() {
   // applicantUserId rather than needing a join column.
   const applications = useAsyncData(() => fetchRiderApplications(), riderId);
   const emails = useAsyncData(() => fetchRiderEmails(), riderId);
+  // The ledger is the source of truth for money. Needs migration 0058.
+  const payoutSummary = useAsyncData(
+    () => fetchRiderPayoutSummary(riderId),
+    riderId,
+  );
+  const payouts = useAsyncData(() => fetchRiderPayouts(riderId), riderId);
 
   const earnings = useAsyncData(
     () =>
@@ -198,6 +258,12 @@ export default function RiderDetailPage() {
   const currentJob = (orders.data?.rows ?? []).find(
     (order) => !["delivered", "cancelled"].includes(order.status),
   );
+
+  const summary = payoutSummary.data;
+  const rateLabel = successRateLabel({
+    deliveredCount: summary?.deliveredCount ?? 0,
+    failedCount: summary?.failedCount ?? 0,
+  });
 
   const events = sortActivity(activity.data ?? []);
   const flags = riderFlags({
@@ -344,26 +410,36 @@ export default function RiderDetailPage() {
           </p>
         ) : null}
 
+        {/* Every peso here is the ledger, not orders.total and not the
+            denormalised riders.earnings counter. See lib/rider-ledger.ts. */}
         <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
           <StatCard
             kpi={{
-              label: "Deliveries",
-              value: String(rider.deliveries),
-              hint: "Counter on the rider row",
+              label: "Earned today",
+              value: formatCurrency(summary?.earnedToday ?? 0),
+              hint: "Manila day",
             }}
-          />
-          <StatCard
-            kpi={{ label: "Rating", value: `${rider.rating} ★`, hint: "Seeded value" }}
           />
           <StatCard
             kpi={{
-              label: "Earnings this week",
-              value: formatCurrency(0),
-              hint: "Moved to the ledger next",
+              label: "Earned this week",
+              value: formatCurrency(summary?.earnedWeek ?? 0),
+              hint: "Last 7 days",
             }}
           />
           <StatCard
-            kpi={{ label: "Total earnings", value: formatCurrency(rider.earnings), hint: "All time" }}
+            kpi={{
+              label: "Lifetime earned",
+              value: formatCurrency(summary?.lifetime ?? 0),
+              hint: `${summary?.deliveredCount ?? 0} deliveries completed`,
+            }}
+          />
+          <StatCard
+            kpi={{
+              label: "Rating",
+              value: `${rider.rating} ★`,
+              hint: rateLabel,
+            }}
           />
         </div>
       </Section>
@@ -523,6 +599,40 @@ export default function RiderDetailPage() {
         </Card>
       </Section>
 
+      <Section aria-label="Payout history" className="mb-8">
+        <Card className="overflow-hidden">
+          <div className="p-5">
+            <h2 className="text-sm font-semibold text-card-foreground">
+              Payout history
+            </h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              One row per completed delivery, from the earnings ledger. The amount
+              was frozen when the order was claimed, so it does not move if the fee
+              changes later.
+            </p>
+          </div>
+          <TableBoundary
+            loading={payouts.loading}
+            error={payouts.error}
+            onRetry={payouts.refetch}
+            errorTitle="Could not load the payout ledger"
+            skeletonRows={3}
+            skeletonColumns={4}
+          >
+            {(payouts.data ?? []).length === 0 ? (
+              <div className="px-5 pb-5">
+                <EmptyState
+                  title="No payouts recorded"
+                  description="The ledger starts at this rider's first delivery completed since it existed. Older deliveries have no recorded payout and are left out rather than guessed at."
+                />
+              </div>
+            ) : (
+              <DataTable columns={payoutColumns} rows={payouts.data ?? []} />
+            )}
+          </TableBoundary>
+        </Card>
+      </Section>
+
       <Section aria-label="Application" className="mb-8">
         <Card>
           <div className="p-5">
@@ -638,7 +748,7 @@ export default function RiderDetailPage() {
               />
             ) : (
               <>
-                <DataTable columns={columns} rows={orders.data?.rows ?? []} />
+                <DataTable columns={deliveryColumns} rows={orders.data?.rows ?? []} />
                 {orders.data && orders.data.total !== null ? (
                   <Pagination
                     page={deliveryPage}

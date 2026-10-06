@@ -1,6 +1,12 @@
 import { supabase } from "./client";
 import { anyIlikeFilter } from "./ilike-filter";
 import {
+  mapPayouts,
+  mapPayoutSummary,
+  type RiderPayout,
+  type RiderPayoutSummary,
+} from "@/lib/rider-ledger";
+import {
   RIDER_ORDER_COLUMNS,
   mapRiderOrderRows,
   riderOrderScope,
@@ -1054,6 +1060,42 @@ export async function setRiderSuspended(
 }
 
 /** Payout amount and delivery count per day, empty days included as zero. */
+/**
+ * A rider's earnings, summed from the payout ledger.
+ *
+ * The ledger has RLS on and no authenticated grant (0038, 0039), so an admin
+ * looking at *another* rider has no table read at all -- this goes through the
+ * admin-gated RPC in migration 0058. Replaces orders.total, which was the
+ * customer's bill.
+ *
+ * Requires 0058 to be applied.
+ */
+export async function fetchRiderPayoutSummary(
+  riderId: string,
+): Promise<RiderPayoutSummary> {
+  const { data, error } = await supabase.rpc("admin_rider_payout_summary", {
+    p_rider_id: riderId,
+  });
+  if (error) throw new Error(error.message);
+
+  // The function returns exactly one row by construction.
+  return mapPayoutSummary((data ?? [])[0] as Record<string, unknown> | undefined);
+}
+
+/** One rider's per-delivery payout rows, newest first. Requires migration 0058. */
+export async function fetchRiderPayouts(
+  riderId: string,
+  limit = 25,
+): Promise<RiderPayout[]> {
+  const { data, error } = await supabase.rpc("admin_rider_payouts", {
+    p_rider_id: riderId,
+    p_limit: limit,
+  });
+  if (error) throw new Error(error.message);
+
+  return mapPayouts((data ?? []) as unknown as Record<string, unknown>[]);
+}
+
 export async function fetchRiderEarningsByDay(
   riderId: string,
   from: Date,

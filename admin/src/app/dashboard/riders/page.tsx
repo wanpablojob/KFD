@@ -224,8 +224,13 @@ export default function RidersPage() {
       key: "deliveries",
       header: "Deliveries",
       align: "right",
+      // deliveredCount, not riders.deliveries. That column is a counter the
+      // schema increments but never reset when the payout ledger replaced it in
+      // 0038, so it still carries pre-ledger history and disagrees with the
+      // rider's own Earnings tab. delivered_count counts delivered orders, which
+      // is also what /dashboard/riders/[id] reports.
       cell: (row) => (
-        <span className="text-card-foreground">{row.deliveries}</span>
+        <span className="text-card-foreground">{row.deliveredCount}</span>
       ),
     },
     {
@@ -246,8 +251,12 @@ export default function RidersPage() {
     },
     {
       key: "earnings",
-      header: "Total",
+      header: "Total earned",
       align: "right",
+      // riders.earnings is maintained by rider_mark_delivered in the same
+      // statement that writes the ledger row, and 0038 reconciled it to the
+      // ledger sum -- so it is ledger-consistent and safe to read here. It is
+      // still the denormalised column, not a live sum.
       cell: (row) => (
         <span className="font-medium text-card-foreground">
           {formatCurrency(row.earnings)}
@@ -544,7 +553,7 @@ export default function RidersPage() {
                 { key: "email", header: "Email" },
                 { key: "city", header: "City" },
                 { key: "vehicle", header: "Vehicle" },
-                { key: "deliveries", header: "Deliveries" },
+                { key: "deliveredCount", header: "Deliveries" },
                 { key: "rating", header: "Rating" },
                 { key: "earnings", header: "Earnings" },
                 { key: "status", header: "Status" },
@@ -823,7 +832,7 @@ function RiderMobileCard({ rider }: { rider: RiderOverview }) {
         ) : (
           <span>Idle</span>
         )}
-        <span>{rider.deliveries} deliveries</span>
+        <span>{rider.deliveredCount} deliveries</span>
         <span>{rider.rating} ★</span>
         <span>Week {formatCurrency(rider.weekEarnings)}</span>
         <span>Total {formatCurrency(rider.earnings)}</span>

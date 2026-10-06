@@ -643,13 +643,14 @@ export type Database = {
       admin_rider_payout_summary: {
         Args: { p_rider_id: string }
         Returns: {
-          delivery_count: number
+          delivered_count: number
           earned_today: number
           earned_week: number
           failed_count: number
           first_earned_at: string | null
           last_earned_at: string | null
           lifetime: number
+          payout_count: number
         }[]
       }
       admin_rider_payouts: {
