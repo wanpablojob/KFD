@@ -24,6 +24,14 @@ export const RIDER_FILTERS = [
 export type RiderFilter = (typeof RIDER_FILTERS)[number];
 
 /**
+ * City and vehicle are free-text columns on the row, so they are a filter rather
+ * than a fixed enum: the option list is built from the rows on screen, which is
+ * the same set the count cards are drawn from.
+ */
+export type RiderCityFilter = string;
+export type RiderVehicleFilter = string;
+
+/**
  * Keys are the `RiderOverview` field names, not the table column keys, so
  * `compareRiders(row, row, key, dir)` needs no mapping table in the page.
  *
@@ -53,6 +61,10 @@ export interface RiderListParams {
   sort: RiderSortKey;
   dir: SortDir;
   page: number;
+  /** "" means no city filter. */
+  city: RiderCityFilter;
+  /** "" means no vehicle filter. */
+  vehicle: RiderVehicleFilter;
 }
 
 export const DEFAULT_RIDER_LIST_PARAMS: RiderListParams = {
@@ -61,7 +73,50 @@ export const DEFAULT_RIDER_LIST_PARAMS: RiderListParams = {
   sort: "name",
   dir: "asc",
   page: 1,
+  city: "",
+  vehicle: "",
 };
+
+/**
+ * Matched case-insensitively against the row's value.
+ *
+ * A filter that did not match would silently show the whole fleet, which is the
+ * same list an admin sees when they think they have narrowed it -- so an
+ * unmatched value yields nothing rather than everything.
+ */
+function matchesFacet(value: string | null | undefined, selected: string): boolean {
+  if (!selected) return true;
+  return (value ?? "").trim().toLowerCase() === selected.trim().toLowerCase();
+}
+
+export interface FacettableRider {
+  city: string | null | undefined;
+  vehicle: string | null | undefined;
+}
+
+/** The city/vehicle narrowing, applied after the status filter. */
+export function matchesRiderFacets(
+  rider: FacettableRider,
+  params: Pick<RiderListParams, "city" | "vehicle">,
+): boolean {
+  return (
+    matchesFacet(rider.city, params.city) &&
+    matchesFacet(rider.vehicle, params.vehicle)
+  );
+}
+
+/** The distinct values present, for the option lists. */
+export function facetValues<K extends "city" | "vehicle">(
+  riders: readonly FacettableRider[],
+  key: K,
+): string[] {
+  const seen = new Set<string>();
+  for (const rider of riders) {
+    const value = (rider[key] ?? "").trim();
+    if (value) seen.add(value);
+  }
+  return [...seen].sort((a, b) => a.localeCompare(b));
+}
 
 function isFilter(value: string | null): value is RiderFilter {
   return value !== null && (RIDER_FILTERS as readonly string[]).includes(value);
@@ -95,6 +150,8 @@ export function parseRiderListParams(search: string): RiderListParams {
       : DEFAULT_RIDER_LIST_PARAMS.sort,
     dir: dir === "desc" ? "desc" : "asc",
     page,
+    city: params.get("city") ?? "",
+    vehicle: params.get("vehicle") ?? "",
   };
 }
 
@@ -116,6 +173,8 @@ export function riderListParamsToSearch(params: RiderListParams): string {
     search.set("dir", params.dir);
   }
   if (params.page > 1) search.set("page", String(params.page));
+  if (params.city) search.set("city", params.city);
+  if (params.vehicle) search.set("vehicle", params.vehicle);
 
   const rendered = search.toString();
   return rendered ? `?${rendered}` : "";
@@ -135,7 +194,9 @@ export function viewChangeResetsPage(
     current.filter !== next.filter ||
     current.query !== next.query ||
     current.sort !== next.sort ||
-    current.dir !== next.dir
+    current.dir !== next.dir ||
+    current.city !== next.city ||
+    current.vehicle !== next.vehicle
   );
 }
 

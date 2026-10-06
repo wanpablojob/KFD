@@ -23,20 +23,25 @@ import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Card } from "@/components/ui/card";
-import { DataTable } from "@/components/ui/data-table";
 import { EmptyState } from "@/components/ui/status";
 import { PaginatedDataTable } from "@/components/ui/paginated-data-table";
 import { EntityDialog, type DialogField } from "@/components/ui/entity-dialog";
 import { ArchiveButton } from "@/components/ui/archive-button";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
+import { Label } from "@/components/ui/field";
 import { PlusIcon, LinkIcon } from "@/components/ui/icons";
 import type { Column } from "@/components/ui/data-table";
 import { useAsyncData } from "@/lib/use-async-data";
 import { TableBoundary } from "@/components/ui/table-boundary";
 import type { Rider, RiderOverview } from "@/lib/types";
 import { useRiderListView } from "@/lib/use-rider-list-view";
-import { compareRiders, type RiderFilter } from "@/lib/rider-list-params";
+import {
+  compareRiders,
+  facetValues,
+  matchesRiderFacets,
+  type RiderFilter,
+} from "@/lib/rider-list-params";
 import { riderFlags } from "@/lib/rider-flags";
 import {
   friendlyRiderSaveError,
@@ -139,6 +144,11 @@ export default function RidersPage() {
 
   const allRiders = overview.data ?? [];
   const existingEmails = allRiders.map((rider) => rider.email);
+  const accountByRiderId = new Map(
+    (access.data ?? []).map((row) => [row.riderId, row]),
+  );
+  const cities = facetValues(allRiders, "city");
+  const vehicles = facetValues(allRiders, "vehicle");
 
   const rows = allRiders
     .filter((rider) => {
@@ -162,6 +172,7 @@ export default function RidersPage() {
           return true;
       }
     })
+    .filter((rider) => matchesRiderFacets(rider, params))
     .sort((a, b) =>
       compareRiders(
         a as unknown as Record<string, unknown>,
@@ -298,10 +309,63 @@ export default function RidersPage() {
             }}
           >
             <option value="online">Online</option>
-            <option value="busy">Busy</option>
-            <option value="offline">Offline</option>
+            {/* admin_dispatch_order inserts offers only where status = 'online',
+                so "Busy" takes a rider out of dispatch exactly as "Offline"
+                does. It is kept because it is a valid rider self-declaration
+                (rider_set_status accepts it) and the distinction is meaningful to
+                a dispatcher, but it is not a separate dispatch state and the
+                label says so rather than implying one. */}
+            <option value="busy">Busy — not offered work</option>
+            <option value="offline">Offline — not offered work</option>
           </Select>
         ),
+    },
+    {
+      // The account the rider signs in with, and whether they have one at all.
+      // This replaces the standalone "Rider access" table, which listed the same
+      // rows as the fleet list with the same attach/revoke buttons -- so every
+      // rider appeared twice on one page with two ways to change the same thing.
+      key: "account",
+      header: "Account",
+      cell: (row) => {
+        const linked = accountByRiderId.get(row.id);
+        if (!linked) {
+          return (
+            <span className="text-muted-foreground">
+              No account — cannot sign in
+            </span>
+          );
+        }
+        return (
+          <span className="flex flex-col items-start gap-1">
+            <span className="text-card-foreground">{linked.email}</span>
+            <span className="flex gap-1.5">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setMode({ kind: "reassign", row: linked });
+                }}
+              >
+                {linked.userId ? "Reassign" : "Attach"}
+              </Button>
+              {linked.userId ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setMode({ kind: "revoke", row: linked });
+                  }}
+                >
+                  Revoke
+                </Button>
+              ) : null}
+            </span>
+          </span>
+        );
+      },
     },
     {
       key: "actions",
@@ -347,62 +411,6 @@ export default function RidersPage() {
     },
   ];
 
-  const accessColumns: Column<RiderAccess>[] = [
-    {
-      key: "riderName",
-      header: "Rider",
-      cell: (row) => (
-        <span className="flex items-center gap-2.5">
-          <Avatar name={row.riderName} size="sm" />
-          <span className="font-medium text-card-foreground">
-            {row.riderName}
-          </span>
-          {row.archivedAt ? (
-            <Badge variant="secondary" size="sm">
-              Archived
-            </Badge>
-          ) : null}
-        </span>
-      ),
-    },
-    {
-      key: "email",
-      header: "Account",
-      cell: (row) =>
-        row.userId ? (
-          <span className="font-medium text-card-foreground">{row.email}</span>
-        ) : (
-          <span className="text-muted-foreground">
-            Not linked — this rider cannot sign in
-          </span>
-        ),
-    },
-    {
-      key: "actions",
-      header: "",
-      align: "right",
-      cell: (row) => (
-        <span className="flex justify-end gap-2">
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => setMode({ kind: "reassign", row })}
-          >
-            {row.userId ? "Reassign" : "Attach"}
-          </Button>
-          {row.userId ? (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setMode({ kind: "revoke", row })}
-            >
-              Revoke
-            </Button>
-          ) : null}
-        </span>
-      ),
-    },
-  ];
 
   const allApplications = applications.data ?? [];
   const pendingCount = allApplications.filter((a) => a.status === "pending").length;
@@ -559,9 +567,60 @@ export default function RidersPage() {
       <RiderSummaryCards
         rows={allRiders}
         filter={params.filter}
+        pendingApplications={pendingCount}
         onFilterChange={(next: RiderFilter) => set({ filter: next })}
       />
       <RiderInsightPanels rows={allRiders} />
+
+      <div className="mb-4 flex flex-wrap items-end gap-3">
+        <div>
+          <Label htmlFor="rider-city" className="text-xs text-muted-foreground">
+            City
+          </Label>
+          <Select
+            id="rider-city"
+            value={params.city}
+            aria-label="Filter riders by city"
+            className="mt-1 h-9 w-44"
+            onChange={(e) => set({ city: e.target.value })}
+          >
+            <option value="">All cities</option>
+            {cities.map((city) => (
+              <option key={city} value={city}>
+                {city}
+              </option>
+            ))}
+          </Select>
+        </div>
+        <div>
+          <Label htmlFor="rider-vehicle" className="text-xs text-muted-foreground">
+            Vehicle
+          </Label>
+          <Select
+            id="rider-vehicle"
+            value={params.vehicle}
+            aria-label="Filter riders by vehicle"
+            className="mt-1 h-9 w-44"
+            onChange={(e) => set({ vehicle: e.target.value })}
+          >
+            <option value="">All vehicles</option>
+            {vehicles.map((vehicle) => (
+              <option key={vehicle} value={vehicle}>
+                {vehicle}
+              </option>
+            ))}
+          </Select>
+        </div>
+        {params.city || params.vehicle ? (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => set({ city: "", vehicle: "" })}
+          >
+            Clear filters
+          </Button>
+        ) : null}
+      </div>
 
       <Section aria-label="Rider list">
         <TableBoundary
@@ -627,6 +686,7 @@ export default function RidersPage() {
         </p>
       ) : null}
 
+      <div id="applications">
       <Section aria-label="Rider applications" className="mt-8">
         <h2 className="mb-1 text-lg font-semibold text-card-foreground">
           Applications
@@ -715,35 +775,8 @@ export default function RidersPage() {
           )}
         </TableBoundary>
       </Section>
+      </div>
 
-      <Section aria-label="Rider access" className="mt-8">
-        <h2 className="mb-1 text-lg font-semibold text-card-foreground">
-          Rider access
-        </h2>
-        <p className="mb-3 text-sm text-muted-foreground">
-          Attach an existing account to a rider so they can sign in to the rider
-          app. Accounts are not created here — sign the rider up in Supabase
-          Auth first, or they will sign in to nothing.
-        </p>
-        <TableBoundary
-          loading={access.loading}
-          error={access.error}
-          onRetry={access.refetch}
-          errorTitle="Could not load rider access"
-          skeletonRows={4}
-        >
-          {(access.data ?? []).length === 0 ? (
-            <EmptyState
-              title="No riders"
-              description="Add a rider above, then attach an account to it."
-            />
-          ) : (
-            <Card className="overflow-hidden">
-              <DataTable columns={accessColumns} rows={access.data ?? []} />
-            </Card>
-          )}
-        </TableBoundary>
-      </Section>
 
       {open ? (
         <RiderFormDialog

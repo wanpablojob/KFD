@@ -2,6 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   DEFAULT_RIDER_LIST_PARAMS,
+  facetValues,
+  matchesRiderFacets,
   compareRiders,
   parseRiderListParams,
   riderListParamsToSearch,
@@ -19,9 +21,14 @@ test("every field round-trips", () => {
     sort: "rating" as const,
     dir: "desc" as const,
     page: 3,
+    city: "Kabankalan City",
+    vehicle: "motorcycle",
   };
   const search = riderListParamsToSearch(params);
-  assert.equal(search, "?status=suspended&q=maria&sort=rating&dir=desc&page=3");
+  assert.equal(
+    search,
+    "?status=suspended&q=maria&sort=rating&dir=desc&page=3&city=Kabankalan+City&vehicle=motorcycle",
+  );
   assert.deepEqual(parseRiderListParams(search), params);
 });
 
@@ -89,4 +96,69 @@ test("text sorting is case-insensitive and numeric-aware", () => {
   // Plain localeCompare would put "Rey 10" before "Rey 2".
   assert.ok(compareRiders(a, b, "name", "asc") < 0);
   assert.equal(compareRiders({ name: "rey" }, { name: "REY" }, "name", "asc"), 0);
+});
+test("city and vehicle default to empty and are omitted when unset", () => {
+  const parsed = parseRiderListParams("");
+  assert.equal(parsed.city, "");
+  assert.equal(parsed.vehicle, "");
+  assert.equal(riderListParamsToSearch({ ...DEFAULT_RIDER_LIST_PARAMS }), "");
+});
+
+test("matchesRiderFacets passes everything when no facet is chosen", () => {
+  assert.equal(
+    matchesRiderFacets({ city: "Iloilo", vehicle: "car" }, { city: "", vehicle: "" }),
+    true,
+  );
+});
+
+test("matchesRiderFacets narrows on either facet", () => {
+  const rider = { city: "Iloilo City", vehicle: "scooter" };
+  assert.equal(matchesRiderFacets(rider, { city: "Iloilo City", vehicle: "" }), true);
+  assert.equal(matchesRiderFacets(rider, { city: "Kabankalan", vehicle: "" }), false);
+  assert.equal(matchesRiderFacets(rider, { city: "", vehicle: "scooter" }), true);
+  assert.equal(matchesRiderFacets(rider, { city: "", vehicle: "car" }), false);
+});
+
+test("a facet match ignores case and surrounding space", () => {
+  assert.equal(
+    matchesRiderFacets(
+      { city: "Iloilo City", vehicle: "Scooter" },
+      { city: " iloilo city ", vehicle: "SCOOTER" },
+    ),
+    true,
+  );
+});
+
+test("a missing city does not match a chosen one", () => {
+  assert.equal(
+    matchesRiderFacets({ city: null, vehicle: "car" }, { city: "", vehicle: "car" }),
+    true,
+  );
+  assert.equal(
+    matchesRiderFacets({ city: null, vehicle: "car" }, { city: "Iloilo", vehicle: "" }),
+    false,
+  );
+});
+
+test("facetValues lists what is actually present, once, sorted", () => {
+  const rows = [
+    { city: "Kabankalan", vehicle: "scooter" },
+    { city: "Iloilo", vehicle: "scooter" },
+    { city: "  ", vehicle: "car" },
+    { city: null, vehicle: "bicycle" },
+  ];
+  assert.deepEqual(facetValues(rows, "city"), ["Iloilo", "Kabankalan"]);
+  assert.deepEqual(facetValues(rows, "vehicle"), ["bicycle", "car", "scooter"]);
+});
+
+test("changing a facet resets the page", () => {
+  const base = { ...DEFAULT_RIDER_LIST_PARAMS, page: 4 };
+  assert.equal(
+    viewChangeResetsPage(base, { ...base, city: "Iloilo" }),
+    true,
+  );
+  assert.equal(
+    viewChangeResetsPage(base, { ...base, vehicle: "car" }),
+    true,
+  );
 });

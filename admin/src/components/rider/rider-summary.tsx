@@ -21,10 +21,17 @@ export function RiderSummaryCards({
   rows,
   filter,
   onFilterChange,
+  pendingApplications = 0,
 }: {
   rows: RiderOverview[];
   filter: RiderFilter;
   onFilterChange: (next: RiderFilter) => void;
+  /**
+   * Applications waiting on a decision. Not one of the rider status cards --
+   * an applicant has no rider row yet -- so it is a separate figure that links
+   * to the queue rather than a filter over these rows.
+   */
+  pendingApplications?: number;
 }) {
   const dispatchable = rows.filter((r) => !r.archivedAt && !r.suspendedAt);
   const count = (status: RiderOverview["status"]) =>
@@ -58,6 +65,22 @@ export function RiderSummaryCards({
           className="p-4"
         />
       ))}
+      {/* Sits in the same row because it is the same question -- "is there work
+          waiting on me" -- answered for people who are not riders yet. */}
+      <Link
+        href="/dashboard/riders#applications"
+        className="rounded-(--radius-card) border border-border bg-card p-4 transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <p className="text-sm text-muted-foreground">Applications</p>
+        <p className="mt-2 text-2xl font-bold tracking-tight text-card-foreground">
+          {pendingApplications}
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {pendingApplications === 1
+            ? "Waiting on a decision"
+            : "Waiting on decisions"}
+        </p>
+      </Link>
     </div>
   );
 }
