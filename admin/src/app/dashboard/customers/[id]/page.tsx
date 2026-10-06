@@ -6,6 +6,10 @@ import Link from "next/link";
 import {
   fetchCustomerById,
   fetchCustomerOrders,
+  fetchCustomerSummary,
+  setCustomerArchived,
+  setCustomerBlocked,
+  updateCustomerContact,
   type CustomerDelivery,
   type CustomerOrderPage,
 } from "@/lib/supabase/customer-queries";
@@ -14,15 +18,19 @@ import { PageContainer, PageHeader, Section } from "@/components/layout/page";
 import { Card } from "@/components/ui/card";
 import { DataTable } from "@/components/ui/data-table";
 import type { Column } from "@/components/ui/data-table";
+import type { CustomerStats } from "@/lib/customer-stats";
 import { Pagination } from "@/components/ui/pagination";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { ArrowLeftIcon } from "@/components/ui/icons";
+import { ArchiveButton } from "@/components/ui/archive-button";
+import { EntityDialog } from "@/components/ui/entity-dialog";
 import { useAsyncData } from "@/lib/use-async-data";
 import { TableBoundary } from "@/components/ui/table-boundary";
 import { tierLabelFor } from "@/lib/customer-tier";
+import { paymentMixShares } from "@/lib/customer-summary";
 import { EmptyState } from "@/components/ui/status";
 
 /** Server-side page size for the order history. The pager asks for more. */
@@ -118,6 +126,40 @@ export default function CustomerDetailPage() {
     },
     `${customerId}:${customer?.userId ?? ""}:${orderPage}`,
   );
+
+  // Aggregated server-side over ALL orders: the history above is one page, so a
+  // mix computed from it would be wrong for exactly the busiest customers.
+  const summaryQuery = useAsyncData(
+    () => fetchCustomerSummary(customer?.userId ?? null),
+    `${customerId}:${customer?.userId ?? ""}:summary`,
+  );
+
+  const [editing, setEditing] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  async function toggleBlocked(id: string, blocked: boolean) {
+    setActionError(null);
+    try {
+      await setCustomerBlocked(id, blocked);
+      customerQuery.refetch();
+    } catch (cause) {
+      setActionError(
+        cause instanceof Error ? cause.message : "Could not update. Try again.",
+      );
+    }
+  }
+
+  async function toggleArchived(id: string, archived: boolean) {
+    setActionError(null);
+    try {
+      await setCustomerArchived(id, archived);
+      customerQuery.refetch();
+    } catch (cause) {
+      setActionError(
+        cause instanceof Error ? cause.message : "Could not update. Try again.",
+      );
+    }
+  }
 
   if (customerQuery.loading) {
     return (
@@ -237,6 +279,139 @@ export default function CustomerDetailPage() {
         </Card>
       </Section>
 
+      <Section aria-label="Order profile">
+        <div className="grid gap-4 lg:grid-cols-3">
+          <Card className="p-5">
+            <h2 className="text-sm font-semibold text-card-foreground">
+              Order status mix
+            </h2>
+            {!linked ? (
+              <p className="mt-2 text-xs text-muted-foreground">
+                No linked account, so no orders to break down.
+              </p>
+            ) : Object.keys(summaryQuery.data?.statusCounts ?? {}).length === 0 ? (
+              <p className="mt-2 text-xs text-muted-foreground">
+                This customer has not ordered yet.
+              </p>
+            ) : (
+              <ul className="mt-3 space-y-2">
+                {Object.entries(summaryQuery.data?.statusCounts ?? {}).map(
+                  ([status, count]) => (
+                    <li
+                      key={status}
+                      className="flex items-center justify-between gap-2 text-sm"
+                    >
+                      <StatusBadge status={status as CustomerDelivery["status"]} />
+                      <span className="text-card-foreground">{count}</span>
+                    </li>
+                  ),
+                )}
+              </ul>
+            )}
+          </Card>
+
+          <Card className="p-5">
+            <h2 className="text-sm font-semibold text-card-foreground">
+              Payment methods
+            </h2>
+            {paymentMixShares(summaryQuery.data?.paymentCounts ?? {}).length === 0 ? (
+              <p className="mt-2 text-xs text-muted-foreground">
+                No payment history yet.
+              </p>
+            ) : (
+              <ul className="mt-3 space-y-2">
+                {paymentMixShares(summaryQuery.data?.paymentCounts ?? {}).map(
+                  (row) => (
+                    <li
+                      key={row.key}
+                      className="flex items-center justify-between gap-2 text-sm"
+                    >
+                      <span className="text-muted-foreground">{row.label}</span>
+                      <span className="text-card-foreground">
+                        {row.count} · {Math.round(row.share * 100)}%
+                      </span>
+                    </li>
+                  ),
+                )}
+              </ul>
+            )}
+          </Card>
+
+          <Card className="p-5">
+            <h2 className="text-sm font-semibold text-card-foreground">
+              Delivery addresses
+            </h2>
+            {summaryQuery.data?.recentAddresses.length ? (
+              <ul className="mt-3 space-y-3">
+                {summaryQuery.data.recentAddresses.slice(0, 5).map((entry) => (
+                  <li key={entry.address} className="text-sm">
+                    <p className="text-card-foreground">{entry.address}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {entry.times} order{entry.times === 1 ? "" : "s"} · last used{" "}
+                      {entry.lastUsed ? entry.lastUsed.slice(0, 10) : "unknown"}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-2 text-xs text-muted-foreground">
+                No addresses recorded yet. Customers type one at checkout.
+              </p>
+            )}
+          </Card>
+        </div>
+      </Section>
+
+      <Section aria-label="Operator notes">
+        <Card className="p-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-semibold text-card-foreground">
+                Operator notes
+              </h2>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Internal only. Riders and customers never see this.
+              </p>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
+              Edit contact &amp; notes
+            </Button>
+          </div>
+          <p className="mt-3 whitespace-pre-wrap text-sm text-card-foreground">
+            {customer.notes ?? "No notes yet."}
+          </p>
+          {actionError ? (
+            <p className="mt-3 text-xs text-destructive">{actionError}</p>
+          ) : null}
+        </Card>
+      </Section>
+
+      <Section aria-label="Customer actions">
+        <Card className="flex flex-wrap items-center gap-3 p-5">
+          <Button
+            variant={customer.blockedAt ? "outline" : "destructive"}
+            size="sm"
+            onClick={() =>
+              void toggleBlocked(
+                customer.id,
+                customer.blockedAt === null,
+              )
+            }
+          >
+            {customer.blockedAt ? "Unblock customer" : "Block customer"}
+          </Button>
+          <ArchiveButton
+            name={customer.name}
+            archived={customer.archivedAt !== null}
+            onChange={(next) => toggleArchived(customer.id, next)}
+          />
+          <p className="text-xs text-muted-foreground">
+            Blocking stops new orders immediately (customer_place_order refuses
+            them). Archiving only hides the record; both are reversible.
+          </p>
+        </Card>
+      </Section>
+
       <Section aria-label="Order history">
         <TableBoundary
           loading={ordersQuery.loading}
@@ -276,7 +451,73 @@ export default function CustomerDetailPage() {
           </Card>
         </TableBoundary>
       </Section>
+      {editing && customer ? (
+        <EditCustomerDialog
+          key={customer.id}
+          customer={customer}
+          onClose={() => setEditing(false)}
+          onSaved={() => {
+            setEditing(false);
+            customerQuery.refetch();
+          }}
+        />
+      ) : null}
     </PageContainer>
+  );
+}
+
+/**
+ * Contact + note editor.
+ *
+ * email is deliberately absent. customers.email is the identity
+ * /api/orders/notify resolves to find this customer's address, and auth.users
+ * holds a second copy that this RPC cannot reach; editing one without the other
+ * would silently stop order emails reaching them. It is shown read-only instead.
+ *
+ * The two phone numbers are labelled by source because they are genuinely
+ * different things: customers.phone is what the operator records, while the
+ * number the rider dials is auth metadata snapshotted onto each order at
+ * checkout. Showing one number without saying which it is would let an operator
+ * correct the wrong one.
+ */
+function EditCustomerDialog({
+  customer,
+  onClose,
+  onSaved,
+}: {
+  customer: CustomerStats;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  return (
+    <EntityDialog
+      open
+      title={`Edit ${customer.name}`}
+      description="Changes apply to the customer record only. The contact number a rider dials comes from the customer's own profile."
+      fields={[
+        { key: "name", label: "Name", required: true },
+        { key: "phone", label: "Phone (customer record)" },
+        { key: "city", label: "City", required: true },
+        { key: "notes", label: "Internal notes" },
+      ]}
+      initial={{
+        name: customer.name,
+        phone: customer.phone,
+        city: customer.city,
+        notes: customer.notes ?? "",
+      }}
+      onClose={onClose}
+      onSave={async (values) => {
+        await updateCustomerContact({
+          customerId: customer.id,
+          name: values.name ?? "",
+          phone: values.phone ?? "",
+          city: values.city ?? "",
+          notes: values.notes ?? "",
+        });
+        onSaved();
+      }}
+    />
   );
 }
 

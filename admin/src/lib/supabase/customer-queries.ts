@@ -6,6 +6,7 @@ import {
   type CustomerStatsTotals,
 } from "@/lib/customer-stats";
 import { customerOrderScope, CUSTOMER_ORDER_COLUMNS } from "@/lib/customer-orders";
+import { mapCustomerSummary, type CustomerSummary } from "@/lib/customer-summary";
 import type { Order, OrderItem } from "@/lib/types";
 
 /**
@@ -188,4 +189,69 @@ function mapCustomerDelivery(row: Record<string, unknown>): CustomerDelivery {
     deliveryFailedAt: text(row.delivery_failed_at),
     deliveryAddress: text(row.delivery_address),
   };
+}
+
+/** Status mix, payment mix and delivery addresses for one linked customer. */
+export async function fetchCustomerSummary(
+  userId: string | null | undefined,
+): Promise<CustomerSummary> {
+  const trimmed = (userId ?? "").trim();
+  if (!trimmed) {
+    // No linked account: no orders can be attributed, so there is no summary.
+    // Returning the empty shape keeps the page rendering instead of throwing.
+    return mapCustomerSummary(null);
+  }
+
+  const { data, error } = await supabase.rpc("admin_customer_summary", {
+    p_customer_user_id: trimmed,
+  });
+  if (error) throw new Error(error.message);
+
+  return mapCustomerSummary(data);
+}
+
+/**
+ * Admin writes. Each is an RPC that re-checks is_platform_admin() inside rather
+ * than relying on a table policy -- see the 0062 header.
+ *
+ * email is not among them on purpose: it is the identity /api/orders/notify
+ * resolves, and auth.users holds a second copy this route cannot change.
+ */
+export async function updateCustomerContact(args: {
+  customerId: string;
+  name: string;
+  phone: string;
+  city: string;
+  notes: string;
+}): Promise<void> {
+  const { error } = await supabase.rpc("admin_customer_update_contact", {
+    p_customer_id: args.customerId,
+    p_name: args.name,
+    p_phone: args.phone,
+    p_city: args.city,
+    p_notes: args.notes,
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function setCustomerBlocked(
+  customerId: string,
+  blocked: boolean,
+): Promise<void> {
+  const { error } = await supabase.rpc("admin_customer_set_blocked", {
+    p_customer_id: customerId,
+    p_blocked: blocked,
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function setCustomerArchived(
+  customerId: string,
+  archived: boolean,
+): Promise<void> {
+  const { error } = await supabase.rpc("admin_customer_set_archived", {
+    p_customer_id: customerId,
+    p_archived: archived,
+  });
+  if (error) throw new Error(error.message);
 }

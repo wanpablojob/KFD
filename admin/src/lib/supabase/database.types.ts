@@ -645,6 +645,29 @@ export type Database = {
           walk_in_spend: number
         }[]
       }
+      /** Status mix, payment mix, addresses for one customer (0062). */
+      admin_customer_summary: {
+        Args: { p_customer_user_id: string }
+        Returns: Json | null
+      }
+      admin_customer_update_contact: {
+        Args: {
+          p_customer_id: string
+          p_name: string
+          p_phone: string
+          p_city: string
+          p_notes: string
+        }
+        Returns: undefined
+      }
+      admin_customer_set_blocked: {
+        Args: { p_customer_id: string; p_blocked: boolean }
+        Returns: undefined
+      }
+      admin_customer_set_archived: {
+        Args: { p_customer_id: string; p_archived: boolean }
+        Returns: undefined
+      }
       admin_dispatch_order: {
         Args: { p_order_id: string; p_rider_ids?: string[] }
         Returns: {
