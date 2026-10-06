@@ -98,6 +98,12 @@ export default function RidersPage() {
   const [mode, setMode] = useState<Mode>(null);
   const [busy, setBusy] = useState(false);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
+  // The queue was one undifferentiated table: pending and long-settled
+  // applications in a single chronology, so the thing that needs a decision was
+  // buried under whatever arrived last.
+  const [applicationFilter, setApplicationFilter] = useState<
+    "all" | "pending" | "approved" | "rejected"
+  >("pending");
   // Per-row status writes and archive writes go through here, so a rejected
   // write shows its message instead of vanishing into an unhandled rejection.
   const action = useRiderAction();
@@ -400,6 +406,9 @@ export default function RidersPage() {
 
   const allApplications = applications.data ?? [];
   const pendingCount = allApplications.filter((a) => a.status === "pending").length;
+  const visibleApplications = allApplications.filter(
+    (a) => applicationFilter === "all" || a.status === applicationFilter,
+  );
 
   const applicationColumns: Column<RiderApplication>[] = [
     {
@@ -487,6 +496,31 @@ export default function RidersPage() {
           ) : null}
         </span>
       ),
+    },
+    {
+      // Who decided. Null while pending, and "(deleted account)" if the
+      // reviewer's auth row is gone -- both read differently from a blank cell,
+      // which would say nobody reviewed it.
+      key: "reviewerEmail",
+      header: "Reviewed by",
+      cell: (row) =>
+        row.reviewerEmail ? (
+          <span className="text-card-foreground">{row.reviewerEmail}</span>
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        ),
+    },
+    {
+      key: "reviewedAt",
+      header: "Reviewed",
+      cell: (row) =>
+        row.reviewedAt ? (
+          <span className="whitespace-nowrap text-muted-foreground">
+            {new Date(row.reviewedAt).toLocaleDateString()}
+          </span>
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        ),
     },
     {
       key: "actions",
@@ -620,9 +654,64 @@ export default function RidersPage() {
               description="Applications submitted from the rider app land here."
             />
           ) : (
-            <Card className="overflow-hidden">
-              <DataTable columns={applicationColumns} rows={allApplications} />
-            </Card>
+            <>
+              <div
+                className="mb-3 flex flex-wrap gap-2"
+                role="group"
+                aria-label="Filter applications by status"
+              >
+                {(
+                  [
+                    ["pending", "Pending"],
+                    ["approved", "Approved"],
+                    ["rejected", "Rejected"],
+                    ["all", "All"],
+                  ] as const
+                ).map(([key, label]) => (
+                  <Button
+                    key={key}
+                    size="sm"
+                    variant={applicationFilter === key ? "primary" : "outline"}
+                    aria-pressed={applicationFilter === key}
+                    onClick={() => setApplicationFilter(key)}
+                  >
+                    {label}
+                    {key === "pending" && pendingCount > 0 ? (
+                      <span className="ml-1.5 opacity-70">{pendingCount}</span>
+                    ) : null}
+                  </Button>
+                ))}
+              </div>
+              <Card className="overflow-hidden">
+                <PaginatedDataTable<RiderApplication>
+                  columns={applicationColumns}
+                  rows={visibleApplications}
+                  searchFields={[
+                    "fullName",
+                    "applicantEmail",
+                    "phone",
+                    "city",
+                    "vehicle",
+                    "decisionNote",
+                  ]}
+                  emptyTitle="No applications match"
+                  emptyDescription="Nothing with this status right now."
+                  exportName="/dashboard/riders-applications"
+                  exportColumns={[
+                    { key: "fullName", header: "Applicant" },
+                    { key: "applicantEmail", header: "Account" },
+                    { key: "phone", header: "Phone" },
+                    { key: "city", header: "City" },
+                    { key: "vehicle", header: "Vehicle" },
+                    { key: "status", header: "Status" },
+                    { key: "decisionNote", header: "Note" },
+                    { key: "reviewerEmail", header: "Reviewed by" },
+                    { key: "reviewedAt", header: "Reviewed" },
+                    { key: "createdAt", header: "Applied" },
+                  ]}
+                />
+              </Card>
+            </>
           )}
         </TableBoundary>
       </Section>

@@ -116,9 +116,19 @@ export function ReviewApplicationDialog({
         ) : null}
 
         <section aria-label="Documents">
-          <h3 className="mb-2 text-sm font-semibold text-card-foreground">
+          <h3 className="mb-1 text-sm font-semibold text-card-foreground">
             Documents
           </h3>
+          {/* Stated rather than papered over. 0046 is explicit that the app has
+              no upload flow and no storage bucket, so these are typed
+              references -- a link somebody pasted or an id from the issuing
+              office. Building a signed-URL preview would mean inventing a bucket
+              that does not exist. */}
+          <p className="mb-2 text-xs text-muted-foreground">
+            References only. Riders submit a licence, ORCR and ID reference by
+            hand; there is no upload yet, so a link opens in a new tab and
+            anything else has to be read off the screen.
+          </p>
           <DocumentLinks
             fields={[
               { label: "Licence", ref: application.licenceRef },

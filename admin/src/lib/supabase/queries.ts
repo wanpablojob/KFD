@@ -955,6 +955,12 @@ export type RiderApplication = {
   decisionNote: string | null;
   createdAt: string;
   reviewedAt: string | null;
+  /**
+   * Who reviewed it, as an email. Null while pending; "(deleted account)" if the
+   * reviewer's auth row is gone, because the record still stands. Requires
+   * migration 0059 -- 0051's version of the RPC did not return this column.
+   */
+  reviewerEmail: string | null;
   applicantEmail: string;
   applicantUserId: string;
   /**
@@ -995,6 +1001,10 @@ export async function fetchRiderApplications(
         row.decision_note == null ? null : String(row.decision_note),
       createdAt: String(row.created_at),
       reviewedAt: row.reviewed_at == null ? null : String(row.reviewed_at),
+      // 0051's RPC has no reviewer_email column, so until 0059 is applied this
+      // reads undefined and maps to null -- i.e. "not known", not "nobody".
+      reviewerEmail:
+        row.reviewer_email == null ? null : String(row.reviewer_email),
       applicantEmail: String(row.applicant_email),
       applicantUserId: String(row.applicant_user_id),
       waitingDays: Number(row.waiting_days ?? 0),
