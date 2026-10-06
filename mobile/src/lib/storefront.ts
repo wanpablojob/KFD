@@ -209,6 +209,24 @@ export async function acceptRiderOffer(
   return { reference: row.reference, riderPayout: Number(row.rider_payout) };
 }
 
+/**
+ * Rider confirms they have collected the food, moving the order to
+ * out_for_delivery (migration 0071).
+ *
+ * This is the rider's own fact to assert: the moment the food is physically in
+ * their hands. It is also what the customer is waiting to see on the tracker,
+ * which previously could never leave 'Being prepared'.
+ *
+ * Idempotent server-side: a second tap returns the same order rather than
+ * failing, because a rider double-tapping is not a mistake worth an error.
+ */
+export async function markOrderPickedUp(orderId: string): Promise<void> {
+  const { error } = await supabase.rpc("rider_mark_picked_up", {
+    p_order_id: orderId,
+  });
+  if (error) throw error;
+}
+
 /** Decline an offer. The system offers it to the next rider in rotation. */
 export async function declineRiderOffer(orderId: string): Promise<void> {
   const { error } = await supabase.rpc("decline_order", { p_order_id: orderId });

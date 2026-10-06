@@ -138,7 +138,7 @@ export default function DispatchPage() {
     <PageContainer>
       <PageHeader
         title="Dispatch"
-        description="Orders waiting for a rider. Sending an offer makes it claimable for a few minutes and alerts the riders you sent it to."
+        description="Accepted orders waiting for a rider. Sending an offer makes it claimable for a few minutes and alerts the riders you sent it to. Orders the restaurant has not accepted yet are not shown — there is nothing to dispatch until a merchant accepts."
       />
 
       {notice ? (

@@ -18,6 +18,7 @@ import {
   submitRiderApplication,
   acceptRiderOffer,
   declineRiderOffer,
+  markOrderPickedUp,
   fetchRiderProfile,
   fetchRiderEarningsSummary,
   fetchRiderPayoutHistory,
@@ -247,6 +248,26 @@ export function useDeclineOffer() {
     mutationFn: (orderId: string) => declineRiderOffer(orderId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["riderOffers"] });
+    },
+  });
+}
+
+/**
+ * Rider confirms they have collected the food. The order becomes
+ * out_for_delivery, which is the transition the tracker's progression has always
+ * shown and nothing could set.
+ *
+ * Invalidates the deliveries list because that is where the card's own state
+ * machine changes; the customer's tracker picks the new status up on its next
+ * poll, so there is nothing to push here.
+ */
+export function useMarkPickedUp() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (orderId: string) => markOrderPickedUp(orderId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["riderOrders"] });
     },
   });
 }

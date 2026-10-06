@@ -21,9 +21,11 @@ import { notifyRiderDelivered } from "../lib/push";
 import { mergeOrderPages, shouldSyncPage1 } from "../lib/delivery-sync";
 import { deviceMapsUrl, openInMaps } from "../lib/maps";
 import { isTerminalStatus } from "../lib/order-progress";
+import { deliveryActions } from "../lib/delivery-actions";
 import { isCashPayment, paymentLabel } from "../lib/payment-label";
 import { useConnectivity } from "../lib/connectivity-context";
 import {
+  useMarkPickedUp,
   useRiderOrders,
   useRiderProfile,
   type RiderOrderPageResult,
@@ -55,6 +57,8 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
   const insets = useSafeAreaInsets();
   const [orders, setOrders] = useState<AssignedOrder[]>([]);
   const [deliveringId, setDeliveringId] = useState<string | null>(null);
+  const [pickingUpId, setPickingUpId] = useState<string | null>(null);
+  const pickedUp = useMarkPickedUp();
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -172,6 +176,21 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
   const handleEndReached = useCallback(() => {
     if (!loadingMore) loadMore();
   }, [loadMore, loadingMore]);
+
+  async function onPickedUp(orderId: string) {
+    if (pickingUpId || deliveringId) return;
+    setPickingUpId(orderId);
+    setFetchError(null);
+    try {
+      await pickedUp.mutateAsync(orderId);
+    } catch (cause) {
+      setFetchError(
+        cause instanceof Error ? cause.message : "Could not update the order."
+      );
+    } finally {
+      setPickingUpId(null);
+    }
+  }
 
   async function markDelivered(orderId: string) {
     if (deliveringId) return;
@@ -312,7 +331,11 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
           )
         }
         renderItem={({ item }) => {
-          const canDeliver = !isTerminalStatus(item.status);
+          // One shared contract with the server's guards (lib/delivery-actions).
+          // This used to be `!isTerminalStatus(...)` -- "not finished" rather
+          // than "can act on" -- which offered Mark delivered on a `pending`
+          // order the server refuses, a button that could only ever error.
+          const { canPickUp, canDeliver } = deliveryActions(item.status);
           const cash = item.payment === "cash";
           const busy = deliveringId !== null || reporting;
           return (
@@ -415,6 +438,32 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
                   {new Date(item.placed_at).toLocaleString()}
                 </Text>
               </View>
+
+              {/* Picking the food up is a separate fact from delivering it, and
+                  it was previously unstateable: the enum had out_for_delivery,
+                  every read path understood it, and nothing could set it. So the
+                  card could not distinguish "waiting at the restaurant" from "on
+                  the way", and the customer's tracker could never leave
+                  "Being prepared". Hidden once the food is already collected,
+                  because then it is noise. */}
+              {canPickUp ? (
+                <Pressable
+                  style={[
+                    styles.pickupButton,
+                    (pickingUpId === item.id || busy || offline) && styles.disabled,
+                  ]}
+                  disabled={busy || offline}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Confirm you have collected ${item.reference}`}
+                  onPress={() => onPickedUp(item.id)}
+                >
+                  {pickingUpId === item.id ? (
+                    <ActivityIndicator color={colors.textInverse} size="small" />
+                  ) : (
+                    <Text style={styles.pickupLabel}>Picked up</Text>
+                  )}
+                </Pressable>
+              ) : null}
 
               {canDeliver ? (
                 // Two outcomes, side by side. Reporting a failure is the honest
@@ -737,6 +786,16 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     marginTop: spacing.sm,
   },
+  pickupButton: {
+    marginTop: spacing.sm,
+    backgroundColor: colors.secondary,
+    borderRadius: radius.pill,
+    paddingVertical: spacing.md,
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 44,
+  },
+  pickupLabel: { ...type.label, color: colors.textInverse, fontWeight: "700" },
   deliverButton: {
     flex: 1,
     backgroundColor: colors.success,

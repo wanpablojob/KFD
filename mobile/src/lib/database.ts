@@ -268,6 +268,19 @@ export type Database = {
         Args: { p_order_id: string; p_reason?: string | null };
         Returns: undefined;
       };
+      /**
+       * Rider confirms they have collected the food (migration 0071). This is
+       * the transition to `out_for_delivery` that the status enum always had and
+       * nothing could set.
+       */
+      rider_mark_picked_up: {
+        Args: { p_order_id: string };
+        Returns: {
+          order_id: string;
+          reference: string;
+          status: OrderStatus;
+        }[];
+      };
       claim_order: {
         Args: { p_order_id: string };
         Returns: {
