@@ -33,6 +33,7 @@ import {
   useRiderProfile,
   type RiderOrderPageResult,
 } from "../lib/hooks";
+import { fetchRiderOrdersPage } from "../lib/storefront";
 import { colors, radius, spacing, type } from "../lib/theme";
 
 type AssignedOrder = RiderOrderPageResult["items"][0];
@@ -161,33 +162,26 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
     if (!hasMore || loadingMore || !nextCursor) return;
     setLoadingMore(true);
     try {
-      const { data, error } = await supabase.rpc("fetch_rider_orders_page", {
-        p_cursor: nextCursor,
-        p_limit: 20,
-      });
-      // The error was ignored here. A failed page left `next` null, so hasMore
-      // went false and the failure read as "no more orders" -- the rider saw the
-      // list simply stop, with no way to retry and no hint that anything went
-      // wrong. Surface it and leave hasMore alone so the same cursor is tried
-      // again on the next scroll.
-      if (error) {
-        setFetchError(error.message);
-        return;
-      }
-      const rows = (data ?? []) as (RiderOrderPageResult["items"][0] & {
-        next_cursor: string | null;
-      })[];
-      const next = rows[0]?.next_cursor ?? null;
+      // The same fetch page 1 uses. This used to call the RPC directly and cast
+      // the rows, which skipped parseOrderItems and the null handling, so every
+      // page after the first rendered raw jsonb items. The hand-written types
+      // claimed items was already OrderLine[], so nothing flagged it.
+      const page = await fetchRiderOrdersPage(nextCursor, 20);
       // mergeOrderPages, not [...prev, ...rows]: an order that changed status
       // between the page-1 fetch and this one can appear in both, and appending
       // it twice gives two rows with the same key.
-      setOrders((prev) => mergeOrderPages(prev, rows));
-      setNextCursor(next);
-      setHasMore(!!next);
+      setOrders((prev) => mergeOrderPages(prev, page.items));
+      setNextCursor(page.nextCursor);
+      setHasMore(!!page.nextCursor);
     } catch (cause) {
-      setFetchError(
-        cause instanceof Error ? cause.message : "Failed to load more orders."
-      );
+      // A failed page must not read as "no more orders": surface it and leave
+      // hasMore alone so the same cursor is tried again on the next scroll.
+      // PostgREST errors are plain objects with a message, not always Errors.
+      const message =
+        cause && typeof cause === "object" && "message" in cause
+          ? String((cause as { message: unknown }).message)
+          : "Failed to load more orders.";
+      setFetchError(message);
     } finally {
       setLoadingMore(false);
     }
