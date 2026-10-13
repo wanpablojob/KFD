@@ -36,6 +36,13 @@ expo-env.d.ts
 # ---- Metro ----
 .metro-health-check*
 
+# ---- Supabase CLI ----
+# Machine-local link state: project ref, cached version pins. Not source.
+# admin/.gitignore already scopes this inside admin/, where the real project
+# lives; this catches the same directory appearing at the repo root when a
+# supabase command is run from the wrong working directory.
+supabase/.temp/
+
 # ---- Testing ----
 coverage/
 
