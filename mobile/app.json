@@ -29,6 +29,7 @@
     "plugins": [
       "expo-secure-store",
       "expo-router",
+      "expo-font",
       [
         "expo-splash-screen",
         {
