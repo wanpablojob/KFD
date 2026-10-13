@@ -114,7 +114,24 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
   // from. Gating on `page1` being defined means an in-flight or failed refetch
   // leaves the current list untouched, which is the honest reading -- we do not
   // yet know what the server says, so we do not throw away what we had.
-  const [syncedPage1, setSyncedPage1] = useState(page1);
+  // Seeded from undefined, NOT from page1. This is the fix for the list
+  // vanishing on every tab return.
+  //
+  // `useState(page1)` looked harmless and was the cause: on a remount with warm
+  // cache -- staleTime is 5 minutes and the cache is persisted to disk, so a tab
+  // return usually lands on fresh data -- page1 is already defined on the FIRST
+  // render. Seeding the marker from it made syncedPage1 equal the data, so
+  // shouldSyncPage1 reported "nothing changed", setOrders was never called, and
+  // the tab stayed empty with no spinner and no error. Cold starts happened to
+  // recover, because page1 began undefined and the first real result differed
+  // from it -- which is exactly why the guard added to stop the vanishing
+  // appeared to work in testing and failed in the app.
+  //
+  // undefined is the honest seed: nothing has been synced yet, so the first
+  // defined page1 is by definition new and must be applied.
+  const [syncedPage1, setSyncedPage1] = useState<RiderOrderPageResult | undefined>(
+    undefined
+  );
   if (shouldSyncPage1(page1, syncedPage1)) {
     setSyncedPage1(page1);
     const data = page1 as RiderOrderPageResult;

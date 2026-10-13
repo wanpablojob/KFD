@@ -67,6 +67,51 @@ describe("shouldSyncPage1", () => {
   });
 });
 
+/**
+ * The seeding of `syncedPage1` in rider-home-screen.tsx.
+ *
+ * `shouldSyncPage1` was correct throughout; the call site misused it. Every test
+ * above passes while the bug is live, because they exercise the function rather
+ * than the component -- so these pin the one decision that actually breaks it:
+ * what the marker is initialised to.
+ *
+ * The bug: `useState(page1)`. staleTime is 5 minutes and the cache is persisted
+ * to disk, so returning to the tab usually remounts onto data that is already
+ * defined. Seeding the marker from that same object made it equal to the data,
+ * so the guard reported "nothing changed", `setOrders` never ran, and the
+ * Deliveries tab stayed empty -- no spinner, no error. Cold starts recovered,
+ * which is why this looked fixed in testing and failed in the rider's hands.
+ *
+ * The rule: the marker means "what is currently on screen", and nothing is on
+ * screen at mount, so it must start as undefined whatever the query holds.
+ */
+describe("the synced marker must start empty", () => {
+  it("a warm remount syncs, because the marker is not seeded from the data", () => {
+    // What the screen does now: useState(undefined).
+    const warmPage = page(["a"], "c2");
+    const marker: DeliveryPage | undefined = undefined;
+    expect(shouldSyncPage1(warmPage, marker)).toBe(true);
+  });
+
+  it("seeding from page1 is what silently broke it", () => {
+    // What the screen used to do: useState(page1). Kept as a regression
+    // witness so the failure mode is visible rather than folklore.
+    const warmPage = page(["a"], "c2");
+    const wronglySeededMarker: DeliveryPage | undefined = warmPage;
+    expect(shouldSyncPage1(warmPage, wronglySeededMarker)).toBe(false);
+  });
+
+  it("the first defined page always syncs, whatever the cache held", () => {
+    // Every one of these has to be applied on mount: an empty result from the
+    // cache and a full one are both real answers and the rider must see whichever
+    // is true. Only undefined is excluded, because nothing is known yet.
+    for (const cached of [page([]), page(["a"], "c2")]) {
+      const marker: DeliveryPage | undefined = undefined;
+      expect(shouldSyncPage1(cached, marker)).toBe(true);
+    }
+  });
+});
+
 describe("mergeOrderPages", () => {
   const row = (id: string) => ({ id, reference: `#KFD-${id}` });
 
