@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Stack, usePathname, useRouter } from "expo-router";
-import { colors, spacing, type } from "../../lib/theme";
+import { GlassBottomNav, type GlassTab } from "../../components/glass-bottom-nav";
+import { colors } from "../../lib/theme";
 import { ensureNotificationChannels } from "../../lib/push";
 import { useRiderOffers } from "../../lib/hooks";
 import { countClaimableOffers } from "../../lib/offer-claimable";
@@ -40,25 +41,14 @@ export default function RiderLayout() {
   );
 }
 
-interface Tab {
-  route: string;
-  label: string;
-  glyph: string;
-  /**
-   * Spoken name of the glyph.
-   *
-   * The tab row is glyphs, and a screen reader reads a glyph's unicode point
-   * rather than what it stands for -- "black diamond containing white small
-   * diamond" for the offers queue. The label is already in the tree next to the
-   * glyph, but a label alone does not tell a screen reader which of the two
-   * things it should read as the control's name.
-   */
-  iconLabel: string;
-  /** Offer count, announced when greater than zero. */
-  badge?: number;
-}
-
-const TABS: Tab[] = [
+/**
+ * The tab row is glyphs, and a screen reader reads a glyph's unicode point
+ * rather than what it stands for -- "black diamond containing white small
+ * diamond" for the offers queue. Each tab carries the label it stands for so a
+ * screen reader is told which of the two things to read as the control's name.
+ * The shape lives in GlassTab; only the rider's set of routes is declared here.
+ */
+const TABS: GlassTab[] = [
   // Available is first because it is the queue a rider opens the app to work.
   // Deliveries is what they already accepted.
   {
@@ -114,109 +104,20 @@ function BottomNav({ pathname }: { pathname: string }) {
   );
 
   return (
-    <View style={styles.navWrap}>
-      <SafeAreaView style={styles.nav} edges={["bottom"]}>
-        <View style={styles.tabsWrapper}>
-          {tabs.map((tab) => {
-            const active =
-              tab.route === "/rider"
-                ? pathname === "/rider" || pathname === "/rider/"
-                : pathname.startsWith(tab.route);
-            const badge = tab.badge ?? 0;
-            return (
-              <Pressable
-                key={tab.route}
-                style={styles.tab}
-                onPress={() => router.navigate(tab.route as never)}
-                accessibilityRole="tab"
-                accessibilityState={{ selected: active }}
-                accessibilityLabel={
-                  badge > 0
-                    ? `${tab.label}, ${badge} offer${badge === 1 ? "" : "s"} waiting`
-                    : tab.label
-                }
-                accessibilityHint={`${tab.iconLabel} tab`}
-              >
-                <View>
-                  {/* Glyph is decorative: the tab's name is its label, so a
-                      screen reader is not handed the unicode point name too. */}
-                  <Text
-                    accessibilityElementsHidden
-                    importantForAccessibility="no"
-                    style={[styles.tabGlyph, active && styles.tabGlyphActive]}
-                  >
-                    {tab.glyph}
-                  </Text>
-                  {badge > 0 ? (
-                    <View style={styles.badge}>
-                      <Text style={styles.badgeText}>{badge > 9 ? "9+" : badge}</Text>
-                    </View>
-                  ) : null}
-                </View>
-                <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>
-                  {tab.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      </SafeAreaView>
-    </View>
+    <SafeAreaView style={styles.nav} edges={["bottom"]}>
+      <GlassBottomNav
+        pathname={pathname}
+        tabs={tabs}
+        onNavigate={(route) => router.navigate(route as never)}
+      />
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.background },
   content: { flex: 1 },
-  navWrap: {
-    backgroundColor: colors.card,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  nav: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
-    backgroundColor: colors.card,
-  },
-  tabsWrapper: {
-    flex: 1,
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: spacing.xs,
-  },
-  tab: {
-    alignItems: "center",
-    gap: 2,
-    paddingHorizontal: spacing.md,
-    minWidth: 56,
-  },
-  tabGlyph: { fontSize: 20, color: colors.textFaint },
-  tabGlyphActive: { color: colors.primary },
-  badge: {
-    position: "absolute",
-    top: -4,
-    right: -10,
-    minWidth: 16,
-    height: 16,
-    paddingHorizontal: 4,
-    borderRadius: 8,
-    backgroundColor: colors.danger,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  badgeText: {
-    fontSize: 10,
-    fontWeight: "700",
-    color: colors.textInverse,
-  },
-  tabLabel: {
-    ...type.caption,
-    fontSize: 11,
-    fontWeight: "600",
-    color: colors.textFaint,
-  },
-  tabLabelActive: { color: colors.primary },
+  // Transparent, so the glass bar's own blur and scrim supply the surface. A
+  // background here would sit behind the blur and cancel it out.
+  nav: { backgroundColor: "transparent" },
 });

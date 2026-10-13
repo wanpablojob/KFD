@@ -13,6 +13,7 @@
     "@types/jest": "29.5.14",
     "expo": "~57.0.24",
     "expo-auth-session": "~57.0.13",
+    "expo-blur": "~57.0.3",
     "expo-constants": "~57.0.19",
     "expo-device": "~57.0.2",
     "expo-linking": "~57.0.11",

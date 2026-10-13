@@ -2,6 +2,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Stack, usePathname, useRouter } from "expo-router";
 import { CartProvider, useCart } from "../../lib/cart-context";
+import { GlassBottomNav, type GlassTab } from "../../components/glass-bottom-nav";
 import { colors, radius, shadow, spacing } from "../../lib/theme";
 
 /**
@@ -42,132 +43,58 @@ function CustomerShell() {
   );
 }
 
-interface Tab {
-  route: string;
-  label: string;
-  glyph: string;
-}
-
-const TABS: Tab[] = [
-  { route: "/customer", label: "Home", glyph: "⌂" },
-  { route: "/customer/orders", label: "Orders", glyph: "≡" },
-  { route: "/customer/account", label: "Account", glyph: "◍" },
+const TABS: GlassTab[] = [
+  { route: "/customer", label: "Home", glyph: "⌂", iconLabel: "Home" },
+  { route: "/customer/orders", label: "Orders", glyph: "≡", iconLabel: "Orders" },
+  { route: "/customer/account", label: "Account", glyph: "◍", iconLabel: "Account" },
 ];
 
 function BottomNav({ pathname }: { pathname: string }) {
   const router = useRouter();
   const { count, subtotal } = useCart();
   const hasCart = count > 0;
-  return (
-    <View style={styles.navWrap}>
-      <SafeAreaView
-        style={[styles.nav, hasCart ? styles.navWithCart : styles.navCentered]}
-        edges={["bottom"]}
-      >
-        <View
-          style={[styles.tabsWrapper, hasCart ? styles.tabsLeft : styles.tabsCentered]}
-        >
-          {TABS.map((tab) => {
-            const active =
-              tab.route === "/customer"
-                ? pathname === "/customer" || pathname === "/customer/"
-                : pathname.startsWith(tab.route);
-            return (
-              <Pressable
-                key={tab.route}
-                style={styles.tab}
-                onPress={() => router.navigate(tab.route as never)}
-                accessibilityRole="tab"
-                accessibilityState={{ selected: active }}
-              >
-                <View style={styles.tabGlyphWrap}>
-                  <Text style={[styles.tabGlyph, active && styles.tabGlyphActive]}>
-                    {tab.glyph}
-                  </Text>
-                  {tab.route === "/customer" && count > 0 ? (
-                    <View style={styles.cartBadge}>
-                      <Text style={styles.cartBadgeText}>{count}</Text>
-                    </View>
-                  ) : null}
-                </View>
-                <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>
-                  {tab.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
 
-        {hasCart ? (
-          <Pressable
-            style={({ pressed }) => [
-              styles.viewCart,
-              shadow.card,
-              pressed && styles.viewCartPressed,
-            ]}
-            onPress={() => router.push("/customer/cart" as never)}
-          >
-            <Text style={styles.viewCartCount}>
-              {count} item{count === 1 ? "" : "s"}
-            </Text>
-            <Text style={styles.viewCartLabel}>View cart</Text>
-            <Text style={styles.viewCartTotal}>₱{subtotal.toFixed(2)}</Text>
-          </Pressable>
-        ) : null}
-      </SafeAreaView>
-    </View>
+  // The cart rides in the glass bar's trailing slot rather than as a floating
+  // overlay, so it is inside the blur and picks up the same treatment as the
+  // tabs instead of sitting on a card-coloured strip that the blur would clash
+  // with. When there is no cart the tabs centre, matching the rider bar.
+  const cartButton = hasCart ? (
+    <Pressable
+      style={({ pressed }) => [
+        styles.viewCart,
+        shadow.card,
+        pressed && styles.viewCartPressed,
+      ]}
+      onPress={() => router.push("/customer/cart" as never)}
+      accessibilityRole="button"
+      accessibilityLabel={`View cart, ${count} item${count === 1 ? "" : "s"}, ${subtotal.toFixed(2)} pesos`}
+    >
+      <Text style={styles.viewCartCount}>
+        {count} item{count === 1 ? "" : "s"}
+      </Text>
+      <Text style={styles.viewCartLabel}>View cart</Text>
+      <Text style={styles.viewCartTotal}>₱{subtotal.toFixed(2)}</Text>
+    </Pressable>
+  ) : undefined;
+
+  return (
+    <SafeAreaView style={styles.nav} edges={["bottom"]}>
+      <GlassBottomNav
+        pathname={pathname}
+        tabs={TABS}
+        onNavigate={(route) => router.navigate(route as never)}
+        leading={cartButton}
+      />
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.background },
   content: { flex: 1 },
-  navWrap: {
-    backgroundColor: colors.card,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  nav: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
-    backgroundColor: colors.card,
-  },
-  navCentered: { justifyContent: "center" },
-  navWithCart: { justifyContent: "space-between" },
-  tabsWrapper: {
-    flex: 1,
-    flexDirection: "row",
-    gap: spacing.xs,
-  },
-  tabsCentered: { justifyContent: "center" },
-  tabsLeft: { justifyContent: "flex-start" },
-  tab: {
-    alignItems: "center",
-    gap: 2,
-    paddingHorizontal: spacing.md,
-    minWidth: 56,
-  },
-  tabGlyphWrap: { position: "relative" },
-  tabGlyph: { fontSize: 20, color: colors.textFaint },
-  tabGlyphActive: { color: colors.primary },
-  tabLabel: { fontSize: 11, fontWeight: "600", color: colors.textFaint },
-  tabLabelActive: { color: colors.primary },
-  cartBadge: {
-    position: "absolute",
-    top: -4,
-    right: -10,
-    minWidth: 17,
-    height: 17,
-    paddingHorizontal: 4,
-    borderRadius: radius.pill,
-    backgroundColor: colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  cartBadgeText: { fontSize: 10, fontWeight: "800", color: colors.textInverse },
-  navSpacer: { width: 48 },
+  // Transparent, so the glass bar's blur and scrim supply the surface. A
+  // background here would sit behind the blur and cancel it out.
+  nav: { backgroundColor: "transparent" },
   viewCart: {
     flexDirection: "row",
     alignItems: "center",
