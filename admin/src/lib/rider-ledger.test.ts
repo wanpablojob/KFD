@@ -4,6 +4,7 @@ import {
   isDisputable,
   mapPayouts,
   mapPayoutSummary,
+  reviewWindowRemaining,
   successRate,
   type RiderPayout,
 } from "./rider-ledger.ts";
@@ -184,4 +185,19 @@ test("a missing or unparseable expiry is treated as never disputable", () => {
   // be disputed is the worse failure.
   assert.equal(isDisputable(payout({ reviewExpiresAt: null })), false);
   assert.equal(isDisputable(payout({ reviewExpiresAt: "not a date" })), false);
+});
+
+test("the review window label counts down in the units an operator needs", () => {
+  const now = new Date("2026-01-02T00:00:00Z");
+  assert.equal(reviewWindowRemaining("2026-01-02T05:30:00Z", now), "5h left");
+  assert.equal(reviewWindowRemaining("2026-01-02T00:20:00Z", now), "20m left");
+  // Seconds from closing reads as a minute, not "0m", which would look closed.
+  assert.equal(reviewWindowRemaining("2026-01-02T00:00:30Z", now), "1m left");
+  assert.equal(reviewWindowRemaining("2026-01-02T00:00:00Z", now), "window closed");
+  assert.equal(reviewWindowRemaining("2026-01-01T00:00:00Z", now), "window closed");
+});
+
+test("no expiry or a bad one yields no label rather than NaN", () => {
+  assert.equal(reviewWindowRemaining(null), null);
+  assert.equal(reviewWindowRemaining("not a date"), null);
 });

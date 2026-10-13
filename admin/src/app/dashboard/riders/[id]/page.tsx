@@ -21,6 +21,7 @@ import {
   revokeRiderAccess,
   updateRiderProfile,
   fetchRiderAccess,
+  resolveDeliveryIssue,
 } from "@/lib/supabase/queries";
 import { formatCurrency } from "@/lib/format";
 import { PageContainer, PageHeader, Section } from "@/components/layout/page";
@@ -45,6 +46,7 @@ import { riderFlags } from "@/lib/rider-flags";
 import { friendlyRiderSaveError } from "@/lib/rider-validation";
 import { describeEvent, sortActivity } from "@/lib/rider-activity";
 import { successRateLabel } from "@/lib/rider-ledger";
+import type { RiderPayout } from "@/lib/rider-ledger";
 import { EarningsChart } from "@/components/charts/earnings-chart";
 import {
   ContactShortcuts,
@@ -54,10 +56,11 @@ import {
 import { SuspendRiderDialog } from "@/components/rider/suspend-rider-dialog";
 import { EditRiderDialog } from "@/components/rider/edit-rider-dialog";
 import { deliveryColumns } from "@/components/riders/delivery-columns";
-import { payoutColumns } from "@/components/riders/payout-columns";
+import { buildPayoutColumns } from "@/components/riders/payout-columns";
 import { EntityDialog } from "@/components/ui/entity-dialog";
 import { useRiderAction } from "@/components/rider/use-rider-action";
 import { RevokeRiderDialog } from "@/components/riders/revoke-rider-dialog";
+import { ResolveDisputeDialog } from "@/components/riders/resolve-dispute-dialog";
 
 /** Chart window. A month is long enough to spot a decline without paging. */
 const WINDOW_DAYS = 30;
@@ -122,6 +125,9 @@ export default function RiderDetailPage() {
   );
   const [attaching, setAttaching] = useState(false);
   const [revoking, setRevoking] = useState(false);
+  // The payout row whose dispute is being resolved, if any. Holds the row rather
+  // than a boolean so the dialog can name the order and show the amount at stake.
+  const [resolving, setResolving] = useState<RiderPayout | null>(null);
   const [noteBody, setNoteBody] = useState("");
   const [noteBusy, setNoteBusy] = useState(false);
   const [noteError, setNoteError] = useState<string | null>(null);
@@ -193,12 +199,17 @@ export default function RiderDetailPage() {
   });
 
   const events = sortActivity(activity.data ?? []);
+  // deliveredCount / failedCount come from the same payout summary the cards
+  // above use, not from zero. Passing zero made hasHighFailureRate() always
+  // false, so this page could never show the "High failures" flag the list page
+  // shows for the same rider.
   const flags = riderFlags({
     rating: rider.rating,
-    deliveredCount: 0,
-    failedCount: 0,
+    deliveredCount: summary?.deliveredCount ?? 0,
+    failedCount: summary?.failedCount ?? 0,
     hasAccount: rider.userId !== null,
   });
+  const payoutColumns = buildPayoutColumns({ onResolve: setResolving });
 
   async function addNote() {
     const body = noteBody.trim();
@@ -229,6 +240,29 @@ export default function RiderDetailPage() {
       riderQuery.refetch();
       activity.refetch();
       setSuspending(null);
+    });
+  }
+
+  /**
+   * Release or reverse a disputed payout (0075).
+   *
+   * A reversal recomputes the rider's deliveries and earnings from the ledger,
+   * so the summary cards and the header totals are stale too, not just the
+   * payout table. Releasing changes no total, but refetching both is one branch
+   * fewer and the read is cheap.
+   */
+  async function resolveDispute(
+    decision: "release" | "reverse",
+    note: string,
+  ) {
+    if (!resolving) return;
+    await action.run("resolve", async () => {
+      await resolveDeliveryIssue(resolving.orderId, decision, note);
+      await payouts.refetch();
+      await payoutSummary.refetch();
+      await riderQuery.refetch();
+      activity.refetch();
+      setResolving(null);
     });
   }
 
@@ -877,6 +911,19 @@ export default function RiderDetailPage() {
           busy={action.isPending("suspend")}
           onClose={() => setSuspending(null)}
           onConfirm={suspend}
+        />
+      ) : null}
+
+      {resolving ? (
+        <ResolveDisputeDialog
+          reference={resolving.reference}
+          riderName={rider.name}
+          amount={resolving.amount}
+          reason={resolving.disputeReason}
+          reviewExpiresAt={resolving.reviewExpiresAt}
+          busy={action.isPending("resolve")}
+          onClose={() => setResolving(null)}
+          onResolve={resolveDispute}
         />
       ) : null}
     </PageContainer>

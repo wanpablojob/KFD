@@ -156,6 +156,31 @@ export function isDisputable(payout: RiderPayout, now = new Date()): boolean {
 }
 
 /**
+ * How long a disputed payout has left before the window closes, as a label.
+ *
+ * A disputed row is the only kind that waits on a person, and the 24-hour window
+ * is the whole feature -- an operator deciding whether to act now or later needs
+ * the time remaining, not the raw timestamp. Minutes are floored to a minimum of
+ * one so a row seconds from closing reads as "1m" rather than "0m", which looks
+ * like the window is already gone. Null when there is no expiry to measure, so a
+ * caller renders a plain badge instead of "NaN".
+ */
+export function reviewWindowRemaining(
+  expiresAt: string | null,
+  now = new Date(),
+): string | null {
+  if (!expiresAt) return null;
+  const expiry = new Date(expiresAt);
+  if (Number.isNaN(expiry.getTime())) return null;
+  const ms = expiry.getTime() - now.getTime();
+  if (ms <= 0) return "window closed";
+  const hours = Math.floor(ms / 3_600_000);
+  if (hours >= 1) return `${hours}h left`;
+  const minutes = Math.max(1, Math.round(ms / 60_000));
+  return `${minutes}m left`;
+}
+
+/**
  * Completed deliveries as a share of everything attempted, or null when nothing
  * has been attempted.
  *

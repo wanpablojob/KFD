@@ -1,11 +1,15 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import {
   fetchRiderAccess,
   fetchRiderApplications,
   fetchRiderOverview,
+  fetchDisputedPayouts,
+  resolveDeliveryIssue,
+  settleExpiredPayouts,
   reviewRiderApplication,
   revokeRiderAccess,
   setRiderAccess,
@@ -14,6 +18,7 @@ import {
   type RiderAccess,
   type RiderApplication,
 } from "@/lib/supabase/queries";
+import type { DisputedPayout } from "@/lib/rider-ledger";
 import { PageContainer, PageHeader, Section } from "@/components/layout/page";
 import { PlusIcon } from "@/components/ui/icons";
 import { Badge } from "@/components/ui/badge";
@@ -47,6 +52,9 @@ import { buildRiderColumns } from "@/components/riders/rider-columns";
 import { buildApplicationColumns } from "@/components/riders/application-columns";
 import { RiderFormDialog } from "@/components/riders/add-rider-dialog";
 import { ReviewApplicationDialog } from "@/components/riders/review-application-dialog";
+import { ResolveDisputeDialog } from "@/components/riders/resolve-dispute-dialog";
+import { formatCurrency } from "@/lib/format";
+import { reviewWindowRemaining } from "@/lib/rider-ledger";
 
 /** Keys for useRiderAction, so two rows never share a pending state. */
 const statusKey = (riderId: string) => `status:${riderId}`;
@@ -68,10 +76,22 @@ export default function RidersPage() {
   // Fetched unfiltered because the same panel shows reviewed rows underneath
   // pending ones, and the SQL already orders pending first.
   const applications = useAsyncData(() => fetchRiderApplications());
+  // The fleet-wide dispute queue (0075). Settling elapsed windows first is the
+  // same trick the RPC's own doc describes: there is no scheduler, and a row
+  // whose 24 hours are up should not appear as work waiting on a person. The
+  // sweep is best-effort -- if it fails, the queue below still reports what is
+  // genuinely disputed, and that read surfaces the migration gap itself.
+  const disputes = useAsyncData(async () => {
+    await settleExpiredPayouts().catch(() => undefined);
+    return fetchDisputedPayouts();
+  });
   const { params, set } = useRiderListView();
 
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<Mode>(null);
+  const [resolvingDispute, setResolvingDispute] = useState<DisputedPayout | null>(
+    null,
+  );
   const [busy, setBusy] = useState(false);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
   // The queue was one undifferentiated table: pending and long-settled
@@ -111,6 +131,23 @@ export default function RidersPage() {
     } finally {
       setBusy(false);
     }
+  }
+
+  /**
+   * Release or reverse one disputed payout. A reversal recomputes the rider's
+   * deliveries and earnings from the ledger, so the fleet list is refetched
+   * alongside the queue rather than only the queue.
+   */
+  async function resolveDispute(
+    decision: "release" | "reverse",
+    note: string,
+  ) {
+    if (!resolvingDispute) return;
+    await action.run(`dispute:${resolvingDispute.orderId}`, async () => {
+      await resolveDeliveryIssue(resolvingDispute.orderId, decision, note);
+      await Promise.all([disputes.refetch(), overview.refetch()]);
+      setResolvingDispute(null);
+    });
   }
 
   const allRiders = overview.data ?? [];
@@ -200,6 +237,77 @@ export default function RidersPage() {
         onFilterChange={(next: RiderFilter) => set({ filter: next })}
       />
       <RiderInsightPanels rows={allRiders} />
+
+      {(disputes.data ?? []).length > 0 ? (
+        <Section aria-label="Payout disputes" className="mt-6">
+          <Card>
+            <div className="p-5">
+              <h2 className="mb-1 flex items-center gap-2 text-lg font-semibold text-card-foreground">
+                Payout disputes
+                <Badge variant="destructive" size="sm">
+                  {disputes.data?.length} open
+                </Badge>
+              </h2>
+              <p className="mb-3 text-sm text-muted-foreground">
+                A customer or merchant reported a problem with a completed
+                delivery, so the rider&apos;s payout for it is held. Releasing
+                pays the rider; reversing takes it back. An unresolved dispute
+                settles automatically when its review window closes.
+              </p>
+              <ul className="flex flex-col gap-2">
+                {(disputes.data ?? []).map((dispute) => (
+                  <li
+                    key={dispute.orderId}
+                    className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-border p-3"
+                  >
+                    <Link
+                      href={`/dashboard/orders?order=${dispute.reference}`}
+                      className="text-sm font-medium text-card-foreground underline underline-offset-2"
+                    >
+                      {dispute.reference}
+                    </Link>
+                    <Link
+                      href={`/dashboard/riders/${dispute.riderId}`}
+                      className="text-sm text-card-foreground underline-offset-2 hover:underline"
+                    >
+                      {dispute.riderName}
+                    </Link>
+                    <span className="text-sm font-medium text-card-foreground">
+                      {formatCurrency(dispute.amount)}
+                    </span>
+                    {dispute.reviewExpiresAt ? (
+                      <span className="text-xs text-muted-foreground">
+                        {reviewWindowRemaining(dispute.reviewExpiresAt)}
+                      </span>
+                    ) : null}
+                    <span className="w-full text-sm text-muted-foreground">
+                      {dispute.reason ?? "No reason recorded."}
+                    </span>
+                    <span className="ml-auto">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={action.isPending(`dispute:${dispute.orderId}`)}
+                        onClick={() => setResolvingDispute(dispute)}
+                      >
+                        Resolve
+                      </Button>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </Card>
+        </Section>
+      ) : null}
+
+      {disputes.error ? (
+        // Not silent: this read needs migration 0075, and hiding the panel when
+        // the RPC is missing would leave an admin with no disputes and no reason.
+        <p className="mt-3 text-sm text-destructive" role="alert">
+          {disputes.error}
+        </p>
+      ) : null}
 
       <div className="mb-4 flex flex-wrap items-end gap-3">
         <div>
@@ -502,6 +610,19 @@ export default function RidersPage() {
               ? `${mode.rider.name} is suspended and will not be offered orders.`
               : `${mode.rider.name} is reinstated.`);
           }}
+        />
+      ) : null}
+
+      {resolvingDispute ? (
+        <ResolveDisputeDialog
+          reference={resolvingDispute.reference}
+          riderName={resolvingDispute.riderName}
+          amount={resolvingDispute.amount}
+          reason={resolvingDispute.reason}
+          reviewExpiresAt={resolvingDispute.reviewExpiresAt}
+          busy={action.isPending(`dispute:${resolvingDispute.orderId}`)}
+          onClose={() => setResolvingDispute(null)}
+          onResolve={resolveDispute}
         />
       ) : null}
 
