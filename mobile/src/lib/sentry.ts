@@ -1,10 +1,55 @@
-import * as Sentry from "@sentry/react-native";
+import Constants from "expo-constants";
+
+/**
+ * Sentry, kept out of Expo Go's execution path.
+ *
+ * Expo Go runs a fixed native runtime that does not include Sentry's `RNSentry`
+ * module. The SDK guards most of its own native access, but the app must not
+ * depend on that guard: a development client, a production build and Expo Go all
+ * need to start, and the only one that cannot run Sentry is the one a developer
+ * reaches for first.
+ *
+ * So the SDK is loaded lazily and only off Expo Go. When running in Expo Go this
+ * module is a complete no-op -- every function below returns before touching the
+ * SDK -- and it never executes `@sentry/react-native`'s module body, which is
+ * where its native bridge is set up. Dev and production builds get the real SDK
+ * exactly as before.
+ *
+ * `appOwnership === "expo"` is the Expo Go signal specifically. The recommended
+ * `executionEnvironment === "storeClient"` also matches a development build
+ * (which *does* include the native module), so it would disable Sentry there
+ * too -- wrong tool for this check. `expoGoConfig` is checked alongside it
+ * because `appOwnership` is deprecated and undefined is not a safe default here.
+ */
+const isExpoGo = Constants.appOwnership === "expo" || Constants.expoGoConfig != null;
+
+type SentryModule = typeof import("@sentry/react-native");
+
+let cached: SentryModule | null | undefined;
+
+function loadSentry(): SentryModule | null {
+  if (isExpoGo) return null;
+  if (cached !== undefined) return cached;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    cached = require("@sentry/react-native") as SentryModule;
+  } catch (error) {
+    if (__DEV__) {
+      console.warn("[Sentry] SDK unavailable, continuing without it", error);
+    }
+    cached = null;
+  }
+  return cached;
+}
 
 /**
  * Initialize Sentry for crash reporting and performance monitoring.
  * Call this once at app startup (in _layout.tsx before any providers).
  */
 export function initSentry() {
+  const Sentry = loadSentry();
+  if (!Sentry) return;
+
   const dsn = process.env.EXPO_PUBLIC_SENTRY_DSN;
   if (!dsn) {
     if (__DEV__) {
@@ -50,7 +95,7 @@ export function initSentry() {
  * Use this in catch blocks for handled errors you want to track.
  */
 export function captureError(error: unknown, context?: Record<string, unknown>) {
-  Sentry.captureException(error, {
+  loadSentry()?.captureException(error, {
     extra: context,
   });
 }
@@ -59,7 +104,7 @@ export function captureError(error: unknown, context?: Record<string, unknown>) 
  * Set user context for Sentry (called after successful sign-in).
  */
 export function setSentryUser(user: { id: string; email?: string; role?: string }) {
-  Sentry.setUser({
+  loadSentry()?.setUser({
     id: user.id,
     email: user.email,
     role: user.role,
@@ -70,7 +115,7 @@ export function setSentryUser(user: { id: string; email?: string; role?: string 
  * Clear user context (called on sign-out).
  */
 export function clearSentryUser() {
-  Sentry.setUser(null);
+  loadSentry()?.setUser(null);
 }
 
 /**
@@ -81,7 +126,7 @@ export function addBreadcrumb(
   message: string,
   data?: Record<string, unknown>
 ) {
-  Sentry.addBreadcrumb({
+  loadSentry()?.addBreadcrumb({
     category,
     message,
     data,
