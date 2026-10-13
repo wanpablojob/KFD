@@ -39,19 +39,6 @@ sed -i.bak 's/^project_id = .*/project_id = "kfd-typegen"/' supabase/config.toml
 mkdir -p supabase/migrations
 cp "$MIGRATIONS"/*.sql supabase/migrations/
 
-# TYPEGEN-ONLY SHIM -- remove once 0071's fresh-database failure is fixed.
-# The 0001 seed inserts three in-flight fixture orders that later migrations
-# assign riders to. On an empty database, 0071's preflight then finds in-flight
-# orders with no frozen fee and refuses to continue. This gives those fixture
-# orders a fee in the throwaway database only; it is never written to the repo
-# or to any real project. The version sorts between 0070 and 0071.
-cat > supabase/migrations/00705_typegen_fixture_fees.sql <<'SQL'
-update public.orders
-   set rider_payout = public.rider_payout_per_delivery()
- where rider_id is not null and rider_payout is null
-   and status in ('confirmed', 'preparing', 'out_for_delivery');
-SQL
-
 echo "Applying $(ls "$MIGRATIONS"/*.sql | wc -l | tr -d ' ') migrations to a local database..."
 supabase start -x "$EXCLUDE" >/dev/null
 

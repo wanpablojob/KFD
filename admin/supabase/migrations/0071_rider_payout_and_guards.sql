@@ -53,6 +53,29 @@
 -- --------------------------------------------------------------------------
 
 -- --------------------------------------------------------------------------
+-- Retire the 0001 seed orders the preflight below would otherwise trip on
+-- --------------------------------------------------------------------------
+--
+-- 0001_init.sql seeds demo orders ord_1002..ord_1004 as confirmed / preparing /
+-- out_for_delivery, and a later migration links them to riders. They were never
+-- claimed, so they have no frozen fee, and the preflight below counts them as
+-- live deliveries that would start failing. On an empty database (local, CI, a
+-- preview branch) that made this migration impossible to apply, and it would
+-- block production too wherever the seed rows survive.
+--
+-- They are cancelled rather than given a fee: they are not real deliveries, so
+-- inventing what a rider earned for them is the same fiction this migration
+-- refuses for real orders; and unassigning them would put fake jobs back in
+-- front of real riders through dispatch. Scoped by the seed ids AND the seed's
+-- own state, so a real order can never match.
+update public.orders
+   set status = 'cancelled'
+ where id in ('ord_1002', 'ord_1003', 'ord_1004')
+   and reference in ('#KFD-1002', '#KFD-1003', '#KFD-1004')
+   and rider_payout is null
+   and status in ('confirmed', 'preparing', 'out_for_delivery');
+
+-- --------------------------------------------------------------------------
 -- claim_order: rebuilt from 0043, plus 0050's guards
 -- --------------------------------------------------------------------------
 -- ---------------------------------------------------------------------------
