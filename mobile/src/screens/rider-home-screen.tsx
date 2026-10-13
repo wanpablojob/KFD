@@ -24,6 +24,7 @@ import { deviceMapsUrl, openInMaps } from "../lib/maps";
 import { isTerminalStatus } from "../lib/order-progress";
 import { deliveryActions } from "../lib/delivery-actions";
 import { isCashPayment, paymentLabel } from "../lib/payment-label";
+import { footerMeta } from "../lib/order-timestamp";
 import { useConnectivity } from "../lib/connectivity-context";
 import {
   useMarkPickedUp,
@@ -477,16 +478,22 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
 
               {/* The rider's own fee, not the customer's bill. Frozen onto the
                   order when it was claimed, so it cannot drift if the rate
-                  changes later. */}
+                  changes later.
+
+                  The footer is a column, not a row. It used to be
+                  justifyContent: "space-between" with the payout on the left and
+                  "Cash on Delivery · 9/24/2026, 10:50:00 AM" on the right,
+                  which needed ~398pt in a 335pt card on an iPhone SE -- the
+                  date ran off the edge of the screen. See lib/order-timestamp.ts
+                  for why the format is fixed rather than toLocaleString(). */}
               <View style={styles.footer}>
                 <Text style={styles.payout}>
                   {item.rider_payout !== null
                     ? `You earn ₱${Number(item.rider_payout).toFixed(2)}`
                     : "Payout pending"}
                 </Text>
-                <Text style={styles.placedAt}>
-                  {paymentLabel(item.payment)} ·{" "}
-                  {new Date(item.placed_at).toLocaleString()}
+                <Text style={styles.placedAt} numberOfLines={1}>
+                  {footerMeta(paymentLabel(item.payment), item.placed_at)}
                 </Text>
               </View>
 
@@ -823,15 +830,23 @@ const styles = StyleSheet.create({
   callLabel: { ...type.body, color: colors.primary, fontWeight: "700" },
   callNumber: { ...type.caption, color: colors.textMuted },
   noPhone: { ...type.caption, color: colors.textFaint },
+  // Column, not a row. Both children are full width and the second can shrink
+  // and ellipsize, so the card's own width is the only thing that constrains
+  // them. Nothing here can push content past the screen edge.
   footer: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: spacing.md,
     marginTop: spacing.md,
+    gap: 2,
   },
   payout: { ...type.body, color: colors.text, fontWeight: "700" },
-  placedAt: { ...type.caption, color: colors.textFaint },
+  placedAt: {
+    ...type.caption,
+    color: colors.textFaint,
+    // The two that make overflow structurally impossible rather than merely
+    // unlikely: the text yields width instead of demanding it, and it truncates
+    // with an ellipsis if a future format is longer than today's.
+    flexShrink: 1,
+    width: "100%",
+  },
   actions: {
     flexDirection: "row",
     gap: spacing.sm,
