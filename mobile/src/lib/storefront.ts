@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { missingMigrationMessage } from "./missing-migration";
 
 type VehicleType = "bicycle" | "scooter" | "motorcycle" | "car";
 
@@ -375,17 +376,70 @@ export interface RiderProfile {
   gcash_name: string | null;
 }
 
-/** The calling rider's own row (RLS scopes it to user_id = auth.uid()). */
+/**
+ * Columns that are always expected, kept separate from the optional pair below.
+ */
+const RIDER_PROFILE_COLUMNS =
+  "id, name, city, vehicle, status, deliveries, rating, earnings";
+
+/** Migration 0057. Absent until it is applied; see fetchRiderProfile. */
+const RIDER_PROFILE_PAYOUT_COLUMNS = "gcash_qr_url, gcash_name";
+
+/** The migration that owns the payout columns, for the error message. */
+const RIDER_GCASH_MIGRATION = "0057_rider_gcash.sql";
+
+/**
+ * The calling rider's own row (RLS scopes it to user_id = auth.uid()).
+ *
+ * The GCash payout columns are asked for separately and are optional. Selecting
+ * them in the main query meant that on any project without 0057 applied,
+ * PostgREST rejected the *entire* statement -- so the rider lost their name,
+ * their delivery count and their earnings, and the screen said their profile
+ * could not be loaded, over a pair of fields that only affect how they get
+ * paid. Asking twice turns an unapplied optional migration into a missing
+ * payout section instead of a blank rider profile.
+ *
+ * The retry is not silent: if the payout read fails for any other reason it is
+ * rethrown, because losing the payout details without saying so is worse than
+ * saying them and being wrong.
+ */
 export async function fetchRiderProfile(userId: string): Promise<RiderProfile | null> {
-  const { data, error } = await supabase
+  const base = await supabase
     .from("riders")
-    .select(
-      "id, name, city, vehicle, status, deliveries, rating, earnings, gcash_qr_url, gcash_name"
-    )
+    .select(RIDER_PROFILE_COLUMNS)
     .eq("user_id", userId)
     .maybeSingle();
-  if (error) throw error;
-  return (data as RiderProfile | null) ?? null;
+
+  if (base.error) throw base.error;
+
+  // No rider row at all is the "no profile" answer, not a reason to try again.
+  if (!base.data) return null;
+
+  const payout = await supabase
+    .from("riders")
+    .select(RIDER_PROFILE_PAYOUT_COLUMNS)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (payout.error) {
+    const missing = missingMigrationMessage(payout.error, RIDER_GCASH_MIGRATION);
+    if (missing) {
+      // Known-unapplied migration: the rider still gets their profile, and the
+      // payout fields read as absent rather than the whole screen failing.
+      if (__DEV__) console.warn(`[rider] payout columns unavailable: ${missing}`);
+      return { ...(base.data as RiderProfile), gcash_qr_url: null, gcash_name: null };
+    }
+    throw payout.error;
+  }
+
+  const details = (payout.data ?? {}) as Partial<
+    Pick<RiderProfile, "gcash_qr_url" | "gcash_name">
+  >;
+  return {
+    ...(base.data as RiderProfile),
+    gcash_qr_url: details.gcash_qr_url ?? null,
+    gcash_name: details.gcash_name ?? null,
+  };
 }
 
 /** Set or clear the calling rider's GCash QR URL and account name. */
