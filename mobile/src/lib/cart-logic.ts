@@ -54,7 +54,9 @@ export function addLine(
     return {
       kind: "merged",
       lines: lines.map((l) =>
-        l.menu_item_id === line.menu_item_id ? { ...l, quantity: l.quantity + 1 } : l
+        l.menu_item_id === line.menu_item_id
+          ? { ...l, quantity: Math.min(l.quantity + 1, MAX_QUANTITY) }
+          : l
       ),
     };
   }
@@ -62,13 +64,19 @@ export function addLine(
   return { kind: "added", lines: [...lines, { ...line, quantity: 1 }] };
 }
 
+/** Mirrors customer_place_order's per-line cap (0076), so the stepper stops where the server would. */
+export const MAX_QUANTITY = 50;
+
 export function setQuantity(
   lines: CartLine[],
   menu_item_id: string,
   quantity: number
 ): CartLine[] {
   if (quantity <= 0) return lines.filter((l) => l.menu_item_id !== menu_item_id);
-  return lines.map((l) => (l.menu_item_id === menu_item_id ? { ...l, quantity } : l));
+  const capped = Math.min(quantity, MAX_QUANTITY);
+  return lines.map((l) =>
+    l.menu_item_id === menu_item_id ? { ...l, quantity: capped } : l
+  );
 }
 
 export function removeLine(lines: CartLine[], menu_item_id: string): CartLine[] {

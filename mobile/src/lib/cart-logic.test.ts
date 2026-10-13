@@ -1,4 +1,5 @@
 import {
+  MAX_QUANTITY,
   addLine,
   countLines,
   removeLine,
@@ -117,5 +118,18 @@ describe("quantity edits", () => {
   it("sums price times quantity", () => {
     // 100x2 + 100x3
     expect(subtotalOf([one, { ...item("b"), quantity: 3 }])).toBe(500);
+  });
+});
+
+describe("quantity cap (mirrors customer_place_order, 0076)", () => {
+  it("stops incrementing at the cap", () => {
+    const full = setQuantity([{ ...item("a"), quantity: 1 }], "a", MAX_QUANTITY);
+    const r = addLine(full, item("a"));
+    expect(r.lines[0].quantity).toBe(MAX_QUANTITY);
+  });
+
+  it("clamps a typed quantity above the cap", () => {
+    const lines = setQuantity([{ ...item("a"), quantity: 1 }], "a", MAX_QUANTITY + 25);
+    expect(lines[0].quantity).toBe(MAX_QUANTITY);
   });
 });

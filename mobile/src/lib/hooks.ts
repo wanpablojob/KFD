@@ -120,12 +120,8 @@ export function usePlaceOrder() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (args: {
-      restaurantId: string;
-      items: PlaceOrderItem[];
-      deliveryAddress: string;
-      payment: PaymentChoice;
-    }) => placeCustomerOrder(args),
+    mutationFn: (args: Parameters<typeof placeCustomerOrder>[0]) =>
+      placeCustomerOrder(args),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.orders() });
       queryClient.invalidateQueries({ queryKey: ["cart"] });

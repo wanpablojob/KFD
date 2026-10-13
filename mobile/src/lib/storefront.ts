@@ -677,12 +677,15 @@ export async function placeCustomerOrder(args: {
   items: PlaceOrderItem[];
   deliveryAddress: string;
   payment: PaymentChoice;
+  /** Same value on every retry of one checkout, so a lost response cannot double-order. */
+  requestId: string;
 }): Promise<PlaceOrderResult> {
   const { data, error } = await supabase.rpc("customer_place_order", {
     p_restaurant_id: args.restaurantId,
     p_items: args.items,
     p_delivery_address: args.deliveryAddress,
     p_payment: args.payment,
+    p_client_request_id: args.requestId,
   });
   if (error) throw error;
   if (!data || data.length !== 1) {
@@ -693,7 +696,7 @@ export async function placeCustomerOrder(args: {
 
 /**
  * Cancel the caller's own order. The server allows it only while the order is
- * pending or confirmed and only for the order's customer, so the error message
+ * still pending (0076) and only for the order's customer, so the error message
  * is the source of truth for "too late".
  */
 export async function cancelOrder(orderId: string): Promise<void> {

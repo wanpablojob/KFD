@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCart } from "../../lib/cart-context";
 import { useCartQuote } from "../../lib/cart-quote";
 import { useSession } from "../../lib/session-context";
+import { saveContactPhone } from "../../lib/auth";
 import {
   loadAddresses,
   saveAddress,
@@ -43,6 +44,18 @@ export default function CustomerCartScreen() {
   const [error, setError] = useState<string | null>(null);
   const [placing, setPlacing] = useState(false);
   const [savingAddress, setSavingAddress] = useState(false);
+  // The rider calls this number; customer_place_order refuses an order without
+  // one (0076). Asked here only when the profile has none.
+  const savedPhone =
+    typeof user?.user_metadata?.phone === "string"
+      ? user.user_metadata.phone.trim()
+      : "";
+  const [phone, setPhone] = useState("");
+  // One key per checkout, reused on every retry, so a lost response returns the
+  // order that went through instead of placing a second one.
+  const [requestId] = useState(
+    () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`
+  );
 
   // Saved addresses are per-user and live on the device. Prefill the newest so
   // a returning customer does not retype the same barangay every order.
@@ -115,9 +128,15 @@ export default function CustomerCartScreen() {
       setError(problem.message);
       return;
     }
+    const newPhone = phone.trim();
+    if (!savedPhone && (newPhone.match(/\d/g) ?? []).length < 7) {
+      setError("Enter a contact number so your rider can reach you.");
+      return;
+    }
     setError(null);
     setPlacing(true);
     try {
+      if (!savedPhone) await saveContactPhone(newPhone);
       const result = await placeCustomerOrder({
         restaurantId,
         items: lines.map((l) => ({
@@ -126,6 +145,7 @@ export default function CustomerCartScreen() {
         })),
         deliveryAddress: trimmedAddress,
         payment,
+        requestId,
       });
       clear();
       router.replace({
@@ -287,6 +307,23 @@ export default function CustomerCartScreen() {
         ) : null}
         {addressProblem ? (
           <Text style={styles.error}>{addressProblem.message}</Text>
+        ) : null}
+
+        {!savedPhone ? (
+          <>
+            <Text style={styles.fieldLabel}>CONTACT NUMBER</Text>
+            <TextInput
+              style={styles.input}
+              value={phone}
+              onChangeText={setPhone}
+              placeholder="09XX XXX XXXX"
+              placeholderTextColor={colors.textFaint}
+              keyboardType="phone-pad"
+              autoComplete="tel"
+              editable={!placing}
+              accessibilityLabel="Contact number for your rider"
+            />
+          </>
         ) : null}
 
         <Text style={styles.fieldLabel}>PAYMENT METHOD</Text>

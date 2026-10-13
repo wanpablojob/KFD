@@ -395,7 +395,8 @@ function OrderCard({
   const cancelled = order.status === "cancelled";
   const delivered = order.status === "delivered";
   const canReorder = delivered || cancelled;
-  const canCancel = order.status === "pending" || order.status === "confirmed";
+  // Once the restaurant accepts, it may be cooking: cancel_order refuses (0076).
+  const canCancel = order.status === "pending";
 
   return (
     <Pressable
