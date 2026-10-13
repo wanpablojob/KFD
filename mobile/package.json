@@ -47,7 +47,8 @@
     "typescript": "~6.0.3"
   },
   "overrides": {
-    "react-native-worklets": "0.13.0"
+    "react-native-worklets": "0.13.0",
+    "shell-quote": "^1.12.0"
   },
   "scripts": {
     "start": "expo start",
