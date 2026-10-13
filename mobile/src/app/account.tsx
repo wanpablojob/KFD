@@ -18,6 +18,7 @@ import {
   watchForTokenRotation,
   type PushStatus,
 } from "../lib/push";
+import { shouldUnregisterOnSignOut } from "../lib/push-signout";
 import { colors, radius, shadow, spacing, type } from "../lib/theme";
 
 /**
@@ -83,7 +84,12 @@ export default function AccountRoute() {
   }
 
   async function signOut() {
-    if (push.granted && push.registered && user) {
+    // Keyed on `registered`, not on the toggle. The toggle asks "is push on?";
+    // cleanup has to ask "does the server still hold a token for this device?",
+    // and those disagree whenever the OS permission was changed outside the app
+    // -- which left the device registered and delivered the previous user's
+    // orders to whoever signed in next. See lib/push-signout.ts.
+    if (user && shouldUnregisterOnSignOut(push)) {
       const {
         data: { session },
       } = await supabase.auth.getSession();

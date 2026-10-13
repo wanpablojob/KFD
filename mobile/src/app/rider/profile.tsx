@@ -30,6 +30,7 @@ import {
   watchForTokenRotation,
   type PushStatus,
 } from "../../lib/push";
+import { shouldUnregisterOnSignOut } from "../../lib/push-signout";
 import { riderProfileGate } from "../../lib/rider-profile-gate";
 import type { RiderProfile } from "../../lib/storefront";
 import { colors, radius, shadow, spacing, type } from "../../lib/theme";
@@ -80,8 +81,13 @@ export default function RiderProfileRoute() {
   // Unregister before signing out: the token is keyed to the account, and
   // without this the next person to sign in on this phone inherits the
   // previous rider's delivery alerts.
+  //
+  // Keyed on `registered`, not on the toggle being on. If the rider revoked
+  // notifications in system settings, `granted` is false while the server still
+  // holds this rider's token -- and skipping the DELETE there is exactly when
+  // the leak this guards against happens. See lib/push-signout.ts.
   async function signOutAndUnregister() {
-    if (push.granted && push.registered) {
+    if (shouldUnregisterOnSignOut(push)) {
       const {
         data: { session },
       } = await supabase.auth.getSession();

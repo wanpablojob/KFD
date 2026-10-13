@@ -12,6 +12,7 @@ import {
   watchForTokenRotation,
   type PushStatus,
 } from "../../lib/push";
+import { shouldUnregisterOnSignOut } from "../../lib/push-signout";
 import { colors, radius, shadow, spacing, type } from "../../lib/theme";
 
 /**
@@ -70,7 +71,11 @@ export default function CustomerAccountScreen() {
   }, [push.registered]);
 
   async function signOutAndUnregister() {
-    if (push.granted && push.registered) {
+    // Keyed on `registered`, not on the toggle. Revoking notifications in system
+    // settings clears the OS permission while the server keeps the token, and
+    // skipping the DELETE there hands this customer's order alerts to whoever
+    // signs in next on the handset. See lib/push-signout.ts.
+    if (shouldUnregisterOnSignOut(push)) {
       const {
         data: { session },
       } = await supabase.auth.getSession();
