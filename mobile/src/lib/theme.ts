@@ -5,9 +5,8 @@
  * The app previously hardcoded ~19 hex values per screen in a cold navy/blue
  * "pixel" theme. That made the customer half read as an arcade cabinet and made
  * a brand change a find-and-replace across every file. These tokens are the
- * single source of truth for the storefront and the auth screens; the rider and
- * account surfaces deliberately keep their own dark theme until they are
- * redesigned (this file is not a global override).
+ * single source of truth for the whole app: storefront, auth, account and the
+ * rider surface all use the same cream theme.
  *
  * Usage rules that keep the warmth coherent:
  *   * background / card / surface carry the cream, the text carries the brown.
