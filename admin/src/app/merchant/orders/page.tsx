@@ -17,6 +17,13 @@ import { useOrderNotifications } from "@/lib/use-order-notifications";
 import { useUserRole } from "@/lib/use-user-role";
 import { formatCurrency, formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import {
+  isWithinRange,
+  orderDatePresets,
+  parseLocalDate,
+  endOfLocalDay,
+  type DateRangeBounds,
+} from "@/lib/merchant-order-range";
 
 type DatePreset = "today" | "yesterday" | "week" | "month" | "all" | "custom";
 
@@ -43,29 +50,14 @@ export default function MerchantOrdersPage() {
     orders.refetch
   );
 
-  const resolvedRange = useMemo((): DateRange | null => {
-    const now = new Date();
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const startOfYesterday = new Date(startOfToday.getTime() - 24 * 60 * 60 * 1000);
-    const startOfWeek = new Date(startOfToday.getTime() - now.getDay() * 24 * 60 * 60 * 1000);
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-
-    const toISO = (d: Date) => d.toISOString().split("T")[0];
-
-    switch (datePreset) {
-      case "today":
-        return { from: toISO(startOfToday), to: toISO(now) };
-      case "yesterday":
-        return { from: toISO(startOfYesterday), to: toISO(startOfYesterday) };
-      case "week":
-        return { from: toISO(startOfWeek), to: toISO(now) };
-      case "month":
-        return { from: toISO(startOfMonth), to: toISO(now) };
-      case "custom":
-        return dateRange.from || dateRange.to ? dateRange : null;
-      default:
-        return null;
+  const resolvedRange = useMemo((): DateRangeBounds | null => {
+    const presets = orderDatePresets(new Date());
+    if (datePreset === "custom") {
+      const from = dateRange.from ? parseLocalDate(dateRange.from) : null;
+      const to = dateRange.to ? endOfLocalDay(dateRange.to) : null;
+      return from || to ? { from, to } : null;
     }
+    return presets[datePreset as "today" | "yesterday" | "week" | "month"] ?? null;
   }, [datePreset, dateRange]);
 
   const rows = useMemo(() => {
@@ -73,10 +65,7 @@ export default function MerchantOrdersPage() {
     const q = query.trim().toLowerCase();
     return all.filter((o) => {
       if (status !== "all" && o.status !== status) return false;
-      if (resolvedRange) {
-        if (resolvedRange.from && o.placedAt < resolvedRange.from) return false;
-        if (resolvedRange.to && o.placedAt > resolvedRange.to + "T23:59:59.999Z") return false;
-      }
+      if (!isWithinRange(o.placedAt, resolvedRange)) return false;
       if (!q) return true;
       return (
         o.reference.toLowerCase().includes(q) ||
