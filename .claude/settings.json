@@ -1,0 +1,85 @@
+{
+  "permissions": {
+    "disableBypassPermissionsMode": "disable",
+    "deny": [
+      "Bash(git push *)",
+      "Bash(git * --force*)",
+      "Bash(git remote set-url *)",
+      "Bash(vercel *)",
+      "Bash(eas *)",
+      "Bash(gh secret *)",
+      "Bash(gh workflow *)",
+      "Bash(gh release *)",
+      "Bash(gh api *)",
+      "Bash(supabase *)",
+      "Bash(op *)",
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(**/.env)",
+      "Read(**/.env.*)",
+      "Read(**/.git/config)",
+      "Read(**/.git/credentials)"
+    ],
+    "ask": [
+      "Bash(git reset *)",
+      "Bash(git rebase *)",
+      "Bash(git clean *)",
+      "Bash(git checkout *)",
+      "Bash(git switch *)"
+    ],
+    "allow": [
+      "Bash(git status *)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git show *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(npm run lint*)",
+      "Bash(npm run typecheck*)",
+      "Bash(npm run test*)",
+      "Bash(npm test*)",
+      "Bash(npm run build*)",
+      "Bash(npm ci)",
+      "Bash(npm install*)",
+      "Bash(npx expo-doctor*)",
+      "Bash(npx expo install*)",
+      "Bash(npx expo export*)",
+      "Bash(node scripts/*)",
+      "Bash(graphify *)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|Grep",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/alexagracegeogangco/.local/bin/graphify hook-guard search",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Read|Glob",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/alexagracegeogangco/.local/bin/graphify hook-guard read",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Bash|Read|Write|Edit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/scripts/claude-guard.mjs",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

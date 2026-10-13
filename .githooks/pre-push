@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+#
+# Pre-push gate. Two jobs:
+#
+#   1. Refuse an unauthorised push. Claude Code cannot run git push at all
+#      (see .claude/settings.json and scripts/claude-guard.mjs), so an
+#      unmarked push is either a human at a terminal or OpenCode. OpenCode
+#      pushes with KFD_PUSH=1 to say "this is deliberate".
+#
+#   2. Run scripts/verify.sh, so nothing reaches the remote without having
+#      passed the same checks CI runs.
+#
+# Install by pointing git at this directory:
+#
+#   git config core.hooksPath .githooks
+#
+# Bypass when you genuinely need to (recovering a bad commit, an unrelated
+# failure in the gate):
+#
+#   KFD_PUSH=1 KFD_SKIP_VERIFY=1 git push
+#
+# Neither variable is a security boundary. Anyone with a shell on this machine
+# can set them. What they buy is that the normal path is safe and the unusual
+# one is deliberate and visible. The real boundary is CI plus branch
+# protection plus the deploy secrets living only in GitHub.
+
+set -uo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+
+if [ "${KFD_PUSH:-}" != "1" ]; then
+  cat >&2 <<'EOF'
+pre-push: refusing.
+
+  Pushing belongs to OpenCode, not Claude Code.
+
+  If you are OpenCode:      KFD_PUSH=1 git push
+  If you are a human:       KFD_PUSH=1 git push
+  If you are Claude Code:   ask OpenCode to push for you.
+
+EOF
+  exit 1
+fi
+
+if [ "${KFD_SKIP_VERIFY:-}" = "1" ]; then
+  echo "pre-push: KFD_SKIP_VERIFY=1 — skipping verification." >&2
+  exit 0
+fi
+
+echo "pre-push: running the verification gate..." >&2
+if ! "$repo_root/scripts/verify.sh" all; then
+  cat >&2 <<'EOF'
+
+pre-push: verification failed — refusing to push.
+
+  Fix the failures above, or re-run with KFD_SKIP_VERIFY=1 if the failure is
+  unrelated to what you are pushing.
+EOF
+  exit 1
+fi
+
+echo "pre-push: verification passed." >&2
