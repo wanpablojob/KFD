@@ -154,7 +154,9 @@ export function tabBarInset(bottomInset: number, hasBar = true, above = 0): numb
  * one number, so they cannot disagree about where the bar is.
  */
 export function tabBarBottom(bottomInset: number): number {
-  return Math.max(bottomInset, TAB_BAR_METRICS.minBottomGap) + TAB_BAR_METRICS.bottomGap;
+  return (
+    Math.max(bottomInset, TAB_BAR_METRICS.minBottomGap) + TAB_BAR_METRICS.bottomGap
+  );
 }
 
 /** Space the cart pill adds above the bar while it is showing. */

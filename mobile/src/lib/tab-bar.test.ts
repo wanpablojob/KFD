@@ -131,7 +131,11 @@ describe("lensMetrics", () => {
     expect(Number.isFinite(metrics.translateX)).toBe(true);
     expect(Number.isFinite(metrics.tabWidth)).toBe(true);
     expect(Number.isFinite(metrics.lensWidth)).toBe(true);
-    expect(lensMetrics(0, 0, INNER)).toEqual({ translateX: 0, tabWidth: 0, lensWidth: 0 });
+    expect(lensMetrics(0, 0, INNER)).toEqual({
+      translateX: 0,
+      tabWidth: 0,
+      lensWidth: 0,
+    });
   });
 
   it("sizes the lens to its tab within the min and max", () => {
@@ -203,7 +207,9 @@ describe("cart pill", () => {
 
   it("puts the bar's bottom edge where the inset says it is", () => {
     expect(tabBarBottom(34) + TAB_BAR_METRICS.height).toBe(tabBarInset(34));
-    expect(tabBarBottom(0)).toBe(TAB_BAR_METRICS.minBottomGap + TAB_BAR_METRICS.bottomGap);
+    expect(tabBarBottom(0)).toBe(
+      TAB_BAR_METRICS.minBottomGap + TAB_BAR_METRICS.bottomGap
+    );
   });
 });
 
