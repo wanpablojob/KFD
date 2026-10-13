@@ -48,6 +48,10 @@ jobs:
           filters: |
             admin:
               - 'admin/**'
+              # The admin suite checks the mobile copy of the generated types
+              # is identical to admin's, so a mobile-only edit must run it too.
+              - 'mobile/src/lib/database.generated.ts'
+              - 'scripts/gen-db-types.sh'
             mobile:
               - 'mobile/**'
             backend:

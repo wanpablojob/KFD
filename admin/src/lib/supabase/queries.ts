@@ -1235,7 +1235,8 @@ export async function resolveDeliveryIssue(
   const { error } = await supabase.rpc("resolve_delivery_issue", {
     p_order_id: orderId,
     p_action: action,
-    p_note: note?.trim() ? note.trim() : null,
+    // p_note defaults to null in SQL; omit it rather than pass null.
+    p_note: note?.trim() ? note.trim() : undefined,
   });
   requireMigration(error, null, DISPUTE_WINDOW_MIGRATION);
 }

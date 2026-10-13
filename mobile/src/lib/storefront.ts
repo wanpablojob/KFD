@@ -239,8 +239,10 @@ export async function fetchRiderOrdersPage(
   cursor: string | null,
   limit = 20
 ): Promise<RiderOrderPageResult> {
+  // Omitted rather than null for page 1: p_cursor defaults to null in SQL, and
+  // the generated arg type is optional, not nullable.
   const { data, error } = await supabase.rpc("fetch_rider_orders_page", {
-    p_cursor: cursor,
+    p_cursor: cursor ?? undefined,
     p_limit: limit,
   });
   if (error) throw error;
@@ -448,8 +450,11 @@ export async function setRiderGcash(
   name: string | null
 ): Promise<void> {
   const { error } = await supabase.rpc("rider_set_gcash", {
-    p_qr_url: qrUrl,
-    p_name: name,
+    // '' rather than null to clear: rider_set_gcash does
+    // nullif(btrim(coalesce(p, '')), ''), so both store null, and the generated
+    // types (correctly) do not admit null for an argument with no default.
+    p_qr_url: qrUrl ?? "",
+    p_name: name ?? "",
   });
   if (error) throw error;
 }
@@ -604,10 +609,12 @@ export async function fetchTrackedOrder(
   };
 }
 
-export interface PlaceOrderItem {
+// A type alias, not an interface: an interface has no implicit index
+// signature, so it is not assignable to the generated Json the RPC takes.
+export type PlaceOrderItem = {
   menu_item_id: string;
   quantity: number;
-}
+};
 
 export type PaymentChoice = "cash" | "card" | "e_wallet";
 
@@ -721,8 +728,9 @@ export async function rateOrder(args: {
   const { error } = await supabase.rpc("rate_order", {
     p_order_id: args.orderId,
     p_restaurant_rating: args.restaurantRating,
-    p_rider_rating: args.riderRating ?? null,
-    p_comment: args.comment ?? null,
+    // Optional args default to null in SQL; omit rather than pass null.
+    p_rider_rating: args.riderRating ?? undefined,
+    p_comment: args.comment ?? undefined,
   });
   if (error) throw error;
 }
@@ -790,11 +798,12 @@ export async function submitRiderApplication(args: {
   const { data, error } = await supabase.rpc("submit_rider_application", {
     p_full_name: args.fullName,
     p_phone: args.phone,
-    p_city: args.city ?? null,
+    // Optional args default to null in SQL; omit rather than pass null.
+    p_city: args.city ?? undefined,
     p_vehicle: args.vehicle,
-    p_licence_ref: args.licenceRef ?? null,
-    p_orcr_ref: args.orcrRef ?? null,
-    p_government_id_ref: args.governmentIdRef ?? null,
+    p_licence_ref: args.licenceRef ?? undefined,
+    p_orcr_ref: args.orcrRef ?? undefined,
+    p_government_id_ref: args.governmentIdRef ?? undefined,
   });
   if (error) throw error;
   return String(data ?? "");
