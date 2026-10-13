@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useScrollBottomPadding } from "../components/TabBarInset";
 import { signOut } from "../lib/auth";
 import { supabase } from "../lib/supabase";
 import { offerWindowLabel } from "../lib/offer-window";
@@ -85,6 +86,7 @@ function offerSummary(offers: readonly RiderOffer[]): string {
  */
 export function RiderOffersScreen({ userId }: { userId: string }) {
   const insets = useSafeAreaInsets();
+  const bottomPadding = useScrollBottomPadding();
   const { data: offers, error, isPending, refetch } = useRiderOffers();
   const profileQuery = useRiderProfile(userId);
   const { refetch: refetchProfile } = profileQuery;
@@ -226,7 +228,7 @@ export function RiderOffersScreen({ userId }: { userId: string }) {
       <FlatList
         data={offers ?? []}
         keyExtractor={(o) => String(o.offerId)}
-        contentContainerStyle={styles.list}
+        contentContainerStyle={[styles.list, { paddingBottom: bottomPadding }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
         ListHeaderComponent={
           <View>

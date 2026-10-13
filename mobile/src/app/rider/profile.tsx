@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useScrollBottomPadding } from "../../components/TabBarInset";
 import { signOut } from "../../lib/auth";
 import {
   useRiderEarningsSummary,
@@ -41,6 +42,7 @@ import { colors, radius, shadow, spacing, type } from "../../lib/theme";
  */
 export default function RiderProfileRoute() {
   const insets = useSafeAreaInsets();
+  const bottomPadding = useScrollBottomPadding();
   const { user } = useSession();
   const profileQuery = useRiderProfile(user?.id ?? "");
   const { refetch } = profileQuery;
@@ -180,7 +182,9 @@ export default function RiderProfileRoute() {
 
   return (
     <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView
+        contentContainerStyle={[styles.content, { paddingBottom: bottomPadding }]}
+      >
         <View style={[styles.header, { paddingTop: spacing.lg + insets.top }]}>
           <Text style={styles.title}>{profile.name}</Text>
           <Text style={styles.subtitle}>

@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useScrollBottomPadding } from "../../components/TabBarInset";
 import { useRiderEarningsSummary, useRiderPayoutHistory } from "../../lib/hooks";
 import {
   BUCKET_LABEL,
@@ -58,6 +59,7 @@ function earnedLabel(iso: string): string {
 
 export default function RiderEarningsRoute() {
   const insets = useSafeAreaInsets();
+  const bottomPadding = useScrollBottomPadding();
   const { user } = useSession();
   const [limit, setLimit] = useState(PAGE);
 
@@ -98,7 +100,7 @@ export default function RiderEarningsRoute() {
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={{ paddingBottom: spacing.xxl }}
+      contentContainerStyle={{ paddingBottom: bottomPadding }}
     >
       <View style={[styles.header, { paddingTop: spacing.lg + insets.top }]}>
         <Text style={type.eyebrow}>Earnings</Text>

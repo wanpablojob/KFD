@@ -1,23 +1,27 @@
 import { useEffect, useState } from "react";
 import { StyleSheet, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Stack, usePathname, useRouter } from "expo-router";
-import { GlassBottomNav, type GlassTab } from "../../components/glass-bottom-nav";
+import { FloatingTabBar, type FloatingTab } from "../../components/FloatingTabBar";
+import { TabBarInsetProvider } from "../../components/TabBarInset";
+import { TAB_ICONS } from "../../components/tab-icons";
 import { colors } from "../../lib/theme";
 import { ensureNotificationChannels } from "../../lib/push";
 import { useRiderOffers } from "../../lib/hooks";
 import { countClaimableOffers } from "../../lib/offer-claimable";
+import { resolveTabIndex } from "../../lib/tab-bar";
 
 /**
  * Rider surface (deliveries -> earnings -> profile), guarded as a group in the
  * root layout (role === "rider").
  *
- * Mirrors the customer chrome: a Stack for the tabs plus a centered bottom nav
- * so the rider surface feels like the same app as the storefront. Riders have
- * no cart, so the tab row is always centered.
+ * Mirrors the customer chrome: a Stack for the tabs plus the same floating tab
+ * bar, so the rider surface feels like the same app as the storefront. Riders
+ * have no cart, so nothing floats above the bar.
  */
 export default function RiderLayout() {
   const pathname = usePathname();
+  const insets = useSafeAreaInsets();
 
   // The dispatch offer channel has to exist before an offer can arrive, and a
   // rider who registered before it shipped still has no such channel. Created on
@@ -28,56 +32,40 @@ export default function RiderLayout() {
 
   return (
     <View style={styles.root}>
-      <View style={styles.content}>
+      <TabBarInsetProvider bottomInset={insets.bottom}>
         <Stack screenOptions={{ headerShown: false, animation: "fade_from_bottom" }}>
           <Stack.Screen name="index" />
           <Stack.Screen name="offers" />
           <Stack.Screen name="earnings" />
           <Stack.Screen name="profile" />
         </Stack>
-      </View>
-      <BottomNav pathname={pathname} />
+      </TabBarInsetProvider>
+      <RiderTabBar pathname={pathname} />
     </View>
   );
 }
 
-/**
- * The tab row is glyphs, and a screen reader reads a glyph's unicode point
- * rather than what it stands for -- "black diamond containing white small
- * diamond" for the offers queue. Each tab carries the label it stands for so a
- * screen reader is told which of the two things to read as the control's name.
- * The shape lives in GlassTab; only the rider's set of routes is declared here.
- */
-const TABS: GlassTab[] = [
-  // Available is first because it is the queue a rider opens the app to work.
-  // Deliveries is what they already accepted.
+// Available is first because it is the queue a rider opens the app to work.
+// Deliveries is what they already accepted.
+const TABS: (FloatingTab & { route: string })[] = [
   {
+    key: "available",
     route: "/rider/offers",
     label: "Available",
-    glyph: "◈",
-    iconLabel: "Offers",
+    ...TAB_ICONS.available,
   },
+  { key: "deliveries", route: "/rider", label: "Deliveries", ...TAB_ICONS.deliveries },
   {
-    route: "/rider",
-    label: "Deliveries",
-    glyph: "≡",
-    iconLabel: "Deliveries",
-  },
-  {
+    key: "earnings",
     route: "/rider/earnings",
     label: "Earnings",
-    glyph: "₱",
-    iconLabel: "Earnings",
+    ...TAB_ICONS.earnings,
   },
-  {
-    route: "/rider/profile",
-    label: "Profile",
-    glyph: "◍",
-    iconLabel: "Profile",
-  },
+  { key: "profile", route: "/rider/profile", label: "Profile", ...TAB_ICONS.profile },
 ];
+const ROUTES = TABS.map((tab) => tab.route);
 
-function BottomNav({ pathname }: { pathname: string }) {
+function RiderTabBar({ pathname }: { pathname: string }) {
   const router = useRouter();
 
   /**
@@ -100,24 +88,18 @@ function BottomNav({ pathname }: { pathname: string }) {
 
   const claimable = countClaimableOffers(offers ?? [], now);
   const tabs = TABS.map((tab) =>
-    tab.route === "/rider/offers" ? { ...tab, badge: claimable } : tab
+    tab.key === "available" ? { ...tab, badge: claimable } : tab
   );
 
   return (
-    <SafeAreaView style={styles.nav} edges={["bottom"]}>
-      <GlassBottomNav
-        pathname={pathname}
-        tabs={tabs}
-        onNavigate={(route) => router.navigate(route as never)}
-      />
-    </SafeAreaView>
+    <FloatingTabBar
+      tabs={tabs}
+      selectedIndex={resolveTabIndex(pathname, ROUTES)}
+      onChange={(index) => router.navigate(TABS[index].route as never)}
+    />
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.background },
-  content: { flex: 1 },
-  // Transparent, so the glass bar's own blur and scrim supply the surface. A
-  // background here would sit behind the blur and cancel it out.
-  nav: { backgroundColor: "transparent" },
 });

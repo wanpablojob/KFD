@@ -15,6 +15,7 @@ import {
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useScrollBottomPadding } from "../components/TabBarInset";
 import { supabase } from "../lib/supabase";
 import { signOut } from "../lib/auth";
 import { notifyRiderDelivered } from "../lib/push";
@@ -57,6 +58,7 @@ const STATUS_LABEL: Record<string, string> = {
  */
 export function RiderHomeScreen({ userId }: { userId: string }) {
   const insets = useSafeAreaInsets();
+  const bottomPadding = useScrollBottomPadding();
   const [orders, setOrders] = useState<AssignedOrder[]>([]);
   const [deliveringId, setDeliveringId] = useState<string | null>(null);
   const [pickingUpId, setPickingUpId] = useState<string | null>(null);
@@ -343,7 +345,7 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
       <SectionList
         sections={sections}
         keyExtractor={(o) => o.id}
-        contentContainerStyle={styles.list}
+        contentContainerStyle={[styles.list, { paddingBottom: bottomPadding }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
         onEndReached={handleEndReached}
         onEndReachedThreshold={0.5}
