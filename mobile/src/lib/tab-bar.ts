@@ -107,13 +107,30 @@ export const TAB_BAR_METRICS = {
   /** Used when a device reports no inset at all (Android with no nav bar). */
   minBottomGap: 12,
   /**
-   * The lens is wider than a plain tab so it reads as a separate object rather
-   * than a highlight, and taller than the bar so it overhangs both ends.
+   * The lens is taller than the bar so it overhangs both edges by a few points
+   * and reads as a separate object riding on the bar rather than a highlight
+   * painted inside it. Its width follows the tab (see lensMetrics).
    */
-  lensHeight: 56,
-  lensWidth: 60,
+  lensHeight: 80,
+  /** Space left between the lens and the edges of its tab column. */
+  lensSideGap: 4,
+  /** The lens never gets narrower than this, so an icon and label still fit. */
+  lensMinWidth: 56,
+  /** Nor wider than this, so three tabs do not turn it into a long slab. */
+  lensMaxWidth: 96,
   /** Horizontal inset inside the bar before the tabs begin. */
   innerPadding: 6,
+} as const;
+
+/**
+ * The customer's "View cart" pill, which floats above the bar rather than inside
+ * it. Its height is here for the same reason as the bar's: the inset screens
+ * reserve and the pill that occupies it must agree.
+ */
+export const CART_PILL_METRICS = {
+  height: 52,
+  /** Gap between the top of the bar and the bottom of the pill. */
+  gap: 10,
 } as const;
 
 /**
@@ -125,10 +142,24 @@ export const TAB_BAR_METRICS = {
  * either float the bar over the home indicator or push the content too far down
  * on a device that has no inset.
  */
-export function tabBarInset(bottomInset: number, hasBar = true): number {
+export function tabBarInset(bottomInset: number, hasBar = true, above = 0): number {
   if (!hasBar) return 0;
-  const gap = Math.max(bottomInset, TAB_BAR_METRICS.minBottomGap);
-  return TAB_BAR_METRICS.height + gap + TAB_BAR_METRICS.bottomGap;
+  return tabBarBottom(bottomInset) + TAB_BAR_METRICS.height + Math.max(above, 0);
+}
+
+/**
+ * Distance from the bottom of the screen to the bottom of the capsule.
+ *
+ * The bar and anything floating above it (the cart pill) both position from this
+ * one number, so they cannot disagree about where the bar is.
+ */
+export function tabBarBottom(bottomInset: number): number {
+  return Math.max(bottomInset, TAB_BAR_METRICS.minBottomGap) + TAB_BAR_METRICS.bottomGap;
+}
+
+/** Space the cart pill adds above the bar while it is showing. */
+export function cartPillInset(visible: boolean): number {
+  return visible ? CART_PILL_METRICS.height + CART_PILL_METRICS.gap : 0;
 }
 
 /**
@@ -155,19 +186,27 @@ export function lensMetrics(
   selectedIndex: number,
   tabCount: number,
   innerWidth: number
-): { translateX: number; tabWidth: number } {
-  if (tabCount <= 0) return { translateX: 0, tabWidth: 0 };
+): { translateX: number; tabWidth: number; lensWidth: number } {
+  if (tabCount <= 0) return { translateX: 0, tabWidth: 0, lensWidth: 0 };
 
   const usable = Math.max(innerWidth, 0);
   const tabWidth = usable / tabCount;
   const index = Math.max(0, Math.min(selectedIndex, tabCount - 1));
 
+  // Fill the tab less a small gap, within the min/max, but never wider than the
+  // tab itself: on a very narrow bar the minimum would otherwise spill into the
+  // neighbouring tab.
+  const lensWidth = Math.min(
+    tabWidth,
+    Math.max(
+      TAB_BAR_METRICS.lensMinWidth,
+      Math.min(TAB_BAR_METRICS.lensMaxWidth, tabWidth - TAB_BAR_METRICS.lensSideGap * 2)
+    )
+  );
+
   // Centre the lens on the middle of its tab.
   const centre = tabWidth * index + tabWidth / 2;
-  return {
-    translateX: centre - TAB_BAR_METRICS.lensWidth / 2,
-    tabWidth,
-  };
+  return { translateX: centre - lensWidth / 2, tabWidth, lensWidth };
 }
 
 /**

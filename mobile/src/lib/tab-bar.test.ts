@@ -1,8 +1,11 @@
 import {
+  CART_PILL_METRICS,
   MIN_TOUCH_TARGET,
   TAB_BAR_METRICS,
+  cartPillInset,
   lensMetrics,
   resolveTabIndex,
+  tabBarBottom,
   tabBarInset,
   tabTouchTargetWidth,
 } from "./tab-bar";
@@ -86,10 +89,10 @@ describe("lensMetrics", () => {
   const INNER = 339; // a 375pt screen less the capsule margins and padding
 
   it("centres the lens on the selected tab", () => {
-    const { translateX, tabWidth } = lensMetrics(0, 4, INNER);
+    const { translateX, tabWidth, lensWidth } = lensMetrics(0, 4, INNER);
     expect(tabWidth).toBeCloseTo(INNER / 4);
     // Middle of the first tab, less half the lens.
-    expect(translateX).toBeCloseTo(tabWidth / 2 - TAB_BAR_METRICS.lensWidth / 2);
+    expect(translateX).toBeCloseTo(tabWidth / 2 - lensWidth / 2);
   });
 
   it("slides one tab-width per step", () => {
@@ -106,9 +109,9 @@ describe("lensMetrics", () => {
     // too -- three on the customer side, four on the rider's.
     for (const count of [2, 3, 4, 5]) {
       for (let i = 0; i < count; i += 1) {
-        const { translateX } = lensMetrics(i, count, INNER);
+        const { translateX, lensWidth } = lensMetrics(i, count, INNER);
         expect(translateX).toBeGreaterThanOrEqual(0);
-        expect(translateX + TAB_BAR_METRICS.lensWidth).toBeLessThanOrEqual(INNER);
+        expect(translateX + lensWidth).toBeLessThanOrEqual(INNER);
       }
     }
   });
@@ -127,7 +130,27 @@ describe("lensMetrics", () => {
     const metrics = lensMetrics(0, 4, 0);
     expect(Number.isFinite(metrics.translateX)).toBe(true);
     expect(Number.isFinite(metrics.tabWidth)).toBe(true);
-    expect(lensMetrics(0, 0, INNER)).toEqual({ translateX: 0, tabWidth: 0 });
+    expect(Number.isFinite(metrics.lensWidth)).toBe(true);
+    expect(lensMetrics(0, 0, INNER)).toEqual({ translateX: 0, tabWidth: 0, lensWidth: 0 });
+  });
+
+  it("sizes the lens to its tab within the min and max", () => {
+    // Three customer tabs are wide, so the lens stops at the maximum.
+    expect(lensMetrics(0, 3, INNER).lensWidth).toBe(TAB_BAR_METRICS.lensMaxWidth);
+    // Four rider tabs: the tab less its side gaps.
+    const four = lensMetrics(0, 4, INNER);
+    expect(four.lensWidth).toBeCloseTo(four.tabWidth - TAB_BAR_METRICS.lensSideGap * 2);
+    // Five tabs on an iPhone SE still keep the minimum.
+    expect(lensMetrics(0, 5, 290).lensWidth).toBe(TAB_BAR_METRICS.lensMinWidth);
+  });
+
+  it("never lets the lens spill into the next tab on a tiny bar", () => {
+    const { lensWidth, tabWidth } = lensMetrics(0, 5, 200);
+    expect(lensWidth).toBeLessThanOrEqual(tabWidth);
+  });
+
+  it("is taller than the bar so it overhangs both edges", () => {
+    expect(TAB_BAR_METRICS.lensHeight).toBeGreaterThan(TAB_BAR_METRICS.height);
   });
 });
 
@@ -159,6 +182,28 @@ describe("tabBarInset", () => {
     // The cart screen pins its own checkout footer, so the bar is hidden there
     // and the content must reclaim the whole inset.
     expect(tabBarInset(34, false)).toBe(0);
+  });
+});
+
+describe("cart pill", () => {
+  it("adds the pill and its gap only while it shows", () => {
+    expect(cartPillInset(false)).toBe(0);
+    expect(cartPillInset(true)).toBe(CART_PILL_METRICS.height + CART_PILL_METRICS.gap);
+  });
+
+  it("stacks the pill on top of the bar's inset", () => {
+    expect(tabBarInset(34, true, cartPillInset(true))).toBe(
+      tabBarInset(34) + cartPillInset(true)
+    );
+  });
+
+  it("reserves nothing for the pill when the bar itself is hidden", () => {
+    expect(tabBarInset(34, false, cartPillInset(true))).toBe(0);
+  });
+
+  it("puts the bar's bottom edge where the inset says it is", () => {
+    expect(tabBarBottom(34) + TAB_BAR_METRICS.height).toBe(tabBarInset(34));
+    expect(tabBarBottom(0)).toBe(TAB_BAR_METRICS.minBottomGap + TAB_BAR_METRICS.bottomGap);
   });
 });
 
