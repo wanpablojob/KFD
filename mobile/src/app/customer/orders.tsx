@@ -22,6 +22,7 @@ import {
   useMyRatings,
   useRateOrder,
   type CustomerOrder,
+  useMyRefunds,
 } from "../../lib/hooks";
 import { useSession } from "../../lib/session-context";
 import { useCart } from "../../lib/cart-context";
@@ -40,6 +41,7 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 export default function CustomerOrdersScreen() {
+  const { data: refunds } = useMyRefunds();
   const insets = useSafeAreaInsets();
   const bottomPadding = useScrollBottomPadding();
   const { user } = useSession();
@@ -276,6 +278,7 @@ export default function CustomerOrdersScreen() {
             cancelling={cancel.isPending && cancel.variables === item.id}
             rating={ratingByOrder.get(item.id)}
             onRate={openRating}
+            refunded={refunds?.[item.id] ?? 0}
           />
         )}
         refreshControl={
@@ -382,8 +385,10 @@ function OrderCard({
   cancelling,
   rating,
   onRate,
+  refunded,
 }: {
   order: CustomerOrder;
+  refunded: number;
   onReorder: (order: CustomerOrder) => void;
   reordering: boolean;
   onCancel: (order: CustomerOrder) => void;
@@ -442,6 +447,9 @@ function OrderCard({
         </Text>
         <Text style={type.price}>₱{Number(order.total).toFixed(2)}</Text>
       </View>
+      {refunded > 0 ? (
+        <Text style={styles.refunded}>Refunded ₱{refunded.toFixed(2)}</Text>
+      ) : null}
 
       {canReorder ? (
         <Pressable
@@ -514,6 +522,7 @@ function OrderCard({
 }
 
 const styles = StyleSheet.create({
+  refunded: { ...type.caption, color: colors.success, fontWeight: "700" },
   screen: { flex: 1, backgroundColor: colors.background },
   center: { alignItems: "center", justifyContent: "center", gap: spacing.md },
   header: { gap: 2, paddingBottom: spacing.sm },

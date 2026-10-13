@@ -844,3 +844,60 @@ export async function deleteMyAccount(): Promise<void> {
   const { error } = await supabase.rpc("delete_my_account");
   if (error) throw error;
 }
+
+export interface RiderContact {
+  riderName: string;
+  riderPhone: string | null;
+}
+
+/**
+ * The assigned rider's name and phone, for the order's own customer while the
+ * order is in progress (0078). Null otherwise, so the screen shows no buttons.
+ */
+export async function fetchRiderContact(
+  reference: string
+): Promise<RiderContact | null> {
+  const { data, error } = await supabase.rpc("order_rider_contact", {
+    p_reference: reference,
+  });
+  if (error) throw error;
+  const row = data?.[0];
+  return row
+    ? { riderName: row.rider_name, riderPhone: row.rider_phone ?? null }
+    : null;
+}
+
+/** Total refunded per order id, for the signed-in customer's orders (RLS, 0078). */
+export async function fetchMyRefunds(): Promise<Record<string, number>> {
+  const { data, error } = await supabase
+    .from("order_refunds")
+    .select("order_id, amount");
+  if (error) throw error;
+  const totals: Record<string, number> = {};
+  for (const r of data ?? [])
+    totals[r.order_id] = (totals[r.order_id] ?? 0) + Number(r.amount);
+  return totals;
+}
+
+/** Restaurant ids the signed-in customer saved (0078). */
+export async function fetchFavorites(): Promise<string[]> {
+  const { data, error } = await supabase
+    .from("customer_favorites")
+    .select("restaurant_id");
+  if (error) throw error;
+  return (data ?? []).map((r) => r.restaurant_id);
+}
+
+export async function setFavorite(
+  restaurantId: string,
+  favorite: boolean
+): Promise<void> {
+  const { error } = favorite
+    ? await supabase.from("customer_favorites").insert({ restaurant_id: restaurantId })
+    : await supabase
+        .from("customer_favorites")
+        .delete()
+        .eq("restaurant_id", restaurantId);
+  // A double tap inserting twice is already the state we want.
+  if (error && error.code !== "23505") throw error;
+}

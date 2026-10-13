@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { OrderActions } from "@/components/merchant/order-actions";
 import { NewOrderBanner } from "@/components/merchant/new-order-banner";
 import { StoreStatusCard } from "@/components/merchant/store-status-card";
+import { RecentRatings } from "@/components/recent-ratings";
 import { useOrderNotifications } from "@/lib/use-order-notifications";
 import { formatCurrency, formatDateTime } from "@/lib/format";
 import type { Order, Kpi } from "@/lib/types";
@@ -74,6 +75,7 @@ export default function MerchantTodayPage() {
       />
 
       <StoreStatusCard />
+      <RecentRatings />
 
       <TableBoundary
         loading={orders.loading || menu.loading}

@@ -7,6 +7,7 @@ import { Badge } from "./ui/badge";
 import { Avatar } from "./ui/avatar";
 import { BikeIcon, MapPinIcon, UserIcon } from "./ui/icons";
 import { cn } from "@/lib/utils";
+import { OrderRefunds } from "./order-refunds";
 
 const timelineSteps: OrderStatus[] = [
   "pending",
@@ -197,6 +198,7 @@ export function OrderDetail({ order }: { order: Order }) {
           </ol>
         )}
       </div>
+      <OrderRefunds orderId={order.id} total={order.total} />
     </div>
   );
 }

@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeftIcon, UtensilsIcon, ReceiptIcon } from "@/components/ui/icons";
 import Link from "next/link";
 import { useAsyncData } from "@/lib/use-async-data";
+import { RecentRatings } from "@/components/recent-ratings";
 import { TableBoundary } from "@/components/ui/table-boundary";
 import type { Column } from "@/components/ui/data-table";
 import type { Order, MenuItem } from "@/lib/types";
@@ -192,6 +193,8 @@ export default function RestaurantDetailPage() {
           </div>
         </Card>
       </Section>
+
+      <RecentRatings restaurantId={restaurant.id} />
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList aria-label="Restaurant details">

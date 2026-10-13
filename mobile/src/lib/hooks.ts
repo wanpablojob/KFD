@@ -5,6 +5,10 @@ import {
   searchRestaurants,
   fetchMenu,
   fetchMyOrders,
+  fetchFavorites,
+  fetchMyRefunds,
+  fetchRiderContact,
+  setFavorite,
   placeCustomerOrder,
   cancelOrder,
   fetchMyRatings,
@@ -342,5 +346,39 @@ export function useSubmitRiderApplication() {
       // and may have returned a pre-existing application.
       queryClient.invalidateQueries({ queryKey: ["riderApplication"] });
     },
+  });
+}
+
+/** The rider's name and phone while the order is in progress (0078). */
+export function useRiderContact(reference: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ["riderContact", reference],
+    queryFn: () => fetchRiderContact(reference),
+    enabled: enabled && reference.trim().length > 0,
+    // A rider is assigned some time after ordering; check again now and then.
+    refetchInterval: 30_000,
+  });
+}
+
+/** Refunded totals per order for the order list (0078). */
+export function useMyRefunds() {
+  return useQuery({ queryKey: ["myRefunds"], queryFn: fetchMyRefunds });
+}
+
+export function useFavorites() {
+  return useQuery({ queryKey: ["favorites"], queryFn: fetchFavorites });
+}
+
+export function useToggleFavorite() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      restaurantId,
+      favorite,
+    }: {
+      restaurantId: string;
+      favorite: boolean;
+    }) => setFavorite(restaurantId, favorite),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["favorites"] }),
   });
 }

@@ -17,6 +17,7 @@ import {
   useOrderFees,
   useRestaurants,
   RestaurantRow,
+  useFavorites,
 } from "../../lib/hooks";
 import { useDebouncedValue } from "../../lib/use-debounced-value";
 import {
@@ -58,7 +59,17 @@ export default function CustomerHomeScreen() {
     return [...set].sort();
   }, [catalogue]);
 
-  const visible = restaurants ?? [];
+  const { data: favorites } = useFavorites();
+  // Saved restaurants first, keeping the server's order (open before closed)
+  // within each group.
+  const visible = useMemo(() => {
+    const saved = new Set(favorites ?? []);
+    const rows = restaurants ?? [];
+    return [
+      ...rows.filter((r) => saved.has(r.id)),
+      ...rows.filter((r) => !saved.has(r.id)),
+    ];
+  }, [restaurants, favorites]);
   const filtersActive = debouncedQuery.trim().length > 0 || cuisine !== null;
   const emptyKind = storefrontEmptyState({
     isLoading,

@@ -8,6 +8,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useScrollBottomPadding } from "../../components/TabBarInset";
@@ -17,6 +18,7 @@ import {
   type MenuItemRow,
   type RestaurantRow,
 } from "../../lib/storefront";
+import { useFavorites, useToggleFavorite } from "../../lib/hooks";
 import { useCart } from "../../lib/cart-context";
 import { colors, radius, shadow, spacing, type } from "../../lib/theme";
 
@@ -34,6 +36,9 @@ export default function CustomerMenuScreen() {
   const [restaurant, setRestaurant] = useState<RestaurantRow | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { count } = useCart();
+  const { data: favorites } = useFavorites();
+  const toggleFavorite = useToggleFavorite();
+  const isFavorite = !!restaurant && (favorites ?? []).includes(restaurant.id);
   const router = useRouter();
 
   useEffect(() => {
@@ -115,9 +120,35 @@ export default function CustomerMenuScreen() {
           ListHeaderComponent={
             restaurant ? (
               <View style={[styles.restaurantHeader, shadow.card]}>
-                <Text style={styles.restaurantName} numberOfLines={2}>
-                  {restaurant.name}
-                </Text>
+                <View style={styles.titleRow}>
+                  <Text
+                    style={[styles.restaurantName, styles.titleText]}
+                    numberOfLines={2}
+                  >
+                    {restaurant.name}
+                  </Text>
+                  <Pressable
+                    onPress={() =>
+                      toggleFavorite.mutate({
+                        restaurantId: restaurant.id,
+                        favorite: !isFavorite,
+                      })
+                    }
+                    disabled={toggleFavorite.isPending}
+                    hitSlop={12}
+                    accessibilityRole="button"
+                    accessibilityLabel={
+                      isFavorite ? "Remove from favourites" : "Save to favourites"
+                    }
+                    accessibilityState={{ selected: isFavorite }}
+                  >
+                    <Ionicons
+                      name={isFavorite ? "heart" : "heart-outline"}
+                      size={26}
+                      color={colors.primary}
+                    />
+                  </Pressable>
+                </View>
                 <Text style={type.caption}>
                   {restaurant.cuisine} · {restaurant.city}
                 </Text>
@@ -287,6 +318,8 @@ const styles = StyleSheet.create({
   },
   topCartText: { fontSize: 12, fontWeight: "800", color: colors.textInverse },
   list: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xxl },
+  titleRow: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm },
+  titleText: { flex: 1 },
   restaurantHeader: {
     backgroundColor: colors.card,
     borderRadius: radius.lg,

@@ -10,17 +10,19 @@ import {
   Text,
   TextInput,
   View,
+  Linking,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   useTrackOrder,
   useOrderRiderPayment,
+  useRiderContact,
   useReportDeliveryIssue,
 } from "../lib/hooks";
 import { orderProgress, type ProgressStep } from "../lib/order-progress";
 import { deliveryWindow, formatWindow } from "../lib/delivery-estimate";
-import type { TrackedOrder, RiderPayment } from "../lib/storefront";
+import type { TrackedOrder, RiderPayment, RiderContact } from "../lib/storefront";
 import { colors, radius, shadow, spacing, type } from "../lib/theme";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -70,6 +72,14 @@ export function TrackOrderScreen({
   const { data: riderPayment } = useOrderRiderPayment(
     submitted,
     enabled && order?.payment === "e_wallet"
+  );
+
+  // 0078: the rider's phone, for the order's own customer while it is under way.
+  const { data: riderContact } = useRiderContact(
+    submitted,
+    enabled &&
+      !!order &&
+      ["confirmed", "preparing", "out_for_delivery"].includes(order.status)
   );
 
   // 0075: report a problem with a delivery. Held here rather than in OrderCard
@@ -170,6 +180,7 @@ export function TrackOrderScreen({
             updatedAt={dataUpdatedAt}
             refreshing={isFetching}
             riderPayment={riderPayment ?? null}
+            riderContact={riderContact ?? null}
             reporting={{
               open: reportingOpen,
               busy: reporting.isPending,
@@ -287,12 +298,14 @@ function OrderCard({
   updatedAt,
   refreshing,
   riderPayment,
+  riderContact,
   reporting,
 }: {
   order: TrackedOrder;
   updatedAt: number;
   refreshing: boolean;
   riderPayment: RiderPayment | null;
+  riderContact: RiderContact | null;
   reporting: {
     open: boolean;
     busy: boolean;
@@ -402,6 +415,35 @@ function OrderCard({
         </View>
       ) : null}
 
+      {riderContact?.riderPhone ? (
+        <View style={styles.payBlock}>
+          <Text style={styles.addressLabel}>Your rider</Text>
+          <Text style={styles.meta}>{riderContact.riderName}</Text>
+          <View style={styles.contactRow}>
+            <Pressable
+              style={styles.contactButton}
+              onPress={() =>
+                void Linking.openURL(`tel:${riderContact.riderPhone}`).catch(() => {})
+              }
+              accessibilityRole="button"
+              accessibilityLabel={`Call ${riderContact.riderName}`}
+            >
+              <Text style={styles.contactLabel}>Call</Text>
+            </Pressable>
+            <Pressable
+              style={styles.contactButton}
+              onPress={() =>
+                void Linking.openURL(`sms:${riderContact.riderPhone}`).catch(() => {})
+              }
+              accessibilityRole="button"
+              accessibilityLabel={`Text ${riderContact.riderName}`}
+            >
+              <Text style={styles.contactLabel}>Text</Text>
+            </Pressable>
+          </View>
+        </View>
+      ) : null}
+
       <ReportProblem order={order} reporting={reporting} />
 
       <View style={styles.footer}>
@@ -497,6 +539,15 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   cardRef: { ...type.heading, color: colors.primary },
+  contactRow: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.sm },
+  contactButton: {
+    flex: 1,
+    alignItems: "center",
+    borderRadius: radius.pill,
+    backgroundColor: colors.primary,
+    paddingVertical: spacing.md,
+  },
+  contactLabel: { fontSize: 15, fontWeight: "800", color: colors.textInverse },
   eta: { ...type.heading, color: colors.text, marginTop: spacing.sm },
   status: {
     backgroundColor: colors.goldSoft,
