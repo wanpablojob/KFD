@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useScrollBottomPadding } from "../../components/TabBarInset";
 import { useSession } from "../../lib/session-context";
 import { saveContactPhone, signOut } from "../../lib/auth";
 import { supabase } from "../../lib/supabase";
@@ -27,6 +28,7 @@ import { colors, radius, shadow, spacing, type } from "../../lib/theme";
 export default function CustomerAccountScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const bottomPadding = useScrollBottomPadding();
   const { user } = useSession();
 
   const email = user?.email ?? "";
@@ -131,7 +133,10 @@ export default function CustomerAccountScreen() {
   return (
     <ScrollView
       style={styles.screen}
-      contentContainerStyle={[styles.list, { paddingTop: spacing.lg + insets.top }]}
+      contentContainerStyle={[
+        styles.list,
+        { paddingTop: spacing.lg + insets.top, paddingBottom: bottomPadding },
+      ]}
     >
       <View style={styles.header}>
         <View style={styles.avatar}>

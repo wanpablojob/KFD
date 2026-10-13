@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useScrollBottomPadding } from "../../components/TabBarInset";
 import {
   useActiveRestaurants,
   useOrderFees,
@@ -26,6 +27,7 @@ import { colors, radius, shadow, spacing, type } from "../../lib/theme";
 
 export default function CustomerHomeScreen() {
   const insets = useSafeAreaInsets();
+  const bottomPadding = useScrollBottomPadding();
   const [query, setQuery] = useState("");
   const [cuisine, setCuisine] = useState<string | null>(null);
   // The query the server actually searches on, held back until typing pauses.
@@ -75,7 +77,10 @@ export default function CustomerHomeScreen() {
       <FlatList
         data={visible}
         keyExtractor={(row) => row.id}
-        contentContainerStyle={[styles.list, { paddingTop: spacing.lg + insets.top }]}
+        contentContainerStyle={[
+          styles.list,
+          { paddingTop: spacing.lg + insets.top, paddingBottom: bottomPadding },
+        ]}
         keyboardShouldPersistTaps="handled"
         ListHeaderComponent={
           <View style={styles.header}>

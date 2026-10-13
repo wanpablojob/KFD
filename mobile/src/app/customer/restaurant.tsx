@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useScrollBottomPadding } from "../../components/TabBarInset";
 import {
   fetchMenu,
   fetchRestaurant,
@@ -27,6 +28,7 @@ export default function CustomerMenuScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const restaurantId = typeof id === "string" ? id : "";
   const insets = useSafeAreaInsets();
+  const bottomPadding = useScrollBottomPadding();
 
   const [menu, setMenu] = useState<MenuItemRow[] | null>(null);
   const [restaurant, setRestaurant] = useState<RestaurantRow | null>(null);
@@ -109,7 +111,7 @@ export default function CustomerMenuScreen() {
           sections={sections}
           keyExtractor={(item) => item.id}
           stickySectionHeadersEnabled
-          contentContainerStyle={styles.list}
+          contentContainerStyle={[styles.list, { paddingBottom: bottomPadding }]}
           ListHeaderComponent={
             restaurant ? (
               <View style={[styles.restaurantHeader, shadow.card]}>

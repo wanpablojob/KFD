@@ -1,5 +1,6 @@
 import { createContext, use, useMemo, type ReactNode } from "react";
 import { tabBarInset } from "../lib/tab-bar";
+import { spacing } from "../lib/theme";
 
 /**
  * How much vertical space the floating tab bar is occupying right now.
@@ -50,4 +51,17 @@ export function TabBarInsetProvider({
  */
 export function useTabBarInset(): number {
   return use(TabBarInsetContext);
+}
+
+/**
+ * The paddingBottom a scrolling screen's content container should use.
+ *
+ * Under the bar it is the bar's inset plus a little breathing room, so the last
+ * row clears the glass instead of touching it. Where there is no bar (hidden, or
+ * outside a provider) it falls back to the screen's own `base`, which is what the
+ * lists used before the bar floated.
+ */
+export function useScrollBottomPadding(base: number = spacing.xxl): number {
+  const inset = useTabBarInset();
+  return inset > 0 ? inset + spacing.lg : base;
 }

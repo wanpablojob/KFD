@@ -331,7 +331,14 @@ export default function CustomerCartScreen() {
         {error ? <Text style={styles.error}>{error}</Text> : null}
       </ScrollView>
 
-      <View style={styles.footer}>
+      {/* The tab bar is hidden on this screen, so the footer owns the bottom
+          edge and must clear the home indicator itself. */}
+      <View
+        style={[
+          styles.footer,
+          { paddingBottom: Math.max(spacing.xl, insets.bottom + spacing.md) },
+        ]}
+      >
         <Pressable
           onPress={handlePlaceOrder}
           disabled={!canPlace}

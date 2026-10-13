@@ -15,6 +15,7 @@ import {
 } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useScrollBottomPadding } from "../../components/TabBarInset";
 import {
   useMyOrders,
   useCancelOrder,
@@ -40,6 +41,7 @@ const STATUS_LABEL: Record<string, string> = {
 
 export default function CustomerOrdersScreen() {
   const insets = useSafeAreaInsets();
+  const bottomPadding = useScrollBottomPadding();
   const { user } = useSession();
   const { data: orders, isLoading, isError, error, refetch } = useMyOrders();
   const [mounted, setMounted] = useState(false);
@@ -249,7 +251,10 @@ export default function CustomerOrdersScreen() {
       <FlatList
         data={orders}
         keyExtractor={(row) => row.reference}
-        contentContainerStyle={[styles.list, { paddingTop: spacing.lg + insets.top }]}
+        contentContainerStyle={[
+          styles.list,
+          { paddingTop: spacing.lg + insets.top, paddingBottom: bottomPadding },
+        ]}
         ListHeaderComponent={
           <View style={styles.header}>
             <Text style={type.display}>Your orders</Text>
