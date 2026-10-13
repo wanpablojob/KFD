@@ -138,6 +138,7 @@ export default function CustomerMenuScreen() {
               row={item}
               restaurantId={restaurantId}
               restaurantName={restaurantName}
+              closed={restaurant ? !restaurant.is_open : false}
             />
           )}
         />
@@ -150,8 +151,10 @@ function MenuItemCard({
   row,
   restaurantId,
   restaurantName,
+  closed,
 }: {
   row: MenuItemRow;
+  closed: boolean;
   restaurantId: string;
   restaurantName: string;
 }) {
@@ -218,11 +221,19 @@ function MenuItemCard({
         <Text style={type.price}>₱{row.price.toFixed(2)}</Text>
       </View>
       <Pressable
-        style={({ pressed }) => [styles.addBtn, pressed && styles.addBtnPressed]}
+        style={({ pressed }) => [
+          styles.addBtn,
+          closed && styles.addBtnClosed,
+          pressed && !closed && styles.addBtnPressed,
+        ]}
         onPress={() => add(line)}
-        accessibilityLabel={`Add ${row.name} to cart`}
+        disabled={closed}
+        accessibilityLabel={
+          closed ? `${row.name}, restaurant closed` : `Add ${row.name} to cart`
+        }
+        accessibilityState={{ disabled: closed }}
       >
-        <Text style={styles.addLabel}>ADD</Text>
+        <Text style={styles.addLabel}>{closed ? "CLOSED" : "ADD"}</Text>
       </Pressable>
     </View>
   );
@@ -316,6 +327,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xl,
     paddingVertical: spacing.md,
   },
+  addBtnClosed: { backgroundColor: colors.textFaint },
   addBtnPressed: { backgroundColor: colors.primaryDark },
   conflictActions: { flexDirection: "row", gap: spacing.sm },
   conflictKeep: {

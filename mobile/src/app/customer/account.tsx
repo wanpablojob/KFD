@@ -1,5 +1,13 @@
 import { useEffect, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import {
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useScrollBottomPadding } from "../../components/TabBarInset";
@@ -13,6 +21,8 @@ import {
   watchForTokenRotation,
   type PushStatus,
 } from "../../lib/push";
+import { deleteMyAccount } from "../../lib/storefront";
+import { clearAddresses } from "../../lib/addresses";
 import { shouldUnregisterOnSignOut } from "../../lib/push-signout";
 import { colors, radius, shadow, spacing, type } from "../../lib/theme";
 
@@ -88,6 +98,38 @@ export default function CustomerAccountScreen() {
       }
     }
     await signOut();
+  }
+
+  function confirmDeleteAccount() {
+    Alert.alert(
+      "Delete your account?",
+      "Your login, saved contact number and address history are removed. Past orders stay in KFD's records without your name. This cannot be undone.",
+      [
+        { text: "Keep account", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => {
+            void (async () => {
+              try {
+                await deleteMyAccount();
+              } catch (cause) {
+                const message =
+                  cause && typeof cause === "object" && "message" in cause
+                    ? String((cause as { message: unknown }).message)
+                    : "Try again in a moment.";
+                Alert.alert("Could not delete your account", message);
+                return;
+              }
+              if (user) await clearAddresses(user.id).catch(() => {});
+              // The login is gone; this clears push registration and the
+              // local session, tolerating the now-invalid token.
+              await signOutAndUnregister().catch(() => {});
+            })();
+          },
+        },
+      ]
+    );
   }
 
   async function togglePush() {
@@ -243,6 +285,14 @@ export default function CustomerAccountScreen() {
         <Text style={styles.signOutLabel}>Sign out</Text>
       </Pressable>
 
+      <Pressable
+        style={styles.deleteAccount}
+        onPress={confirmDeleteAccount}
+        accessibilityRole="button"
+      >
+        <Text style={styles.deleteAccountLabel}>Delete my account</Text>
+      </Pressable>
+
       <Text style={styles.version}>Kabankalan Food Delivery</Text>
     </ScrollView>
   );
@@ -361,6 +411,12 @@ const styles = StyleSheet.create({
   switchTrackOn: { backgroundColor: colors.primary },
   switchHint: { ...type.caption, color: colors.textInverse },
   pushError: { ...type.caption, color: colors.danger },
+  deleteAccount: { alignItems: "center", paddingVertical: spacing.md },
+  deleteAccountLabel: {
+    ...type.caption,
+    color: colors.danger,
+    textDecorationLine: "underline",
+  },
   signOut: {
     backgroundColor: colors.card,
     borderRadius: radius.pill,

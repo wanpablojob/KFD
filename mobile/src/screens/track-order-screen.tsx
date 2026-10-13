@@ -19,6 +19,7 @@ import {
   useReportDeliveryIssue,
 } from "../lib/hooks";
 import { orderProgress, type ProgressStep } from "../lib/order-progress";
+import { deliveryWindow, formatWindow } from "../lib/delivery-estimate";
 import type { TrackedOrder, RiderPayment } from "../lib/storefront";
 import { colors, radius, shadow, spacing, type } from "../lib/theme";
 
@@ -304,6 +305,7 @@ function OrderCard({
 }) {
   const cancelled = order.status === "cancelled";
   const steps = orderProgress(order.status);
+  const eta = deliveryWindow(order.placed_at, order.prep_minutes, order.status);
 
   return (
     <View style={styles.card}>
@@ -341,6 +343,8 @@ function OrderCard({
       ) : (
         <OrderProgress steps={steps} />
       )}
+
+      {eta ? <Text style={styles.eta}>Arriving around {formatWindow(eta)}</Text> : null}
 
       <Text style={styles.cardRestaurant}>{order.restaurant}</Text>
 
@@ -493,6 +497,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   cardRef: { ...type.heading, color: colors.primary },
+  eta: { ...type.heading, color: colors.text, marginTop: spacing.sm },
   status: {
     backgroundColor: colors.goldSoft,
     borderRadius: radius.pill,

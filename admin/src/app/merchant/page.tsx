@@ -16,6 +16,7 @@ import { TableBoundary } from "@/components/ui/table-boundary";
 import { Button } from "@/components/ui/button";
 import { OrderActions } from "@/components/merchant/order-actions";
 import { NewOrderBanner } from "@/components/merchant/new-order-banner";
+import { StoreStatusCard } from "@/components/merchant/store-status-card";
 import { useOrderNotifications } from "@/lib/use-order-notifications";
 import { formatCurrency, formatDateTime } from "@/lib/format";
 import type { Order, Kpi } from "@/lib/types";
@@ -71,6 +72,8 @@ export default function MerchantTodayPage() {
         title={restaurantName ? `${restaurantName} today` : "Today"}
         description="Orders that need you, and what is in the kitchen."
       />
+
+      <StoreStatusCard />
 
       <TableBoundary
         loading={orders.loading || menu.loading}

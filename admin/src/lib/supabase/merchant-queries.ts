@@ -180,3 +180,33 @@ export async function setMenuAvailability(
     .eq("id", id);
   if (error) throw new Error(error.message);
 }
+
+export interface StoreStatus {
+  is_open: boolean;
+  prep_minutes: number;
+}
+
+/** The signed-in merchant's open/closed state and prep time (RLS scopes the row, 0077). */
+export async function fetchStoreStatus(): Promise<StoreStatus | null> {
+  const { data, error } = await supabase
+    .from("restaurants")
+    .select("is_open, prep_minutes")
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+/** Open or close the kitchen and optionally set prep time (5-120 min). */
+export async function setStoreStatus(
+  isOpen: boolean,
+  prepMinutes?: number
+): Promise<StoreStatus> {
+  const { data, error } = await supabase.rpc("merchant_set_store_status", {
+    p_is_open: isOpen,
+    p_prep_minutes: prepMinutes,
+  });
+  if (error) throw new Error(error.message);
+  const row = data?.[0];
+  if (!row) throw new Error("Store status was not saved.");
+  return row;
+}

@@ -23,6 +23,7 @@ import {
   storefrontEmptyState,
   type StorefrontEmptyKind,
 } from "../../lib/storefront-empty";
+import { TRAVEL_MINUTES } from "../../lib/delivery-estimate";
 import { colors, radius, shadow, spacing, type } from "../../lib/theme";
 
 export default function CustomerHomeScreen() {
@@ -225,7 +226,13 @@ function RestaurantCard({
   const router = useRouter();
   return (
     <Pressable
-      style={({ pressed }) => [styles.card, shadow.card, pressed && styles.cardPressed]}
+      style={({ pressed }) => [
+        styles.card,
+        shadow.card,
+        !row.is_open && styles.cardClosed,
+        pressed && styles.cardPressed,
+      ]}
+      accessibilityHint={row.is_open ? undefined : "Closed right now"}
       onPress={() =>
         router.push({ pathname: "/customer/restaurant", params: { id: row.id } })
       }
@@ -258,6 +265,15 @@ function RestaurantCard({
               <Text style={type.caption}>₱{deliveryFee.toFixed(0)} delivery</Text>
             </>
           ) : null}
+          <Text style={styles.metaDot}>·</Text>
+          {row.is_open ? (
+            <Text style={type.caption}>
+              {row.prep_minutes + TRAVEL_MINUTES.min}–
+              {row.prep_minutes + TRAVEL_MINUTES.max} min
+            </Text>
+          ) : (
+            <Text style={styles.closedLabel}>Closed</Text>
+          )}
         </View>
       </View>
 
@@ -268,6 +284,8 @@ function RestaurantCard({
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background },
+  cardClosed: { opacity: 0.6 },
+  closedLabel: { ...type.caption, fontWeight: "700", color: colors.danger },
   list: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xxl },
   header: { gap: spacing.md, marginBottom: spacing.xs },
   brand: { ...type.eyebrow, color: colors.textFaint },

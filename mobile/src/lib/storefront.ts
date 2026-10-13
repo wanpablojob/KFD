@@ -11,6 +11,10 @@ export interface RestaurantRow {
   rating: number;
   status: string;
   archived_at: string | null;
+  /** False while the merchant has closed the kitchen (0077). */
+  is_open: boolean;
+  /** Merchant's typical prep time in minutes, for the delivery estimate (0077). */
+  prep_minutes: number;
 }
 
 export interface MenuItemRow {
@@ -29,7 +33,9 @@ export interface MenuItemRow {
 export async function fetchActiveRestaurants(): Promise<RestaurantRow[]> {
   const { data, error } = await supabase
     .from("restaurants")
-    .select("id, name, cuisine, city, rating, status, archived_at")
+    .select(
+      "id, name, cuisine, city, rating, status, archived_at, is_open, prep_minutes"
+    )
     .eq("status", "active")
     .is("archived_at", null)
     .order("name");
@@ -44,7 +50,9 @@ export async function fetchActiveRestaurants(): Promise<RestaurantRow[]> {
 export async function fetchRestaurant(id: string): Promise<RestaurantRow | null> {
   const { data, error } = await supabase
     .from("restaurants")
-    .select("id, name, cuisine, city, rating, status, archived_at")
+    .select(
+      "id, name, cuisine, city, rating, status, archived_at, is_open, prep_minutes"
+    )
     .eq("id", id)
     .eq("status", "active")
     .is("archived_at", null)
@@ -548,6 +556,8 @@ export interface TrackedOrder {
   placed_at: string;
   /** Null unless the caller is signed in as the order's own customer. */
   delivery_address: string | null;
+  /** Restaurant prep time snapshotted at order time; null on orders before 0077. */
+  prep_minutes: number | null;
 }
 
 /**
@@ -606,6 +616,7 @@ export async function fetchTrackedOrder(
     payment: String(row.payment),
     placed_at: String(row.placed_at),
     delivery_address: (row.delivery_address as string | null) ?? null,
+    prep_minutes: row.prep_minutes == null ? null : Number(row.prep_minutes),
   };
 }
 
@@ -679,6 +690,8 @@ export async function placeCustomerOrder(args: {
   payment: PaymentChoice;
   /** Same value on every retry of one checkout, so a lost response cannot double-order. */
   requestId: string;
+  /** Required by the server once service_areas is published (0077). */
+  barangay?: string | null;
 }): Promise<PlaceOrderResult> {
   const { data, error } = await supabase.rpc("customer_place_order", {
     p_restaurant_id: args.restaurantId,
@@ -686,6 +699,7 @@ export async function placeCustomerOrder(args: {
     p_delivery_address: args.deliveryAddress,
     p_payment: args.payment,
     p_client_request_id: args.requestId,
+    p_delivery_barangay: args.barangay ?? undefined,
   });
   if (error) throw error;
   if (!data || data.length !== 1) {
@@ -810,4 +824,23 @@ export async function submitRiderApplication(args: {
   });
   if (error) throw error;
   return String(data ?? "");
+}
+
+/** Barangays KFD delivers to. Empty while the owner has not published the list (0077). */
+export async function fetchServiceAreas(): Promise<string[]> {
+  const { data, error } = await supabase
+    .from("service_areas")
+    .select("barangay")
+    .order("barangay");
+  if (error) throw error;
+  return (data ?? []).map((r) => r.barangay);
+}
+
+/**
+ * Delete the signed-in customer's account (0077). The server refuses while an
+ * order is in flight and for rider or merchant accounts; its message says why.
+ */
+export async function deleteMyAccount(): Promise<void> {
+  const { error } = await supabase.rpc("delete_my_account");
+  if (error) throw error;
 }

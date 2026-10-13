@@ -23,7 +23,11 @@ import {
   validateAddress,
   type SavedAddress,
 } from "../../lib/addresses";
-import { placeCustomerOrder, type PaymentChoice } from "../../lib/storefront";
+import {
+  fetchServiceAreas,
+  placeCustomerOrder,
+  type PaymentChoice,
+} from "../../lib/storefront";
 import { colors, radius, shadow, spacing, type } from "../../lib/theme";
 
 const PAYMENTS: { key: PaymentChoice; label: string; glyph: string }[] = [
@@ -51,11 +55,27 @@ export default function CustomerCartScreen() {
       ? user.user_metadata.phone.trim()
       : "";
   const [phone, setPhone] = useState("");
+  // Barangays KFD delivers to. Empty until the owner publishes the list, and
+  // then the server takes any address, so the picker only shows once it exists.
+  const [areas, setAreas] = useState<string[]>([]);
+  const [barangay, setBarangay] = useState<string | null>(null);
   // One key per checkout, reused on every retry, so a lost response returns the
   // order that went through instead of placing a second one.
   const [requestId] = useState(
     () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`
   );
+
+  useEffect(() => {
+    let active = true;
+    fetchServiceAreas()
+      .then((rows) => active && setAreas(rows))
+      .catch(() => {
+        // Fail open: the server enforces the area, and its message says so.
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Saved addresses are per-user and live on the device. Prefill the newest so
   // a returning customer does not retype the same barangay every order.
@@ -128,6 +148,10 @@ export default function CustomerCartScreen() {
       setError(problem.message);
       return;
     }
+    if (areas.length > 0 && !barangay) {
+      setError("Choose your barangay.");
+      return;
+    }
     const newPhone = phone.trim();
     if (!savedPhone && (newPhone.match(/\d/g) ?? []).length < 7) {
       setError("Enter a contact number so your rider can reach you.");
@@ -146,6 +170,7 @@ export default function CustomerCartScreen() {
         deliveryAddress: trimmedAddress,
         payment,
         requestId,
+        barangay,
       });
       clear();
       router.replace({
@@ -307,6 +332,31 @@ export default function CustomerCartScreen() {
         ) : null}
         {addressProblem ? (
           <Text style={styles.error}>{addressProblem.message}</Text>
+        ) : null}
+
+        {areas.length > 0 ? (
+          <>
+            <Text style={styles.fieldLabel}>BARANGAY</Text>
+            <View style={styles.areas}>
+              {areas.map((area) => {
+                const active = barangay === area;
+                return (
+                  <Pressable
+                    key={area}
+                    style={[styles.area, active && styles.areaActive]}
+                    onPress={() => setBarangay(active ? null : area)}
+                    disabled={placing}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: active }}
+                  >
+                    <Text style={[styles.areaLabel, active && styles.areaLabelActive]}>
+                      {area}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </>
         ) : null}
 
         {!savedPhone ? (
@@ -476,6 +526,18 @@ const styles = StyleSheet.create({
   },
   remove: { fontSize: 12, fontWeight: "600", color: colors.danger },
   fieldLabel: { ...type.eyebrow, marginTop: spacing.sm },
+  areas: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+  area: {
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  areaActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  areaLabel: { ...type.label, color: colors.text },
+  areaLabelActive: { color: colors.textInverse },
   input: {
     backgroundColor: colors.card,
     borderRadius: radius.md,

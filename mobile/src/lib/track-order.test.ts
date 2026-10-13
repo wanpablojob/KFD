@@ -58,6 +58,8 @@ describe("fetchTrackedOrder", () => {
       payment: "cash",
       placed_at: "2026-10-01T00:00:00Z",
       delivery_address: "123 Rizal St, Kabankalan",
+      // A row from before 0077 carries no prep time; the estimate falls back.
+      prep_minutes: null,
     });
   });
 

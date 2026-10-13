@@ -71,3 +71,8 @@ export async function deleteAddress(
   await persist(userId, next);
   return next;
 }
+
+/** Forget this user's saved addresses on the device (account deletion). */
+export async function clearAddresses(userId: string): Promise<void> {
+  await AsyncStorage.removeItem(key(userId));
+}
