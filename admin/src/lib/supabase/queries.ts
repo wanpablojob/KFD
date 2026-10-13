@@ -1076,11 +1076,17 @@ export async function reviewRiderApplication(
  * Replaces a per-row fetch for current job / failures / week earnings. Flag
  * thresholds are applied by the caller in lib/rider-flags.ts rather than here,
  * so they are not duplicated between SQL and TypeScript.
+ *
+ * Goes through requireMigration rather than requireOk: admin_rider_overview is
+ * created by 0051, and the fleet list is the screen a deployer looks at first
+ * when the database is behind. A bare "function admin_rider_overview does not
+ * exist" reads as a broken app; naming the file to apply reads as a deploy that
+ * stopped short, which is what it is. Same treatment as the ledger reads below.
  */
 export async function fetchRiderOverview(): Promise<RiderOverview[]> {
   const { data, error } = await supabase.rpc("admin_rider_overview");
 
-  return requireOk(
+  return requireMigration(
     error,
     ((data ?? []) as Record<string, unknown>[]).map((row) => ({
       id: String(row.rider_id),
@@ -1113,6 +1119,7 @@ export async function fetchRiderOverview(): Promise<RiderOverview[]> {
       weekEarnings: Number(row.week_earnings ?? 0),
       updatedAt: row.updated_at == null ? null : String(row.updated_at),
     })),
+    RIDER_OVERVIEW_MIGRATION,
   );
 }
 
@@ -1138,6 +1145,8 @@ export async function setRiderSuspended(
 }
 
 /** Payout amount and delivery count per day, empty days included as zero. */
+/** The migration that has to be applied before the fleet list works. */
+const RIDER_OVERVIEW_MIGRATION = "0051_rider_notes_and_admin_insights.sql";
 /** The migration that has to be applied before the ledger reads work. */
 const LEDGER_MIGRATION = "0058_admin_rider_ledger.sql";
 /** Same, for the application reviewer's email. */
