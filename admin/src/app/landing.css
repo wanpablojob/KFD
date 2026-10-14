@@ -1,21 +1,40 @@
 /* ---------------------------------------------------------------------------
-   Landing page reveal-on-scroll. Sections start visible; only after mount does
-   the page set data-reveal-ready, so the server render and the no-JS page show
-   everything. Reduced motion skips it entirely (and the hook marks all visible).
-   --------------------------------------------------------------------------- */
-@media (prefers-reduced-motion: no-preference) {
-  .landing[data-reveal-ready] [data-reveal] {
-    opacity: 0;
-    transform: translateY(14px);
-    transition:
-      opacity 600ms cubic-bezier(0.16, 1, 0.3, 1),
-      transform 600ms cubic-bezier(0.16, 1, 0.3, 1);
-  }
+   Landing page: backgrounds, entrance and reveal motion.
 
-  .landing[data-reveal-ready] [data-reveal].is-visible {
-    opacity: 1;
-    transform: none;
-  }
+   Motion explains order, never decorates: the hero assembles once on load,
+   sections rise into place as they scroll in, and items within a section
+   follow one another. Everything that moves sits behind
+   prefers-reduced-motion: no-preference, and the reveal only arms after mount
+   (data-reveal-ready), so the server render and the no-JS page show it all.
+   --------------------------------------------------------------------------- */
+
+/* Backgrounds ----------------------------------------------------------- */
+
+/* Warm light behind the hero, drawn from the brand tokens so dark mode follows. */
+.landing-hero-bg {
+  background:
+    radial-gradient(55% 60% at 88% 18%, color-mix(in srgb, var(--primary) 14%, transparent), transparent 70%),
+    radial-gradient(45% 55% at 0% 100%, color-mix(in srgb, var(--secondary) 12%, transparent), transparent 70%);
+}
+
+/* A faint dot grid that fades out toward the edges. */
+.landing-dots {
+  background-image: radial-gradient(color-mix(in srgb, var(--foreground) 10%, transparent) 1px, transparent 1.2px);
+  background-size: 22px 22px;
+  -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, #000 20%, transparent 75%);
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, #000 20%, transparent 75%);
+}
+
+/* Texture on the full-colour tracking band. */
+.landing-band {
+  background-image:
+    radial-gradient(120% 140% at 100% 0%, color-mix(in srgb, #fff 16%, transparent), transparent 55%),
+    repeating-linear-gradient(135deg, color-mix(in srgb, #fff 5%, transparent) 0 2px, transparent 2px 16px);
+}
+
+/* A tinted section, softer than a card. */
+.landing-tint {
+  background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--secondary) 7%, transparent) 18%, color-mix(in srgb, var(--secondary) 7%, transparent) 82%, transparent);
 }
 
 /* globals.css styles h1-h3 and p outside any cascade layer, and unlayered
@@ -27,4 +46,92 @@
   line-height: revert-layer;
   font-weight: revert-layer;
   letter-spacing: revert-layer;
+}
+
+/* Motion ---------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: no-preference) {
+  html:has(.landing) {
+    scroll-behavior: smooth;
+  }
+
+  /* Hero: copy rises in sequence (--i sets each element's turn), the photo
+     settles slightly after. Runs once, with no JavaScript. */
+  .landing .enter {
+    opacity: 0;
+    animation: landing-rise 800ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    animation-delay: calc(var(--i, 0) * 90ms + 60ms);
+  }
+
+  .landing .enter-photo {
+    opacity: 0;
+    animation: landing-settle 1100ms cubic-bezier(0.16, 1, 0.3, 1) 180ms forwards;
+  }
+
+  .landing .enter-seal {
+    opacity: 0;
+    animation: landing-seal 900ms cubic-bezier(0.34, 1.4, 0.64, 1) 650ms forwards;
+  }
+
+  /* Sections rise as they scroll in. */
+  .landing[data-reveal-ready] [data-reveal] {
+    opacity: 0;
+    transform: translateY(18px);
+    transition:
+      opacity 700ms cubic-bezier(0.16, 1, 0.3, 1),
+      transform 700ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .landing[data-reveal-ready] [data-reveal].is-visible {
+    opacity: 1;
+    transform: none;
+  }
+
+  /* Items inside a revealed section follow one another. */
+  .landing[data-reveal-ready] [data-reveal] [data-stagger] {
+    opacity: 0;
+    transform: translateY(14px);
+    transition:
+      opacity 650ms cubic-bezier(0.16, 1, 0.3, 1),
+      transform 650ms cubic-bezier(0.16, 1, 0.3, 1);
+    transition-delay: calc(var(--i, 0) * 80ms + 120ms);
+  }
+
+  .landing[data-reveal-ready] [data-reveal].is-visible [data-stagger] {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes landing-rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes landing-settle {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes landing-seal {
+  from {
+    opacity: 0;
+    transform: scale(0.6) rotate(-12deg);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }

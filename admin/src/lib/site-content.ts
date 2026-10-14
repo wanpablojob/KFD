@@ -75,6 +75,72 @@ export const HOW_IT_WORKS = [
  */
 export const LOCAL_SPECIALTIES = ["Piaya", "Inasal", "Kansi", "Napoleones"] as const;
 
+/**
+ * Photos of those dishes, from Wikimedia Commons under free licences. They show
+ * the dish, not a KFD partner: captions name the food only, and photos that
+ * show a business's name or branding were left out. Replace with the owner's
+ * own photos of partner kitchens once they exist.
+ *
+ * CC BY-SA requires credit (author, licence, source), rendered in the footer
+ * from PHOTO_CREDITS.
+ */
+export const DISH_PHOTOS: Record<(typeof LOCAL_SPECIALTIES)[number], string> = {
+  Inasal: "/images/food/inasal-meal.jpg",
+  Piaya: "/images/food/piaya.jpg",
+  Kansi: "/images/food/kansi.jpg",
+  Napoleones: "/images/food/napoleones.jpg",
+};
+
+export const HERO_PHOTO = "/images/food/hero-inasal.jpg";
+export const KITCHEN_PHOTO = "/images/food/inasal-plate.jpg";
+
+const BY_SA_4 = "https://creativecommons.org/licenses/by-sa/4.0/";
+
+export const PHOTO_CREDITS = [
+  {
+    subject: "Chicken inasal",
+    author: "Obsidian Soul",
+    license: "CC BY-SA 4.0",
+    licenseUrl: BY_SA_4,
+    source: "https://commons.wikimedia.org/wiki/File:Chicken_inasal_(Philippines).jpg",
+  },
+  {
+    subject: "Chicken inasal with rice",
+    author: "Roderick Suñaz Sumalinog",
+    license: "CC BY-SA 4.0",
+    licenseUrl: BY_SA_4,
+    source: "https://commons.wikimedia.org/wiki/File:Chicken_inasal_with_rice.jpg",
+  },
+  {
+    subject: "Chicken inasal meal",
+    author: "Ralff Nestor Nacor",
+    license: "CC BY-SA 4.0",
+    licenseUrl: BY_SA_4,
+    source: "https://commons.wikimedia.org/wiki/File:Bacolod%27s_Chicken_Inasal_Meal,_Sep_2026.jpg",
+  },
+  {
+    subject: "Piaya",
+    author: "Kguirnela",
+    license: "CC BY-SA 4.0",
+    licenseUrl: BY_SA_4,
+    source: "https://commons.wikimedia.org/wiki/File:Piaya.jpg",
+  },
+  {
+    subject: "Kansi",
+    author: "Nuwordlife0rder",
+    license: "CC BY-SA 4.0",
+    licenseUrl: BY_SA_4,
+    source: "https://commons.wikimedia.org/wiki/File:Cansi.jpg",
+  },
+  {
+    subject: "Napoleones",
+    author: "Nuwordlife0rder",
+    license: "CC0",
+    licenseUrl: "https://creativecommons.org/publicdomain/zero/1.0/",
+    source: "https://commons.wikimedia.org/wiki/File:Napoleones.jpg",
+  },
+] as const;
+
 export interface DeliveryWindow {
   /** e.g. "Mon–Sun". */
   days: string;
