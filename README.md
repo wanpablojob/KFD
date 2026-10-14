@@ -189,6 +189,21 @@ Required secrets (add in `Settings → Secrets and variables → Actions`):
 See `.github/workflows/deploy-admin.yml` for the deployment steps, or run
 `npm run build` locally and then `vercel deploy` manually.
 
+### Mobile → EAS
+
+The mobile app builds with EAS (`mobile/eas.json`):
+
+- `eas build --profile preview` – an internal build for testers (an Android APK
+  and an ad-hoc iOS build).
+- `eas build --profile production` then `eas submit` – store builds; the build
+  number is kept by EAS and increases on every production build.
+
+Each profile reads its variables from the matching EAS environment (`preview`,
+`production`). Set these four there; all are public and embedded in the app:
+`EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY`,
+`EXPO_PUBLIC_API_URL`, `EXPO_PUBLIC_EAS_PROJECT_ID`. Submitting needs the Apple
+and Google developer accounts linked in EAS.
+
 ### Backend → Render (planned)
 
 When the `backend/` NestJS service is created, it will be deployed from
