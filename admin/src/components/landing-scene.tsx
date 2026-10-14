@@ -15,6 +15,7 @@ import {
   CUSTOMER_BENEFITS,
   DELIVERY,
   DELIVERY_FEE,
+  DISH_DETAILS,
   DISH_PHOTOS,
   FAQ,
   HERO_PHOTO,
@@ -22,6 +23,8 @@ import {
   KITCHEN_PHOTO,
   LOCAL_SPECIALTIES,
   MINIMUM_ORDER,
+  ORDER_STAGES,
+  PARTNER_NEXT_STEPS,
   PARTNER_RESTAURANTS,
   PARTNER_TERMS,
   PHOTO_CREDITS,
@@ -137,6 +140,10 @@ export function LandingScene() {
             </a>
           </div>
         </div>
+        <div
+          aria-hidden="true"
+          className="landing-progress absolute inset-x-0 bottom-0 h-0.5 bg-primary"
+        />
       </header>
 
       <main id="main">
@@ -177,14 +184,16 @@ export function LandingScene() {
             {/* A real photo of the region's signature dish, with the badge as a seal. */}
             <div className="relative mx-auto w-full max-w-120 min-w-0 md:mr-0">
               <div className="enter-photo relative aspect-4/3 overflow-hidden md:aspect-4/5 rounded-4xl shadow-[0_40px_80px_-40px_color-mix(in_srgb,var(--primary)_55%,transparent)] ring-1 ring-border">
-                <Image
-                  src={HERO_PHOTO}
-                  alt="Chicken inasal on a skewer with a mound of rice and calamansi"
-                  fill
-                  priority
-                  sizes="(min-width: 768px) 480px, 92vw"
-                  className="object-cover"
-                />
+                <div className="landing-parallax absolute inset-x-0 -top-[8%] h-[116%]">
+                  <Image
+                    src={HERO_PHOTO}
+                    alt="Chicken inasal on a skewer with a mound of rice and calamansi"
+                    fill
+                    priority
+                    sizes="(min-width: 768px) 480px, 92vw"
+                    className="object-cover"
+                  />
+                </div>
                 <div
                   aria-hidden="true"
                   className="absolute inset-x-0 bottom-0 h-1/3 bg-linear-to-t from-black/45 to-transparent"
@@ -319,6 +328,43 @@ export function LandingScene() {
           </div>
         </section>
 
+        {/* ---------- order stages: the real statuses, filling as you scroll ---------- */}
+        <section data-reveal className={SECTION}>
+          <h2 className={H2}>From order to door</h2>
+          <p className={LEAD}>
+            Every order moves through the same five stages, and your tracking page
+            shows which one it is at.
+          </p>
+          <div className="relative mt-12">
+            <div
+              aria-hidden="true"
+              className="absolute top-4 right-[10%] left-[10%] hidden h-0.5 bg-border md:block"
+            >
+              <div className="landing-fill h-full origin-left bg-primary" />
+            </div>
+            <ol className="grid gap-8 md:grid-cols-5 md:gap-4">
+              {ORDER_STAGES.map((stage, i) => (
+                <li
+                  key={stage.label}
+                  data-stagger
+                  style={turn(i)}
+                  className="relative flex gap-4 md:flex-col md:items-center md:text-center"
+                >
+                  <span className="relative z-10 grid h-9 w-9 shrink-0 place-items-center rounded-full bg-primary text-sm font-bold text-primary-foreground ring-4 ring-background">
+                    {i + 1}
+                  </span>
+                  <div>
+                    <h3 className="text-base font-bold text-foreground">{stage.label}</h3>
+                    <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                      {stage.detail}
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </section>
+
         {/* ---------- local food: real photos of the region's dishes ---------- */}
         <section id="restaurants" data-reveal className={SECTION}>
           <div className="flex flex-wrap items-end justify-between gap-4">
@@ -358,20 +404,31 @@ export function LandingScene() {
                     i === 0 ? "col-span-2 row-span-2" : i === 1 ? "col-span-2" : ""
                   }`}
                 >
-                  <Image
-                    src={DISH_PHOTOS[dish]}
-                    alt={`${dish}, a Negros Occidental specialty`}
-                    fill
-                    sizes={i === 0 ? "(min-width: 768px) 560px, 100vw" : "(min-width: 768px) 280px, 50vw"}
-                    className="-z-10 object-cover transition-transform duration-1200 ease-out group-hover:scale-110"
-                  />
+                  <div className="landing-settle absolute inset-0 -z-10">
+                    <Image
+                      src={DISH_PHOTOS[dish]}
+                      alt={`${dish}, a Negros Occidental specialty`}
+                      fill
+                      sizes={i === 0 ? "(min-width: 768px) 560px, 100vw" : "(min-width: 768px) 280px, 50vw"}
+                      className="object-cover transition-transform duration-1200 ease-out group-hover:scale-110"
+                    />
+                  </div>
                   <div
                     aria-hidden="true"
-                    className="absolute inset-0 -z-10 bg-linear-to-t from-black/60 via-black/0 to-black/0"
+                    className="absolute inset-0 -z-10 bg-linear-to-t from-black/75 via-black/15 to-black/0"
                   />
-                  <span className="absolute bottom-4 left-4 rounded-full bg-white/90 px-3 py-1 text-sm font-semibold text-[#3A2115] backdrop-blur">
-                    {dish}
-                  </span>
+                  <div className="absolute inset-x-4 bottom-4 flex flex-col items-start gap-1.5">
+                    <span className="rounded-full bg-white/90 px-3 py-1 text-sm font-semibold text-[#3A2115] backdrop-blur">
+                      {dish}
+                    </span>
+                    <p
+                      className={`max-w-[42ch] text-white/90 ${
+                        i === 0 ? "text-sm" : "line-clamp-2 text-xs"
+                      }`}
+                    >
+                      {DISH_DETAILS[dish]}
+                    </p>
+                  </div>
                 </li>
               ))}
             </ul>
@@ -528,6 +585,21 @@ export function LandingScene() {
                 compact
               />
             </article>
+          </div>
+          <div className="mt-8 rounded-3xl border border-dashed border-border p-6 sm:p-8">
+            <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+              After you apply
+            </h3>
+            <ol className="mt-4 grid gap-5 sm:grid-cols-3">
+              {PARTNER_NEXT_STEPS.map((step, i) => (
+                <li key={step} data-stagger style={turn(i + 2)} className="flex gap-3">
+                  <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+                    {i + 1}
+                  </span>
+                  <p className="text-sm leading-relaxed text-foreground">{step}</p>
+                </li>
+              ))}
+            </ol>
           </div>
         </section>
 

@@ -91,6 +91,34 @@ export const DISH_PHOTOS: Record<(typeof LOCAL_SPECIALTIES)[number], string> = {
   Napoleones: "/images/food/napoleones.jpg",
 };
 
+/** One line on what each dish is. General food facts, not menu promises. */
+export const DISH_DETAILS: Record<(typeof LOCAL_SPECIALTIES)[number], string> = {
+  Inasal:
+    "Chicken marinated in calamansi, vinegar, lemongrass and annatto, grilled over charcoal.",
+  Piaya: "Flat, unleavened bread filled with muscovado sugar and toasted on a griddle.",
+  Kansi: "Beef shank and bone marrow soup, soured with batwan fruit.",
+  Napoleones: "Flaky puff pastry layered with custard under a sugar glaze.",
+};
+
+/**
+ * The order stages exactly as the app shows them (mobile/src/lib/order-progress.ts),
+ * each with what is happening at that point.
+ */
+export const ORDER_STAGES = [
+  { label: "Order placed", detail: "The kitchen gets your order and the total you saw." },
+  { label: "Confirmed", detail: "The restaurant accepts it. Until then you can still cancel." },
+  { label: "Being prepared", detail: "Your food is cooked to order." },
+  { label: "Out for delivery", detail: "A rider picks it up. Call or text them from the app." },
+  { label: "Delivered", detail: "Pay the rider in cash or by GCash, then rate the order." },
+] as const;
+
+/** What an applicant can expect, consistent with PARTNER_TERMS. */
+export const PARTNER_NEXT_STEPS = [
+  "We contact you on the number or email you leave.",
+  "We walk you through the terms before you commit to anything.",
+  "Once you agree, we set up your account and you can start.",
+] as const;
+
 export const HERO_PHOTO = "/images/food/hero-inasal.jpg";
 export const KITCHEN_PHOTO = "/images/food/inasal-plate.jpg";
 

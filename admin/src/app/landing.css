@@ -135,3 +135,71 @@
     transform: none;
   }
 }
+
+/* Scroll-linked motion ---------------------------------------------------
+   Driven by the scroll position itself (CSS scroll timelines), so it tracks
+   the finger exactly and costs no JavaScript. Browsers without
+   animation-timeline simply show the static page. */
+
+.landing-progress {
+  transform: scaleX(0);
+  transform-origin: 0 50%;
+}
+
+@supports (animation-timeline: scroll()) {
+  @media (prefers-reduced-motion: no-preference) {
+    /* Reading progress under the header. */
+    .landing-progress {
+      animation: landing-grow-x linear both;
+      animation-timeline: scroll(root);
+    }
+
+    /* The hero photo drifts slower than the page: a gentle parallax. */
+    .landing-parallax {
+      animation: landing-drift linear both;
+      animation-timeline: scroll(root);
+      animation-range: 0 90vh;
+    }
+
+    /* Dish photos settle from a slight zoom as they come into view. */
+    .landing-settle {
+      animation: landing-unzoom linear both;
+      animation-timeline: view();
+      animation-range: entry 0% cover 45%;
+    }
+
+    /* The order track fills as its section scrolls through the screen. */
+    .landing-fill {
+      animation: landing-grow-x linear both;
+      animation-timeline: view();
+      animation-range: entry 30% cover 60%;
+    }
+  }
+}
+
+@keyframes landing-grow-x {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes landing-drift {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(12%);
+  }
+}
+
+@keyframes landing-unzoom {
+  from {
+    transform: scale(1.18);
+  }
+  to {
+    transform: scale(1);
+  }
+}
