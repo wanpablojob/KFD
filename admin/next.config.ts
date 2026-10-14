@@ -39,6 +39,12 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // The repo root has its own package-lock.json (commit tooling), so Turbopack
+  // guessed the repo root as the workspace and then failed to find `next`
+  // there, serving an Internal Server Error. Pin it to this app.
+  turbopack: {
+    root: __dirname,
+  },
   async headers() {
     return [
       {
