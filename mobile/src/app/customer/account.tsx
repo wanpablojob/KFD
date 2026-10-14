@@ -23,6 +23,7 @@ import {
 } from "../../lib/push";
 import { deleteMyAccount } from "../../lib/storefront";
 import { clearAddresses } from "../../lib/addresses";
+import { openLegal } from "../../lib/legal";
 import { shouldUnregisterOnSignOut } from "../../lib/push-signout";
 import { colors, radius, shadow, spacing, type } from "../../lib/theme";
 
@@ -274,6 +275,18 @@ export default function CustomerAccountScreen() {
           label="Apply to deliver"
           hint="Ride with KFD and get paid per delivery"
           onPress={() => router.push("/rider-apply" as never)}
+        />
+        <View style={styles.divider} />
+        <Row
+          label="Privacy policy"
+          hint="What KFD keeps about you and why"
+          onPress={() => openLegal("privacy")}
+        />
+        <View style={styles.divider} />
+        <Row
+          label="Terms & conditions"
+          hint="The rules for ordering with KFD"
+          onPress={() => openLegal("terms")}
         />
       </View>
 

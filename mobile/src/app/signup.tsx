@@ -13,6 +13,7 @@ import { StatusBar } from "expo-status-bar";
 import { Link } from "expo-router";
 import { signUpWithEmail, signInWithProvider } from "../lib/auth";
 import { collapseAuthError } from "../lib/auth-errors";
+import { openLegal } from "../lib/legal";
 import { colors, radius, shadow, spacing, type } from "../lib/theme";
 
 function Field({
@@ -185,6 +186,26 @@ export default function SignUpScreen() {
           )}
         </Pressable>
 
+        <Text style={styles.consent}>
+          By creating an account you agree to the{" "}
+          <Text
+            style={styles.consentLink}
+            onPress={() => openLegal("terms")}
+            accessibilityRole="link"
+          >
+            Terms
+          </Text>{" "}
+          and{" "}
+          <Text
+            style={styles.consentLink}
+            onPress={() => openLegal("privacy")}
+            accessibilityRole="link"
+          >
+            Privacy Policy
+          </Text>
+          .
+        </Text>
+
         <View style={styles.orRow}>
           <View style={styles.orLine} />
           <Text style={styles.orText}>OR</Text>
@@ -216,6 +237,12 @@ export default function SignUpScreen() {
 }
 
 const styles = StyleSheet.create({
+  consent: { ...type.caption, textAlign: "center", marginTop: spacing.sm },
+  consentLink: {
+    color: colors.primary,
+    fontWeight: "700",
+    textDecorationLine: "underline",
+  },
   container: {
     flex: 1,
     backgroundColor: colors.background,
