@@ -78,7 +78,7 @@ export function SignInDropdown() {
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className={secondaryButton}
+        className={`${secondaryButton} px-4 py-2`}
       >
         <span className="hidden sm:inline">Sign in as: {current.label}</span>
         <span className="sm:hidden">Sign in</span>

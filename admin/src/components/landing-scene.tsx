@@ -130,9 +130,12 @@ export function LandingScene() {
             ))}
           </nav>
 
-          <a href="#track" className={`${primaryButton} px-4 py-2`}>
-            Track order
-          </a>
+          <div className="flex items-center gap-2">
+            <SignInDropdown />
+            <a href="#track" className={`${primaryButton} px-4 py-2`}>
+              Track order
+            </a>
+          </div>
         </div>
       </header>
 
@@ -637,7 +640,6 @@ export function LandingScene() {
             <Link href="/login?next=%2Fmerchant" className="text-muted-foreground hover:text-foreground">
               Open the merchant portal
             </Link>
-            <SignInDropdown />
           </div>
         </div>
 
