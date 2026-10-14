@@ -31,13 +31,7 @@ export const metadata: Metadata = {
   description:
     "Operations dashboard for the Kabankalan City Food Delivery platform.",
   applicationName: "KFD Admin",
-  icons: {
-    icon: [
-      { url: "/favicon.ico", sizes: "any" },
-      { url: "/icon.svg", type: "image/svg+xml" },
-    ],
-    apple: "/favicon.ico",
-  },
+  // Icons come from the app/ file conventions: favicon.ico, icon.png, apple-icon.png.
   openGraph: {
     title: "KFD Admin",
     description: "Operations dashboard for KFD.",

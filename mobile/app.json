@@ -17,7 +17,7 @@
     "android": {
       "package": "ph.kabankalan.kfd",
       "adaptiveIcon": {
-        "backgroundColor": "#0b1020",
+        "backgroundColor": "#FFF8E7",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
@@ -33,15 +33,15 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#0b1020",
+          "backgroundColor": "#FFF8E7",
           "image": "./assets/splash-icon.png",
-          "imageWidth": 200
+          "imageWidth": 240
         }
       ],
       [
         "expo-notifications",
         {
-          "color": "#ffd23f",
+          "color": "#A3130A",
           "defaultChannel": "orders"
         }
       ]
