@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import {
   BikeIcon,
   LayoutDashboardIcon,
+  MapPinIcon,
   ReceiptIcon,
   StoreIcon,
   UsersIcon,
@@ -33,6 +34,8 @@ const navItems = [
   // 0011_merchant_provisioning.sql refuses the write for them regardless --
   // the page existing is not the permission.
   { href: "/dashboard/merchants", label: "Merchant access", icon: UserCogIcon, adminOnly: true },
+  // Admin only: once the list has rows, it decides which addresses can order (0077).
+  { href: "/dashboard/service-areas", label: "Service areas", icon: MapPinIcon, adminOnly: true },
 ] as const;
 
 export function Sidebar({
