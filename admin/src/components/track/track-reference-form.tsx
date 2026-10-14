@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { field, primaryButton } from "@/components/marketing/styles";
 import { useRouter } from "next/navigation";
 import { normalizeReference } from "@/lib/track-reference";
 
@@ -49,13 +50,13 @@ export function TrackReferenceForm({
             setValue(e.target.value);
             if (error) setError("");
           }}
-          className="pixel-input flex-1"
+          className={`${field} flex-1`}
           placeholder="#KFD-XXXXXXXXXXXX"
           autoComplete="off"
           autoCapitalize="characters"
           spellCheck={false}
         />
-        <button type="submit" className="pixel-btn pixel-btn-primary pixel-focus">
+        <button type="submit" className={primaryButton}>
           Track order
         </button>
       </div>

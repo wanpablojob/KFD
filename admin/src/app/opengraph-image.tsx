@@ -7,7 +7,7 @@ import { ImageResponse } from "next/og";
  * crisp at any size. It is a marketing card, deliberately not a photo: the
  * page ships no stock imagery.
  */
-export const alt = "KFD — Pagkaing Kabankalan, hatid sa pinto mo.";
+export const alt = "KFD: Pagkaing Kabankalan, hatid sa pinto mo.";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 

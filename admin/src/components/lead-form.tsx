@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { submitLead, type LeadKind } from "@/lib/leads";
+import { field, primaryButton } from "@/components/marketing/styles";
 
 /**
  * The one form behind the waitlist and both partner applications.
@@ -81,7 +82,7 @@ export function LeadForm({
 
   if (state === "done") {
     return (
-      <p role="status" className="pixel-card pixel-body p-5 text-sm" data-lead-state="done">
+      <p role="status" className="rounded-2xl border border-border bg-card p-5 text-sm text-foreground" data-lead-state="done">
         {message}
       </p>
     );
@@ -92,11 +93,15 @@ export function LeadForm({
   return (
     <form
       onSubmit={onSubmit}
-      className={compact ? "flex flex-col gap-4" : "pixel-card flex flex-col gap-4 p-6"}
+      className={
+        compact
+          ? "flex flex-col gap-4"
+          : "flex flex-col gap-4 rounded-2xl border border-border bg-card p-6"
+      }
       noValidate
     >
       <div className="flex flex-col gap-1.5">
-        <label htmlFor={`${id}-name`} className="text-sm font-bold">
+        <label htmlFor={`${id}-name`} className="text-sm font-semibold text-foreground">
           Name
         </label>
         <input
@@ -105,14 +110,14 @@ export function LeadForm({
           value={name}
           onChange={(e) => setName(e.target.value)}
           autoComplete="name"
-          className="pixel-input"
+          className={field}
           placeholder="Juan Dela Cruz"
           required
         />
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <label htmlFor={`${id}-contact`} className="text-sm font-bold">
+        <label htmlFor={`${id}-contact`} className="text-sm font-semibold text-foreground">
           Phone or email
         </label>
         <input
@@ -122,7 +127,7 @@ export function LeadForm({
           onChange={(e) => setContact(e.target.value)}
           autoComplete="tel"
           inputMode="text"
-          className="pixel-input"
+          className={field}
           placeholder="0917 000 0000"
           required
         />
@@ -130,7 +135,7 @@ export function LeadForm({
 
       {withNote ? (
         <div className="flex flex-col gap-1.5">
-          <label htmlFor={`${id}-note`} className="text-sm font-bold">
+          <label htmlFor={`${id}-note`} className="text-sm font-semibold text-foreground">
             Note (optional)
           </label>
           <textarea
@@ -140,14 +145,14 @@ export function LeadForm({
             onChange={(e) => setNote(e.target.value)}
             rows={3}
             maxLength={500}
-            className="pixel-input"
+            className={field}
             placeholder={notePlaceholder}
           />
         </div>
       ) : null}
 
       {/* Honeypot. Hidden from sight and from assistive tech, never tabbable. */}
-      <div aria-hidden="true" className="pixel-honeypot">
+      <div aria-hidden="true" className="absolute -left-[9999px] h-px w-px overflow-hidden">
         <label htmlFor={`${id}-company`}>Company</label>
         <input
           id={`${id}-company`}
@@ -167,7 +172,7 @@ export function LeadForm({
           className="mt-0.5 h-5 w-5 shrink-0 accent-[var(--primary)]"
           required
         />
-        <span className="pixel-body text-xs">
+        <span className="text-xs text-muted-foreground">
           I agree to be contacted about KFD. We will only use this to reach you
           about your signup.
         </span>
@@ -176,7 +181,7 @@ export function LeadForm({
       <button
         type="submit"
         disabled={state === "sending"}
-        className="pixel-btn pixel-btn-primary pixel-focus disabled:opacity-60"
+        className={primaryButton}
       >
         {state === "sending" ? "Sending…" : submitLabel}
       </button>

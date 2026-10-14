@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { PixelCrate, PixelBowl } from "@/components/pixel/sprites-render";
+import { LayoutDashboardIcon, ReceiptIcon, StoreIcon } from "@/components/ui/icons";
+import { secondaryButton } from "@/components/marketing/styles";
 
 /**
  * The portals a visitor can enter, and where each one should land them.
@@ -77,11 +78,10 @@ export function SignInDropdown() {
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className="pixel-btn pixel-btn-primary pixel-focus"
+        className={secondaryButton}
       >
-        <span className="hidden sm:inline">Sign in as</span>
+        <span className="hidden sm:inline">Sign in as: {current.label}</span>
         <span className="sm:hidden">Sign in</span>
-        <span className="hidden sm:inline">: {current.label}</span>
         <span aria-hidden="true" className="text-xs">
           {open ? "▲" : "▼"}
         </span>
@@ -91,7 +91,7 @@ export function SignInDropdown() {
         <div
           role="menu"
           aria-label="Choose a portal"
-          className="pixel-card pixel-dropdown absolute right-0 z-50 mt-3 w-72 p-2"
+          className="absolute right-0 z-50 mt-3 w-72 rounded-2xl border border-border bg-card p-2 shadow-lg"
         >
           {PORTALS.map((portal) => (
             <Link
@@ -103,22 +103,20 @@ export function SignInDropdown() {
                 setSelected(portal.key);
                 setOpen(false);
               }}
-              style={{
-                color: "var(--foreground)",
-                animationDelay: `${PORTALS.indexOf(portal) * 40}ms`,
-              }}
-              className="pixel-dropdown-item pixel-focus flex items-center gap-3 px-3 py-3 no-underline transition-colors hover:bg-muted"
+              className="flex items-center gap-3 rounded-xl px-3 py-3 text-foreground no-underline transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <span className="shrink-0">
+              <span className="shrink-0 text-primary" aria-hidden="true">
                 {portal.key === "customer" ? (
-                  <PixelCrate title="" />
+                  <ReceiptIcon className="h-5 w-5" />
+                ) : portal.key === "merchant" ? (
+                  <StoreIcon className="h-5 w-5" />
                 ) : (
-                  <PixelBowl title="" />
+                  <LayoutDashboardIcon className="h-5 w-5" />
                 )}
               </span>
               <span className="flex flex-col">
-                <span className="text-sm font-bold">{portal.label}</span>
-                <span className="pixel-body text-xs">{portal.blurb}</span>
+                <span className="text-sm font-semibold">{portal.label}</span>
+                <span className="text-xs text-muted-foreground">{portal.blurb}</span>
               </span>
             </Link>
           ))}
