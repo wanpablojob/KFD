@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { sendRiderPush, OFFERS_CHANNEL_ID } from "@/lib/server/push-notify";
+import { reportServerError } from "@/lib/server/report-error";
 
 export const runtime = "nodejs";
 
@@ -42,8 +43,10 @@ async function requireAdmin(req: Request) {
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-  if (!url || !anonKey)
+  if (!url || !anonKey) {
+    reportServerError(new Error("Supabase URL or key not configured"), "dispatch/notify");
     return { error: "not configured", status: 500 } as const;
+  }
 
   const caller = createClient(url, anonKey, {
     auth: { persistSession: false },
@@ -55,7 +58,10 @@ async function requireAdmin(req: Request) {
   if (!user) return { error: "Unauthorized", status: 401 } as const;
 
   const supabase = serviceClient();
-  if (!supabase) return { error: "not configured", status: 500 } as const;
+  if (!supabase) {
+    reportServerError(new Error("Service role client not configured"), "dispatch/notify");
+    return { error: "not configured", status: 500 } as const;
+  }
 
   const { data: row } = await supabase
     .from("app_users")
@@ -91,6 +97,7 @@ export async function POST(req: Request) {
     .eq("status", "offered");
 
   if (offersError) {
+    reportServerError(offersError, "dispatch/notify");
     return NextResponse.json({ error: offersError.message }, { status: 500 });
   }
 

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { reportServerError } from "@/lib/server/report-error";
 
 /**
  * POST /api/push/register
@@ -64,6 +65,7 @@ async function authenticatedCaller(
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
   if (!url || !anonKey || !supabase) {
+    reportServerError(new Error("Server is missing Supabase configuration"), "push/register");
     return {
       callerId: "",
       error: NextResponse.json(
@@ -139,6 +141,7 @@ export async function POST(req: Request) {
   );
 
   if (upsertError) {
+    reportServerError(upsertError, "push/register");
     return NextResponse.json({ error: upsertError.message }, { status: 500 });
   }
 
@@ -172,6 +175,7 @@ export async function DELETE(req: Request) {
     .eq("user_id", callerId);
 
   if (deleteError) {
+    reportServerError(deleteError, "push/register");
     return NextResponse.json({ error: deleteError.message }, { status: 500 });
   }
 

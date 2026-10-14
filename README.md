@@ -186,6 +186,10 @@ Required secrets (add in `Settings → Secrets and variables → Actions`):
 - `VERCEL_ORG_ID` – Vercel organization or user id.
 - `VERCEL_PROJECT_ID` – Vercel project id (root directory must be `admin`).
 
+Error reporting: set `SENTRY_DSN` in the Vercel project's environment
+variables to report API-route errors (push, dispatch, order notifications) to
+Sentry. Without it nothing is sent.
+
 See `.github/workflows/deploy-admin.yml` for the deployment steps, or run
 `npm run build` locally and then `vercel deploy` manually.
 

@@ -11,6 +11,7 @@ import {
   sendMerchantOrderPush,
   sendCustomerPush,
 } from "@/lib/server/push-notify";
+import { reportServerError } from "@/lib/server/report-error";
 
 /**
  * POST /api/orders/notify
@@ -114,6 +115,7 @@ export async function POST(req: Request) {
   const supabase = serviceClient();
 
   if (!url || !anonKey || !supabase) {
+    reportServerError(new Error("Server is missing Supabase configuration"), "orders/notify");
     return NextResponse.json(
       { error: "Server is missing Supabase configuration" },
       { status: 500 },
@@ -143,6 +145,7 @@ export async function POST(req: Request) {
     .maybeSingle();
 
   if (orderError) {
+    reportServerError(orderError, "orders/notify");
     return NextResponse.json({ error: orderError.message }, { status: 500 });
   }
 

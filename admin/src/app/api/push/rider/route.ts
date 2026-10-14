@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { sendRiderPush } from "@/lib/server/push-notify";
+import { reportServerError } from "@/lib/server/report-error";
 
 /**
  * POST /api/push/rider
@@ -86,6 +87,7 @@ export async function POST(req: Request) {
     .maybeSingle();
 
   if (orderError) {
+    reportServerError(orderError, "push/rider");
     return NextResponse.json({ error: orderError.message }, { status: 500 });
   }
   if (!order) {
