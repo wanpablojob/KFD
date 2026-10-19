@@ -88,7 +88,7 @@ fi
 #
 # The pg_* roles are left out on purpose: Postgres 14 and up ship them, and
 # their names are reserved.
-docker exec -i "$CONTAINER" psql -v ON_ERROR_STOP=1 -U postgres -d rehearsal -q <<'SQL' >"$LOGDIR/roles.log" 2>&1
+if ! docker exec -i "$CONTAINER" psql -v ON_ERROR_STOP=1 -U postgres -d rehearsal -q >"$LOGDIR/roles.log" 2>&1 <<'SQL'
 create role anon nologin noinherit;
 create role authenticated nologin noinherit;
 create role service_role nologin noinherit bypassrls;
@@ -99,7 +99,7 @@ create role supabase_storage_admin login noinherit createrole password 'rehearsa
 create role dashboard_user login password 'rehearsal';
 create role supabase_read_only_user nologin;
 SQL
-if [ $? -ne 0 ]; then
+then
   echo "warning: could not create every Supabase role. The restore below is"
   echo "         the real test -- if a GRANT needed one of them, it fails"
   echo "         there and says so."
