@@ -648,7 +648,13 @@ export function LandingScene() {
             ) : (
               <p className="mt-3 text-base text-muted-foreground" data-support-state="pending">
                 Support details are being set up and will be posted here before
-                launch.
+                launch.{" "}
+                <Link
+                  href="/support"
+                  className="font-semibold text-primary underline underline-offset-2"
+                >
+                  Support page
+                </Link>
               </p>
             )}
           </div>
@@ -679,6 +685,9 @@ export function LandingScene() {
             </Link>
             <Link href="/terms" className="text-muted-foreground hover:text-foreground">
               Terms &amp; Conditions
+            </Link>
+            <Link href="/support" className="text-muted-foreground hover:text-foreground">
+              Support
             </Link>
             <Link href="/track" className="text-muted-foreground hover:text-foreground">
               Track an order
