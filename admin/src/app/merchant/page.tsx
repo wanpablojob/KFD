@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import {
   fetchMerchantMenu,
   fetchMerchantOrders,
@@ -11,6 +12,7 @@ import { PageContainer, PageHeader, StatGrid } from "@/components/layout/page";
 import { StatCard } from "@/components/ui/stat-card";
 import { Card, CardHeader } from "@/components/ui/card";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/status";
 import { TableBoundary } from "@/components/ui/table-boundary";
 import { Button } from "@/components/ui/button";
@@ -19,27 +21,20 @@ import { NewOrderBanner } from "@/components/merchant/new-order-banner";
 import { StoreStatusCard } from "@/components/merchant/store-status-card";
 import { RecentRatings } from "@/components/recent-ratings";
 import { useOrderNotifications } from "@/lib/use-order-notifications";
-import { formatCurrency, formatDateTime } from "@/lib/format";
-import type { Order, Kpi } from "@/lib/types";
+import { formatCurrency } from "@/lib/format";
+import {
+  itemSummary,
+  minutesWaiting,
+  OVERDUE_MINUTES,
+  todayStats,
+} from "@/lib/merchant-today";
+import type { Order } from "@/lib/types";
 
 /**
- * Builds a level metric for <StatCard>.
- *
- * There is deliberately no `delta` argument. Every card on this screen is a
- * level (orders today, revenue today, needs action, menu live) and none has a
- * previous period to compare against, so the old default of `delta = 0` made
- * every card render a green "↑0%" trend arrow -- asserting "unchanged" about
- * something that was never measured. Omitting `delta` renders the hint alone
- * (Prompt 2.3).
+ * The merchant's live screen: what needs a decision, what is cooking, and how
+ * the day is going. Every card shows a level with no trend arrow -- there is no
+ * previous period on this screen to compare against (Prompt 2.3).
  */
-function stat(label: string, value: string, hint: string): Kpi {
-  return { label, value, hint };
-}
-
-function orderLineTotal(order: Order): string {
-  return formatCurrency(order.subtotal);
-}
-
 export default function MerchantTodayPage() {
   const { restaurantName, isMerchant } = useUserRole();
   const orders = useAsyncData(() => fetchMerchantOrders());
@@ -53,29 +48,43 @@ export default function MerchantTodayPage() {
     orders.refetch
   );
 
-  // Both fetches feed this page, so both must be covered. Previously an
-  // `if (loading)` early return meant a failure fell through to the empty
-  // states below, which during an outage look exactly like a quiet day.
+  // Re-render every 30s so "waiting N min" keeps counting without a refetch.
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 30_000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Both fetches feed this page, so both must be covered: a failure must not
+  // fall through to empty states, which during an outage look like a quiet day.
   const loadError = orders.error ?? menu.error;
 
   const rows = orders.data ?? [];
-  const stats = deriveStats(rows, menu.data ?? []);
+  const menuRows = menu.data ?? [];
+  const stats = todayStats(rows, now);
+  const menuLive = menuRows.filter((m) => m.available).length;
 
-  const needsAction = rows.filter((o) => o.status === "pending");
+  // Oldest first: the order that has waited longest is the one to answer next.
+  const needsAction = rows
+    .filter((o) => o.status === "pending")
+    .sort((a, b) => a.placedAt.localeCompare(b.placedAt));
   const inFlight = rows.filter(
     (o) => o.status === "confirmed" || o.status === "preparing"
   );
-  const recent = rows.slice(0, 5);
 
   return (
     <PageContainer>
       <PageHeader
         title={restaurantName ? `${restaurantName} today` : "Today"}
         description="Orders that need you, and what is in the kitchen."
+        actions={
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/merchant/orders">All orders</Link>
+          </Button>
+        }
       />
 
       <StoreStatusCard />
-      <RecentRatings />
 
       <TableBoundary
         loading={orders.loading || menu.loading}
@@ -89,25 +98,26 @@ export default function MerchantTodayPage() {
         skeletonColumns={3}
       >
         <StatGrid className="mb-6">
-          <StatCard kpi={stat("Orders today", String(stats.today), "Excludes rejected")} />
           <StatCard
-            kpi={stat("Revenue today", formatCurrency(stats.todayRevenue), "Order totals")}
+            kpi={{ label: "Needs your decision", value: String(stats.pending), hint: "Waiting for you to accept" }}
           />
           <StatCard
-            kpi={stat("Needs action", String(stats.pending), "Waiting on you")}
+            kpi={{ label: "Orders today", value: String(stats.orders), hint: "Excludes cancelled" }}
           />
           <StatCard
-            kpi={stat(
-              "Menu live",
-              `${stats.menuLive}/${stats.menuTotal}`,
-              "Available items"
-            )}
+            kpi={{ label: "Sales today", value: formatCurrency(stats.sales), hint: "Food only, before delivery fees" }}
+          />
+          <StatCard
+            kpi={{ label: "Menu live", value: `${menuLive}/${menuRows.length}`, hint: "Items customers can order" }}
           />
         </StatGrid>
 
-        <div className="space-y-6">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <Card>
-            <CardHeader title="Needs your decision" />
+            <CardHeader
+              title="Needs your decision"
+              subtitle={needsAction.length > 0 ? "Oldest first" : undefined}
+            />
             <div className="px-5 pb-5">
               {needsAction.length === 0 ? (
                 <EmptyState
@@ -118,7 +128,7 @@ export default function MerchantTodayPage() {
                 <ul className="divide-y divide-border">
                   {needsAction.map((order) => (
                     <li key={order.id} className="py-3 first:pt-0 last:pb-0">
-                      <OrderRow order={order} onChanged={orders.refetch} />
+                      <OrderRow order={order} now={now} onChanged={orders.refetch} />
                     </li>
                   ))}
                 </ul>
@@ -135,53 +145,19 @@ export default function MerchantTodayPage() {
                 <ul className="divide-y divide-border">
                   {inFlight.map((order) => (
                     <li key={order.id} className="py-3 first:pt-0 last:pb-0">
-                      <OrderRow order={order} onChanged={orders.refetch} />
+                      <OrderRow order={order} now={now} onChanged={orders.refetch} />
                     </li>
                   ))}
                 </ul>
               )}
-            </div>
-          </Card>
-
-          <Card>
-            <CardHeader title="Recent orders" />
-            <div className="px-5 pb-5">
-              {recent.length === 0 ? (
-                <EmptyState title="No orders yet" />
-              ) : (
-                <ul className="divide-y divide-border">
-                  {recent.map((order) => (
-                    <li
-                      key={order.id}
-                      className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0"
-                    >
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium">
-                          {order.reference} · {order.customer}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {formatDateTime(order.placedAt)}
-                        </p>
-                      </div>
-                      <div className="flex shrink-0 items-center gap-3">
-                        <span className="text-sm font-medium">
-                          {orderLineTotal(order)}
-                        </span>
-                        <StatusBadge status={order.status} />
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              <div className="mt-4">
-                <Button variant="outline" size="sm" asChild>
-                  <Link href="/merchant/orders">See all orders</Link>
-                </Button>
-              </div>
             </div>
           </Card>
         </div>
       </TableBoundary>
+
+      <div className="mt-6">
+        <RecentRatings />
+      </div>
 
       <NewOrderBanner alert={newOrder} onDismiss={dismissNewOrder} />
     </PageContainer>
@@ -190,52 +166,36 @@ export default function MerchantTodayPage() {
 
 function OrderRow({
   order,
+  now,
   onChanged,
 }: {
   order: Order;
+  now: Date;
   onChanged: () => void;
 }) {
+  const waited = minutesWaiting(order.placedAt, now);
+  const overdue = order.status === "pending" && waited >= OVERDUE_MINUTES;
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap items-center justify-between gap-2">
+      <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-card-foreground">
+          <p className="flex items-center gap-2 text-sm font-semibold text-card-foreground">
             {order.reference}
+            <Badge variant={overdue ? "destructive" : "secondary"} size="sm">
+              {waited === 0 ? "just now" : `${waited} min ago`}
+            </Badge>
           </p>
-          <p className="truncate text-xs text-muted-foreground">
-            {order.customer} · {order.items.length} item
-            {order.items.length === 1 ? "" : "s"} ·{" "}
-            {formatDateTime(order.placedAt)}
-          </p>
+          {/* What to cook, not just how many lines: the kitchen acts on this. */}
+          <p className="mt-1 text-sm text-card-foreground">{itemSummary(order.items)}</p>
+          <p className="truncate text-xs text-muted-foreground">{order.customer}</p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <span className="text-sm font-semibold">
-            {formatCurrency(order.total)}
-          </span>
+          {/* Food subtotal: the delivery and service fees are not the kitchen's. */}
+          <span className="text-sm font-semibold">{formatCurrency(order.subtotal)}</span>
           <StatusBadge status={order.status} />
         </div>
       </div>
       <OrderActions orderId={order.id} status={order.status} onChanged={onChanged} />
     </div>
   );
-}
-
-/**
- * Stats are derived from already-fetched rows rather than a second round trip.
- */
-function deriveStats(orders: Order[], menu: { available: boolean }[]) {
-  const startOfToday = new Date();
-  startOfToday.setHours(0, 0, 0, 0);
-
-  const todays = orders.filter(
-    (o) => new Date(o.placedAt) >= startOfToday && o.status !== "cancelled"
-  );
-
-  return {
-    today: todays.length,
-    todayRevenue: todays.reduce((sum, o) => sum + o.total, 0),
-    pending: orders.filter((o) => o.status === "pending").length,
-    menuLive: menu.filter((m) => m.available).length,
-    menuTotal: menu.length,
-  };
 }
