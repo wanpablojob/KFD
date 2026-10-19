@@ -158,3 +158,47 @@ jobs:
       - name: Deploy to Vercel (production)
         id: deploy
         run: echo "url=$(vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }})" >> "$GITHUB_OUTPUT"
+
+  # ---- What happened ---------------------------------------------------
+  # A production deploy that did not run looks exactly like a broken
+  # pipeline: the site is stale and the run says nothing about why. The
+  # production job is skipped whenever the CI run did not conclude
+  # success, and a skipped job leaves no trace, so the reason is written
+  # here instead. This job has no `needs` on purpose: it must not wait
+  # for the production job, which may itself be waiting for an approval.
+  summary:
+    name: Deploy summary
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Explain the outcome
+        env:
+          EVENT: ${{ github.event_name }}
+          CI_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          REPO: ${{ github.repository }}
+        run: |
+          {
+            echo "### Deploy summary"
+            echo ""
+            if [ "$EVENT" = "pull_request" ]; then
+              echo "Pull request: the preview job deploys to Vercel staging. Production only ever deploys from main."
+            elif [ "$EVENT" = "workflow_dispatch" ]; then
+              echo "Manual run: the production job ran for the selected target."
+            else
+              echo "Push to main. The production deploy runs only when the CI run concluded **success**."
+              echo ""
+              echo "- CI conclusion: \`${CI_CONCLUSION:-unknown}\`"
+              echo "- Commit: \`${HEAD_SHA:-unknown}\`"
+              echo ""
+              if [ "$CI_CONCLUSION" != "success" ]; then
+                echo "**The production deploy was skipped because CI did not pass.**"
+                echo "The run that decided it: https://github.com/$REPO/actions/runs/$RUN_ID"
+              else
+                echo "CI passed, so the production job ran."
+                echo ""
+                echo "If the site is still stale, the job is either waiting for an approval on the \`production\` environment (Settings -> Environments) or it failed. The run log has both."
+              fi
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

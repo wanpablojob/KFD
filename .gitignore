@@ -52,6 +52,13 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
+# ---- Playwright MCP ----
+.playwright-mcp/
+
+# ---- Local verification logs ----
+# Saved output of scripts/verify.sh. Machine-local, never source.
+.verify-*.txt
+
 # ---- macOS ----
 .DS_Store
 *.pem

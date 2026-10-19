@@ -1,0 +1,133 @@
+# Store builds for the KFD mobile app.
+#
+# The store build was the one launch artifact with no pipeline at all: it
+# ran from a laptop with the EAS CLI signed in. The binary that goes to
+# review was therefore not reproducible from a commit, and it did not
+# survive the machine that produced it. This moves it into CI, so a build
+# is a commit, an artifact and a URL.
+#
+# Trigger:
+#   workflow_dispatch  -- a build on demand
+#   push on a v* tag   -- a release build
+#
+# Required repository secret:
+#   EXPO_TOKEN         -- Expo account access token
+# Repository variable:
+#   EAS_PROJECT_ID     -- the EAS project the build links to
+#
+# The build reads the app's variables from the EAS environment named in
+# mobile/eas.json (production or preview), not from this workflow: one
+# place sets the values, and a laptop build and a CI build read the same
+# ones. EXPO_PUBLIC_EAS_PROJECT_ID is passed here explicitly because the
+# EAS CLI needs the project id to know which environment to read.
+#
+# Apple credentials (an App Store Connect API key) and the Android
+# keystore belong to the EAS project, not to this workflow: the CLI will
+# not prompt for them in a non-interactive build.
+#
+# Dormant until EXPO_TOKEN is set, the same way deploy-backend.yml treats
+# a missing deploy hook -- it warns and skips rather than failing a run.
+
+name: Build Mobile
+
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: Build profile
+        type: choice
+        options: [production, preview]
+        default: production
+      platform:
+        description: Platform
+        type: choice
+        options: [all, android, ios]
+        default: all
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-build-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build ${{ github.event.inputs.profile || 'production' }} (${{ github.event.inputs.platform || 'all' }})
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      EAS_PROJECT_ID: ${{ vars.EAS_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Install the EAS CLI
+        # Pinned to the major version mobile/eas.json asks for. An unpinned
+        # CLI pulls a new major silently and changes build semantics
+        # underneath a build that was supposed to be reproducible.
+        run: npm install --global eas-cli@16
+
+      - name: Check the build can run
+        id: ready
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "::warning::EXPO_TOKEN is not set; skipping the store build."
+            echo "::warning::Add it under Settings -> Secrets to enable this workflow."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ -z "$EAS_PROJECT_ID" ]; then
+            echo "::warning::EAS_PROJECT_ID is not set; skipping the store build."
+            echo "::warning::Add it under Settings -> Variables and secrets -> Variables."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+
+      - name: Build
+        if: steps.ready.outputs.ready == 'true'
+        id: build
+        env:
+          EXPO_PUBLIC_EAS_PROJECT_ID: ${{ vars.EAS_PROJECT_ID }}
+        run: |
+          set -o pipefail
+          eas build \
+            --profile "${{ github.event.inputs.profile || 'production' }}" \
+            --platform "${{ github.event.inputs.platform || 'all' }}" \
+            --non-interactive \
+            --json | tee eas-build.json
+
+      # The CLI prints the artifact link at the end of the run, but not in a
+      # shape worth parsing field by field: it differs between a build that
+      # is queued and one that has finished. The link is what a person
+      # actually needs, so it is read out of the output and put in the run
+      # summary rather than left in the log.
+      - name: Report the build
+        if: steps.ready.outputs.ready == 'true' && always()
+        run: |
+          {
+            echo "### Store build"
+            echo ""
+            url="$(grep -oE 'https://expo\.dev/artifacts/[A-Za-z0-9_-]+' eas-build.json | tail -1 || true)"
+            if [ -n "$url" ]; then
+              echo "Artifact: $url"
+            else
+              echo "The build did not report an artifact link. Last lines of the output:"
+              echo '```'
+              tail -20 eas-build.json
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

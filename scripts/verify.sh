@@ -86,13 +86,21 @@ verify_harness() {
     node scripts/claude-guard.mjs --self-test
 }
 
+# The launch gate. CI runs it as its own job (`.github/workflows/ci.yml`,
+# job `launch`), so it belongs in the local mirror too: the pre-push hook
+# runs this script, and a push that CI would reject should not get past it.
+verify_launch() {
+  run "launch: Phase C preflight" "$ROOT" required \
+    scripts/phase-c-preflight.sh
+}
+
 printf '\033[1mKFD verification gate\033[0m\n'
 
 verify_harness
 case "$TARGET" in
   admin)  verify_admin ;;
   mobile) verify_mobile ;;
-  all)    verify_admin; verify_mobile ;;
+  all)    verify_admin; verify_mobile; verify_launch ;;
   *)      echo "unknown target: $TARGET (expected all, admin or mobile)" >&2; exit 2 ;;
 esac
 
