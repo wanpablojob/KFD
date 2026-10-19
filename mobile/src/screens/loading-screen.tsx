@@ -131,7 +131,7 @@ export function LoadingScreen({ message }: { message?: string }) {
   return (
     <View style={styles.container}>
       <View style={styles.centerStack}>
-        <Image source={require("../../assets/icon.png")} style={styles.logo} />
+        <Image source={require("../../assets/logo.png")} style={styles.logo} />
         <Text style={styles.title}>KFD</Text>
         <Text style={styles.subtitle}>Kabankalan Food Delivery</Text>
 

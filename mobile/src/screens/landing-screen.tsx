@@ -1,4 +1,4 @@
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useEffect, type ReactNode } from "react";
 import {
   Animated,
@@ -114,7 +114,7 @@ export function LandingScreen({
 
       <View style={styles.inner}>
         <Animated.View style={[styles.brand, riseStyle]}>
-          <Image source={require("../../assets/icon.png")} style={styles.logo} />
+          <Image source={require("../../assets/logo.png")} style={styles.logo} />
           <Text style={styles.title}>KFD</Text>
           <Text style={styles.subtitle}>Kabankalan Food Delivery</Text>
         </Animated.View>
