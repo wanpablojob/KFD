@@ -265,8 +265,27 @@ jobs:
               print("::notice::No pending migrations to validate.")
               sys.exit(0)
 
+          def missing_object(message):
+              # Postgres names the thing a statement could not find, e.g.
+              #   relation "public.order_ratings" does not exist
+              #   column r.suspended_at does not exist
+              #   function public.foo(integer) does not exist
+              # Return the last name segment; schema and qualifier do not
+              # matter for "does anything in this batch mention it".
+              match = re.search(
+                  r"\b(?:relation|column|function|type|operator)\s+\"?([\w.]+)\"?\s+does not exist",
+                  message,
+              )
+              return match.group(1).split(".")[-1] if match else None
+
           print("::notice::Validating %d pending migration(s) in a rolled-back transaction." % len(pending))
+          # Two kinds of red, kept apart: sql_errors is "this file does not
+          # run"; failures is "production data violates a money invariant".
+          # Different fixes, so they are printed with different prefixes.
+          sql_errors = []
           failures = []
+          deferred = []
+          earlier_sql = ""
           for version, path in pending:
               sql = open(path).read()
               # Explicit BEGIN/ROLLBACK in one request, so the work is undone
@@ -276,7 +295,22 @@ jobs:
               try:
                   query("begin;\n%s\nrollback;" % sql)
               except RuntimeError as exc:
-                  failures.append("%s: %s" % (os.path.basename(path), exc))
+                  # Each file is validated alone, so one that builds on an
+                  # earlier PENDING file cannot succeed here: what that file
+                  # creates does not exist yet. Defer -- do not fail -- when the
+                  # name Postgres reports missing appears in an earlier pending
+                  # file, i.e. this same batch creates it. A name no pending
+                  # file mentions stays fatal: that is drift or a typo, which
+                  # the apply would stop on too.
+                  needed = missing_object(str(exc))
+                  if needed and re.search(r"\b%s\b" % re.escape(needed), earlier_sql):
+                      deferred.append(
+                          "%s needs %s, which an earlier pending file creates"
+                          % (os.path.basename(path), needed)
+                      )
+                  else:
+                      sql_errors.append("%s: %s" % (os.path.basename(path), exc))
+                  earlier_sql += "\n" + sql
                   continue
 
               # Prove the rollback actually happened. If the driver ever starts
@@ -286,7 +320,7 @@ jobs:
               try:
                   query(check)
                   query("select 1 from rollback_probe")
-                  failures.append(
+                  sql_errors.append(
                       "%s: rollback did not take effect; the driver is splitting statements"
                       % os.path.basename(path)
                   )
@@ -294,6 +328,7 @@ jobs:
                   pass  # Expected: the temp table is gone, so the rollback worked.
 
               print("::notice::%s parses and runs." % os.path.basename(path))
+              earlier_sql += "\n" + sql
 
           # --- Dispute window (0075) --------------------------------------
           # Two failures specific to the recovery feature, both silent:
@@ -496,9 +531,26 @@ jobs:
                       "walk-in bucket, not in any customer's total." % orphaned
                   )
 
-          if failures:
+          if deferred:
+              print(
+                  "::warning::%d pending file(s) build on another pending file "
+                  "and cannot run standalone; listed below. The chain itself is "
+                  "covered by db-tests.sh, which builds a database from every "
+                  "migration in order." % len(deferred)
+              )
+          for d in deferred:
+              print("::notice::Deferred: %s." % d)
+
+          if sql_errors or failures:
+              for e in sql_errors:
+                  print("::error::" + e)
               for f in failures:
-                  print("::error::" + f)
+                  print("::error::Data check: " + f)
+              print(
+                  "::error::%d SQL failure(s), %d data finding(s). A green run "
+                  "needs both: a SQL failure is fixed in the migration, a data "
+                  "finding in the rows themselves." % (len(sql_errors), len(failures))
+              )
               sys.exit(1)
 
           print("::notice::All %d pending migration(s) are valid." % len(pending))
