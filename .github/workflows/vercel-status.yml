@@ -98,15 +98,22 @@ jobs:
                      end'
           echo "::endgroup::"
 
-          echo "::group::Build log of the newest deployment"
+          echo "::group::Build log of the newest failed deployment"
           # A READY deployment that 404s and an ERROR deployment fail in
           # different places; this is the only place the build's own words show
-          # up. Events are grouped by type, so print every text/ info payload.
-          newest=$(api "https://api.vercel.com/v6/deployments?projectId=$PROJECT&teamId=$TEAM&limit=1" \
-            | jq -r '((.deployments // [])[0] // {}) | .uid // .id // empty')
-          if [ -n "$newest" ]; then
-            api "https://api.vercel.com/v3/deployments/$newest/events?teamId=$TEAM&builds=1" \
-              | jq -r '(.events // [])[] | (.payload.text // .payload.info // empty) | tostring' \
+          # up. Prefer the newest deployment that did not reach READY -- the
+          # newest overall is usually the good one that just replaced it.
+          # Events come back as a bare array (not {events: []}), so accept both.
+          list=$(api "https://api.vercel.com/v6/deployments?projectId=$PROJECT&teamId=$TEAM&limit=10")
+          target=$(echo "$list" | jq -r '[(.deployments // [])[] | select(.readyState != "READY")][0] | .uid // .id // empty')
+          if [ -z "$target" ]; then
+            target=$(echo "$list" | jq -r '((.deployments // [])[0] // {}) | .uid // .id // empty')
+          fi
+          if [ -n "$target" ]; then
+            echo "deployment: $target"
+            api "https://api.vercel.com/v3/deployments/$target/events?teamId=$TEAM&builds=1" \
+              | jq -r 'if type == "array" then .[] else (.events // [])[] end
+                       | (.payload.text // .payload.info // empty) | tostring' \
               | tail -60
           else
             echo "no deployment found"

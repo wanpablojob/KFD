@@ -131,6 +131,11 @@ jobs:
       inputs.confirm_production == 'deploy'
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      # Baked into the bundle at build time. The prebuilt build runs on a
+      # runner, where VERCEL_URL is unset, so without this the canonical URL,
+      # og:url and the sitemap all fall back to http://localhost:3000.
+      NEXT_PUBLIC_SITE_URL: https://kfd-one.vercel.app
     environment:
       name: production
       url: ${{ steps.deploy.outputs.url }}
