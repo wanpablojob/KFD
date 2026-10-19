@@ -103,9 +103,10 @@ Pull request ──► CI (lint / typecheck / audit / test / build)
     merge  ←  required checks pass (CI OK)
       │
       ▼
-    main ──► CI ──► Deploy Admin → Vercel Production (approval required)
+    main ──► CI ──► manual Deploy Admin → Vercel Production
               │
-              └──► Release Please opens/updates a release PR
+              ├──► Release Please opens/updates a release PR
+              └──► manual Migrate Database (dry run first)
 ```
 
 ### Workflows
@@ -113,13 +114,16 @@ Pull request ──► CI (lint / typecheck / audit / test / build)
 | Workflow | Trigger | Purpose |
 | --- | --- | --- |
 | `ci.yml` | PRs to `main`, pushes to `main` | Monorepo-aware lint, typecheck, `npm audit`, test, build. `CI OK` is the aggregate gate. |
-| `deploy-admin.yml` | PRs to `main`; successful `CI` on `main`; manual | Deploy admin to Vercel (preview for PRs, production for `main`). |
+| `deploy-admin.yml` | PRs to `main`; manual | Deploy admin to Vercel (preview for PRs; production only by manual dispatch from `main`, after `CI OK`). |
 | `deploy-backend.yml` | pushes touching `backend/**`; manual | Deploy the backend to Render (dormant until `backend/` exists). |
+| `migrate-db.yml` | manual | Apply Supabase migrations. Dry run by default; `max_pending` caps a batch. |
+| `build-mobile.yml` | `v*` tags; manual | EAS store build. Dormant until `EXPO_TOKEN` is set. |
 | `commitlint.yml` | PRs to `main` | Enforce conventional commit messages. |
 | `release-please.yml` | pushes to `main` | Version bumps, changelogs, and GitHub Releases per app. |
 
 - **Branch strategy**: `main` with short-lived `feature/*` branches.
 - **Monorepo-aware**: only the apps whose files changed (plus shared config) run their checks.
+- **Database**: the `db` job applies every migration to a throwaway local Supabase and runs the SQL tests in `admin/supabase/tests`; a migration that fails on a real schema cannot pass a PR.
 - **Caching**: dependencies are cached via `actions/setup-node` using each app's `package-lock.json`.
 - **Concurrency**: superseded runs on the same ref are cancelled automatically.
 - **Tests**: test steps run with `--if-present`, so they no-op until a `test` script is added.
@@ -129,17 +133,48 @@ Pull request ──► CI (lint / typecheck / audit / test / build)
 | Name | Type | Used by | Notes |
 | --- | --- | --- | --- |
 | `staging` | Environment | Admin preview deploys | No protection rules. |
-| `production` | Environment | Admin + backend deploys | Add **required reviewers** to gate production. |
+| `production` | Environment | Admin deploys | Manual dispatch gate; required reviewers need GitHub Pro. |
 | `VERCEL_TOKEN` | Secret | `deploy-admin.yml` | Vercel account token. |
 | `VERCEL_ORG_ID` | Secret | `deploy-admin.yml` | Vercel team/user id. |
 | `VERCEL_PROJECT_ID` | Secret | `deploy-admin.yml` | Vercel project id (root directory `admin`). |
+| `NEXT_PUBLIC_SUPABASE_URL` | Secret | `deploy-admin.yml`, `ci.yml` | Supabase → Settings → API → Project URL. |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Secret | `deploy-admin.yml`, `ci.yml` | Supabase → Settings → API Keys → Publishable key. |
+| `SUPABASE_ACCESS_TOKEN` | Secret | `migrate-db.yml` | Supabase → Account → Access Tokens. |
+| `SUPABASE_DB_PASSWORD` | Secret | `migrate-db.yml` | Supabase → Settings → Database → Database password. |
+| `EXPO_TOKEN` | Secret | `build-mobile.yml` | Expo → Account Settings → Access Tokens. |
+| `EAS_PROJECT_ID` | Variable | `build-mobile.yml` | `expo.extra.eas.projectId` (also in `mobile/.env.local`). |
+| `ADMIN_USER` / `ADMIN_PASSWORD` | Secret | `verify-admin-ui.yml` | Dedicated admin account in Supabase Auth, role `admin`. |
 | `RENDER_DEPLOY_HOOK_URL` | Secret | `deploy-backend.yml` | Render deploy hook (added when the backend exists). |
 | `BACKEND_URL` | Variable | `deploy-backend.yml` | Public backend URL, shown in the GitHub UI. |
 
+Vercel Production also needs its own server-side variables (set them in the
+Vercel project, not GitHub): `SUPABASE_SERVICE_ROLE_KEY`, `RESEND_API_KEY`,
+`ORDER_EMAIL_FROM`, `NEXT_PUBLIC_SITE_URL`, and optionally `SENTRY_DSN`. The
+mobile build reads `EXPO_PUBLIC_*` from the EAS environment named in
+`mobile/eas.json` (production or preview), not from GitHub.
+
 ### Branch protection
 
-Require the **CI OK** status check (plus **Lint commit messages** and, once
-configured, Release Please) before merging to `main`. With the GitHub CLI:
+Native branch protection, repository rulesets, and environment required
+reviewers are **not available on this repository's current plan**: it is a
+private repo on GitHub Free, and the API returns 403/422 for those features
+(checked 2026-10-20). The free equivalents in place are:
+
+- `CI OK` is the single required check by convention. CI runs on every PR and
+  on every push to `main`; the `db` job also applies every migration to a
+  throwaway database and runs the SQL tests.
+- The pre-push hook refuses an unmarked push (`KFD_PUSH=1`), runs
+  `scripts/verify.sh all`, and refuses force-pushes or deletions of `main` and
+  rewrites of `v*` release tags.
+- Dependabot alerts and security updates are enabled.
+- The default `GITHUB_TOKEN` is read-only; each workflow opts in explicitly.
+- Production admin deploys are manual dispatches from `main`, require
+  `confirm_production=deploy`, and refuse to run unless `CI OK` is green.
+- Database migrations are manual, dry-run by default, and capped by
+  `max_pending`.
+
+If the repository is upgraded to GitHub Pro (or made public), the native rules
+can be applied with:
 
 ```sh
 gh api -X PUT repos/wanpablojob/KFD/branches/main/protection \
@@ -148,9 +183,15 @@ gh api -X PUT repos/wanpablojob/KFD/branches/main/protection \
   -f enforce_admins=false \
   -f required_pull_request_reviews.required_approving_review_count=1 \
   -f restrictions=
+
+uid=$(gh api users/wanpablojob --jq .id)
+gh api -X PUT repos/wanpablojob/KFD/environments/production --input - <<JSON
+{"reviewers":[{"type":"User","id":$uid}],"prevent_self_review":false}
+JSON
 ```
 
-> Release Please requires `Settings → Actions → General → Workflow
+> Require `CI OK` and `Lint commit messages`; add Release Please once it has
+> run. Release Please requires `Settings → Actions → General → Workflow
 > permissions → Allow GitHub Actions to create and approve pull requests`.
 
 ### Commit style
@@ -228,6 +269,6 @@ files at the repo root.
 - Server-side secrets stay out of the browser/client bundles.
 - Required GitHub Secrets for CI/CD are added in the repository settings when
   a job needs them.
-- **Branch protection**: require the **CI OK** status check (plus **Lint
-  commit messages** and, once configured, **Release Please**) before merging to
-  `main`. See the "Branch protection" subsection above.
+- **Branch rules**: native branch protection is unavailable on the free
+  private plan; see "Branch protection" above for the free equivalents and the
+  command to apply once the plan supports it.

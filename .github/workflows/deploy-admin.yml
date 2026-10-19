@@ -2,9 +2,10 @@
 #
 # Staging:  every pull request to `main` deploys a Vercel Preview URL
 #           (GitHub Environment: `staging`).
-# Production: every successful CI run on `main` that touched `admin/`
-#           deploys to Vercel Production (GitHub Environment: `production`,
-#           add required reviewers there to gate releases).
+# Production: manual `workflow_dispatch` only, from `main`, with
+#           `target=production` and `confirm_production=deploy`. The job also
+#           refuses to run unless the `CI OK` check for the commit is green.
+#           Native required reviewers require GitHub Pro; see README.md.
 #
 # Required repository secrets:
 #   VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID
@@ -16,28 +17,31 @@ name: Deploy Admin
 on:
   pull_request:
     branches: [main]
-  workflow_run:
-    workflows: ["CI"]
-    types: [completed]
-    branches: [main]
   workflow_dispatch:
     inputs:
       target:
-        description: Deployment target
+        description: Deployment target (staging deploys from pull requests)
         type: choice
         options: [staging, production]
         default: staging
+      confirm_production:
+        description: 'Type "deploy" to confirm a production deploy'
+        type: string
+        required: false
+        default: ''
 
 permissions:
   contents: read
   pull-requests: write
   deployments: write
+  checks: read
 
 concurrency:
   group: deploy-admin-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 env:
+  VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
   VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
   VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
   NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
@@ -49,6 +53,7 @@ jobs:
     name: Deploy staging preview
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     environment:
       name: staging
       url: ${{ steps.deploy.outputs.url }}
@@ -57,6 +62,17 @@ jobs:
         working-directory: admin
     steps:
       - uses: actions/checkout@v7
+
+      - name: Verify Vercel secrets are present
+        run: |
+          missing=0
+          for name in VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID; do
+            if [ -z "${!name}" ]; then
+              echo "::error::$name is not set. Add it in Settings -> Secrets and variables -> Actions."
+              missing=1
+            fi
+          done
+          exit "$missing"
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -72,14 +88,16 @@ jobs:
         run: npm install --global vercel@60.0.1
 
       - name: Pull Vercel environment (preview)
-        run: vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
+        run: vercel pull --yes --environment=preview --token="$VERCEL_TOKEN"
 
       - name: Build project artifacts
-        run: vercel build --token=${{ secrets.VERCEL_TOKEN }}
+        run: vercel build --token="$VERCEL_TOKEN"
 
       - name: Deploy to Vercel (preview)
         id: deploy
-        run: echo "url=$(vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }})" >> "$GITHUB_OUTPUT"
+        run: |
+          url=$(vercel deploy --prebuilt --token="$VERCEL_TOKEN")
+          echo "url=$url" >> "$GITHUB_OUTPUT"
 
       - name: Comment preview URL on the pull request
         uses: actions/github-script@v9
@@ -93,41 +111,20 @@ jobs:
               body: `Admin preview deployed to ${url}`,
             });
 
-  # ---- Detect whether `admin/` changed (for the production deploy) ----
-  changed:
-    name: Detect admin changes
-    if: github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
-    outputs:
-      deploy: ${{ steps.check.outputs.deploy }}
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
-          fetch-depth: 2
-
-      - name: Check changed paths
-        id: check
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "deploy=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          if git rev-parse --verify HEAD^ >/dev/null 2>&1 && git diff --name-only HEAD^ HEAD 2>/dev/null | grep -qE '^(admin/|\.github/|\.vscode/|package(-lock)?\.json)'; then
-            echo "deploy=true" >> "$GITHUB_OUTPUT"
-          else
-            # Initial commit or no admin-related changes — still deploy for safety
-            echo "deploy=true" >> "$GITHUB_OUTPUT"
-          fi
-
   # ---- Production ------------------------------------------------------
+  # Manual, from main, with an explicit confirmation string. This replaces
+  # the `production` environment's required-reviewer rule, which GitHub only
+  # offers on Pro/Team/Enterprise plans for private repositories. The job
+  # also checks the `CI OK` status for the exact commit before deploying.
   production:
     name: Deploy production
-    needs: changed
     if: |
-      needs.changed.outputs.deploy == 'true' &&
-      (github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch')
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      inputs.target == 'production' &&
+      inputs.confirm_production == 'deploy'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     environment:
       name: production
       url: ${{ steps.deploy.outputs.url }}
@@ -136,8 +133,29 @@ jobs:
         working-directory: admin
     steps:
       - uses: actions/checkout@v7
-        with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Verify CI is green for this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          conclusion=$(gh api "repos/${{ github.repository }}/commits/${GITHUB_SHA}/check-runs" \
+            --jq '[.check_runs[] | select(.name == "CI OK")] | sort_by(.completed_at) | last | .conclusion')
+          if [ "$conclusion" != "success" ]; then
+            echo "::error::CI OK is ${conclusion:-missing} for ${GITHUB_SHA}; refusing to deploy."
+            exit 1
+          fi
+          echo "CI OK is green for ${GITHUB_SHA}."
+
+      - name: Verify Vercel secrets are present
+        run: |
+          missing=0
+          for name in VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID; do
+            if [ -z "${!name}" ]; then
+              echo "::error::$name is not set. Add it in Settings -> Secrets and variables -> Actions."
+              missing=1
+            fi
+          done
+          exit "$missing"
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -150,22 +168,20 @@ jobs:
         run: npm install --global vercel@60.0.1
 
       - name: Pull Vercel environment (production)
-        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+        run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
 
       - name: Build project artifacts
-        run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+        run: vercel build --prod --token="$VERCEL_TOKEN"
 
       - name: Deploy to Vercel (production)
         id: deploy
-        run: echo "url=$(vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }})" >> "$GITHUB_OUTPUT"
+        run: |
+          url=$(vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN")
+          echo "url=$url" >> "$GITHUB_OUTPUT"
 
   # ---- What happened ---------------------------------------------------
-  # A production deploy that did not run looks exactly like a broken
-  # pipeline: the site is stale and the run says nothing about why. The
-  # production job is skipped whenever the CI run did not conclude
-  # success, and a skipped job leaves no trace, so the reason is written
-  # here instead. This job has no `needs` on purpose: it must not wait
-  # for the production job, which may itself be waiting for an approval.
+  # A production deploy that did not run should say why. This job has no
+  # `needs` on purpose: it must not wait for the production job.
   summary:
     name: Deploy summary
     if: always()
@@ -174,31 +190,26 @@ jobs:
       - name: Explain the outcome
         env:
           EVENT: ${{ github.event_name }}
-          CI_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
-          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
-          RUN_ID: ${{ github.event.workflow_run.id }}
-          REPO: ${{ github.repository }}
+          TARGET: ${{ inputs.target }}
+          CONFIRM: ${{ inputs.confirm_production }}
+          HEAD_SHA: ${{ github.sha }}
         run: |
           {
             echo "### Deploy summary"
             echo ""
             if [ "$EVENT" = "pull_request" ]; then
-              echo "Pull request: the preview job deploys to Vercel staging. Production only ever deploys from main."
+              echo "Pull request: the preview job deploys to Vercel staging. Production is a manual dispatch from main."
             elif [ "$EVENT" = "workflow_dispatch" ]; then
-              echo "Manual run: the production job ran for the selected target."
-            else
-              echo "Push to main. The production deploy runs only when the CI run concluded **success**."
-              echo ""
-              echo "- CI conclusion: \`${CI_CONCLUSION:-unknown}\`"
-              echo "- Commit: \`${HEAD_SHA:-unknown}\`"
-              echo ""
-              if [ "$CI_CONCLUSION" != "success" ]; then
-                echo "**The production deploy was skipped because CI did not pass.**"
-                echo "The run that decided it: https://github.com/$REPO/actions/runs/$RUN_ID"
-              else
-                echo "CI passed, so the production job ran."
+              if [ "$TARGET" = "production" ] && [ "$CONFIRM" = "deploy" ]; then
+                echo "Manual production deploy for \`$HEAD_SHA\`."
                 echo ""
-                echo "If the site is still stale, the job is either waiting for an approval on the \`production\` environment (Settings -> Environments) or it failed. The run log has both."
+                echo "It runs only after the \`CI OK\` check for this commit is green."
+              else
+                echo "Manual run, but no deploy job matched (target=\`$TARGET\`, confirm=\`$CONFIRM\`)."
+                echo ""
+                echo "Staging deploys from pull requests. To deploy production: target=production and confirm_production=deploy."
               fi
+            else
+              echo "Unrecognised event \`$EVENT\`."
             fi
           } >> "$GITHUB_STEP_SUMMARY"

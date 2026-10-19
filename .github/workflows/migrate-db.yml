@@ -62,6 +62,7 @@ jobs:
   migrate:
     name: Apply migrations
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     # The approval gate. `environment` is only honoured on a job, never at
     # workflow level -- a top-level key is silently ignored, which would run
@@ -109,44 +110,95 @@ jobs:
         run: supabase link --project-ref ijeqwbrrgfsmymsektih
 
       - name: Report migration status
+        env:
+          MAX_PENDING: ${{ inputs.max_pending }}
         run: |
           echo "::group::Migration status"
           supabase migration list || true
           echo "::endgroup::"
 
-          # Count pending migrations as (files on disk) - (rows the CLI reports
-          # as applied). Do NOT try to parse which column is which: the CLI
-          # renders versions backtick-wrapped (`` `0001` ``) and the column
-          # layout has changed between releases. Counting the local files is
-          # deterministic and cannot silently drift into reporting 0.
-          local_count=$(ls -1 supabase/migrations/*.sql 2>/dev/null | wc -l | tr -d ' ')
-          applied=$(supabase migration list 2>/dev/null \
-            | grep -cE '^[[:space:]]*`[0-9]+`[[:space:]]*\|[[:space:]]*`[0-9]+`' || true)
-          applied=${applied:-0}
-          pending=$(( local_count - applied ))
+          # Compare the versions on disk with the versions the database says it
+          # has applied. The CLI's table is for humans: its layout has changed
+          # between releases, so counting its rows is not a stable contract.
+          # The management API returns the version column directly.
+          python3 - <<'PY'
+          import glob, json, os, re, sys, urllib.error, urllib.request
 
-          echo "Local migration files : ${local_count}"
-          echo "Reported as applied   : ${applied}"
-          echo "Pending               : ${pending}"
-          limit=${{ inputs.max_pending }}
+          ref = "ijeqwbrrgfsmymsektih"
+          token = os.environ["SUPABASE_ACCESS_TOKEN"]
+          endpoint = "https://api.supabase.com/v1/projects/%s/database/query" % ref
 
-          if [ "$applied" -gt "$local_count" ]; then
-            echo "::error::The remote database reports more applied migrations than"
-            echo "::error::exist on disk (${applied} > ${local_count}). Refusing to"
-            echo "::error::continue -- local history has diverged from remote."
-            exit 1
-          fi
+          def query(sql):
+              body = json.dumps({"query": sql}).encode()
+              req = urllib.request.Request(
+                  endpoint,
+                  data=body,
+                  headers={
+                      "Authorization": "Bearer " + token,
+                      "Content-Type": "application/json",
+                  },
+              )
+              try:
+                  with urllib.request.urlopen(req, timeout=60) as resp:
+                      return json.load(resp)
+              except urllib.error.HTTPError as exc:
+                  detail = exc.read().decode(errors="replace")
+                  try:
+                      detail = json.loads(detail).get("message", detail)
+                  except Exception:
+                      pass
+                  raise RuntimeError(detail) from None
 
-          if [ "$pending" -gt "$limit" ]; then
-            echo "::error::${pending} migrations are pending but max_pending is ${limit}."
-            echo "::error::Either re-run with a higher max_pending, or investigate why"
-            echo "::error::unexpected migrations are pending before applying anything."
-            exit 1
-          fi
+          local = {}
+          for path in sorted(glob.glob("supabase/migrations/*.sql")):
+              match = re.match(r"^([0-9]+)", os.path.basename(path))
+              if not match:
+                  print("::error::%s does not start with a migration version" % path)
+                  sys.exit(1)
+              local[match.group(1)] = path
 
-          if [ "$pending" -eq 0 ]; then
-            echo "::warning::Nothing to apply -- the database is already up to date."
-          fi
+          applied = {
+              str(row["version"])
+              for row in query(
+                  "select version from supabase_migrations.schema_migrations"
+              )
+          }
+          pending = sorted(set(local) - applied)
+          remote_only = sorted(applied - set(local))
+
+          print("Local migration files : %d" % len(local))
+          print("Reported as applied   : %d" % len(applied))
+          print("Pending               : %d" % len(pending))
+          if pending:
+              print("Pending versions      : %s" % ", ".join(pending))
+
+          if remote_only:
+              print(
+                  "::error::The database has %d migration(s) with no file in "
+                  "this checkout: %s" % (len(remote_only), ", ".join(remote_only))
+              )
+              print(
+                  "::error::Refusing to continue -- local history has diverged "
+                  "from remote."
+              )
+              sys.exit(1)
+
+          limit = int(os.environ.get("MAX_PENDING") or 1)
+          if len(pending) > limit:
+              print(
+                  "::error::%d migrations are pending but max_pending is %d."
+                  % (len(pending), limit)
+              )
+              print(
+                  "::error::Either re-run with a higher max_pending, or "
+                  "investigate why unexpected migrations are pending before "
+                  "applying anything."
+              )
+              sys.exit(1)
+
+          if not pending:
+              print("::warning::Nothing to apply -- the database is already up to date.")
+          PY
 
       - name: Preview migrations
         if: ${{ inputs.dry_run }}

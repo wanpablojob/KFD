@@ -21,12 +21,39 @@
 #
 # Neither variable is a security boundary. Anyone with a shell on this machine
 # can set them. What they buy is that the normal path is safe and the unusual
-# one is deliberate and visible. The real boundary is CI plus branch
-# protection plus the deploy secrets living only in GitHub.
+# one is deliberate and visible. The real boundary is CI plus the deploy
+# secrets living only in GitHub; native branch protection needs GitHub Pro on
+# a private repo (see README.md -> "Branch protection").
 
 set -uo pipefail
 
 repo_root="$(git rev-parse --show-toplevel)"
+
+# Protect main and release tags from history rewrites. This is the free-plan
+# substitute for branch protection, and it runs before the KFD_SKIP_VERIFY
+# escape hatch: skipping the test suite must not also skip this check.
+zero="0000000000000000000000000000000000000000"
+while read -r local_ref local_sha remote_ref remote_sha; do
+  case "$remote_ref" in
+    refs/heads/main)
+      if [ "$local_sha" = "$zero" ]; then
+        echo "pre-push: refusing to delete main." >&2
+        exit 1
+      fi
+      if [ "$remote_sha" != "$zero" ] && ! git merge-base --is-ancestor "$remote_sha" "$local_sha"; then
+        echo "pre-push: refusing a non-fast-forward update of main (force-push)." >&2
+        echo "pre-push: fetch first, or push a branch and open a pull request." >&2
+        exit 1
+      fi
+      ;;
+    refs/tags/v*)
+      if [ "$remote_sha" != "$zero" ] && [ "$local_sha" != "$remote_sha" ]; then
+        echo "pre-push: refusing to rewrite release tag ${remote_ref#refs/tags/}." >&2
+        exit 1
+      fi
+      ;;
+  esac
+done
 
 if [ "${KFD_PUSH:-}" != "1" ]; then
   cat >&2 <<'EOF'

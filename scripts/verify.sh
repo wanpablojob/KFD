@@ -86,6 +86,16 @@ verify_harness() {
     node scripts/claude-guard.mjs --self-test
 }
 
+# The SQL gate. CI runs the same script in the `db` job: every migration is
+# applied to a throwaway local Supabase, then the tests under
+# admin/supabase/tests run inside transactions that roll back. The generated
+# type digest test only proves the types match the files; this proves the SQL
+# actually executes.
+verify_db() {
+  run "db: migrations + SQL tests" "$ROOT" required \
+    scripts/db-tests.sh
+}
+
 # The launch gate. CI runs it as its own job (`.github/workflows/ci.yml`,
 # job `launch`), so it belongs in the local mirror too: the pre-push hook
 # runs this script, and a push that CI would reject should not get past it.
@@ -100,7 +110,7 @@ verify_harness
 case "$TARGET" in
   admin)  verify_admin ;;
   mobile) verify_mobile ;;
-  all)    verify_admin; verify_mobile; verify_launch ;;
+  all)    verify_admin; verify_mobile; verify_db; verify_launch ;;
   *)      echo "unknown target: $TARGET (expected all, admin or mobile)" >&2; exit 2 ;;
 esac
 
