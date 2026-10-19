@@ -32,16 +32,34 @@ export default function PrivacyPage() {
           <h2 className="text-base font-semibold">What we collect</h2>
           <ul className="list-disc pl-5">
             <li>
-              When you join the waitlist or apply as a restaurant or rider: your
-              name and a phone number or email address.
+              Your account: your email address and a password, or your Google
+              sign-in. Passwords are stored by our sign-in provider and are never
+              visible to us.
             </li>
             <li>
-              When you order: the items, the total, your delivery address and
-              your contact number, so the rider can reach you.
+              When you join the waitlist or apply as a restaurant or rider: your
+              name and a phone number or email address. Riders may also give a
+              city, a licence number, an ORCR number and a government ID
+              reference, and a GCash number for payouts.
+            </li>
+            <li>
+              When you order: the items, the total, your barangay, delivery
+              address and contact number, so the rider can reach you, and any
+              rating you leave afterwards.
+            </li>
+            <li>
+              When a rider completes a delivery: a photo of the delivered order,
+              the cash collected and, for GCash payments, the GCash reference
+              number. These settle disputes and account for the cash.
             </li>
             <li>
               A delivery reference that lets you (and anyone you share it with)
               follow an order.
+            </li>
+            <li>
+              From the app: a notification token if you allow notifications, and
+              crash reports, which include your account ID, email, role and device
+              details so we can fix the problem.
             </li>
           </ul>
         </section>
@@ -50,15 +68,47 @@ export default function PrivacyPage() {
           <h2 className="text-base font-semibold">How we use it</h2>
           <p>
             To contact you about your signup, to prepare and deliver your order,
-            and to let you track it. We do not sell your information.
+            to let you track it, to pay riders and settle cash, and to keep the
+            app working. We do not sell your information.
           </p>
+        </section>
+
+        <section className="flex flex-col gap-2">
+          <h2 className="text-base font-semibold">Who sees it</h2>
+          <ul className="list-disc pl-5">
+            <li>
+              The restaurant sees your name and your order. The rider sees your
+              name, address and contact number while delivering it.
+            </li>
+            <li>
+              Delivery photos are seen only by the rider who took them and KFD
+              staff, never by other customers.
+            </li>
+            <li>
+              Services that run KFD for us store or process it: our database and
+              sign-in provider, our website host, our push notification service
+              and our crash reporting service.
+            </li>
+          </ul>
         </section>
 
         <section className="flex flex-col gap-2">
           <h2 className="text-base font-semibold">Payments</h2>
           <p>
-            KFD is cash on delivery. We do not collect card or online payment
-            details.
+            You pay cash on delivery or by GCash to the rider. We do not collect
+            card details. For GCash we record only the reference number the rider
+            enters, not your GCash account.
+          </p>
+        </section>
+
+        <section className="flex flex-col gap-2">
+          <h2 className="text-base font-semibold">Your choices</h2>
+          <p>
+            You can delete your account from the app at any time. Under the Data
+            Privacy Act of 2012 you may also ask us to show, correct or delete
+            the information we hold about you, using the contact details below.
+            Order and payment records may be kept where we need them to account
+            for money or to meet the law.
           </p>
         </section>
 
