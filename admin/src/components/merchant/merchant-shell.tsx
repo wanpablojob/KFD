@@ -12,6 +12,7 @@ import {
   LogOutIcon,
   MenuIcon,
   ReceiptIcon,
+  TrendingUpIcon,
   UtensilsIcon,
   XIcon,
 } from "@/components/ui/icons";
@@ -21,6 +22,7 @@ const NAV_ITEMS = [
   { href: "/merchant", label: "Today", icon: LayoutDashboardIcon },
   { href: "/merchant/orders", label: "Orders", icon: ReceiptIcon },
   { href: "/merchant/menu", label: "Menu", icon: UtensilsIcon },
+  { href: "/merchant/sales", label: "Sales", icon: TrendingUpIcon },
 ] as const;
 
 /**
