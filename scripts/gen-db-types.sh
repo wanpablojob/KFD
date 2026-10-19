@@ -36,7 +36,10 @@ trap cleanup EXIT
 
 cd "$WORK"
 supabase init --force >/dev/null
-sed -i.bak 's/^project_id = .*/project_id = "kfd-typegen"/' supabase/config.toml
+# Own project id and ports, so this can run beside another local Supabase.
+sed -i.bak -e 's/^project_id = .*/project_id = "kfd-typegen"/' \
+  -e 's/54322/56332/;s/54320/56330/;s/54321/56331/;s/54323/56333/;s/54324/56334/;s/54327/56337/' \
+  supabase/config.toml
 mkdir -p supabase/migrations
 cp "$MIGRATIONS"/*.sql supabase/migrations/
 
