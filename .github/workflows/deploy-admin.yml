@@ -88,13 +88,19 @@ jobs:
         run: npm install --global vercel@60.0.1
 
       - name: Pull Vercel environment (preview)
+        working-directory: .
         run: vercel pull --yes --environment=preview --token="$VERCEL_TOKEN"
 
       - name: Build project artifacts
+        # From the repo root, not admin/: the project's Root Directory is
+        # `admin`, and the CLI joins it onto the working directory. Running
+        # from admin/ made it look for admin/admin/package.json.
+        working-directory: .
         run: vercel build --token="$VERCEL_TOKEN"
 
       - name: Deploy to Vercel (preview)
         id: deploy
+        working-directory: .
         run: |
           url=$(vercel deploy --prebuilt --token="$VERCEL_TOKEN")
           echo "url=$url" >> "$GITHUB_OUTPUT"
@@ -168,13 +174,16 @@ jobs:
         run: npm install --global vercel@60.0.1
 
       - name: Pull Vercel environment (production)
+        working-directory: .
         run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
 
       - name: Build project artifacts
+        working-directory: .
         run: vercel build --prod --token="$VERCEL_TOKEN"
 
       - name: Deploy to Vercel (production)
         id: deploy
+        working-directory: .
         run: |
           url=$(vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN")
           echo "url=$url" >> "$GITHUB_OUTPUT"

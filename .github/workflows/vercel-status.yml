@@ -70,6 +70,15 @@ jobs:
             | jq -r '.domains[] | "\(.name)\tverified=\(.verified)\ttarget=\(.target // "-")\tgitBranch=\(.gitBranch // "-")"'
           echo "::endgroup::"
 
+          echo "::group::Environment variables (names only; values are never printed)"
+          # Which keys exist per environment is public enough to log and is the
+          # difference between a build that can reach Supabase and one that
+          # silently ships undefined NEXT_PUBLIC_* values. Only the key, target
+          # and type are selected -- never .value.
+          api "https://api.vercel.com/v9/projects/$PROJECT/env?teamId=$TEAM" \
+            | jq -r '(.envs // [])[] | "\(.key)\t\((.target // []) | join(","))\t\(.type)"'
+          echo "::endgroup::"
+
           echo "::group::Newest deployments (any target)"
           # `deployments` can come back null (the earlier version crashed here
           # with "Cannot iterate over null"). Print the response raw in that
@@ -87,4 +96,19 @@ jobs:
                      then "no deployments array in the response: \(.)"
                      else (.deployments[] | "\(.created)\t\(.readyState)\t\(.url)\t\((.alias // []) | join(","))")
                      end'
+          echo "::endgroup::"
+
+          echo "::group::Build log of the newest deployment"
+          # A READY deployment that 404s and an ERROR deployment fail in
+          # different places; this is the only place the build's own words show
+          # up. Events are grouped by type, so print every text/ info payload.
+          newest=$(api "https://api.vercel.com/v6/deployments?projectId=$PROJECT&teamId=$TEAM&limit=1" \
+            | jq -r '((.deployments // [])[0] // {}) | .uid // .id // empty')
+          if [ -n "$newest" ]; then
+            api "https://api.vercel.com/v3/deployments/$newest/events?teamId=$TEAM&builds=1" \
+              | jq -r '(.events // [])[] | (.payload.text // .payload.info // empty) | tostring' \
+              | tail -60
+          else
+            echo "no deployment found"
+          fi
           echo "::endgroup::"
