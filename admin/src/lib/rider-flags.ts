@@ -22,19 +22,29 @@ export const HIGH_FAILURE_RATE = 0.2;
  */
 export const MIN_DELIVERIES_FOR_RATE = 3;
 
-export type RiderFlag = "low_rating" | "high_failure" | "no_account";
+export type RiderFlag =
+  | "deletion_requested"
+  | "low_rating"
+  | "high_failure"
+  | "no_account";
 
 export interface RiderFlagInput {
   rating: number;
   deliveredCount: number;
   failedCount: number;
   hasAccount: boolean;
+  /** The rider asked in the app to delete their account (0082). */
+  deletionRequested?: boolean;
 }
 
 export const FLAG_META: Record<
   RiderFlag,
   { label: string; help: string }
 > = {
+  deletion_requested: {
+    label: "Deletion requested",
+    help: "Asked in the app to delete their account. Settle payouts and cash on hand, then archive the rider and remove their login.",
+  },
   low_rating: {
     label: "Low rating",
     help: `Rated below ${LOW_RATING_THRESHOLD.toFixed(1)}. Worth a conversation before the next dispatch.`,
@@ -89,6 +99,8 @@ export function hasHighFailureRate(
 
 export function riderFlags(input: RiderFlagInput): RiderFlag[] {
   const flags: RiderFlag[] = [];
+  // First: it is a request with a deadline, not a performance signal.
+  if (input.deletionRequested) flags.push("deletion_requested");
   if (isLowRating(input.rating)) flags.push("low_rating");
   if (hasHighFailureRate(input.deliveredCount, input.failedCount)) {
     flags.push("high_failure");

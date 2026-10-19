@@ -103,6 +103,8 @@ export interface RiderOverview extends Rider {
   failedCount: number;
   weekEarnings: number;
   updatedAt: string | null;
+  /** When the rider asked in the app to delete their account (0082). */
+  deletionRequestedAt: string | null;
 }
 
 /**

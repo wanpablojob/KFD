@@ -177,5 +177,6 @@ export function flagsInput(rider: RiderOverview) {
     deliveredCount: rider.deliveredCount,
     failedCount: rider.failedCount,
     hasAccount: rider.userId !== null,
+    deletionRequested: rider.deletionRequestedAt !== null,
   };
 }

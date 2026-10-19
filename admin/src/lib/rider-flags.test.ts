@@ -55,6 +55,17 @@ test("flags come back in a stable order", () => {
   assert.deepEqual(flags, ["low_rating", "high_failure", "no_account"]);
 });
 
+test("a deletion request is flagged first, ahead of performance flags", () => {
+  const flags = riderFlags({
+    rating: 2,
+    deliveredCount: 10,
+    failedCount: 0,
+    hasAccount: true,
+    deletionRequested: true,
+  });
+  assert.deepEqual(flags, ["deletion_requested", "low_rating"]);
+});
+
 test("a healthy, linked rider has no flags", () => {
   assert.deepEqual(
     riderFlags({

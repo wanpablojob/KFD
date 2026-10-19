@@ -15,6 +15,7 @@ import {
   fetchRiderPayouts,
   fetchRiderPayoutSummary,
   fetchRiderCashPositions,
+  fetchRiderDeletionRequests,
   recordCashHandover,
   setRiderArchived,
   setRiderStatus,
@@ -115,6 +116,7 @@ export default function RiderDetailPage() {
   // whose arithmetic could disagree.
   const cash = useAsyncData(() => fetchRiderCashPositions(), riderId);
   const cashPosition = (cash.data ?? []).find((row) => row.riderId === riderId);
+  const deletionRequests = useAsyncData(() => fetchRiderDeletionRequests(), riderId);
 
   const earnings = useAsyncData(
     () =>
@@ -216,6 +218,7 @@ export default function RiderDetailPage() {
     deliveredCount: summary?.deliveredCount ?? 0,
     failedCount: summary?.failedCount ?? 0,
     hasAccount: rider.userId !== null,
+    deletionRequested: deletionRequests.data?.has(riderId) ?? false,
   });
   const payoutColumns = buildPayoutColumns({ onResolve: setResolving });
 

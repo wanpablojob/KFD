@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -19,6 +20,7 @@ import {
 } from "../../lib/hooks";
 import { useSession } from "../../lib/session-context";
 import { supabase } from "../../lib/supabase";
+import { requestRiderAccountDeletion } from "../../lib/storefront";
 import {
   RIDER_STATUSES,
   riderStatusMeta,
@@ -100,6 +102,37 @@ export default function RiderProfileRoute() {
       }
     }
     await signOut();
+  }
+
+  // A rider account holds payouts and cash on hand, so it is closed by staff
+  // after settling; the app records the request (0082, store requirement).
+  function confirmDeletionRequest() {
+    Alert.alert(
+      "Delete your account?",
+      "KFD will settle any payouts and cash you hold, then delete your account and personal details. You can keep delivering until then.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Request deletion",
+          style: "destructive",
+          onPress: () => {
+            requestRiderAccountDeletion()
+              .then((at) =>
+                Alert.alert(
+                  "Request received",
+                  `We recorded your request on ${new Date(at).toLocaleDateString()}. KFD will contact you to settle up.`
+                )
+              )
+              .catch((cause: unknown) =>
+                Alert.alert(
+                  "Could not send your request",
+                  cause instanceof Error ? cause.message : "Try again."
+                )
+              );
+          },
+        },
+      ]
+    );
   }
 
   async function togglePush() {
@@ -291,6 +324,10 @@ export default function RiderProfileRoute() {
         >
           <Text style={styles.signOutLabel}>Sign out</Text>
         </Pressable>
+
+        <Pressable onPress={confirmDeletionRequest} accessibilityRole="button">
+          <Text style={styles.deleteLink}>Delete my account</Text>
+        </Pressable>
       </ScrollView>
       <StatusBar style="dark" />
     </View>
@@ -457,5 +494,10 @@ const styles = StyleSheet.create({
   },
   signOutPressed: { backgroundColor: colors.dangerSoft },
   signOutLabel: { color: colors.danger, fontSize: 14, fontWeight: "600" },
+  deleteLink: {
+    ...type.caption,
+    color: colors.textMuted,
+    textDecorationLine: "underline",
+  },
   error: { ...type.body, color: colors.danger },
 });

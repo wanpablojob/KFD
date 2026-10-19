@@ -850,6 +850,17 @@ export async function deleteMyAccount(): Promise<void> {
   if (error) throw error;
 }
 
+/**
+ * A rider asks for their account to be deleted (0082). Staff close it after
+ * settling payouts and cash, so this records the request rather than deleting.
+ * Returns when it was first asked; asking again keeps that time.
+ */
+export async function requestRiderAccountDeletion(): Promise<string> {
+  const { data, error } = await supabase.rpc("rider_request_account_deletion");
+  if (error) throw error;
+  return String(data);
+}
+
 export interface RiderContact {
   riderName: string;
   riderPhone: string | null;

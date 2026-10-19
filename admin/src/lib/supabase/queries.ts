@@ -1110,9 +1110,12 @@ export async function reviewRiderApplication(
  * stopped short, which is what it is. Same treatment as the ledger reads below.
  */
 export async function fetchRiderOverview(): Promise<RiderOverview[]> {
-  const { data, error } = await supabase.rpc("admin_rider_overview");
+  const [{ data, error }, requests] = await Promise.all([
+    supabase.rpc("admin_rider_overview"),
+    fetchRiderDeletionRequests(),
+  ]);
 
-  return requireMigration(
+  const rows = requireMigration(
     error,
     ((data ?? []) as Record<string, unknown>[]).map((row) => ({
       id: String(row.rider_id),
@@ -1146,6 +1149,29 @@ export async function fetchRiderOverview(): Promise<RiderOverview[]> {
       updatedAt: row.updated_at == null ? null : String(row.updated_at),
     })),
     RIDER_OVERVIEW_MIGRATION,
+  );
+  return rows.map((rider) => ({
+    ...rider,
+    deletionRequestedAt: requests.get(rider.id) ?? null,
+  }));
+}
+
+/**
+ * Riders who asked in the app for their account to be deleted (0082), by id.
+ *
+ * Read beside admin_rider_overview rather than added to it: rebuilding that
+ * function to return one more column risks the wrong-body rebuild this schema
+ * has already suffered, for a column a plain select can supply. Empty when the
+ * migration is not applied yet, so the roster still renders.
+ */
+export async function fetchRiderDeletionRequests(): Promise<Map<string, string>> {
+  const { data, error } = await supabase
+    .from("riders")
+    .select("id, deletion_requested_at")
+    .not("deletion_requested_at", "is", null);
+  if (error) return new Map();
+  return new Map(
+    (data ?? []).map((r) => [String(r.id), String(r.deletion_requested_at)]),
   );
 }
 
