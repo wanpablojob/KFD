@@ -432,16 +432,61 @@ jobs:
               # 2. riders.deliveries must equal the rider's ledger row count.
               #    These are a denormalised copy that 0071 recomputes instead
               #    of incrementing; this catches any other writer.
-              delivery_drift = query(
-                  "select count(*) as n from public.riders r "
-                  "where r.deliveries <> (select count(*)::int "
-                  "  from public.rider_payouts p where p.rider_id = r.id)"
-              )[0]["n"]
-              if delivery_drift:
+              #
+              #    Only where a ledger row exists, though. 0001 seeded the five
+              #    demo riders with delivery counters before 0038 introduced
+              #    rider_payouts, so "no ledger rows" is not evidence of drift:
+              #    there is nothing to reconcile against. Those riders are
+              #    printed as a notice instead, and the exact check applies to
+              #    every rider whose payouts the ledger actually holds.
+              drift_rows = query(
+                  "select r.id as rider, r.deliveries as stored, "
+                  "  (select count(*)::int from public.rider_payouts p "
+                  "   where p.rider_id = r.id) as ledger "
+                  "from public.riders r "
+                  "where exists (select 1 from public.rider_payouts p "
+                  "              where p.rider_id = r.id) "
+                  "  and r.deliveries <> (select count(*)::int "
+                  "    from public.rider_payouts p where p.rider_id = r.id) "
+                  "order by r.id"
+              )
+              if drift_rows:
+                  # Name them. Deciding whether the counter or the ledger is
+                  # wrong needs the two numbers per rider, and the operator
+                  # cannot get them from a count.
                   failures.append(
                       "riders.deliveries disagrees with the payout ledger for "
-                      "%d rider(s); the counters are a cache of the ledger and "
-                      "must be recomputed from it" % delivery_drift
+                      "%d rider(s) that have ledger rows; the counter is a cache "
+                      "of the ledger and must be recomputed from it. "
+                      "stored -> ledger: %s"
+                      % (
+                          len(drift_rows),
+                          ", ".join(
+                              "%s %s -> %s"
+                              % (r["rider"], r["stored"], r["ledger"])
+                              for r in drift_rows[:10]
+                          ),
+                      )
+                  )
+              seeded = query(
+                  "select r.id as rider, r.deliveries as stored "
+                  "from public.riders r "
+                  "where r.deliveries > 0 and not exists ("
+                  "  select 1 from public.rider_payouts p where p.rider_id = r.id) "
+                  "order by r.id"
+              )
+              if seeded:
+                  print(
+                      "::notice::%d rider(s) carry a delivery counter with no "
+                      "payout rows (seeded before the ledger); nothing to "
+                      "reconcile: %s"
+                      % (
+                          len(seeded),
+                          ", ".join(
+                              "%s %s" % (s["rider"], s["stored"])
+                              for s in seeded[:10]
+                          ),
+                      )
                   )
 
               # 3. riders.earnings must equal the ledger sum.
@@ -472,19 +517,19 @@ jobs:
                       "completed until the fee is backfilled" % unfrozen
                   )
 
-          # --- Delivered spend must reconcile ----------------------------
-          # Every peso of delivered spend belongs to exactly one place: a
-          # customer's own total, or the unattributable bucket. If those two
-          # sides do not sum to the platform figure, money is being dropped --
-          # and dropping it is silent, because each individual number still
-          # looks right.
+          # --- Delivered spend must be accounted for ---------------------
+          # Every peso of delivered spend lands in one of three buckets: a
+          # customer's own total (the link resolves), the walk-in bucket (no
+          # link), or a dangling link (a non-null customer_user_id with no
+          # customers row). The first two are legitimate. A dangling link is
+          # spend that counts in nobody's total, and that is what this fails
+          # on -- silently, because every individual number still looks right.
           #
-          # The specific failure this catches: customers.user_id is
-          # `on delete set null`, so deleting an auth account orphans every order
-          # that referenced it. Those orders match no customer (the aggregate
-          # joins on customers.user_id) and are not walk-ins either under the
-          # narrower "customer_user_id is null" reading, so their value left
-          # both totals and the books stopped adding up.
+          # customers.user_id is `on delete set null`, so deleting an auth
+          # account clears the link and the order reads as a walk-in; a link
+          # that still points at nothing means the customers row went some
+          # other way. Either repair the link or clear customer_user_id, so
+          # the spend is at least in the walk-in bucket.
           #
           # Computed from raw tables rather than by calling
           # admin_customer_stats(): this connection has no JWT, so
@@ -517,21 +562,30 @@ jobs:
                       "  select 1 from customers c where c.user_id = o.customer_user_id)"
                   )[0]["v"]
               )
-              if abs(platform - attributed - orphaned) > 0.01:
+              # The buckets have to be named, not assumed. An earlier version
+              # compared platform against attributed + orphaned, so it charged
+              # every walk-in order to nobody and reported "does not reconcile"
+              # the first time a pre-account order was delivered. Null-linked
+              # spend is a walk-in, not a broken link; a non-null link that
+              # resolves to no customer is the one worth failing on.
+              if orphaned > 0.01:
                   failures.append(
-                      "delivered spend does not reconcile: platform %.2f, "
-                      "attributed %.2f, unattributable %.2f. Every delivered peso "
-                      "must land in exactly one of the last two."
-                      % (platform, attributed, orphaned)
+                      "%.2f of delivered spend points at a customer account that "
+                      "no longer exists; those orders match no customer row and "
+                      "count in nobody's total. Repair the link or clear "
+                      "customer_user_id so the spend lands in the walk-in "
+                      "bucket." % orphaned
                   )
-              if orphaned:
-                  # Not a failure: the bucket exists precisely so these are
-                  # counted. Said out loud so nobody reads a non-zero as a bug.
-                  print(
-                      "::notice::%.2f of delivered spend belongs to orders whose "
-                      "customer account no longer exists; it is counted in the "
-                      "walk-in bucket, not in any customer's total." % orphaned
+              print(
+                  "::notice::Delivered spend %.2f: %.2f attributed, %.2f"
+                  " walk-in, %.2f dangling links."
+                  % (
+                      platform,
+                      attributed,
+                      platform - attributed - orphaned,
+                      orphaned,
                   )
+              )
 
           if deferred:
               print(
@@ -1241,6 +1295,13 @@ jobs:
                   )
 
           # grab the generation: fresh registrations land as 'customer'
+          #
+          # The call and the read are separate statements on purpose. Written as
+          # one SELECT -- register_customer() in the target list, the role in a
+          # scalar subquery -- the planner may evaluate the subquery before the
+          # function runs, and production read None from a probe that passed
+          # locally against the same schema. The API returns the last
+          # statement's rows, so the read goes last.
           fresh = query(
               """
               begin;
@@ -1256,9 +1317,8 @@ jobs:
                 '{"sub": "66666666-6666-6666-6666-666666666666", "role": "authenticated"}',
                 true);
               set local role authenticated;
-              select public.register_customer() as registered,
-                     (select role from app_users
-                       where user_id = auth.uid()) as role_after;
+              select public.register_customer();
+              select role from app_users where user_id = auth.uid();
               rollback;
               """
           )
@@ -1267,10 +1327,10 @@ jobs:
                   "the register_customer fresh-registration probe returned "
                   "nothing (%s)" % str(fresh)[:200]
               )
-          elif fresh[0].get("role_after") != "customer":
+          elif fresh[0].get("role") != "customer":
               failures.append(
                   "register_customer did not create a customer role for a fresh "
-                  "account (%s)" % fresh[0].get("role_after")
+                  "account (%s)" % fresh[0].get("role")
               )
 
           # 5. The notification read marker. It writes app_users, which 0011
