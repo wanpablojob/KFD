@@ -14,6 +14,23 @@ import { Toolbar, ToolbarSpacer, ToolbarSearch } from "./toolbar";
 import { Select } from "./ui/select";
 import { CalendarIcon } from "./ui/icons";
 import { matchesQuery, useGlobalSearch } from "@/lib/global-search";
+import { endOfLocalDay, isWithinRange, parseLocalDate } from "@/lib/merchant-order-range";
+import { downloadCsv, timestampedFilename, type CsvColumn } from "@/lib/csv";
+import { Button } from "./ui/button";
+
+/** What bookkeeping needs per order; amounts as numbers so a spreadsheet can sum them. */
+const CSV_COLUMNS: CsvColumn<Order>[] = [
+  { key: "reference", header: "Reference" },
+  { key: "placedAt", header: "Placed at" },
+  { key: "status", header: "Status" },
+  { key: "restaurant", header: "Restaurant" },
+  { key: "customer", header: "Customer" },
+  { key: "rider", header: "Rider" },
+  { key: "payment", header: "Payment" },
+  { key: "subtotal", header: "Food subtotal (PHP)" },
+  { key: "deliveryFee", header: "Delivery fee (PHP)" },
+  { key: "total", header: "Total (PHP)" },
+];
 
 type OrderStatus = Order["status"];
 
@@ -117,9 +134,12 @@ export function OrderList({ orders }: { orders: Order[] }) {
   const filtered = useMemo(() => {
     return orders.filter((order) => {
       const matchesStatus = status === "all" || order.status === status;
-      const matchesDate =
-        (!dateRange.from || order.placedAt >= dateRange.from) &&
-        (!dateRange.to || order.placedAt <= dateRange.to + "T23:59:59.999Z");
+      // Local days, compared as instants: the old string comparison against
+      // "T23:59:59.999Z" ended "today" at 8am the next morning in Manila.
+      const matchesDate = isWithinRange(order.placedAt, {
+        from: dateRange.from ? parseLocalDate(dateRange.from) : null,
+        to: dateRange.to ? endOfLocalDay(dateRange.to) : null,
+      });
       const q = search.toLowerCase();
       const matchesSearch =
         !q ||
@@ -197,6 +217,16 @@ export function OrderList({ orders }: { orders: Order[] }) {
         <span className="text-sm text-muted-foreground">
           {filtered.length} {filtered.length === 1 ? "order" : "orders"}
         </span>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={filtered.length === 0}
+          onClick={() =>
+            downloadCsv(timestampedFilename("kfd-orders"), filtered, CSV_COLUMNS)
+          }
+        >
+          Download CSV
+        </Button>
       </Toolbar>
 
       <div className="rounded-(--radius-card) border border-border bg-card shadow-sm overflow-hidden">
