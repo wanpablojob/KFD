@@ -14,8 +14,9 @@ export const runtime = "nodejs";
  * function, and a Postgres function cannot call a Next.js route. Without this,
  * the only way a rider learns there is work waiting is to have the Available tab
  * open and poll it -- and an offer lives 5 minutes. A rider who is on the
- * Earnings tab when work lands has already lost it. So the alert is sent from
- * the admin side, right after the offers land, which is the same shape as
+ * Earnings tab when work lands has already lost it. So the alert is sent right
+ * after the offers land: by the merchant portal when a restaurant accepts
+ * (auto-dispatch, 0085) and by an admin on re-offer. Same shape as
  * /api/orders/notify: a courtesy on top of a write that already succeeded.
  *
  * Best-effort by contract. The offers are already live whether or not this
@@ -35,8 +36,12 @@ function serviceClient() {
   return createClient(url, key, { auth: { persistSession: false } });
 }
 
-/** Resolve the caller and require the admin role. Same shape as /api/orders/notify. */
-async function requireAdmin(req: Request) {
+/**
+ * Resolve the caller and their role. Admins may alert for any order; a merchant
+ * only for an order of their own restaurant, which POST checks once it has
+ * read the order.
+ */
+async function resolveCaller(req: Request) {
   const authHeader = req.headers.get("authorization") ?? "";
   const token = authHeader.replace(/^Bearer\s+/i, "");
   if (!token) return { error: "Unauthorized", status: 401 } as const;
@@ -65,17 +70,22 @@ async function requireAdmin(req: Request) {
 
   const { data: row } = await supabase
     .from("app_users")
-    .select("role")
+    .select("role, restaurant_id")
     .eq("user_id", user.id)
     .maybeSingle();
-  if (row?.role !== "admin")
-    return { error: "Admins only", status: 403 } as const;
+  if (row?.role !== "admin" && row?.role !== "merchant")
+    return { error: "Admins and merchants only", status: 403 } as const;
 
-  return { supabase, user } as const;
+  return {
+    supabase,
+    user,
+    isAdmin: row.role === "admin",
+    restaurantId: row.restaurant_id as string | null,
+  } as const;
 }
 
 export async function POST(req: Request) {
-  const auth = await requireAdmin(req);
+  const auth = await resolveCaller(req);
   if ("error" in auth) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -87,9 +97,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "orderId is required" }, { status: 400 });
   }
 
-  // Service role, so these rows are visible regardless of RLS. Admin-only was
-  // established above, and the caller supplied the order id, so there is no
-  // unscoped read to abuse here.
+  // Service role, so these rows are visible regardless of RLS. Nothing from
+  // them is returned before the ownership check below; the caller only ever
+  // learns counts for an order they are allowed to dispatch.
   const { data: offers, error: offersError } = await supabase
     .from("order_offers")
     .select("offered_at, expires_at, riders!inner(user_id)")
@@ -103,9 +113,15 @@ export async function POST(req: Request) {
 
   const { data: order } = await supabase
     .from("orders")
-    .select("reference, restaurant")
+    .select("reference, restaurant, restaurant_id")
     .eq("id", orderId)
     .maybeSingle();
+
+  // A merchant may only alert riders about their own restaurant's order, so a
+  // merchant account cannot spam riders with pushes for orders it does not own.
+  if (!auth.isAdmin && (!order || !auth.restaurantId || order.restaurant_id !== auth.restaurantId)) {
+    return NextResponse.json({ error: "Not your order" }, { status: 403 });
+  }
 
   const rows = offers ?? [];
   if (rows.length === 0) {

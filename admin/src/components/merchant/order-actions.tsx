@@ -7,6 +7,7 @@ import {
   type MerchantOrderStatus,
 } from "@/lib/supabase/merchant-queries";
 import { notifyOrder } from "@/lib/merchant-notify";
+import { notifyRidersOfOffer } from "@/lib/supabase/dispatch-queries";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/field";
@@ -103,6 +104,11 @@ export function OrderActions({
         target,
         target === "cancelled" ? trimmed : undefined,
       );
+
+      // Accepting offers the order to riders (auto-dispatch, 0085). The offers
+      // already exist; this only pushes the alert, so it is not awaited and a
+      // failure never blocks the merchant.
+      if (target === "confirmed") void notifyRidersOfOffer(orderId);
 
       // The customer is emailed after the status is durably saved. A failed
       // email is reported but does not roll the status back.

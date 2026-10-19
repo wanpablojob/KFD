@@ -187,7 +187,16 @@ function OrderRow({
           </p>
           {/* What to cook, not just how many lines: the kitchen acts on this. */}
           <p className="mt-1 text-sm text-card-foreground">{itemSummary(order.items)}</p>
-          <p className="truncate text-xs text-muted-foreground">{order.customer}</p>
+          <p className="truncate text-xs text-muted-foreground">
+            {order.customer}
+            {/* Riders are offered the order when it is accepted (0085), so the
+                kitchen can see whether someone is coming for it. */}
+            {order.status === "pending"
+              ? null
+              : order.rider
+                ? ` · Rider: ${order.rider}`
+                : " · Finding a rider…"}
+          </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {/* Food subtotal: the delivery and service fees are not the kitchen's. */}

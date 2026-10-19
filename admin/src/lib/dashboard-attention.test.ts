@@ -81,3 +81,8 @@ test("top restaurants rank the window's delivered orders by the given value", ()
     { name: "Piaya Corner", orders: 1, revenue: 400 },
   ]);
 });
+
+test("a failed delivery back in the queue is counted once, as failed", () => {
+  const items = attentionItems({ orders: [order("confirmed", 15, "", true)], ...none }, NOW);
+  assert.deepEqual(items.map((i) => [i.key, i.count]), [["failed", 1]]);
+});

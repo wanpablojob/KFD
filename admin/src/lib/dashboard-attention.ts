@@ -41,9 +41,13 @@ export function attentionItems(
   const unanswered = input.orders.filter(
     (o) => o.status === "pending" && new Date(o.placedAt).getTime() <= cutoff,
   ).length;
-  // Accepted by the kitchen but nobody to carry it.
+  // Accepted by the kitchen but nobody to carry it. A failed delivery also
+  // comes back with no rider; it is counted once, under "failed" below.
   const noRider = input.orders.filter(
-    (o) => (o.status === "confirmed" || o.status === "preparing") && !o.rider,
+    (o) =>
+      (o.status === "confirmed" || o.status === "preparing") &&
+      !o.rider &&
+      o.deliveryFailedAt === null,
   ).length;
   // A rider gave up on it and it is still open, so it needs reassigning.
   const failed = input.orders.filter(
@@ -58,8 +62,8 @@ export function attentionItems(
       href: "/dashboard/orders",
       urgent: true,
     },
-    { key: "no-rider", label: "Waiting for a rider", count: noRider, href: "/dashboard/dispatch", urgent: true },
-    { key: "failed", label: "Failed delivery, needs a new rider", count: failed, href: "/dashboard/dispatch", urgent: true },
+    { key: "no-rider", label: "Waiting for a rider", count: noRider, href: "#waiting-for-rider", urgent: true },
+    { key: "failed", label: "Failed delivery, needs a new rider", count: failed, href: "#waiting-for-rider", urgent: true },
     { key: "disputes", label: "Disputed rider payouts", count: input.disputedPayouts, href: "/dashboard/riders", urgent: false },
     { key: "applications", label: "Rider applications to review", count: input.pendingApplications, href: "/dashboard/riders", urgent: false },
     { key: "deletions", label: "Rider account deletion requests", count: input.deletionRequests, href: "/dashboard/riders", urgent: false },

@@ -29,6 +29,7 @@ import {
   PERIOD_DAYS,
 } from "@/lib/dashboard-metrics";
 import { attentionItems, liveCounts, topRestaurants } from "@/lib/dashboard-attention";
+import { WaitingForRider } from "@/components/waiting-for-rider";
 import type { Kpi } from "@/lib/types";
 
 /**
@@ -177,6 +178,8 @@ export default function OverviewPage() {
             </Card>
           </Section>
         </div>
+
+        <WaitingForRider orders={orderRows} now={now} onChanged={orders.refetch} />
 
         <Section aria-label="Key metrics">
           <StatGrid>
