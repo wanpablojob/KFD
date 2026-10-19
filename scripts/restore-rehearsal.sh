@@ -34,7 +34,7 @@ SCHEMA_DUMP="$1"
 DATA_DUMP="${2:-}"
 CONTAINER="kfd-restore-rehearsal-$$"
 IMAGE="postgres:16-alpine"
-LOGDIR="$(mktemp -d -t kfd-restore)"
+LOGDIR="$(mktemp -d "${TMPDIR:-/tmp}/kfd-restore.XXXXXX")"
 
 for file in "$SCHEMA_DUMP" ${DATA_DUMP:+"$DATA_DUMP"}; do
   if [ ! -s "$file" ]; then

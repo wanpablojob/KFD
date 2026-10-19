@@ -1,0 +1,100 @@
+# Repair the Vercel project's build settings.
+#
+# The 2026-10-19 outage: every URL returned 404 while the newest production
+# deployment was READY and PROMOTED. The deployment was serving the repository
+# as static files -- /admin/package.json returned 200, / returned 404 -- because
+# the project had no framework preset and no root directory. The Git build
+# uploaded the repo root and never ran `next build`.
+#
+# This PATCHes the two settings that make the Git integration build the app in
+# admin/, then asks Vercel to rebuild the newest production deployment from the
+# same commit under the new settings. Read-only diagnostics live in
+# vercel-status.yml; this is the write path, so it carries a confirmation input.
+#
+#   gh workflow run vercel-repair.yml -f confirm=repair
+#
+# One-shot: delete this file once the site is serving again.
+
+name: Vercel Repair
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "repair" to patch the project settings and rebuild'
+        required: true
+        type: string
+      framework:
+        description: Framework preset
+        required: true
+        default: nextjs
+        type: string
+      root_directory:
+        description: Root directory (the Next.js app lives in admin/)
+        required: true
+        default: admin
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  repair:
+    if: inputs.confirm == 'repair'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      TEAM: ${{ secrets.VERCEL_ORG_ID }}
+      PROJECT: ${{ secrets.VERCEL_PROJECT_ID }}
+    steps:
+      - name: Read the current settings
+        run: |
+          set -euo pipefail
+          if [ -z "$VERCEL_TOKEN" ] || [ -z "$TEAM" ] || [ -z "$PROJECT" ]; then
+            echo "::error::VERCEL_TOKEN, VERCEL_ORG_ID and VERCEL_PROJECT_ID must all be set."
+            exit 1
+          fi
+          curl -sS --fail-with-body \
+            -H "Authorization: Bearer $VERCEL_TOKEN" \
+            "https://api.vercel.com/v9/projects/$PROJECT?teamId=$TEAM" \
+            | jq '{id, name, framework, rootDirectory, buildCommand, outputDirectory,
+                   installCommand, gitRepository}'
+
+      - name: Patch framework + root directory
+        run: |
+          set -euo pipefail
+          body=$(jq -n \
+            --arg framework "${{ inputs.framework }}" \
+            --arg root "${{ inputs.root_directory }}" \
+            '{framework: $framework, rootDirectory: $root}')
+          curl -sS --fail-with-body -X PATCH \
+            -H "Authorization: Bearer $VERCEL_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$body" \
+            "https://api.vercel.com/v9/projects/$PROJECT?teamId=$TEAM" \
+            | jq '{id, name, framework, rootDirectory, buildCommand, outputDirectory, installCommand}'
+
+      - name: Rebuild the newest production deployment
+        run: |
+          set -euo pipefail
+          project_name=$(curl -sS --fail-with-body \
+            -H "Authorization: Bearer $VERCEL_TOKEN" \
+            "https://api.vercel.com/v9/projects/$PROJECT?teamId=$TEAM" \
+            | jq -r '.name')
+          deployment=$(curl -sS --fail-with-body \
+            -H "Authorization: Bearer $VERCEL_TOKEN" \
+            "https://api.vercel.com/v6/deployments?projectId=$PROJECT&teamId=$TEAM&target=production&state=READY&limit=1" \
+            | jq -r '((.deployments // [])[0] // {}) | .uid // .id // empty')
+          if [ -z "$deployment" ]; then
+            echo "::error::No production deployment to rebuild; push to main instead."
+            exit 1
+          fi
+          echo "Rebuilding $deployment with framework=${{ inputs.framework }} root=${{ inputs.root_directory }}"
+          curl -sS --fail-with-body -X POST \
+            -H "Authorization: Bearer $VERCEL_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$(jq -n --arg id "$deployment" --arg name "$project_name" \
+                  '{deploymentId: $id, name: $name, target: "production"}')" \
+            "https://api.vercel.com/v13/deployments?teamId=$TEAM&forceNew=1" \
+            | jq '{id, url, readyState, target, alias: (.alias // [])}'

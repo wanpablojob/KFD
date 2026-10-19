@@ -26,7 +26,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 MIGRATIONS="$ROOT/admin/supabase/migrations"
-WORK="$(mktemp -d -t kfd-typegen)"
+WORK="$(mktemp -d "${TMPDIR:-/tmp}/kfd-typegen.XXXXXX")"
 EXCLUDE="gotrue,realtime,storage-api,imgproxy,kong,mailpit,postgrest,studio,edge-runtime,logflare,vector,supavisor"
 
 cleanup() {

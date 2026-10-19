@@ -55,8 +55,14 @@ jobs:
           echo "::endgroup::"
 
           echo "::group::Project (VERCEL_PROJECT_ID)"
+          # The build settings are the point. A project with framework=null and
+          # an empty rootDirectory uploads the repository as static files, which
+          # is a READY deployment that 404s at every app route.
           api "https://api.vercel.com/v9/projects/$PROJECT?teamId=$TEAM" \
-            | jq '{id, name, createdAt, framework, gitRepository, liveAlias: .targets.production}'
+            | jq '{id, name, createdAt, framework, rootDirectory,
+                   buildCommand, outputDirectory, installCommand, nodeVersion,
+                   gitRepository,
+                   liveAlias: (.targets.production | {id, url, readyState, target, alias})}'
           echo "::endgroup::"
 
           echo "::group::Domains on the project"
@@ -65,11 +71,20 @@ jobs:
           echo "::endgroup::"
 
           echo "::group::Newest deployments (any target)"
+          # `deployments` can come back null (the earlier version crashed here
+          # with "Cannot iterate over null"). Print the response raw in that
+          # case instead of dying, so a token/scope problem is visible.
           api "https://api.vercel.com/v6/deployments?projectId=$PROJECT&teamId=$TEAM&limit=10" \
-            | jq -r '.deployments[] | "\(.created)\t\(.target // "preview")\t\(.readyState)\t\(.url)\t\(.alias | join(","))"'
+            | jq -r 'if (.deployments | type) != "array"
+                     then "no deployments array in the response: \(.)"
+                     else (.deployments[] | "\(.created)\t\(.target // "preview")\t\(.readyState)\t\(.url)\t\((.alias // []) | join(","))")
+                     end'
           echo "::endgroup::"
 
           echo "::group::Newest production deployments"
           api "https://api.vercel.com/v6/deployments?projectId=$PROJECT&teamId=$TEAM&target=production&limit=5" \
-            | jq -r '.deployments[] | "\(.created)\t\(.readyState)\t\(.url)\t\(.alias | join(","))"'
+            | jq -r 'if (.deployments | type) != "array"
+                     then "no deployments array in the response: \(.)"
+                     else (.deployments[] | "\(.created)\t\(.readyState)\t\(.url)\t\((.alias // []) | join(","))")
+                     end'
           echo "::endgroup::"

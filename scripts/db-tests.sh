@@ -15,7 +15,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 MIGRATIONS="$ROOT/admin/supabase/migrations"
 TESTS="$ROOT/admin/supabase/tests"
-WORK="$(mktemp -d -t kfd-dbtests)"
+WORK="$(mktemp -d "${TMPDIR:-/tmp}/kfd-dbtests.XXXXXX")"
 PROJECT="kfd-dbtests"
 EXCLUDE="gotrue,realtime,storage-api,imgproxy,kong,mailpit,postgrest,studio,edge-runtime,logflare,vector,supavisor"
 
