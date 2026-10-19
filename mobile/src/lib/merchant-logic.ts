@@ -94,3 +94,43 @@ export function todayCounts(orders: { placedAt: string; status: string }[], now:
     ).length,
   };
 }
+
+/** Price as typed: a non-negative number of pesos, rounded to centavos, or null. */
+export function parsePrice(text: string): number | null {
+  const value = Number(text.trim());
+  return text.trim() !== "" && Number.isFinite(value) && value >= 0
+    ? Math.round(value * 100) / 100
+    : null;
+}
+
+export type SalesWindow = "today" | "week" | "month";
+
+/** Every order placed in the window (any status), newest first: what "Today" opens. */
+export function ordersInWindow<T extends { placedAt: string }>(
+  orders: T[],
+  window: SalesWindow,
+  now: Date
+): T[] {
+  const back = window === "today" ? 0 : window === "week" ? 6 : 29;
+  const start = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate() - back
+  ).getTime();
+  return orders
+    .filter((o) => new Date(o.placedAt).getTime() >= start)
+    .sort((a, b) => b.placedAt.localeCompare(a.placedAt));
+}
+
+/** All-time delivered food sales, net of refunds capped at the food value. */
+export function allTimeTotals(
+  delivered: { id: string; subtotal: number }[],
+  refundedByOrder: Map<string, number>
+) {
+  let sales = 0;
+  for (const o of delivered) {
+    const refund = Math.min(Math.max(refundedByOrder.get(o.id) ?? 0, 0), o.subtotal);
+    sales = round(sales + o.subtotal - refund);
+  }
+  return { orders: delivered.length, sales };
+}

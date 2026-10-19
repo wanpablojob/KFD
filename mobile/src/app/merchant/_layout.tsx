@@ -1,12 +1,15 @@
 import { useEffect } from "react";
 import { StyleSheet, View } from "react-native";
+import * as Notifications from "expo-notifications";
+import { useQueryClient } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Stack, usePathname, useRouter } from "expo-router";
 import { FloatingTabBar, type FloatingTab } from "../../components/FloatingTabBar";
 import { TabBarInsetProvider } from "../../components/TabBarInset";
 import { TAB_ICONS } from "../../components/tab-icons";
 import { colors } from "../../lib/theme";
-import { ensureNotificationChannels } from "../../lib/push";
+import { enablePush, ensureNotificationChannels, getPushStatus } from "../../lib/push";
+import { supabase } from "../../lib/supabase";
 import { useMerchantOrders } from "../../lib/merchant";
 import { resolveTabIndex } from "../../lib/tab-bar";
 
@@ -19,10 +22,7 @@ export default function MerchantLayout() {
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
 
-  // The orders channel must exist before an alert arrives.
-  useEffect(() => {
-    void ensureNotificationChannels();
-  }, []);
+  useMerchantAlerts();
 
   return (
     <View style={styles.root}>
@@ -37,6 +37,48 @@ export default function MerchantLayout() {
       <MerchantTabBar pathname={pathname} />
     </View>
   );
+}
+
+/**
+ * New-order alerts for the kitchen.
+ *
+ * The server pushes every new order to the restaurant's merchants (the
+ * customer app announces it to /api/orders/notify), but only to phones that
+ * registered. A merchant used to have to find the toggle in Account first, so
+ * a new merchant heard nothing. Now the first visit registers this phone,
+ * asking for permission once; the toggle in Account still turns it off, and a
+ * phone whose owner declined is not asked again by the OS.
+ *
+ * While the app is open, an arriving alert refreshes Orders at once instead
+ * of waiting for the 15s poll.
+ */
+function useMerchantAlerts() {
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      await ensureNotificationChannels();
+      const status = await getPushStatus();
+      if (!active || status.registered) return;
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (active && session?.access_token) {
+        await enablePush(session.access_token).catch(() => {});
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const subscription = Notifications.addNotificationReceivedListener(() => {
+      void queryClient.invalidateQueries({ queryKey: ["merchantOrders"] });
+    });
+    return () => subscription.remove();
+  }, [queryClient]);
 }
 
 const TABS: (FloatingTab & { route: string })[] = [

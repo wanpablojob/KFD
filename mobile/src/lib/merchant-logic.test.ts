@@ -1,5 +1,8 @@
 import {
+  allTimeTotals,
   itemSummary,
+  ordersInWindow,
+  parsePrice,
   merchantNextStatuses,
   minutesWaiting,
   salesTotals,
@@ -75,5 +78,49 @@ describe("todayCounts", () => {
         NOW
       )
     ).toEqual({ pending: 1, today: 1 });
+  });
+});
+
+describe("parsePrice", () => {
+  it("accepts pesos and centavos, refuses junk and negatives", () => {
+    expect(parsePrice("120")).toBe(120);
+    expect(parsePrice(" 99.999 ")).toBe(100);
+    expect(parsePrice("")).toBeNull();
+    expect(parsePrice("abc")).toBeNull();
+    expect(parsePrice("-5")).toBeNull();
+  });
+});
+
+describe("ordersInWindow", () => {
+  it("lists every status placed in the window, newest first", () => {
+    const rows = ordersInWindow(
+      [
+        { id: "old", placedAt: daysAgo(1), status: "delivered" },
+        { id: "a", placedAt: daysAgo(0, 9), status: "cancelled" },
+        { id: "b", placedAt: daysAgo(0, 11), status: "delivered" },
+      ],
+      "today",
+      NOW
+    );
+    expect(rows.map((r) => r.id)).toEqual(["b", "a"]);
+    expect(ordersInWindow([{ placedAt: daysAgo(6) }], "week", NOW)).toHaveLength(1);
+    expect(ordersInWindow([{ placedAt: daysAgo(7) }], "week", NOW)).toHaveLength(0);
+  });
+});
+
+describe("allTimeTotals", () => {
+  it("sums delivered food net of refunds, capped per order", () => {
+    expect(
+      allTimeTotals(
+        [
+          { id: "a", subtotal: 100 },
+          { id: "b", subtotal: 50 },
+        ],
+        new Map([
+          ["a", 20],
+          ["b", 999],
+        ])
+      )
+    ).toEqual({ orders: 2, sales: 80 });
   });
 });

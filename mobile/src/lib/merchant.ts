@@ -68,17 +68,42 @@ export async function fetchMerchantOrders(): Promise<MerchantOrder[]> {
   }));
 }
 
+/**
+ * Every delivered order's id and food subtotal, for the all-time total. Paged,
+ * because the API stops at 1000 rows without saying so.
+ */
+export async function fetchDeliveredAllTime(): Promise<
+  { id: string; subtotal: number }[]
+> {
+  const rows: { id: string; subtotal: number }[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await supabase
+      .from("orders")
+      .select("id, subtotal")
+      .eq("status", "delivered")
+      .order("id")
+      .range(from, from + 999);
+    if (error) throw error;
+    rows.push(...(data ?? []).map((o) => ({ id: o.id, subtotal: Number(o.subtotal) })));
+    if ((data ?? []).length < 1000) return rows;
+  }
+}
+
 /** Refunded amount per order (0084). RLS limits it to this restaurant. */
 export async function fetchMerchantRefunds(): Promise<Map<string, number>> {
-  const { data, error } = await supabase
-    .from("order_refunds")
-    .select("order_id, amount")
-    .limit(1000);
-  if (error) throw error;
   const map = new Map<string, number>();
-  for (const r of data ?? [])
-    map.set(r.order_id, (map.get(r.order_id) ?? 0) + Number(r.amount));
-  return map;
+  // Paged: the all-time total reads every refund, past the API's 1000-row cap.
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await supabase
+      .from("order_refunds")
+      .select("order_id, amount")
+      .order("id")
+      .range(from, from + 999);
+    if (error) throw error;
+    for (const r of data ?? [])
+      map.set(r.order_id, (map.get(r.order_id) ?? 0) + Number(r.amount));
+    if ((data ?? []).length < 1000) return map;
+  }
 }
 
 /**
@@ -115,6 +140,7 @@ export interface MerchantMenuItem {
   category: string;
   price: number;
   available: boolean;
+  imageUrl: string | null;
 }
 
 export async function fetchMerchantMenu(
@@ -122,7 +148,7 @@ export async function fetchMerchantMenu(
 ): Promise<MerchantMenuItem[]> {
   const { data, error } = await supabase
     .from("menu_items")
-    .select("id, name, category, price, available")
+    .select("id, name, category, price, available, image_url")
     .eq("restaurant_id", restaurantId)
     .order("category")
     .order("name");
@@ -133,7 +159,75 @@ export async function fetchMerchantMenu(
     category: m.category ?? "Other",
     price: Number(m.price),
     available: Boolean(m.available),
+    imageUrl: m.image_url ?? null,
   }));
+}
+
+export interface MenuItemInput {
+  name: string;
+  category: string;
+  price: number;
+  available: boolean;
+  imageUrl: string | null;
+}
+
+/**
+ * Create or update a menu item, the way the web portal does: the restaurant
+ * comes from the session's role, never from the form, and RLS refuses an item
+ * for any other restaurant (0002).
+ */
+export async function saveMenuItem(
+  restaurant: { id: string; name: string | null },
+  id: string | null,
+  input: MenuItemInput
+): Promise<void> {
+  const payload = {
+    restaurant: restaurant.name ?? restaurant.id,
+    restaurant_id: restaurant.id,
+    name: input.name.trim(),
+    category: input.category.trim() || "Other",
+    price: input.price,
+    available: input.available,
+    image_url: input.imageUrl,
+  };
+  const { error } = id
+    ? await supabase.from("menu_items").update(payload).eq("id", id)
+    : await supabase
+        .from("menu_items")
+        .insert({ ...payload, id: `mnu_${Math.random().toString(36).slice(2, 10)}` });
+  if (error) throw error;
+}
+
+export async function deleteMenuItem(id: string): Promise<void> {
+  const { error } = await supabase.from("menu_items").delete().eq("id", id);
+  if (error) throw error;
+}
+
+export const MENU_IMAGE_BUCKET = "menu-images";
+
+/**
+ * Upload a menu photo and return its public URL (0086). The first folder is the
+ * restaurant id, which is what the storage policy checks; a fresh name per
+ * upload means a replaced photo never needs an overwrite permission.
+ * shortcut: the previous photo stays in the bucket when replaced; add cleanup
+ * if storage use ever matters.
+ */
+export async function uploadMenuImage(
+  restaurantId: string,
+  uri: string
+): Promise<string> {
+  const lower = uri.toLowerCase();
+  const ext = lower.endsWith(".png") ? "png" : lower.endsWith(".webp") ? "webp" : "jpg";
+  const contentType = ext === "jpg" ? "image/jpeg" : `image/${ext}`;
+  const asset = await fetch(uri);
+  if (!asset.ok) throw new Error("Could not read that photo. Pick it again.");
+  const path = `${restaurantId}/${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  const { error } = await supabase.storage
+    .from(MENU_IMAGE_BUCKET)
+    .upload(path, await asset.blob(), { contentType, upsert: false });
+  if (error)
+    throw new Error("Could not upload the photo. Check your connection and try again.");
+  return supabase.storage.from(MENU_IMAGE_BUCKET).getPublicUrl(path).data.publicUrl;
 }
 
 export async function setMenuItemAvailable(
@@ -236,5 +330,35 @@ export function useSaveStoreStatus(restaurantId: string | null) {
     mutationFn: (args: StoreStatus) => saveStoreStatus(args.isOpen, args.prepMinutes),
     onSettled: () =>
       queryClient.invalidateQueries({ queryKey: ["storeStatus", restaurantId] }),
+  });
+}
+
+export function useDeliveredAllTime() {
+  return useQuery({ queryKey: ["merchantAllTime"], queryFn: fetchDeliveredAllTime });
+}
+
+export function useSaveMenuItem(
+  restaurant: { id: string; name: string | null } | null
+) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (args: { id: string | null; input: MenuItemInput }) => {
+      if (!restaurant)
+        throw new Error("Your account is not attached to a restaurant yet.");
+      return saveMenuItem(restaurant, args.id, args.input);
+    },
+    onSettled: () =>
+      queryClient.invalidateQueries({
+        queryKey: ["merchantMenu", restaurant?.id ?? null],
+      }),
+  });
+}
+
+export function useDeleteMenuItem(restaurantId: string | null) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => deleteMenuItem(id),
+    onSettled: () =>
+      queryClient.invalidateQueries({ queryKey: ["merchantMenu", restaurantId] }),
   });
 }
