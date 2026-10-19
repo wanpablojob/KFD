@@ -452,6 +452,42 @@ jobs:
           print("::notice::All %d pending migration(s) are valid." % len(pending))
           PY
 
+      # A dry run proves the SQL is valid. It cannot prove that changing the
+      # schema on real data is safe, and a migration that fails on real data
+      # is the one failure that stops orders. So the apply step takes a dump
+      # of the public schema first and attaches it to the run: "the database
+      # is in a bad state" becomes a restore instead of a catastrophe.
+      #
+      # This is the backup of record for THIS apply. The standing backups are
+      # the point-in-time recovery in the Supabase dashboard; this dump is the
+      # one that matches the exact state the migration was about to change,
+      # which is the state a restore needs.
+      #
+      # It fails the run when the dump fails or comes out empty. A production
+      # write without a way back is worse than a migration that did not
+      # happen.
+      - name: Take a pre-apply backup
+        if: ${{ !inputs.dry_run && !inputs.verify_only }}
+        run: |
+          mkdir -p backup
+          supabase db dump --linked --schema public --file backup/public-schema.sql
+          supabase db dump --linked --data-only --schema public --file backup/public-data.sql
+          if [ ! -s backup/public-schema.sql ] || [ ! -s backup/public-data.sql ]; then
+            echo "::error::The pre-apply backup is empty. Refusing to apply a"
+            echo "::error::migration with no way back. Fix the dump and re-run."
+            exit 1
+          fi
+          wc -c backup/public-schema.sql backup/public-data.sql
+
+      - name: Attach the backup to this run
+        if: ${{ always() && !inputs.dry_run && !inputs.verify_only }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: pre-apply-backup
+          path: backup/
+          retention-days: 14
+          if-no-files-found: error
+
       - name: Apply migrations
         if: ${{ !inputs.dry_run && !inputs.verify_only }}
         run: |

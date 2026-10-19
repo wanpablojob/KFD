@@ -189,6 +189,25 @@ jobs:
       - name: Build
         run: npm run build --if-present
 
+  # ---- Launch readiness ------------------------------------------------
+  # The Phase C gate: the store identity, the URLs a store listing points
+  # at, and the production key lists. It reads files only, so it costs a
+  # few seconds, and it is the difference between finding a missing
+  # production key on a launch day and finding it in a pull request.
+  launch:
+    name: Launch — Phase C preflight
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Phase C preflight
+        run: scripts/phase-c-preflight.sh
+
   # ---- Aggregate gate --------------------------------------------------
   # Always runs, so branch protection can require just this single check.
   # It fails only if a job that actually ran failed or was cancelled;
@@ -196,7 +215,7 @@ jobs:
   ci-ok:
     name: CI OK
     if: always()
-    needs: [changes, admin, mobile, backend]
+    needs: [changes, admin, mobile, backend, launch]
     runs-on: ubuntu-latest
     steps:
       - name: Verify required jobs succeeded
