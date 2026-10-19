@@ -117,9 +117,6 @@ export function LandingScreen({
           <Image source={require("../../assets/icon.png")} style={styles.logo} />
           <Text style={styles.title}>KFD</Text>
           <Text style={styles.subtitle}>Kabankalan Food Delivery</Text>
-          <Text style={styles.tagline}>
-            Order from local kitchens and follow your food to the door.
-          </Text>
         </Animated.View>
 
         <Animated.View style={{ opacity: rise }}>
@@ -249,13 +246,6 @@ const styles = StyleSheet.create({
   subtitle: {
     ...type.eyebrow,
     letterSpacing: 2,
-  },
-  tagline: {
-    ...type.body,
-    color: colors.textMuted,
-    textAlign: "center",
-    marginTop: spacing.md,
-    maxWidth: 280,
   },
   button: {
     backgroundColor: colors.primary,
