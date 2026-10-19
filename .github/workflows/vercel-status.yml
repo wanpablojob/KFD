@@ -1,0 +1,75 @@
+# Read-only Vercel diagnostics.
+#
+# Answers "why is the admin site down?" from the Vercel API instead of from
+# URL guessing: which project the secrets point at, which domains are attached
+# to it, and what the newest deployments actually are. The deploy workflow's
+# failures ("Could not retrieve Project Settings") cannot distinguish a wrong
+# token from a wrong project id; this prints both sides.
+#
+# Safe by construction: GET requests only, workflow_dispatch only, and the
+# token is never echoed. Nothing here can deploy, delete or change a setting.
+#
+#   gh workflow run vercel-status.yml
+
+name: Vercel Status
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  status:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Query the Vercel API (read-only)
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          TEAM: ${{ secrets.VERCEL_ORG_ID }}
+          PROJECT: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "$VERCEL_TOKEN" ] || [ -z "$TEAM" ] || [ -z "$PROJECT" ]; then
+            echo "::error::VERCEL_TOKEN, VERCEL_ORG_ID and VERCEL_PROJECT_ID must all be set."
+            exit 1
+          fi
+
+          api() {
+            curl -sS --fail-with-body \
+              -H "Authorization: Bearer $VERCEL_TOKEN" \
+              -H "Content-Type: application/json" \
+              "$@"
+          }
+
+          echo "::group::Token identity"
+          api "https://api.vercel.com/v2/user" \
+            | jq '{user: .user.username, id: .user.id, email: .user.email}'
+          echo "::endgroup::"
+
+          echo "::group::Team (VERCEL_ORG_ID)"
+          api "https://api.vercel.com/v2/teams/$TEAM" \
+            | jq '{id, slug, name, plan, createdAt}'
+          echo "::endgroup::"
+
+          echo "::group::Project (VERCEL_PROJECT_ID)"
+          api "https://api.vercel.com/v9/projects/$PROJECT?teamId=$TEAM" \
+            | jq '{id, name, createdAt, framework, gitRepository, liveAlias: .targets.production}'
+          echo "::endgroup::"
+
+          echo "::group::Domains on the project"
+          api "https://api.vercel.com/v9/projects/$PROJECT/domains?teamId=$TEAM" \
+            | jq -r '.domains[] | "\(.name)\tverified=\(.verified)\ttarget=\(.target // "-")\tgitBranch=\(.gitBranch // "-")"'
+          echo "::endgroup::"
+
+          echo "::group::Newest deployments (any target)"
+          api "https://api.vercel.com/v6/deployments?projectId=$PROJECT&teamId=$TEAM&limit=10" \
+            | jq -r '.deployments[] | "\(.created)\t\(.target // "preview")\t\(.readyState)\t\(.url)\t\(.alias | join(","))"'
+          echo "::endgroup::"
+
+          echo "::group::Newest production deployments"
+          api "https://api.vercel.com/v6/deployments?projectId=$PROJECT&teamId=$TEAM&target=production&limit=5" \
+            | jq -r '.deployments[] | "\(.created)\t\(.readyState)\t\(.url)\t\(.alias | join(","))"'
+          echo "::endgroup::"
