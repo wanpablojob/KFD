@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -13,6 +14,8 @@ import {
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCart } from "../../lib/cart-context";
+import { useActiveRestaurants } from "../../lib/hooks";
+import { TRAVEL_MINUTES } from "../../lib/delivery-estimate";
 import { useCartQuote } from "../../lib/cart-quote";
 import { useSession } from "../../lib/session-context";
 import { saveContactPhone } from "../../lib/auth";
@@ -122,7 +125,13 @@ export default function CustomerCartScreen() {
   const total = quote?.total ?? null;
   // Anything but a settled quote means the button would charge a number the
   // customer has not actually seen.
-  const canPlace = quote !== null && !quoting && !placing;
+  // The restaurant as the catalogue last saw it: open or not, and its prep
+  // time for the estimate. The server still refuses a closed kitchen; this
+  // only says so before the customer taps, instead of after.
+  const { data: catalogue } = useActiveRestaurants();
+  const kitchen = (catalogue ?? []).find((r) => r.id === restaurantId) ?? null;
+  const kitchenClosed = kitchen !== null && !kitchen.is_open;
+  const canPlace = quote !== null && !quoting && !placing && !kitchenClosed;
 
   async function handlePlaceOrder() {
     if (placing) return;
@@ -188,7 +197,7 @@ export default function CustomerCartScreen() {
   if (lines.length === 0) {
     return (
       <View style={[styles.screen, styles.center]}>
-        <Text style={styles.emptyGlyph}>🛒</Text>
+        <Ionicons name="cart-outline" size={48} color={colors.textFaint} />
         <Text style={styles.emptyTitle}>Your cart is empty</Text>
         <Text style={type.body}>Add something tasty to get started.</Text>
         <Pressable
@@ -216,7 +225,7 @@ export default function CustomerCartScreen() {
           onPress={() => router.back()}
           accessibilityLabel="Back"
         >
-          <Text style={styles.backGlyph}>‹</Text>
+          <Ionicons name="chevron-back" size={28} color={colors.text} />
         </Pressable>
         <View style={styles.topTitles}>
           <Text style={styles.topTitle}>Your cart</Text>
@@ -304,7 +313,7 @@ export default function CustomerCartScreen() {
                     disabled={placing}
                     accessibilityLabel={`Delete ${a.label}`}
                   >
-                    <Text style={styles.savedChipRemove}>✕</Text>
+                    <Ionicons name="close" size={14} color={colors.textFaint} />
                   </Pressable>
                 </View>
               );
@@ -422,6 +431,21 @@ export default function CustomerCartScreen() {
           <BillLine label="Total" value={peso(total)} bold />
         </View>
 
+        {kitchen ? (
+          <View style={styles.etaRow}>
+            <Ionicons
+              name={kitchenClosed ? "close-circle-outline" : "time-outline"}
+              size={16}
+              color={kitchenClosed ? colors.danger : colors.textMuted}
+            />
+            <Text style={kitchenClosed ? styles.etaClosed : type.caption}>
+              {kitchenClosed
+                ? `${kitchen.name} has closed for now. Your cart is saved for when it opens.`
+                : `Delivery in about ${kitchen.prep_minutes + TRAVEL_MINUTES.min}–${kitchen.prep_minutes + TRAVEL_MINUTES.max} min`}
+            </Text>
+          </View>
+        ) : null}
+
         {quoteError ? <Text style={styles.error}>{quoteError}</Text> : null}
         {error ? <Text style={styles.error}>{error}</Text> : null}
       </ScrollView>
@@ -496,7 +520,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
   },
   backBtn: { width: 32, height: 32, justifyContent: "center" },
-  backGlyph: { fontSize: 30, color: colors.text, lineHeight: 32 },
   topTitles: { flex: 1, alignItems: "center" },
   topTitle: { ...type.heading, color: colors.text },
   list: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xl },
@@ -574,11 +597,6 @@ const styles = StyleSheet.create({
   savedChipLabel: { ...type.label, color: colors.textMuted },
   savedChipLabelActive: { color: colors.primaryDark },
   savedChipText: { ...type.caption, color: colors.textFaint },
-  savedChipRemove: {
-    fontSize: 13,
-    color: colors.textFaint,
-    paddingHorizontal: spacing.xs,
-  },
   saveAddress: {
     alignSelf: "flex-start",
     borderRadius: radius.pill,
@@ -649,7 +667,8 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     color: colors.textInverse,
   },
-  emptyGlyph: { fontSize: 44 },
+  etaRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
+  etaClosed: { ...type.caption, color: colors.danger, fontWeight: "700", flex: 1 },
   emptyTitle: { ...type.title, color: colors.textMuted },
   browseBtn: {
     marginTop: spacing.md,

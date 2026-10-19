@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import {
   Alert,
   Pressable,
@@ -336,7 +337,7 @@ function Row({
         <Text style={styles.rowLabel}>{label}</Text>
         <Text style={styles.rowHint}>{hint}</Text>
       </View>
-      <Text style={styles.rowChevron}>›</Text>
+      <Ionicons name="chevron-forward" size={20} color={colors.textFaint} />
     </Pressable>
   );
 }
@@ -384,7 +385,6 @@ const styles = StyleSheet.create({
   rowText: { flex: 1, gap: 2 },
   rowLabel: { ...type.heading, fontSize: 15 },
   rowHint: { ...type.caption, color: colors.textFaint },
-  rowChevron: { fontSize: 24, color: colors.textFaint },
   fieldHead: { gap: 2, paddingTop: spacing.lg },
   hint: { ...type.caption, color: colors.textFaint },
   input: {

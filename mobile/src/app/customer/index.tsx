@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import {
   ActivityIndicator,
   FlatList,
@@ -14,7 +15,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useScrollBottomPadding } from "../../components/TabBarInset";
 import {
   useActiveRestaurants,
-  useOrderFees,
   useRestaurants,
   RestaurantRow,
   useFavorites,
@@ -48,11 +48,6 @@ export default function CustomerHomeScreen() {
   // already-filtered `restaurants` collapsed the chip row to whatever was
   // selected, so a cuisine could never be un-chosen from the row.
   const { data: catalogue } = useActiveRestaurants();
-
-  // The advertised delivery price, straight from the server. Null until it
-  // lands, in which case the card simply omits the claim rather than guessing.
-  const { data: fees } = useOrderFees();
-  const deliveryFee = fees?.delivery_fee ?? null;
 
   const cuisines = useMemo(() => {
     const set = new Set((catalogue ?? []).map((r) => r.cuisine).filter(Boolean));
@@ -102,7 +97,7 @@ export default function CustomerHomeScreen() {
             <Text style={type.display}>What are you craving?</Text>
 
             <View style={[styles.search, shadow.card]}>
-              <Text style={styles.searchGlyph}>⌕</Text>
+              <Ionicons name="search" size={18} color={colors.secondary} />
               <TextInput
                 style={styles.searchInput}
                 value={query}
@@ -118,7 +113,7 @@ export default function CustomerHomeScreen() {
                   onPress={() => setQuery("")}
                   accessibilityLabel="Clear search"
                 >
-                  <Text style={styles.clear}>✕</Text>
+                  <Ionicons name="close-circle" size={18} color={colors.textFaint} />
                 </Pressable>
               ) : null}
             </View>
@@ -148,9 +143,11 @@ export default function CustomerHomeScreen() {
 
             <View style={styles.promo}>
               <View style={styles.promoText}>
-                <Text style={styles.promoTitle}>Local food, delivered fast</Text>
+                <Text style={styles.promoTitle}>
+                  From Kabankalan kitchens to your door
+                </Text>
               </View>
-              <Text style={styles.promoGlyph}>🍲</Text>
+              <Ionicons name="bicycle" size={34} color={colors.primary} />
             </View>
           </View>
         }
@@ -162,9 +159,7 @@ export default function CustomerHomeScreen() {
             onClearFilters={clearFilters}
           />
         }
-        renderItem={({ item }) => (
-          <RestaurantCard row={item} deliveryFee={deliveryFee} />
-        )}
+        renderItem={({ item }) => <RestaurantCard row={item} />}
         refreshControl={
           <RefreshControl refreshing={isFetching} onRefresh={() => refetch()} />
         }
@@ -198,7 +193,7 @@ function StorefrontEmpty({
   if (kind === "error") {
     return (
       <View style={styles.empty}>
-        <Text style={styles.errorTitle}>!</Text>
+        <Ionicons name="alert-circle" size={30} color={colors.danger} />
         <Text style={styles.error}>
           {error instanceof Error ? error.message : "Could not load restaurants."}
         </Text>
@@ -227,13 +222,11 @@ function StorefrontEmpty({
   );
 }
 
-function RestaurantCard({
-  row,
-  deliveryFee,
-}: {
-  row: RestaurantRow;
-  deliveryFee: number | null;
-}) {
+/**
+ * No delivery fee on the card: it depends on the customer's barangay (0080),
+ * and the cart shows the real one once they pick it.
+ */
+function RestaurantCard({ row }: { row: RestaurantRow }) {
   const router = useRouter();
   return (
     <Pressable
@@ -267,15 +260,15 @@ function RestaurantCard({
 
         <View style={styles.cardMeta}>
           <View style={styles.rating}>
-            <Text style={styles.ratingStar}>★</Text>
-            <Text style={styles.ratingValue}>{row.rating.toFixed(1)}</Text>
+            {row.rating > 0 ? (
+              <>
+                <Ionicons name="star" size={12} color={colors.accent} />
+                <Text style={styles.ratingValue}>{row.rating.toFixed(1)}</Text>
+              </>
+            ) : (
+              <Text style={styles.ratingValue}>New</Text>
+            )}
           </View>
-          {deliveryFee !== null ? (
-            <>
-              <Text style={styles.metaDot}>·</Text>
-              <Text style={type.caption}>₱{deliveryFee.toFixed(0)} delivery</Text>
-            </>
-          ) : null}
           <Text style={styles.metaDot}>·</Text>
           {row.is_open ? (
             <Text style={type.caption}>
@@ -288,7 +281,7 @@ function RestaurantCard({
         </View>
       </View>
 
-      <Text style={styles.chevron}>›</Text>
+      <Ionicons name="chevron-forward" size={20} color={colors.textFaint} />
     </Pressable>
   );
 }
@@ -308,14 +301,12 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     paddingHorizontal: spacing.lg,
   },
-  searchGlyph: { fontSize: 18, color: colors.secondary },
   searchInput: {
     flex: 1,
     paddingVertical: spacing.md,
     fontSize: 15,
     color: colors.text,
   },
-  clear: { fontSize: 14, color: colors.textFaint, paddingHorizontal: spacing.xs },
   chips: { gap: spacing.sm, paddingVertical: spacing.xs },
   chip: {
     backgroundColor: colors.card,
@@ -339,7 +330,6 @@ const styles = StyleSheet.create({
   },
   promoText: { flex: 1, gap: 2 },
   promoTitle: { ...type.heading, color: colors.text },
-  promoGlyph: { fontSize: 34 },
   card: {
     flexDirection: "row",
     alignItems: "center",
@@ -372,13 +362,10 @@ const styles = StyleSheet.create({
   cardName: { ...type.heading, color: colors.text },
   cardMeta: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 3 },
   rating: { flexDirection: "row", alignItems: "center", gap: 3 },
-  ratingStar: { fontSize: 12, color: colors.accent },
   ratingValue: { fontSize: 12, fontWeight: "700", color: colors.text },
   metaDot: { fontSize: 12, color: colors.textFaint },
-  chevron: { fontSize: 24, color: colors.textFaint, paddingRight: spacing.xs },
   empty: { alignItems: "center", gap: spacing.xs, paddingVertical: spacing.xxl },
   emptyTitle: { ...type.title, color: colors.textMuted },
-  errorTitle: { fontSize: 22, fontWeight: "800", color: colors.danger },
   error: { ...type.body, color: colors.danger, textAlign: "center" },
   retryButton: {
     backgroundColor: colors.primary,

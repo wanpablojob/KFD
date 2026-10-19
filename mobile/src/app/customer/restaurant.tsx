@@ -9,6 +9,8 @@ import {
   View,
 } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { TRAVEL_MINUTES } from "../../lib/delivery-estimate";
+import { MAX_QUANTITY } from "../../lib/cart-logic";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useScrollBottomPadding } from "../../components/TabBarInset";
@@ -71,7 +73,7 @@ export default function CustomerMenuScreen() {
       <View style={[styles.screen, styles.center]}>
         {error ? (
           <>
-            <Text style={styles.errorTitle}>!</Text>
+            <Ionicons name="alert-circle" size={30} color={colors.danger} />
             <Text style={styles.error}>{error}</Text>
           </>
         ) : (
@@ -92,7 +94,7 @@ export default function CustomerMenuScreen() {
           onPress={() => router.back()}
           accessibilityLabel="Back"
         >
-          <Text style={styles.backGlyph}>‹</Text>
+          <Ionicons name="chevron-back" size={28} color={colors.text} />
         </Pressable>
         <Text style={styles.topTitle} numberOfLines={1}>
           {restaurantName || "Menu"}
@@ -153,10 +155,33 @@ export default function CustomerMenuScreen() {
                   {restaurant.cuisine} · {restaurant.city}
                 </Text>
                 <View style={styles.restaurantMeta}>
-                  <Text style={styles.ratingStar}>★</Text>
-                  <Text style={styles.ratingValue}>
-                    {Number(restaurant.rating).toFixed(1)}
-                  </Text>
+                  {Number(restaurant.rating) > 0 ? (
+                    <>
+                      <Ionicons name="star" size={14} color={colors.accent} />
+                      <Text style={styles.ratingValue}>
+                        {Number(restaurant.rating).toFixed(1)}
+                      </Text>
+                      <Text style={styles.metaDot}>·</Text>
+                    </>
+                  ) : null}
+                  {restaurant.is_open ? (
+                    <>
+                      <Ionicons
+                        name="time-outline"
+                        size={14}
+                        color={colors.textMuted}
+                      />
+                      <Text style={type.caption}>
+                        Open · delivery in about{" "}
+                        {restaurant.prep_minutes + TRAVEL_MINUTES.min}–
+                        {restaurant.prep_minutes + TRAVEL_MINUTES.max} min
+                      </Text>
+                    </>
+                  ) : (
+                    <Text style={styles.closedText}>
+                      Closed right now · you can browse the menu
+                    </Text>
+                  )}
                 </View>
               </View>
             ) : null
@@ -189,7 +214,8 @@ function MenuItemCard({
   restaurantId: string;
   restaurantName: string;
 }) {
-  const { add, pending, acceptPending, dismissPending } = useCart();
+  const { add, lines, setQuantity, pending, acceptPending, dismissPending } = useCart();
+  const inCart = lines.find((l) => l.menu_item_id === row.id)?.quantity ?? 0;
 
   const line = {
     menu_item_id: row.id,
@@ -251,21 +277,60 @@ function MenuItemCard({
         <Text style={styles.itemName}>{row.name}</Text>
         <Text style={type.price}>₱{row.price.toFixed(2)}</Text>
       </View>
-      <Pressable
-        style={({ pressed }) => [
-          styles.addBtn,
-          closed && styles.addBtnClosed,
-          pressed && !closed && styles.addBtnPressed,
-        ]}
-        onPress={() => add(line)}
-        disabled={closed}
-        accessibilityLabel={
-          closed ? `${row.name}, restaurant closed` : `Add ${row.name} to cart`
-        }
-        accessibilityState={{ disabled: closed }}
-      >
-        <Text style={styles.addLabel}>{closed ? "CLOSED" : "ADD"}</Text>
-      </Pressable>
+      {inCart > 0 && !closed ? (
+        // Once it is in the cart, show how many and let the customer change it
+        // here instead of bouncing to the cart screen.
+        <View style={styles.stepper}>
+          <Pressable
+            style={styles.stepBtn}
+            onPress={() => setQuantity(row.id, inCart - 1)}
+            hitSlop={6}
+            accessibilityRole="button"
+            accessibilityLabel={
+              inCart === 1 ? `Remove ${row.name}` : `One less ${row.name}`
+            }
+          >
+            <Ionicons
+              name={inCart === 1 ? "trash-outline" : "remove"}
+              size={18}
+              color={colors.primary}
+            />
+          </Pressable>
+          <Text style={styles.stepCount} accessibilityLabel={`${inCart} in cart`}>
+            {inCart}
+          </Text>
+          <Pressable
+            style={styles.stepBtn}
+            onPress={() => add(line)}
+            disabled={inCart >= MAX_QUANTITY}
+            hitSlop={6}
+            accessibilityRole="button"
+            accessibilityLabel={`One more ${row.name}`}
+          >
+            <Ionicons
+              name="add"
+              size={18}
+              color={inCart >= MAX_QUANTITY ? colors.textFaint : colors.primary}
+            />
+          </Pressable>
+        </View>
+      ) : (
+        <Pressable
+          style={({ pressed }) => [
+            styles.addBtn,
+            closed && styles.addBtnClosed,
+            pressed && !closed && styles.addBtnPressed,
+          ]}
+          onPress={() => add(line)}
+          disabled={closed}
+          accessibilityLabel={
+            closed ? `${row.name}, restaurant closed` : `Add ${row.name} to cart`
+          }
+          accessibilityState={{ disabled: closed }}
+        >
+          <Text style={styles.addLabel}>{closed ? "CLOSED" : "ADD"}</Text>
+        </Pressable>
+      )}
     </View>
   );
 }
@@ -305,7 +370,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
   },
   backBtn: { width: 32, height: 32, justifyContent: "center" },
-  backGlyph: { fontSize: 30, color: colors.text, lineHeight: 32 },
   topTitle: { ...type.heading, color: colors.text },
   topCart: {
     minWidth: 26,
@@ -329,7 +393,6 @@ const styles = StyleSheet.create({
   },
   restaurantName: { ...type.title, color: colors.text },
   restaurantMeta: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 },
-  ratingStar: { fontSize: 14, color: colors.accent },
   ratingValue: { fontSize: 14, fontWeight: "700", color: colors.text },
   sectionHeader: {
     ...type.eyebrow,
@@ -361,6 +424,20 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
   },
   addBtnClosed: { backgroundColor: colors.textFaint },
+  stepper: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+  },
+  stepBtn: { padding: 4 },
+  stepCount: { ...type.label, color: colors.text, minWidth: 18, textAlign: "center" },
+  metaDot: { fontSize: 12, color: colors.textFaint },
+  closedText: { ...type.caption, fontWeight: "700", color: colors.danger },
   addBtnPressed: { backgroundColor: colors.primaryDark },
   conflictActions: { flexDirection: "row", gap: spacing.sm },
   conflictKeep: {
@@ -389,6 +466,5 @@ const styles = StyleSheet.create({
     color: colors.textInverse,
   },
   emptyTitle: { ...type.title, color: colors.textMuted },
-  errorTitle: { fontSize: 22, fontWeight: "800", color: colors.danger },
   error: { ...type.body, color: colors.danger, textAlign: "center" },
 });

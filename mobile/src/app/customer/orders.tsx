@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from "react";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import {
   ActivityIndicator,
   Alert,
@@ -237,7 +238,7 @@ export default function CustomerOrdersScreen() {
   if (isError) {
     return (
       <View style={[styles.screen, styles.center]}>
-        <Text style={styles.errorTitle}>!</Text>
+        <Ionicons name="alert-circle" size={30} color={colors.danger} />
         <Text style={styles.error}>
           {error instanceof Error ? error.message : "Could not load your orders."}
         </Text>
@@ -370,7 +371,11 @@ function StarRow({
           accessibilityRole="button"
           accessibilityLabel={`${n} star${n === 1 ? "" : "s"}`}
         >
-          <Text style={[styles.star, n <= value && styles.starActive]}>★</Text>
+          <Ionicons
+            name={n <= value ? "star" : "star-outline"}
+            size={30}
+            color={n <= value ? colors.accent : colors.border}
+          />
         </Pressable>
       ))}
     </View>
@@ -564,7 +569,6 @@ const styles = StyleSheet.create({
   },
   empty: { alignItems: "center", gap: spacing.xs, paddingVertical: spacing.xxl },
   emptyTitle: { ...type.title, color: colors.textMuted },
-  errorTitle: { fontSize: 22, fontWeight: "800", color: colors.danger },
   error: { ...type.body, color: colors.danger, textAlign: "center" },
   retryButton: {
     backgroundColor: colors.primary,
@@ -619,8 +623,6 @@ const styles = StyleSheet.create({
   ratedText: { ...type.caption, color: colors.textMuted, flex: 1 },
   ratedEdit: { ...type.label, color: colors.primary, fontWeight: "700" },
   starRow: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.xs },
-  star: { fontSize: 30, color: colors.border },
-  starActive: { color: colors.accent },
   backdrop: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.45)",
