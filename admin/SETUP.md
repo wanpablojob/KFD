@@ -43,17 +43,28 @@ npx vercel@60.0.1 pull --yes --scope=<your-team-slug>
 
 ## 2. Add the email keys
 
-The portal works without these, but accept/reject will report "saved, but the
-customer email was not sent".
+The portal works without these, but order mail is skipped: accept/reject
+reports "saved, but the customer email was not sent", and a new order sends no
+mail to the restaurant or the customer.
+
+Resend is the provider: its free tier is 3,000 emails a month (100 a day), the
+API is one POST, and no SDK is involved. Three emails use it:
+
+| Event | Goes to |
+|---|---|
+| order placed | every merchant user of the restaurant |
+| order placed | the customer who placed it (receipt) |
+| status changed | the customer on the order |
 
 1. Supabase → Project Settings → API → **service_role** → copy it. It starts
    with `sb_secret_`. This key bypasses RLS: treat it like a password and
    never let it reach the browser.
 2. Resend → API Keys → Create API key. It starts with `re_`.
 3. Resend → Domains → Add Domain, then add the DNS records Resend gives you
-   at your DNS host. Wait for the green tick. Until a domain verifies, the
-   only address that works is Resend's `onboarding@resend.dev`, and that can
-   only send to your own inbox.
+   at your DNS host. Wait for the green tick. A free account can only send to
+   arbitrary addresses from a **verified domain**; until one verifies, the
+   only working sender is `onboarding@resend.dev` and it only delivers to the
+   address that owns the Resend account (fine for a test, not for customers).
 4. Set all three:
 
    ```sh
@@ -277,3 +288,8 @@ Read this before treating any number in the console as a business metric.
   `RESEND_API_KEY` and `ORDER_EMAIL_FROM`, the `/api/orders/notify` route fails
   and the merchant sees "Order saved, but the customer was not emailed". The
   order status and rejection reason are still saved. See step 2 above.
+
+- **Push needs the app installed; email does not.** Order placement emails the
+  restaurant and sends the customer a receipt, and each status change emails the
+  customer. Expo push is a second channel for the same events. SMS is not
+  implemented at all.

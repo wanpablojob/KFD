@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { postApi } from "./admin-api";
 import { missingMigrationMessage } from "./missing-migration";
 
 type VehicleType = "bicycle" | "scooter" | "motorcycle" | "car";
@@ -710,6 +711,16 @@ export async function placeCustomerOrder(args: {
   if (!data || data.length !== 1) {
     throw new Error("Order was not placed. Try again.");
   }
+
+  // Tell the admin app the order exists, so the restaurant gets its new-order
+  // email/push and the customer gets a confirmation email. Best-effort and not
+  // awaited: the order is already saved, and a slow mailer must not hold up
+  // checkout. The API re-checks ownership against the token, not the body.
+  void postApi("/api/orders/notify", {
+    orderId: data[0].order_id,
+    event: "placed",
+  });
+
   return data[0];
 }
 

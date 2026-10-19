@@ -1,6 +1,6 @@
-import Constants from "expo-constants";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "./supabase";
+import { postApi } from "./admin-api";
 import type { OrderStatus } from "./merchant-logic";
 
 /**
@@ -12,8 +12,6 @@ import type { OrderStatus } from "./merchant-logic";
  * portal makes: status and rejection_reason on orders (all a client may change
  * since 0083), availability on menu items, and merchant_set_store_status.
  */
-
-const apiUrl = Constants.expoConfig?.extra?.apiUrl as string | undefined;
 
 export interface MerchantOrder {
   id: string;
@@ -81,27 +79,6 @@ export async function fetchMerchantRefunds(): Promise<Map<string, number>> {
   for (const r of data ?? [])
     map.set(r.order_id, (map.get(r.order_id) ?? 0) + Number(r.amount));
   return map;
-}
-
-/** POST to the admin app's API with the user's token. Best-effort: never throws. */
-async function postApi(path: string, body: Record<string, unknown>): Promise<boolean> {
-  try {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    if (!apiUrl || !session?.access_token) return false;
-    const res = await fetch(`${apiUrl.replace(/\/+$/, "")}${path}`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${session.access_token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
-    });
-    return res.ok;
-  } catch {
-    return false;
-  }
 }
 
 /**

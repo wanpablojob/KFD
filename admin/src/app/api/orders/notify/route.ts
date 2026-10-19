@@ -2,11 +2,13 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import {
   newOrderEmail,
+  orderPlacedEmail,
   orderStatusEmail,
   sendOrderEmail,
   type OrderEmailData,
 } from "@/lib/server/order-email";
 import { resolveCustomerEmail } from "@/lib/notify-customer";
+import { mayNotifyOrder } from "@/lib/notify-authz";
 import {
   sendMerchantOrderPush,
   sendCustomerPush,
@@ -28,13 +30,13 @@ import { reportServerError } from "@/lib/server/report-error";
  *   { orderId: string, event: "placed" | "status_changed", reason?: string }
  *
  * Recipients:
- *   placed          -> every merchant user attached to the order's restaurant
+ *   placed          -> the merchants of the restaurant, and the ordering customer
  *   status_changed  -> the customer on the order
  *
- * Note: `placed` is not callable by a customer yet, because orders has no
- * link back to a customer account. When the customer app lands, place the
- * insert and the notification in one server-side call rather than opening
- * this to unverified callers.
+ * `placed` is called by the customer app right after the order RPC returns,
+ * and by an admin. The caller is always the verified JWT subject; the rule for
+ * who may notify about which order lives in @/lib/notify-authz, because the
+ * order itself is read with the service role and RLS cannot help here.
  */
 
 interface NotifyBody {
@@ -155,22 +157,28 @@ export async function POST(req: Request) {
 
   // The service role bypasses RLS, so the order read above is unscoped by
   // design. That makes the caller's own access the only thing standing between
-  // a signed-in merchant and another restaurant's order, so re-check it here:
-  // without this, any authenticated user could probe order ids and trigger
-  // emails to another restaurant's customers.
+  // a signed-in user and another restaurant's order: without this, anyone with
+  // an account could probe order ids and trigger mail to strangers.
   const { data: callerRow } = await supabase
     .from("app_users")
     .select("role, restaurant_id")
     .eq("user_id", user.id)
     .maybeSingle();
 
-  const isAdmin = callerRow?.role === "admin";
-  const isOwnRestaurant =
-    callerRow?.role === "merchant" &&
-    !!order.restaurant_id &&
-    order.restaurant_id === callerRow.restaurant_id;
+  const allowed = mayNotifyOrder(
+    event,
+    {
+      userId: user.id,
+      role: (callerRow?.role as string | null) ?? null,
+      restaurantId: (callerRow?.restaurant_id as string | null) ?? null,
+    },
+    {
+      restaurantId: order.restaurant_id ?? null,
+      customerUserId: order.customer_user_id ?? null,
+    },
+  );
 
-  if (!isAdmin && !isOwnRestaurant) {
+  if (!allowed) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -183,66 +191,65 @@ export async function POST(req: Request) {
   };
 
   if (event === "placed") {
-    // Only an admin may assert that a new order exists. A merchant already
-    // attached to the restaurant passes the check above, and letting them
-    // call this would let them fabricate "new order" mail to their own
-    // customers. The real caller is the (future) customer app, which will
-    // place the insert and this notification in one server-side call.
-    if (!isAdmin) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    // Tell the restaurant first: this is the order it has to cook. An order
+    // with no restaurant_id is legacy/walk-in, so there is nobody to tell and
+    // the customer confirmation below still goes out.
+    let recipients: string[] = [];
+    let results: Awaited<ReturnType<typeof sendOrderEmail>>[] = [];
+
+    if (order.restaurant_id) {
+      const { data: merchantRows } = await supabase
+        .from("app_users")
+        .select("user_id")
+        .eq("restaurant_id", order.restaurant_id)
+        .eq("role", "merchant");
+
+      const userIds = (merchantRows ?? []).map((m) => m.user_id as string);
+
+      if (userIds.length > 0) {
+        // app_users stores no address, so resolve each merchant's auth email.
+        const { data: authList } = await supabase.auth.admin.listUsers();
+        recipients = userIds
+          .map((id) => authList?.users.find((u) => u.id === id)?.email)
+          .filter((e): e is string => Boolean(e));
+
+        const mail = newOrderEmail(emailData);
+        results = await Promise.all(
+          recipients.map((to) => sendOrderEmail(to, mail.subject, mail.html)),
+        );
+      }
     }
 
-    if (!order.restaurant_id) {
-      return NextResponse.json(
-        { skipped: "order has no restaurant_id" },
-        { status: 202 },
-      );
-    }
-
-    const { data: merchantRows } = await supabase
-      .from("app_users")
-      .select("user_id")
-      .eq("restaurant_id", order.restaurant_id)
-      .eq("role", "merchant");
-
-    const userIds = (merchantRows ?? []).map((m) => m.user_id as string);
-    if (userIds.length === 0) {
-      return NextResponse.json(
-        { skipped: "no merchant user for this restaurant" },
-        { status: 202 },
-      );
-    }
-
-    // app_users stores no address, so resolve each merchant's auth email.
-    const { data: authList } = await supabase.auth.admin.listUsers();
-    const recipients = userIds
-      .map((id) => authList?.users.find((u) => u.id === id)?.email)
-      .filter((e): e is string => Boolean(e));
-
-    if (recipients.length === 0) {
-      return NextResponse.json(
-        { skipped: "merchant users have no email address" },
-        { status: 202 },
-      );
-    }
-
-    const mail = newOrderEmail(emailData);
-    const results = await Promise.all(
-      recipients.map((to) => sendOrderEmail(to, mail.subject, mail.html)),
-    );
+    // Then the customer's receipt. Independent of the merchant mail: even an
+    // order the restaurant cannot be emailed about deserves a confirmation.
+    const customerEmail = await resolveCustomerEmail(supabase, order);
+    const customerMail = customerEmail ? orderPlacedEmail(emailData) : null;
+    const confirmation =
+      customerEmail && customerMail
+        ? await sendOrderEmail(customerEmail, customerMail.subject, customerMail.html)
+        : {
+            ok: false,
+            detail: "no email address for this customer",
+            skipped: "no email address for this customer",
+          };
 
     // Expo Push for the same merchant accounts (Prompt 6.2). Best-effort like
-    // the email: a push failure must not fail the order write. Nothing calls
-    // the placed event yet -- ordering is not live -- so this currently sends
-    // to the devices real merchants have registered, and it stays dormant for
-    // as long as no client places orders.
-    const pushResult = await sendMerchantOrderPush(
-      supabase,
-      order.restaurant_id,
-      order.reference,
-    );
+    // the email: a push failure must not fail the order write.
+    const push = order.restaurant_id
+      ? await sendMerchantOrderPush(
+          supabase,
+          order.restaurant_id,
+          order.reference,
+        )
+      : { ok: false, sent: 0, skipped: "order has no restaurant_id" };
 
-    return NextResponse.json({ event, recipients, results, push: pushResult });
+    return NextResponse.json({
+      event,
+      recipients,
+      results,
+      customer: { to: customerEmail, result: confirmation },
+      push,
+    });
   }
 
   // status_changed

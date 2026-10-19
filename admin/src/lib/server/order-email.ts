@@ -130,6 +130,26 @@ export function newOrderEmail(order: OrderEmailData): {
   };
 }
 
+/**
+ * The customer's "we have your order" receipt.
+ *
+ * Sent when the app announces a freshly placed order. Deliberately separate
+ * from orderStatusEmail: `pending` has no status copy, and the customer should
+ * not be told the restaurant accepted before it has.
+ */
+export function orderPlacedEmail(order: OrderEmailData): {
+  subject: string;
+  html: string;
+} {
+  return {
+    subject: `Order ${order.reference} received`,
+    html: layout(
+      "Order received",
+      `<p>Thanks — ${escapeHtml(order.restaurant)} has your order. We will email you again when it is accepted.</p>${summary(order)}`
+    ),
+  };
+}
+
 const STATUS_COPY: Record<string, string> = {
   confirmed: "Your order was accepted and is heading to the kitchen.",
   preparing: "Your order is being prepared now.",
