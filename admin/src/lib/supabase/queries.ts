@@ -24,6 +24,7 @@ import type {
   Restaurant,
   Rider,
   RiderActivityEvent,
+  RiderCashPosition,
   RiderEarningsDay,
   RiderNote,
   RiderOverview,
@@ -1121,6 +1122,74 @@ export async function fetchRiderOverview(): Promise<RiderOverview[]> {
     })),
     RIDER_OVERVIEW_MIGRATION,
   );
+}
+
+/** The migration that adds cash on hand, delivery proof and GCash references. */
+const RIDER_CASH_MIGRATION = "0079_rider_money_and_proof.sql";
+
+/**
+ * Every active rider's cash position (0079).
+ *
+ * Kept separate from admin_rider_overview rather than folded into it: this
+ * aggregates two ledgers, and a roster that fails to render whenever one of
+ * them is missing is worse than a column that reads "—". The roster joins the
+ * two results by rider id.
+ */
+export async function fetchRiderCashPositions(): Promise<RiderCashPosition[]> {
+  const { data, error } = await supabase.rpc("admin_rider_cash");
+
+  return requireMigration(
+    error,
+    ((data ?? []) as Record<string, unknown>[]).map((row) => ({
+      riderId: String(row.rider_id),
+      riderName: String(row.rider_name),
+      collected: Number(row.collected ?? 0),
+      handedOver: Number(row.handed_over ?? 0),
+      onHand: Number(row.on_hand ?? 0),
+      flagged: Number(row.flagged ?? 0),
+      deliveries: Number(row.deliveries ?? 0),
+    })),
+    RIDER_CASH_MIGRATION,
+  );
+}
+
+/**
+ * Book cash a rider has handed back (0079).
+ *
+ * The RPC refuses an amount larger than the rider is currently holding, so the
+ * dialog's validation is a convenience; the database is the guard. Returns the
+ * handover row id.
+ */
+export async function recordCashHandover(
+  riderId: string,
+  amount: number,
+  note?: string,
+): Promise<number> {
+  const { data, error } = await supabase.rpc("admin_record_cash_handover", {
+    p_rider_id: riderId,
+    p_amount: amount,
+    // p_note defaults to null in SQL; omit it rather than pass null.
+    p_note: note?.trim() ? note.trim() : undefined,
+  });
+
+  return requireMigration(error, Number(data ?? 0), RIDER_CASH_MIGRATION);
+}
+
+/**
+ * Short-lived signed URL for a delivery proof (0079).
+ *
+ * The bucket is private. The storage policy in 0079 lets an admin read any
+ * rider's proof, because settling a cash dispute is the reason it exists.
+ */
+export async function deliveryProofUrl(
+  path: string,
+  seconds = 300,
+): Promise<string | null> {
+  const { data, error } = await supabase.storage
+    .from("delivery-proofs")
+    .createSignedUrl(path, seconds);
+  if (error) throw new Error(error.message);
+  return data?.signedUrl ?? null;
 }
 
 /**

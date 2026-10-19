@@ -10,7 +10,12 @@ import {
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useScrollBottomPadding } from "../../components/TabBarInset";
-import { useRiderEarningsSummary, useRiderPayoutHistory } from "../../lib/hooks";
+import {
+  useRiderCashPosition,
+  useRiderEarningsSummary,
+  useRiderPayoutHistory,
+} from "../../lib/hooks";
+import { cashOnHandLabel } from "../../lib/rider-cash";
 import {
   BUCKET_LABEL,
   bucketTotal,
@@ -65,6 +70,8 @@ export default function RiderEarningsRoute() {
 
   const summary = useRiderEarningsSummary();
   const history = useRiderPayoutHistory(limit);
+  const cash = useRiderCashPosition();
+  const cashLabel = cash.data ? cashOnHandLabel(cash.data.on_hand) : null;
 
   const loading = summary.isLoading;
   const error = summary.error ?? history.error;
@@ -124,6 +131,48 @@ export default function RiderEarningsRoute() {
       </View>
 
       {firstEarned ? <Text style={styles.since}>{firstEarned}</Text> : null}
+
+      {/* Cash on hand, not earnings. This is the number that decides whether
+          the rider needs to bank today, and it is the mirror of the payout
+          ledger above: money the rider took from customers and has not yet
+          handed in. It is kept visually separate for exactly that reason --
+          showing it inside "earnings" would read as money the platform owes. */}
+      {cash.data && cashLabel ? (
+        <View style={styles.section}>
+          <View style={[styles.cashCard, shadow.card]}>
+            <View style={styles.cashHeader}>
+              <View style={styles.cashText}>
+                <Text style={type.eyebrow}>Cash on hand</Text>
+                <Text style={styles.cashCaption}>
+                  Collected from customers, not yet handed in
+                </Text>
+              </View>
+              <Text
+                style={[
+                  styles.cashValue,
+                  cashLabel.tone === "warning" ? styles.cashValueWarning : null,
+                ]}
+              >
+                {cashLabel.text}
+              </Text>
+            </View>
+            <View style={styles.cashMeta}>
+              <Text style={type.caption}>Collected {peso(cash.data.collected)}</Text>
+              <Text style={type.caption}>Handed in {peso(cash.data.handed_over)}</Text>
+            </View>
+            {cash.data.flagged > 0 ? (
+              <Text style={styles.cashFlag}>
+                {peso(cash.data.flagged)} in differences is under review
+              </Text>
+            ) : null}
+          </View>
+        </View>
+      ) : null}
+      {cash.error ? (
+        <Text style={styles.cashError}>
+          Cash position is unavailable right now. Your earnings are unaffected.
+        </Text>
+      ) : null}
 
       <View style={styles.section}>
         <Text style={type.eyebrow}>Each delivery</Text>
@@ -240,6 +289,34 @@ const styles = StyleSheet.create({
     color: colors.textFaint,
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.sm,
+  },
+  cashCard: {
+    backgroundColor: colors.card,
+    borderRadius: radius.md,
+    padding: spacing.lg,
+    gap: spacing.sm,
+  },
+  cashHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: spacing.md,
+  },
+  cashText: { flex: 1, gap: 2 },
+  cashCaption: { ...type.caption, color: colors.textFaint, lineHeight: 16 },
+  cashValue: { ...type.heading, fontSize: 24 },
+  cashValueWarning: { color: colors.warning },
+  cashMeta: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+  },
+  cashFlag: { ...type.caption, color: colors.warning },
+  cashError: {
+    ...type.caption,
+    color: colors.textFaint,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
   },
   section: { paddingHorizontal: spacing.lg, paddingTop: spacing.xl, gap: spacing.md },
   groups: { gap: spacing.md },

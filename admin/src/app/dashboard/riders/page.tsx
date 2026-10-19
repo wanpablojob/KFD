@@ -7,6 +7,7 @@ import {
   fetchRiderAccess,
   fetchRiderApplications,
   fetchRiderOverview,
+  fetchRiderCashPositions,
   fetchDisputedPayouts,
   resolveDeliveryIssue,
   settleExpiredPayouts,
@@ -71,6 +72,9 @@ type Mode =
 export default function RidersPage() {
   const router = useRouter();
   const overview = useAsyncData(() => fetchRiderOverview());
+  // Cash on hand (0079). A separate read so a missing migration leaves the
+  // column blank rather than taking the whole fleet list down with it.
+  const cash = useAsyncData(() => fetchRiderCashPositions());
   const access = useAsyncData(() => fetchRiderAccess());
   // An applicant has no rider row yet, so it cannot appear in the rider list.
   // Fetched unfiltered because the same panel shows reviewed rows underneath
@@ -155,6 +159,9 @@ export default function RidersPage() {
   const accountByRiderId = new Map(
     (access.data ?? []).map((row) => [row.riderId, row]),
   );
+  const cashByRiderId = new Map(
+    (cash.data ?? []).map((row) => [row.riderId, row]),
+  );
   const riderColumns = buildRiderColumns({
     onSuspend: (rider) => setMode({ kind: "suspend", rider }),
     onReinstate: (rider) => setMode({ kind: "reinstate", rider }),
@@ -165,6 +172,7 @@ export default function RidersPage() {
       await access.refetch();
     },
     accounts: accountByRiderId,
+    cash: cashByRiderId,
     isPending: action.isPending,
     statusKey,
     archiveKey,
@@ -408,7 +416,9 @@ export default function RidersPage() {
               ]}
               page={params.page}
               onPageChange={(next) => set({ page: next })}
-              mobileCard={(row) => <RiderMobileCard rider={row} />}
+              mobileCard={(row) => (
+                <RiderMobileCard rider={row} cash={cashByRiderId.get(row.id)} />
+              )}
             />
           </Card>
         </TableBoundary>

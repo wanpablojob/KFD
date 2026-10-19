@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -89,6 +90,7 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
   const [flash, setFlash] = useState<string | null>(null);
 
   const connectivity = useConnectivity();
+  const queryClient = useQueryClient();
   const offline =
     connectivity.isConnected === false || connectivity.isInternetReachable === false;
 
@@ -250,6 +252,11 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
     })();
     void refetchPage1();
     void profileQuery.refetch();
+    // A completed delivery writes both ledgers: the payout the rider earned and
+    // the cash they are now carrying. Earnings and cash-on-hand are separate
+    // cached queries, so neither refreshes when the other is invalidated.
+    void queryClient.invalidateQueries({ queryKey: ["riderEarningsSummary"] });
+    void queryClient.invalidateQueries({ queryKey: ["riderCashPosition"] });
   }
 
   function openFailReport(orderId: string) {

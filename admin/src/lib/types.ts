@@ -105,6 +105,25 @@ export interface RiderOverview extends Rider {
   updatedAt: string | null;
 }
 
+/**
+ * One rider's cash position, from admin_rider_cash() (0079).
+ *
+ * Cash moves the opposite way to earnings: it is money the rider collected from
+ * customers and has not yet handed back. `onHand` is exactly
+ * `collected - handedOver`; the database returns it rather than the UI deriving
+ * it, so the roster and the rider's own Earnings tab cannot disagree.
+ */
+export interface RiderCashPosition {
+  riderId: string;
+  riderName: string;
+  collected: number;
+  handedOver: number;
+  onHand: number;
+  /** Absolute variance across this rider's collections -- the review queue. */
+  flagged: number;
+  deliveries: number;
+}
+
 /** One bar on the earnings-per-day chart. */
 export interface RiderEarningsDay {
   day: string;

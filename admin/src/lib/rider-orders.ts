@@ -36,7 +36,7 @@ export function riderOrderScope(
 
 /** The columns this read needs, and only those. */
 export const RIDER_ORDER_COLUMNS =
-  "id, reference, customer, customer_phone, restaurant, restaurant_id, items, subtotal, delivery_fee, total, status, payment, placed_at, rider, rider_id, rider_payout, delivery_address, delivery_failed_reason, delivery_failed_at, delivery_failed_by, rejection_reason" as const;
+  "id, reference, customer, customer_phone, restaurant, restaurant_id, items, subtotal, delivery_fee, total, status, payment, placed_at, rider, rider_id, rider_payout, delivery_address, delivery_failed_reason, delivery_failed_at, delivery_failed_by, rejection_reason, delivery_photo_path, delivered_at" as const;
 
 /**
  * One of this rider's orders.
@@ -54,6 +54,13 @@ export interface RiderDelivery extends Order {
   riderPayout: number | null;
   /** riders.id of whoever reported the failure. Kept after reassignment. */
   deliveryFailedBy: string | null;
+  /**
+   * Object path in the private delivery-proofs bucket (0079), or null for a
+   * delivery completed before proof was required.
+   */
+  deliveryPhotoPath: string | null;
+  /** When the rider completed the delivery (0079). Null before it. */
+  deliveredAt: string | null;
 }
 
 function text(value: unknown): string | null {
@@ -114,6 +121,8 @@ export function mapRiderOrderRows(
         ? null
         : num(row.rider_payout),
     deliveryFailedBy: text(row.delivery_failed_by),
+    deliveryPhotoPath: text(row.delivery_photo_path),
+    deliveredAt: text(row.delivered_at),
   }));
 }
 

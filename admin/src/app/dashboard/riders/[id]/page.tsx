@@ -14,6 +14,8 @@ import {
   fetchRiderNotes,
   fetchRiderPayouts,
   fetchRiderPayoutSummary,
+  fetchRiderCashPositions,
+  recordCashHandover,
   setRiderArchived,
   setRiderStatus,
   setRiderAccess,
@@ -108,6 +110,11 @@ export default function RiderDetailPage() {
     riderId,
   );
   const payouts = useAsyncData(() => fetchRiderPayouts(riderId), riderId);
+  // Cash on hand (0079). The RPC is fleet-wide, so this reads the same list the
+  // roster does and narrows to this rider rather than adding a second query
+  // whose arithmetic could disagree.
+  const cash = useAsyncData(() => fetchRiderCashPositions(), riderId);
+  const cashPosition = (cash.data ?? []).find((row) => row.riderId === riderId);
 
   const earnings = useAsyncData(
     () =>
@@ -128,6 +135,7 @@ export default function RiderDetailPage() {
   // The payout row whose dispute is being resolved, if any. Holds the row rather
   // than a boolean so the dialog can name the order and show the amount at stake.
   const [resolving, setResolving] = useState<RiderPayout | null>(null);
+  const [handingOver, setHandingOver] = useState(false);
   const [noteBody, setNoteBody] = useState("");
   const [noteBusy, setNoteBusy] = useState(false);
   const [noteError, setNoteError] = useState<string | null>(null);
@@ -421,6 +429,59 @@ export default function RiderDetailPage() {
             }}
           />
         </div>
+
+        {/* Cash is the mirror of the earnings above: money the rider collected
+            and has not yet handed back. Kept out of the earnings cards so the
+            two directions are never added together. */}
+        <Card className="p-5">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
+              <h2 className="text-sm font-semibold text-card-foreground">
+                Cash on hand
+              </h2>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Collected from customers and not yet handed back.
+              </p>
+              {cashPosition ? (
+                <div className="mt-3 flex flex-wrap items-baseline gap-x-4 gap-y-1">
+                  <span
+                    className={
+                      cashPosition.onHand > 0.005
+                        ? "text-2xl font-semibold text-warning"
+                        : "text-2xl font-semibold text-card-foreground"
+                    }
+                  >
+                    {formatCurrency(cashPosition.onHand)}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {formatCurrency(cashPosition.collected)} collected ·{" "}
+                    {formatCurrency(cashPosition.handedOver)} handed in
+                  </span>
+                  {cashPosition.flagged > 0 ? (
+                    <span className="text-xs text-warning">
+                      {formatCurrency(cashPosition.flagged)} variance under
+                      review
+                    </span>
+                  ) : null}
+                </div>
+              ) : (
+                <p className="mt-3 text-sm text-muted-foreground">
+                  {cash.loading
+                    ? "Loading cash position…"
+                    : (cash.error ?? "No cash position recorded yet.")}
+                </p>
+              )}
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={!cashPosition || cashPosition.onHand <= 0}
+              onClick={() => setHandingOver(true)}
+            >
+              Record handover
+            </Button>
+          </div>
+        </Card>
       </Section>
 
       <div className="mb-8 grid gap-4 lg:grid-cols-2">
@@ -911,6 +972,53 @@ export default function RiderDetailPage() {
           busy={action.isPending("suspend")}
           onClose={() => setSuspending(null)}
           onConfirm={suspend}
+        />
+      ) : null}
+
+      {handingOver ? (
+        <EntityDialog
+          open
+          key={`handover-${riderId}`}
+          title={`Record cash handover from ${rider.name}`}
+          description={
+            cashPosition
+              ? `${formatCurrency(cashPosition.onHand)} is currently on hand. More than that is refused, because cash that was never collected cannot be banked.`
+              : undefined
+          }
+          onClose={() => setHandingOver(false)}
+          fields={[
+            {
+              key: "amount",
+              label: "Amount handed in (PHP)",
+              type: "number",
+              required: true,
+              placeholder: cashPosition
+                ? cashPosition.onHand.toFixed(2)
+                : "0.00",
+            },
+            {
+              key: "note",
+              label: "Note (optional)",
+              type: "text",
+              placeholder: "Receipt reference or who received it",
+            },
+          ]}
+          onSave={async (values) => {
+            const amount = Number(values.amount);
+            if (!Number.isFinite(amount) || amount <= 0) {
+              throw new Error("Enter an amount greater than zero.");
+            }
+            await action.run(
+              "handover",
+              async () => {
+                await recordCashHandover(riderId, amount, values.note);
+                await cash.refetch();
+                await activity.refetch();
+                setHandingOver(false);
+              },
+              { rethrow: true },
+            );
+          }}
         />
       ) : null}
 

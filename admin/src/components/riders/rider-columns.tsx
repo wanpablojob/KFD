@@ -11,7 +11,7 @@ import { LinkIcon } from "@/components/ui/icons";
 import { formatCurrency } from "@/lib/format";
 import { riderFlags } from "@/lib/rider-flags";
 import { setRiderArchived, setRiderStatus, type RiderAccess } from "@/lib/supabase/queries";
-import type { Rider, RiderOverview } from "@/lib/types";
+import type { Rider, RiderCashPosition, RiderOverview } from "@/lib/types";
 import { flagsInput } from "@/components/rider/rider-summary";
 import {
   RiderFlagBadges,
@@ -34,6 +34,8 @@ export interface RiderColumnHandlers {
   onRevoke: (account: RiderAccess) => void;
   onChanged: () => void | Promise<void>;
   accounts: Map<string, RiderAccess>;
+  /** Cash position per rider id (0079). Missing means the read failed. */
+  cash: Map<string, RiderCashPosition>;
   isPending: (key: string) => boolean;
   statusKey: (riderId: string) => string;
   archiveKey: (riderId: string) => string;
@@ -51,6 +53,7 @@ export function buildRiderColumns({
   onRevoke,
   onChanged,
   accounts,
+  cash,
   isPending,
   statusKey,
   archiveKey,
@@ -151,6 +154,38 @@ export function buildRiderColumns({
           {formatCurrency(row.earnings)}
         </span>
       ),
+    },
+    {
+      // The other direction of the same money (0079). Earnings are what the
+      // platform owes the rider; cash on hand is what the rider owes the
+      // platform, and it is the number that decides who needs to bank today.
+      key: "cash_on_hand",
+      header: "Cash on hand",
+      align: "right",
+      cell: (row) => {
+        const position = cash.get(row.id);
+        if (!position) {
+          return <span className="text-muted-foreground">—</span>;
+        }
+        return (
+          <span className="flex flex-col items-end gap-0.5">
+            <span
+              className={
+                position.onHand > 0.005
+                  ? "font-medium text-warning"
+                  : "font-medium text-card-foreground"
+              }
+            >
+              {formatCurrency(position.onHand)}
+            </span>
+            {position.flagged > 0 ? (
+              <span className="text-xs text-warning">
+                {formatCurrency(position.flagged)} variance
+              </span>
+            ) : null}
+          </span>
+        );
+      },
     },
     {
       key: "flags",

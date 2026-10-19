@@ -38,6 +38,7 @@ import {
   type PlaceOrderItem,
   type PaymentChoice,
 } from "./storefront";
+import { fetchRiderCashPosition } from "./rider-cash";
 import { isTerminalStatus } from "./order-progress";
 
 export const queryKeys = {
@@ -300,6 +301,20 @@ export function useRiderPayoutHistory(limit = 20) {
   return useQuery({
     queryKey: ["riderPayoutHistory", limit],
     queryFn: () => fetchRiderPayoutHistory(limit),
+  });
+}
+
+/**
+ * What the rider is carrying in cash right now (0079).
+ *
+ * Its own query, not part of the earnings summary: earnings are what the
+ * platform owes the rider, cash on hand is what the rider owes the platform.
+ * They move in opposite directions and must be able to refetch independently.
+ */
+export function useRiderCashPosition() {
+  return useQuery({
+    queryKey: ["riderCashPosition"],
+    queryFn: fetchRiderCashPosition,
   });
 }
 

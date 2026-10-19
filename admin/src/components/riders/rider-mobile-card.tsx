@@ -8,7 +8,7 @@ import Link from "next/link";
 import { LinkIcon } from "@/components/ui/icons";
 import { formatCurrency } from "@/lib/format";
 import { riderFlags } from "@/lib/rider-flags";
-import type { RiderOverview } from "@/lib/types";
+import type { RiderCashPosition, RiderOverview } from "@/lib/types";
 import { flagsInput } from "@/components/rider/rider-summary";
 import {
   ContactShortcuts,
@@ -17,7 +17,14 @@ import {
 } from "@/components/rider/rider-row-bits";
 
 /** Card layout below `md`, where the table would scroll horizontally. */
-export function RiderMobileCard({ rider }: { rider: RiderOverview }) {
+export function RiderMobileCard({
+  rider,
+  cash,
+}: {
+  rider: RiderOverview;
+  /** Cash position (0079). Absent when the cash read failed. */
+  cash?: RiderCashPosition;
+}) {
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-start justify-between gap-3">
@@ -67,6 +74,11 @@ export function RiderMobileCard({ rider }: { rider: RiderOverview }) {
         <span>{rider.rating} ★</span>
         <span>Week {formatCurrency(rider.weekEarnings)}</span>
         <span>Total {formatCurrency(rider.earnings)}</span>
+        {cash ? (
+          <span className={cash.onHand > 0.005 ? "text-warning" : undefined}>
+            Cash on hand {formatCurrency(cash.onHand)}
+          </span>
+        ) : null}
       </div>
 
       <RiderFlagBadges flags={riderFlags(flagsInput(rider))} riderName={rider.name} />
