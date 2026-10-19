@@ -1,7 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { fetchOrders, fetchRestaurants, fetchRiders } from "@/lib/supabase/queries";
+import {
+  fetchDisputedPayouts,
+  fetchOrders,
+  fetchRiderApplications,
+  fetchRiderCashPositions,
+  fetchRiderDeletionRequests,
+  fetchRiders,
+} from "@/lib/supabase/queries";
 import { formatCurrency, formatShortDate } from "@/lib/format";
 import { PageContainer, PageHeader, Section, Stack, StatGrid } from "@/components/layout/page";
 import { StatCard } from "@/components/ui/stat-card";
@@ -16,26 +23,32 @@ import { LoadingState, EmptyState } from "@/components/ui/status";
 import { useAsyncData } from "@/lib/use-async-data";
 import {
   buildRevenueSeries,
+  netRevenue,
   periodDelta,
   splitPeriods,
   PERIOD_DAYS,
 } from "@/lib/dashboard-metrics";
+import { attentionItems, liveCounts, topRestaurants } from "@/lib/dashboard-attention";
 import type { Kpi } from "@/lib/types";
 
-function useDashboardData() {
-  const orders = useAsyncData(() => fetchOrders());
-  const restaurants = useAsyncData(() => fetchRestaurants());
-  const riders = useAsyncData(() => fetchRiders());
-
-  return { orders, restaurants, riders };
-}
-
+/**
+ * The admin's first screen: what needs a person now, then how the week went.
+ *
+ * Orders and riders gate the page. The queue counts (cash, disputes,
+ * applications, deletion requests) are best-effort: if one of those reads
+ * fails -- typically a migration not applied yet -- its item is simply absent
+ * rather than taking the whole overview down.
+ */
 export default function OverviewPage() {
-  const { orders, restaurants, riders } = useDashboardData();
+  const orders = useAsyncData(() => fetchOrders());
+  const riders = useAsyncData(() => fetchRiders());
+  const cash = useAsyncData(() => fetchRiderCashPositions());
+  const disputes = useAsyncData(() => fetchDisputedPayouts());
+  const applications = useAsyncData(() => fetchRiderApplications("pending"));
+  const deletions = useAsyncData(() => fetchRiderDeletionRequests());
 
-  const loading =
-    orders.loading || restaurants.loading || riders.loading;
-  const error = orders.error ?? restaurants.error ?? riders.error;
+  const loading = orders.loading || riders.loading;
+  const error = orders.error ?? riders.error;
 
   if (loading) {
     return (
@@ -50,31 +63,34 @@ export default function OverviewPage() {
     return (
       <PageContainer>
         <PageHeader title="Overview" description="Live operations summary for KFD across Kabankalan City Proper." />
-        <EmptyState
-          title="Could not load dashboard data"
-          description={error}
-        />
+        <EmptyState title="Could not load dashboard data" description={error} />
       </PageContainer>
     );
   }
 
+  const now = new Date();
   const orderRows = orders.data ?? [];
-  const restaurantRows = restaurants.data ?? [];
   const riderRows = riders.data ?? [];
 
   const onlineRiders = riderRows.filter((r) => r.status === "online").length;
+  const cashWithRiders = (cash.data ?? []).reduce((sum, r) => sum + r.onHand, 0);
+  const ridersHoldingCash = (cash.data ?? []).filter((r) => r.onHand > 0).length;
 
-  const deltas = splitPeriods(orderRows, restaurantRows);
-  const delivered = orderRows.filter((o) => o.status === "delivered").length;
-  const deliveredRate =
-    orderRows.length === 0 ? 0 : Math.round((delivered / orderRows.length) * 100);
+  const deltas = splitPeriods(orderRows, []);
+  const live = liveCounts(orderRows);
+  const attention = attentionItems(
+    {
+      orders: orderRows,
+      disputedPayouts: disputes.data?.length ?? 0,
+      pendingApplications: applications.data?.length ?? 0,
+      deletionRequests: deletions.data?.size ?? 0,
+    },
+    now,
+  );
 
-  // Window policy (Prompt 2.1): every KPI's value and delta describe the SAME
-  // period. A flow metric (revenue, order count) is windowed to the last 7 days
-  // so the number and its "vs prev 7 days" arrow agree. A stock metric (riders
-  // online) reports the current level and carries no delta at all, because
-  // `/dashboard/riders` has no timestamp on status changes and therefore no derivable
-  // previous value to compare against.
+  // Window policy (Prompt 2.1): a flow metric's value and its delta describe
+  // the same 7 days; a level (riders online, cash held) has no delta, because
+  // there is no recorded previous value to compare against.
   const WINDOW_LABEL = `(${PERIOD_DAYS}d)`;
 
   const kpis = [
@@ -91,44 +107,20 @@ export default function OverviewPage() {
       hint: "vs prev 7 days",
     },
     {
-      // Renamed from "Active Restaurants": the value shown here is restaurants
-      // that *became active* inside the window, so the old label was claiming a
-      // standing total the number did not represent. See splitPeriods.
-      label: `New Restaurants ${WINDOW_LABEL}`,
-      value: deltas.restaurants.current.toLocaleString(),
-      delta: periodDelta(
-        deltas.restaurants.current,
-        deltas.restaurants.previous,
-      ),
-      hint: "vs prev 7 days",
+      label: "Cash with riders",
+      value: cash.data ? formatCurrency(cashWithRiders) : "—",
+      hint: `${ridersHoldingCash} ${ridersHoldingCash === 1 ? "rider" : "riders"} to collect from`,
     },
     {
-      // No delta: a headcount is a level, and the delivery success rate that
-      // used to sit in this trend slot is unrelated to the number above it
-      // (Prompt 2.3). The rate is surfaced as neutral hint text, not an arrow.
       label: "Riders Online",
       value: onlineRiders.toLocaleString(),
-      hint: `delivery success ${deliveredRate}%`,
+      hint: `of ${riderRows.filter((r) => !r.archivedAt).length} active riders`,
     },
   ] satisfies readonly Kpi[];
 
-  // `revenue` is live since migration 0008 (recomputed on every order change,
-  // cancelled orders excluded) but it is a lifetime total, which is why the
-  // subtitle says "all time" rather than the "this month" it used to claim.
-  // The "Live" badge sits on the revenue *chart*, which is genuinely computed
-  // from live order rows for the last 7 days.
-  //
-  // Archived restaurants are excluded. Their lifetime revenue stays exactly
-  // where it is -- archiving is reversible and destroys nothing -- but
-  // "top restaurants" is a shortlist of who to watch, and a row someone
-  // deliberately removed from the restaurant list has no business leading it.
-  const topRestaurants = restaurantRows
-    .filter((r) => !r.archivedAt)
-    .sort((a, b) => b.revenue - a.revenue)
-    .slice(0, 5);
-
+  const top = topRestaurants(orderRows, now, PERIOD_DAYS, netRevenue);
   const recentOrders = orderRows.slice(0, 6);
-  const revenueSeries = buildRevenueSeries(orders.data ?? []);
+  const revenueSeries = buildRevenueSeries(orderRows);
 
   return (
     <PageContainer>
@@ -138,6 +130,54 @@ export default function OverviewPage() {
       />
 
       <Stack gap={6}>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <Section aria-label="Orders right now">
+            <Card className="h-full">
+              <CardHeader title="Right now" subtitle="Open orders by stage" />
+              <dl className="grid grid-cols-3 gap-2 px-5 pb-5 text-center">
+                <LiveCount label="New" value={live.pending} />
+                <LiveCount label="In kitchen" value={live.kitchen} />
+                <LiveCount label="On the road" value={live.onTheRoad} />
+              </dl>
+            </Card>
+          </Section>
+
+          <Section aria-label="Needs attention" className="lg:col-span-2">
+            <Card className="h-full">
+              <CardHeader
+                title="Needs attention"
+                subtitle={attention.length === 0 ? undefined : "Most urgent first"}
+              />
+              <div className="px-5 pb-4">
+                {attention.length === 0 ? (
+                  <p className="py-4 text-sm text-muted-foreground">
+                    All clear. Nothing is waiting on staff.
+                  </p>
+                ) : (
+                  <ul className="divide-y divide-border/70">
+                    {attention.map((item) => (
+                      <li key={item.key}>
+                        <Link
+                          href={item.href}
+                          className="flex items-center justify-between gap-3 py-2.5 text-sm hover:text-primary"
+                        >
+                          <span className="text-card-foreground">{item.label}</span>
+                          <span className="flex items-center gap-2">
+                            <Badge variant={item.urgent ? "destructive" : "secondary"} size="sm">
+                              {item.count}
+                            </Badge>
+                            <ArrowRightIcon className="h-3.5 w-3.5 text-muted-foreground" />
+                          </span>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </Card>
+          </Section>
+        </div>
+
         <Section aria-label="Key metrics">
           <StatGrid>
             {kpis.map((kpi) => (
@@ -151,7 +191,6 @@ export default function OverviewPage() {
             <CardHeader
               title="Weekly revenue"
               subtitle="Orders and net revenue, last 7 days"
-              action={<Badge variant="primary">Live</Badge>}
             />
             <RevenueChart data={revenueSeries} />
           </Card>
@@ -174,15 +213,10 @@ export default function OverviewPage() {
               />
               <ul className="divide-y divide-border/70 px-5 pb-2">
                 {recentOrders.length === 0 ? (
-                  <li className="py-8 text-center text-sm text-muted-foreground">
-                    No orders yet.
-                  </li>
+                  <li className="py-8 text-center text-sm text-muted-foreground">No orders yet.</li>
                 ) : (
                   recentOrders.map((o) => (
-                    <li
-                      key={o.id}
-                      className="flex items-center justify-between gap-3 py-3"
-                    >
+                    <li key={o.id} className="flex items-center justify-between gap-3 py-3">
                       <span className="flex min-w-0 items-center gap-3">
                         <Avatar name={o.customer} size="sm" />
                         <span className="min-w-0">
@@ -211,7 +245,7 @@ export default function OverviewPage() {
             <Card>
               <CardHeader
                 title="Top restaurants"
-                subtitle="By gross revenue, all time"
+                subtitle={`By net revenue, last ${PERIOD_DAYS} days`}
                 action={
                   <Button variant="ghost" size="sm" asChild>
                     <Link href="/dashboard/restaurants">
@@ -222,16 +256,13 @@ export default function OverviewPage() {
                 }
               />
               <ul className="divide-y divide-border/70 px-5 pb-2">
-                {topRestaurants.length === 0 ? (
+                {top.length === 0 ? (
                   <li className="py-8 text-center text-sm text-muted-foreground">
-                    No restaurants yet.
+                    No delivered orders this week.
                   </li>
                 ) : (
-                  topRestaurants.map((r) => (
-                    <li
-                      key={r.id}
-                      className="flex items-center justify-between gap-3 py-3"
-                    >
+                  top.map((r) => (
+                    <li key={r.name} className="flex items-center justify-between gap-3 py-3">
                       <span className="flex min-w-0 items-center gap-3">
                         <Avatar name={r.name} size="sm" />
                         <span className="min-w-0">
@@ -239,17 +270,12 @@ export default function OverviewPage() {
                             {r.name}
                           </span>
                           <span className="block text-xs text-muted-foreground">
-                            {r.cuisine} · {r.city}
+                            {r.orders} delivered {r.orders === 1 ? "order" : "orders"}
                           </span>
                         </span>
                       </span>
-                      <span className="flex shrink-0 items-center gap-2">
-                        <span className="text-sm font-semibold text-card-foreground">
-                          {formatCurrency(r.revenue)}
-                        </span>
-                        <Badge variant="secondary" size="sm">
-                          {r.rating} ★
-                        </Badge>
+                      <span className="shrink-0 text-sm font-semibold text-card-foreground">
+                        {formatCurrency(r.revenue)}
                       </span>
                     </li>
                   ))
@@ -260,5 +286,14 @@ export default function OverviewPage() {
         </div>
       </Stack>
     </PageContainer>
+  );
+}
+
+function LiveCount({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-lg bg-muted/50 px-2 py-3">
+      <dd className="text-2xl font-semibold tabular-nums text-card-foreground">{value}</dd>
+      <dt className="mt-0.5 text-xs text-muted-foreground">{label}</dt>
+    </div>
   );
 }
