@@ -3,6 +3,27 @@
   "plugin": [
     "@dietrichgebert/ponytail"
   ],
+  "agents": {
+    "build": {
+      "model": "opencode/minimax-m3.1-flash-free#max",
+      "steps": 100
+    }
+  },
+  "compaction": {
+    "auto": true,
+    "keep": {
+      "tokens": 24000
+    }
+  },
+  "tool_output": {
+    "max_lines": 4000,
+    "max_bytes": 102400
+  },
+  "formatter": true,
+  "snapshots": true,
+  "worktree": {
+    "directory": "~/KFD-worktrees"
+  },
   "mcp": {
     "graphify": {
       "type": "local",
@@ -10,6 +31,16 @@
         "/Users/alexagracegeogangco/.local/bin/graphify-mcp",
         "/Users/alexagracegeogangco/KFD/graphify-out/graph.json"
       ],
+      "enabled": true
+    },
+    "playwright": {
+      "type": "local",
+      "command": ["npx", "-y", "@playwright/mcp@latest"],
+      "enabled": true
+    },
+    "context7": {
+      "type": "local",
+      "command": ["npx", "-y", "@upstash/context7-mcp"],
       "enabled": true
     }
   }
