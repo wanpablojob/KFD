@@ -40,7 +40,6 @@ export default function CustomerCartScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { lines, setQuantity, remove, clear, restaurantId, restaurantName } = useCart();
-  const { quote, loading: quoting, error: quoteError } = useCartQuote();
   const { user } = useSession();
   const [address, setAddress] = useState("");
   const [addresses, setAddresses] = useState<SavedAddress[]>([]);
@@ -59,6 +58,8 @@ export default function CustomerCartScreen() {
   // then the server takes any address, so the picker only shows once it exists.
   const [areas, setAreas] = useState<string[]>([]);
   const [barangay, setBarangay] = useState<string | null>(null);
+  // Priced for the chosen barangay so the preview matches the zonal fee charged (0080).
+  const { quote, loading: quoting, error: quoteError } = useCartQuote(barangay);
   // One key per checkout, reused on every retry, so a lost response returns the
   // order that went through instead of placing a second one.
   const [requestId] = useState(

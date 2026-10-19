@@ -670,10 +670,13 @@ export async function fetchOrderFees(): Promise<OrderFees> {
 export async function quoteOrder(args: {
   restaurantId: string;
   items: PlaceOrderItem[];
+  /** Destination, so the quoted fee is the zonal one customer_place_order will charge (0080). */
+  barangay?: string | null;
 }): Promise<OrderQuote> {
   const { data, error } = await supabase.rpc("quote_order", {
     p_restaurant_id: args.restaurantId,
     p_items: args.items,
+    p_delivery_barangay: args.barangay ?? undefined,
   });
   if (error) throw error;
   if (!data || data.length !== 1) {

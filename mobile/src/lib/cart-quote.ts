@@ -27,21 +27,21 @@ export interface CartQuote {
  * Stale replies are dropped by sequence number, because an RPC cannot be
  * aborted once it is sent.
  */
-export function useCartQuote(): CartQuote {
+export function useCartQuote(barangay?: string | null): CartQuote {
   const { lines, restaurantId } = useCart();
   const [result, setResult] = useState<QuoteResult | null>(null);
   const seq = useRef(0);
 
-  // Keyed on contents, so re-rendering does not re-price but any quantity
-  // change does.
+  // Keyed on contents and destination, so re-rendering does not re-price but
+  // any quantity or barangay change does.
   const key = useMemo(
     () =>
       restaurantId
-        ? `${restaurantId}|${lines
+        ? `${restaurantId}|${barangay ?? ""}|${lines
             .map((l) => `${l.menu_item_id}:${l.quantity}`)
             .join(",")}`
         : "",
-    [restaurantId, lines]
+    [restaurantId, barangay, lines]
   );
 
   useEffect(() => {
@@ -56,7 +56,7 @@ export function useCartQuote(): CartQuote {
     const timer = setTimeout(() => {
       void (async () => {
         try {
-          const quote = await quoteOrder({ restaurantId, items });
+          const quote = await quoteOrder({ restaurantId, items, barangay });
           if (mine === seq.current) setResult({ key, quote, error: null });
         } catch (cause) {
           if (mine === seq.current) {
@@ -72,7 +72,7 @@ export function useCartQuote(): CartQuote {
     }, 250);
 
     return () => clearTimeout(timer);
-  }, [key, restaurantId, lines]);
+  }, [key, restaurantId, barangay, lines]);
 
   if (!key) return { quote: null, loading: false, error: null };
   const settled = result?.key === key;

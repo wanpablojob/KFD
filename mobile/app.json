@@ -31,6 +31,14 @@
       "expo-router",
       "expo-font",
       [
+        "expo-image-picker",
+        {
+          "photosPermission": "Attach a photo of the delivered order so the delivery can be confirmed.",
+          "cameraPermission": "Take a photo of the delivered order to confirm delivery.",
+          "microphonePermission": false
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "backgroundColor": "#FFF8E7",

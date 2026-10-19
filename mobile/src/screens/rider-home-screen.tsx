@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -24,9 +24,13 @@ import { riderProfileGate } from "../lib/rider-profile-gate";
 import { deviceMapsUrl, openInMaps } from "../lib/maps";
 import { isTerminalStatus } from "../lib/order-progress";
 import { deliveryActions } from "../lib/delivery-actions";
-import { isCashPayment, paymentLabel } from "../lib/payment-label";
+import { paymentLabel } from "../lib/payment-label";
 import { footerMeta } from "../lib/order-timestamp";
 import { useConnectivity } from "../lib/connectivity-context";
+import {
+  CompleteDeliverySheet,
+  type CompleteSheetOrder,
+} from "../components/CompleteDeliverySheet";
 import {
   useMarkPickedUp,
   useRiderOrders,
@@ -61,7 +65,6 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
   const insets = useSafeAreaInsets();
   const bottomPadding = useScrollBottomPadding();
   const [orders, setOrders] = useState<AssignedOrder[]>([]);
-  const [deliveringId, setDeliveringId] = useState<string | null>(null);
   const [pickingUpId, setPickingUpId] = useState<string | null>(null);
   const pickedUp = useMarkPickedUp();
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -80,6 +83,10 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
   // the escape hatch. It gets a confirmation sheet showing the amount being
   // settled, so neither button is a single irreversible tap.
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  // A one-line confirmation of what was just recorded, so a cash amount that
+  // differed from the total is visibly acknowledged rather than silently
+  // filed as if it matched.
+  const [flash, setFlash] = useState<string | null>(null);
 
   const connectivity = useConnectivity();
   const offline =
@@ -93,6 +100,22 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
     isPending,
   } = useRiderOrders(null, 20);
   const profileQuery = useRiderProfile(userId);
+
+  // The order the completion sheet is showing, projected to the handful of
+  // fields the sheet needs. Derived rather than copied into separate state so
+  // the sheet can never describe an order that is no longer on the list.
+  const completing = useMemo(() => {
+    const order = orders.find((o) => o.id === confirmingId);
+    if (!order) return null;
+    return {
+      id: order.id,
+      reference: order.reference,
+      customer: order.customer,
+      restaurant: order.restaurant,
+      payment: order.payment as CompleteSheetOrder["payment"],
+      total: Number(order.total),
+    };
+  }, [confirmingId, orders]);
 
   // Reset pagination whenever page 1 resolves to a new result. Adjusting state
   // during render (rather than in an effect) is React's documented pattern for
@@ -193,7 +216,7 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
   }, [loadMore, loadingMore]);
 
   async function onPickedUp(orderId: string) {
-    if (pickingUpId || deliveringId) return;
+    if (pickingUpId) return;
     setPickingUpId(orderId);
     setFetchError(null);
     try {
@@ -207,28 +230,26 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
     }
   }
 
-  async function markDelivered(orderId: string) {
-    if (deliveringId) return;
-    setDeliveringId(orderId);
-    setFetchError(null);
-    const { error } = await supabase.rpc("rider_mark_delivered", {
-      p_order_id: orderId,
-    });
-    setDeliveringId(null);
-    if (error) {
-      setFetchError(error.message);
-      return;
-    }
-    // The delivery is recorded; the alert is a courtesy on top of it, so it
-    // runs after the successful write and its own failure is swallowed.
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    if (session?.access_token) {
-      void notifyRiderDelivered(session.access_token, orderId);
-    }
-    // Refresh page 1 to get updated status/delivery count
-    await refetchPage1();
+  /**
+   * Completion moved into CompleteDeliverySheet, which collects the photo, the
+   * cash and the GCash reference and calls completeDelivery itself. What is left
+   * here is the courtesy alert, which must run only after the real write: the
+   * delivery has to be recorded before anyone is told it was.
+   *
+   * `setDeliverError` rather than throwing, because a push that fails to send is
+   * not a failed delivery and must not put that message on the screen.
+   */
+  function afterCompleted(orderId: string) {
+    void (async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (session?.access_token) {
+        void notifyRiderDelivered(session.access_token, orderId);
+      }
+    })();
+    void refetchPage1();
+    void profileQuery.refetch();
   }
 
   function openFailReport(orderId: string) {
@@ -367,6 +388,14 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
                 </Text>
               </View>
             ) : null}
+            {/* Confirms what was just recorded. A flagged cash amount has to be
+                visibly acknowledged: the rider was told it would be saved and
+                flagged, and this is the line that says it was. */}
+            {flash ? (
+              <View style={styles.flashBanner} accessibilityRole="alert">
+                <Text style={styles.flashText}>{flash}</Text>
+              </View>
+            ) : null}
           </View>
         }
         ListEmptyComponent={
@@ -385,7 +414,7 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
           // order the server refuses, a button that could only ever error.
           const { canPickUp, canDeliver } = deliveryActions(item.status);
           const cash = item.payment === "cash";
-          const busy = deliveringId !== null || reporting;
+          const busy = reporting;
           return (
             <View style={[styles.orderCard, !canDeliver && styles.orderCardPast]}>
               <View style={styles.orderHeader}>
@@ -535,20 +564,13 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
                   </Pressable>
 
                   <Pressable
-                    style={[
-                      styles.deliverButton,
-                      (deliveringId === item.id || busy) && styles.disabled,
-                    ]}
+                    style={[styles.deliverButton, busy && styles.disabled]}
                     disabled={busy || offline}
                     accessibilityRole="button"
                     accessibilityLabel={`Mark ${item.reference} delivered`}
                     onPress={() => setConfirmingId(item.id)}
                   >
-                    {deliveringId === item.id ? (
-                      <ActivityIndicator color={colors.textInverse} size="small" />
-                    ) : (
-                      <Text style={styles.deliverButtonLabel}>Mark delivered</Text>
-                    )}
+                    <Text style={styles.deliverButtonLabel}>Mark delivered</Text>
                   </Pressable>
                 </View>
               ) : null}
@@ -560,74 +582,26 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
         }
       />
 
-      {/* Confirmation for the one irreversible action on this screen: it writes
-          the payout ledger row and cannot be undone. Shown as a sheet rather than
-          Alert.prompt because Alert is iOS-only and Android is where most riders
-          are. */}
-      <Modal
-        visible={confirmingId !== null}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setConfirmingId(null)}
-      >
-        <Pressable
-          style={styles.backdrop}
-          accessibilityLabel="Dismiss"
-          onPress={() => setConfirmingId(null)}
-        >
-          <Pressable
-            style={[styles.sheet, { paddingBottom: spacing.xl + insets.bottom }]}
-            onPress={() => undefined}
-          >
-            <Text style={styles.sheetTitle}>Mark this delivery as complete?</Text>
-            {(() => {
-              const order = orders.find((o) => o.id === confirmingId);
-              if (!order) return null;
-              const cash = isCashPayment(order.payment);
-              return (
-                <>
-                  <Text style={styles.sheetBody}>
-                    {order.reference} · {order.restaurant}. This records your fee and
-                    cannot be undone.
-                  </Text>
-                  {cash ? (
-                    <View style={styles.collect}>
-                      <Text style={styles.collectLabel}>
-                        Collect from {order.customer}
-                      </Text>
-                      <Text style={styles.collectAmount}>
-                        ₱{Number(order.total).toFixed(2)}
-                      </Text>
-                    </View>
-                  ) : (
-                    <Text style={styles.sheetBody}>
-                      Payment method: {paymentLabel(order.payment)}. Nothing to collect.
-                    </Text>
-                  )}
-                </>
-              );
-            })()}
-            <View style={styles.sheetActions}>
-              <Pressable
-                style={styles.secondaryButton}
-                onPress={() => setConfirmingId(null)}
-              >
-                <Text style={styles.secondaryButtonLabel}>Not yet</Text>
-              </Pressable>
-              <Pressable
-                style={[styles.deliverButton, styles.sheetPrimary]}
-                onPress={() => {
-                  const id = confirmingId;
-                  setConfirmingId(null);
-                  if (id) void markDelivered(id);
-                }}
-              >
-                <Text style={styles.deliverButtonLabel}>Yes, delivered</Text>
-              </Pressable>
-            </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
+      {/* The one irreversible action on this screen, and since 0079 it is no
+          longer a single tap. Completing a delivery writes the payout ledger
+          row, records the cash taken, and cannot be undone, so it asks for the
+          evidence that makes it settleable: a photo always, the cash amount on
+          a cash order, the GCash reference on a wallet order. See
+          CompleteDeliverySheet, which owns those fields and their validation. */}
+      <CompleteDeliverySheet
+        order={completing}
+        riderId={profileQuery.data?.id ?? null}
+        onCancel={() => setConfirmingId(null)}
+        onDone={({ flagged, cashRecorded, orderId }) => {
+          setConfirmingId(null);
+          setFlash(
+            flagged
+              ? `Saved ₱${Number(cashRecorded ?? 0).toFixed(2)} collected — differs from the total, flagged for review.`
+              : "Delivery completed."
+          );
+          afterCompleted(orderId);
+        }}
+      />
 
       <Modal
         visible={failingId !== null}
@@ -793,6 +767,15 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   offlineText: { ...type.caption, color: colors.warning, fontWeight: "600" },
+  flashBanner: {
+    backgroundColor: colors.goldSoft,
+    borderWidth: 1,
+    borderColor: colors.gold,
+    borderRadius: radius.md,
+    padding: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  flashText: { ...type.caption, color: colors.text, lineHeight: 17 },
   sheetPrimary: { flex: 1, marginTop: 0 },
   orderHeader: {
     flexDirection: "row",
