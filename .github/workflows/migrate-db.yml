@@ -997,9 +997,13 @@ jobs:
               "'public.register_customer()', 'EXECUTE') as ok"
           )[0]["ok"]:
               failures.append("authenticated cannot call register_customer")
+          # 0076 and 0081 rebuilt customer_place_order with the idempotency key
+          # and the delivery barangay, so the four-argument version no longer
+          # exists. has_function_privilege is a lookup by exact signature: a
+          # stale one raises 42883 and aborts the whole harness.
           if not query(
               "select has_function_privilege('authenticated', "
-              "'public.customer_place_order(text, jsonb, text, payment_method)', "
+              "'public.customer_place_order(text, jsonb, text, payment_method, text, text)', "
               "'EXECUTE') as ok"
           )[0]["ok"]:
               failures.append("authenticated cannot call customer_place_order")
@@ -1080,17 +1084,52 @@ jobs:
           # A verification harness should report, not crash: an exception here
           # would abort the run before the failure list is printed, hiding
           # every other check. Record it and let the rest of the assertions run.
+          #
+          # The fee is zonal once service_areas is published (0080) and may be
+          # NULL when the area was agreed in person (0084), so read it from
+          # order_fees() -- the same source customer_place_order prices from --
+          # instead of the old flat 45 + 5.
+          published = query(
+              "select exists (select 1 from service_areas) as yes"
+          )[0]["yes"]
+          area = query(
+              "select barangay from service_areas "
+              "where delivery_fee is not null or fee_agreed_in_person "
+              "order by barangay limit 1"
+          )
+          if published and not area:
+              failures.append(
+                  "service_areas is published but every area refuses orders "
+                  "(delivery_fee NULL with fee_agreed_in_person false)"
+              )
+          barangay = area[0]["barangay"] if area else None
+          area_sql = (
+              "null" if not barangay
+              else "'" + str(barangay).replace("'", "''") + "'"
+          )
+          fee = query(
+              "select delivery_fee, service_fee from public.order_fees(%s)"
+              % area_sql
+          )[0]
+          expected_delivery = float(fee["delivery_fee"] or 0)
+          expected_service = float(fee["service_fee"] or 0)
           try:
               cust_place = query(
                   """
                   begin;
-                  insert into auth.users (id, email, aud, role, email_confirmed_at)
+                  -- 0076 makes the contact number mandatory: a rider with no
+                  -- number cannot reach the door, so a probe customer without
+                  -- one is refused before it reaches the pricing under test.
+                  insert into auth.users (
+                    id, email, aud, role, email_confirmed_at, raw_user_meta_data
+                  )
                     values (
                       '88888888-8888-8888-8888-888888888888',
                       'store-probe@kfd.invalid',
                       'authenticated',
                       'authenticated',
-                      now()
+                      now(),
+                      '{"name": "Store Probe", "phone": "+639170000000"}'
                     );
                   insert into app_users (user_id, role)
                     values ('88888888-8888-8888-8888-888888888888', 'customer');
@@ -1102,7 +1141,9 @@ jobs:
                     'rst_01',
                     '[{"menu_item_id": "mnu_01", "quantity": 2}]',
                     'Gate St, Kabankalan',
-                    'cash'
+                    'cash',
+                    'kfd-assert-store-probe',
+                    """ + area_sql + """
                   );
                   rollback;
                   """
@@ -1129,12 +1170,17 @@ jobs:
               if not price or unit is None:
                   failures.append("mnu_01 is missing; cannot check order pricing")
               else:
-                  expected_total = (float(unit) * 2) + 45.00 + 5.00
-                  if placed["total"] != expected_total:
+                  expected_total = (
+                      (float(unit) * 2) + expected_delivery + expected_service
+                  )
+                  # The management API returns numeric as a JSON string often
+                  # enough that a raw comparison fails on "67.00" vs 67.0.
+                  if round(float(placed["total"]), 2) != round(expected_total, 2):
                       failures.append(
                           "customer_place_order total %s, expected %s for "
-                          "mnu_01 x2 + 45 delivery + 5 service"
-                          % (placed["total"], expected_total)
+                          "mnu_01 x2 + %s delivery + %s service"
+                          % (placed["total"], expected_total,
+                             expected_delivery, expected_service)
                       )
               if placed["status"] != "pending":
                   failures.append(
@@ -1244,7 +1290,7 @@ jobs:
               ("public.current_merchant_restaurant()", "tenant helper used by RLS policies"),
               ("public.is_customer()", "storefront helper used by RLS policies"),
               ("public.register_customer()", "customer self-service registration"),
-              ("public.customer_place_order(text, jsonb, text, payment_method)", "storefront order creation"),
+              ("public.customer_place_order(text, jsonb, text, payment_method, text, text)", "storefront order creation"),
               ("public.search_restaurants(text, text)", "storefront restaurant search"),
           ]:
               if query(
