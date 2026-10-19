@@ -5,7 +5,7 @@ import { Sidebar } from "./sidebar";
 import { Topbar } from "./topbar";
 import { NotificationBell } from "./notification-bell";
 import { GlobalSearchSeed } from "./global-search-seed";
-import { fetchOrders } from "@/lib/supabase/queries";
+import { fetchLiveOrders } from "@/lib/supabase/queries";
 import { useAsyncData } from "@/lib/use-async-data";
 import { useUserRole } from "@/lib/use-user-role";
 import type { AppRole } from "@/lib/role";
@@ -18,7 +18,8 @@ const ROLE_LABELS: Record<NonNullable<AppRole>, string> = {
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const orders = useAsyncData(() => fetchOrders());
+  // The bell shows at most six in-flight orders; it needs nothing more.
+  const orders = useAsyncData(() => fetchLiveOrders(6));
 
   // The role is resolved here, once, and passed down. useAsyncData has no
   // cache, so calling useUserRole() in both Sidebar and Topbar would fire two

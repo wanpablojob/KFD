@@ -3,6 +3,7 @@ import { anyIlikeFilter } from "./ilike-filter";
 import { riderProfilePatch, type RiderProfileInput } from "@/lib/rider-profile";
 import { describeRpcFailure } from "@/lib/missing-migration";
 import { fetchAll } from "@/lib/fetch-all";
+import type { Tables } from "./database.types";
 import {
   mapDisputedPayouts,
   mapPayouts,
@@ -476,7 +477,27 @@ export async function fetchOrders(range?: DateRange): Promise<Order[]> {
     return query;
   });
 
-  return data.map((o) => ({
+  return data.map(toOrder);
+}
+
+/**
+ * The newest in-flight orders, for the notification bell on every admin page.
+ * A bounded read: the bell shows a handful, and loading every order the
+ * platform has ever taken on each page view grows without limit.
+ */
+export async function fetchLiveOrders(limit: number): Promise<Order[]> {
+  const { data, error } = await supabase
+    .from("orders")
+    .select("*")
+    .in("status", ["confirmed", "preparing", "out_for_delivery"])
+    .order("placed_at", { ascending: false })
+    .limit(limit);
+  if (error) throw new Error(error.message);
+  return (data ?? []).map(toOrder);
+}
+
+function toOrder(o: Tables<"orders">): Order {
+  return {
     id: o.id,
     reference: o.reference,
     customer: o.customer,
@@ -497,7 +518,7 @@ export async function fetchOrders(range?: DateRange): Promise<Order[]> {
         : null,
     deliveryFailedAt:
       typeof o.delivery_failed_at === "string" ? o.delivery_failed_at : null,
-  }));
+  };
 }
 
 export async function fetchOrdersByCustomer(
