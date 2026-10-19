@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { createHash } from "node:crypto";
 
 /**
  * The Supabase types both apps compile against are generated from the
@@ -36,6 +37,24 @@ test("the generated types were built from the newest migration", () => {
     stamp,
     latestMigration(),
     "a migration was added after the types were generated -- run scripts/gen-db-types.sh",
+  );
+});
+
+test("the generated types were built from the migrations as they are now", () => {
+  // The stamp above only notices a NEW file. Editing an existing migration --
+  // a fix to one not yet applied, say -- changes the schema just the same.
+  const header = readFileSync(ADMIN_TYPES, "utf8").split("\n").slice(0, 4).join("\n");
+  const stamped = /migrations sha256 ([0-9a-f]{64})/.exec(header)?.[1];
+  assert.ok(stamped, "database.types.ts has no migrations digest -- run scripts/gen-db-types.sh");
+  const files = readdirSync(MIGRATIONS)
+    .filter((f) => /^\d+_.*\.sql$/.test(f))
+    .sort();
+  const digest = createHash("sha256");
+  for (const f of files) digest.update(readFileSync(join(MIGRATIONS, f)));
+  assert.equal(
+    digest.digest("hex"),
+    stamped,
+    "a migration changed after the types were generated -- run scripts/gen-db-types.sh",
   );
 });
 
