@@ -1,5 +1,6 @@
 import { supabase } from "./client";
 import { fetchUserRole } from "@/lib/role";
+import { fetchAll } from "@/lib/fetch-all";
 import type { MenuItem, Order, OrderItem } from "@/lib/types";
 import type { DbRecord } from "./queries";
 
@@ -24,14 +25,18 @@ function mapItems(raw: unknown): OrderItem[] {
 }
 
 export async function fetchMerchantOrders(): Promise<Order[]> {
-  const { data, error } = await supabase
-    .from("orders")
-    .select("*")
-    .order("placed_at", { ascending: false });
+  // Paged: the Sales page totals every order, and a single select stops
+  // silently at the API's 1000-row cap.
+  const data = await fetchAll((from, to) =>
+    supabase
+      .from("orders")
+      .select("*")
+      .order("placed_at", { ascending: false })
+      .order("id")
+      .range(from, to),
+  );
 
-  if (error) throw new Error(error.message);
-
-  return ((data ?? [])).map((o) => ({
+  return data.map((o) => ({
     id: o.id,
     reference: o.reference,
     customer: o.customer,

@@ -2,6 +2,7 @@ import { supabase } from "./client";
 import { anyIlikeFilter } from "./ilike-filter";
 import { riderProfilePatch, type RiderProfileInput } from "@/lib/rider-profile";
 import { describeRpcFailure } from "@/lib/missing-migration";
+import { fetchAll } from "@/lib/fetch-all";
 import {
   mapDisputedPayouts,
   mapPayouts,
@@ -461,18 +462,21 @@ export async function fetchMenuItems(): Promise<MenuItem[]> {
 export type DateRange = { from?: string; to?: string };
 
 export async function fetchOrders(range?: DateRange): Promise<Order[]> {
-  let query = supabase
-    .from("orders")
-    .select("*")
-    .order("placed_at", { ascending: false });
-  if (range?.from) query = query.gte("placed_at", range.from);
-  if (range?.to) query = query.lte("placed_at", range.to + "T23:59:59.999Z");
+  // Paged: the dashboard totals and the CSV export read every order, and a
+  // single select stops silently at the API's 1000-row cap.
+  const data = await fetchAll((from, to) => {
+    let query = supabase
+      .from("orders")
+      .select("*")
+      .order("placed_at", { ascending: false })
+      .order("id")
+      .range(from, to);
+    if (range?.from) query = query.gte("placed_at", range.from);
+    if (range?.to) query = query.lte("placed_at", range.to + "T23:59:59.999Z");
+    return query;
+  });
 
-  const { data, error } = await query;
-
-  if (error) throw new Error(error.message);
-
-  return (data ?? []).map((o) => ({
+  return data.map((o) => ({
     id: o.id,
     reference: o.reference,
     customer: o.customer,
