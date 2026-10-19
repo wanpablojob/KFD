@@ -110,6 +110,10 @@ export function LoginScreen({ onBack }: { onBack?: () => void }) {
           returnKeyType="go"
         />
 
+        <Link href="/forgot-password" style={styles.forgotLink}>
+          <Text style={styles.forgotLabel}>Forgot password?</Text>
+        </Link>
+
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
         <SubmitButton busy={submitting} onPress={handleSubmit} />
@@ -276,6 +280,8 @@ const styles = StyleSheet.create({
   },
   providerLabel: { fontSize: 14, fontWeight: "700", color: colors.text },
   signupLink: { alignItems: "center" },
+  forgotLink: { alignSelf: "flex-end", marginTop: -spacing.sm },
+  forgotLabel: { ...type.caption, color: colors.primary, fontWeight: "700" },
   signupLabel: { ...type.caption, color: colors.textMuted },
   signupLinkBold: { color: colors.primary, fontWeight: "800" },
 });

@@ -155,6 +155,7 @@ function RootNavigator() {
         <Stack.Screen name="index" />
         <Stack.Screen name="login" />
         <Stack.Screen name="signup" />
+        <Stack.Screen name="forgot-password" />
         {/*
          * Rider application. Declared with the signed-out group because an
          * applicant only needs an auth identity, not a rider role -- a new

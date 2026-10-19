@@ -83,6 +83,38 @@ export async function registerCustomer() {
   if (error) throw error;
 }
 
+/**
+ * Email a password-reset code. The recovery email template must include
+ * {{ .Token }} (a 6-digit code): a code is typed into this app, whereas a link
+ * would have to deep-link back in and survive the role router remounting.
+ */
+export async function requestPasswordReset(email: string): Promise<void> {
+  const { error } = await supabase.auth.resetPasswordForEmail(email);
+  if (error) throw new Error(collapseAuthError(error.message) ?? error.message);
+}
+
+/**
+ * Verify the emailed code, then set the new password. Verifying signs the
+ * user in, so on success the role router takes them home, already on the new
+ * password.
+ */
+export async function resetPasswordWithCode(
+  email: string,
+  code: string,
+  password: string
+): Promise<void> {
+  const { error } = await supabase.auth.verifyOtp({
+    email,
+    token: code,
+    type: "recovery",
+  });
+  if (error) throw new Error(collapseAuthError(error.message) ?? error.message);
+  const { error: updateError } = await supabase.auth.updateUser({ password });
+  if (updateError) {
+    throw new Error(collapseAuthError(updateError.message) ?? updateError.message);
+  }
+}
+
 export async function signOut() {
   const { error } = await supabase.auth.signOut();
   if (error) throw error;
