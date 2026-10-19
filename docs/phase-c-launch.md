@@ -179,6 +179,14 @@ missing variable produces a bundle that boots against an undefined URL
 instead of an error. The list is `mobile/.env.example`; `scripts/phase-c-preflight.sh`
 checks that the code and that file agree.
 
+EAS does not set the `EXPO_PUBLIC_` variables for you. The variables it
+does set are named `EAS_BUILD_*` (`EAS_BUILD_ID`, `EAS_BUILD_PROFILE`,
+`EAS_BUILD_PROJECT_ID`, and so on), so each `EXPO_PUBLIC_` name has to
+exist in the environment by hand. Two of them matter more than they look:
+`EXPO_PUBLIC_SUPABASE_URL` decides which database the store build talks
+to, and `EXPO_PUBLIC_EAS_BUILD_VERSION` is the release tag on every crash
+report, which falls back to `1.0.0` when it is missing.
+
 The `preview` environment needs the same variables, so the preview build
 in Phase A is a rehearsal of the production build.
 
