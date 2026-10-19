@@ -199,6 +199,9 @@ export const CONTACT = {
   supportHours: null as string | null,
 } as const;
 
+/** Shown on the Privacy Policy and Terms. Update whenever either changes. */
+export const LEGAL_UPDATED = "20 October 2026";
+
 export const BUSINESS = {
   name: "Kabankalan Food Delivery",
   /** TODO(owner): DTI/SEC registration number once available. */
@@ -244,7 +247,7 @@ export const PARTNER_TERMS = {
 export const FAQ = [
   {
     q: "Paano ako magbabayad?",
-    a: "Cash on delivery. You pay the rider when your food arrives. KFD does not take card or online payment yet.",
+    a: "Pay the rider when your food arrives, in cash or by GCash. KFD does not take card payments.",
   },
   {
     q: "How long does delivery take?",
@@ -252,7 +255,7 @@ export const FAQ = [
   },
   {
     q: "Can I cancel my order?",
-    a: "Message support as soon as you can. Once the rider has picked the food up, the order usually cannot be cancelled.",
+    a: "Yes, from the app, until the restaurant accepts it. After that, contact the restaurant or KFD support as soon as you can; once the food is being prepared it may not be possible.",
   },
   {
     q: "How do I track my order?",
@@ -266,7 +269,6 @@ export const FAQ = [
 
 /** True when at least one support channel has been configured. */
 export function hasContactDetails(): boolean {
-  return Boolean(
-    CONTACT.messengerUrl || CONTACT.phone || CONTACT.email || CONTACT.supportHours
-  );
+  // Hours alone are not a way to reach anyone, so they do not count.
+  return Boolean(CONTACT.messengerUrl || CONTACT.phone || CONTACT.email);
 }

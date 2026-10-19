@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { BUSINESS, CONTACT, hasContactDetails } from "@/lib/site-content";
+import { ContactDetails } from "@/components/contact-details";
+import { BUSINESS, LEGAL_UPDATED } from "@/lib/site-content";
 
 export const metadata: Metadata = {
   title: "Privacy Policy — KFD",
@@ -24,7 +25,8 @@ export default function PrivacyPage() {
 
       <h1 className="text-2xl font-bold">Privacy Policy</h1>
       <p className="mt-2 text-sm text-muted-foreground">
-        {BUSINESS.name} · Kabankalan City, Negros Occidental
+        {BUSINESS.name} · Kabankalan City, Negros Occidental · Last updated{" "}
+        {LEGAL_UPDATED}
       </p>
 
       <div className="mt-8 flex flex-col gap-6 text-sm leading-relaxed">
@@ -102,13 +104,37 @@ export default function PrivacyPage() {
         </section>
 
         <section className="flex flex-col gap-2">
-          <h2 className="text-base font-semibold">Your choices</h2>
+          <h2 className="text-base font-semibold">How long we keep it</h2>
           <p>
-            You can delete your account from the app at any time. Under the Data
-            Privacy Act of 2012 you may also ask us to show, correct or delete
-            the information we hold about you, using the contact details below.
-            Order and payment records may be kept where we need them to account
-            for money or to meet the law.
+            We keep your account details while you have an account. When a
+            customer deletes their account, we remove the login and replace the
+            name and phone number on past orders. Order, payment, refund and
+            cash records are kept, without your contact details, because we
+            need them to account for money and to meet tax and other legal
+            duties.
+          </p>
+        </section>
+
+        <section className="flex flex-col gap-2">
+          <h2 className="text-base font-semibold">How we protect it</h2>
+          <p>
+            Data travels over encrypted connections. Access is limited by role:
+            customers see their own orders, riders see only the orders assigned
+            to them, restaurants see only their own orders, and delivery photos
+            are stored privately. Only KFD staff can see everything, and only to
+            run the service.
+          </p>
+        </section>
+
+        <section className="flex flex-col gap-2">
+          <h2 className="text-base font-semibold">Your rights</h2>
+          <p>
+            Under the Data Privacy Act of 2012 you may ask what information we
+            hold about you, ask us to correct it, object to how we use it, or ask
+            us to delete it. Customers can delete their account from the app at
+            any time; riders can request deletion from the app. For anything
+            else, contact us below. If you believe we have mishandled your data,
+            you may also complain to the National Privacy Commission.
           </p>
         </section>
 
@@ -122,15 +148,21 @@ export default function PrivacyPage() {
         </section>
 
         <section className="flex flex-col gap-2">
-          <h2 className="text-base font-semibold">Contact</h2>
-          {hasContactDetails() ? (
-            <p>
-              {CONTACT.email ? <>Email {CONTACT.email}. </> : null}
-              {CONTACT.phone ? <>Call or text {CONTACT.phone}.</> : null}
-            </p>
-          ) : (
-            <p>Contact details are being set up and will be posted here.</p>
-          )}
+          <h2 className="text-base font-semibold">Changes to this policy</h2>
+          <p>
+            When this policy changes, the date at the top changes too, so check
+            back from time to time.
+          </p>
+        </section>
+
+        <section className="flex flex-col gap-2">
+          <h2 className="text-base font-semibold">Who we are and how to reach us</h2>
+          <p>
+            {BUSINESS.name}, Kabankalan City, Negros Occidental, is responsible
+            for your information
+            {BUSINESS.registrationNumber ? ` (registration ${BUSINESS.registrationNumber})` : ""}.
+          </p>
+          <ContactDetails />
         </section>
       </div>
 

@@ -21,6 +21,7 @@ import {
 import { useSession } from "../../lib/session-context";
 import { supabase } from "../../lib/supabase";
 import { requestRiderAccountDeletion } from "../../lib/storefront";
+import { openLegal } from "../../lib/legal";
 import {
   RIDER_STATUSES,
   riderStatusMeta,
@@ -325,6 +326,18 @@ export default function RiderProfileRoute() {
           <Text style={styles.signOutLabel}>Sign out</Text>
         </Pressable>
 
+        <View style={styles.legalRow}>
+          <Pressable onPress={() => openLegal("support")} accessibilityRole="link">
+            <Text style={styles.deleteLink}>Help & support</Text>
+          </Pressable>
+          <Pressable onPress={() => openLegal("privacy")} accessibilityRole="link">
+            <Text style={styles.deleteLink}>Privacy</Text>
+          </Pressable>
+          <Pressable onPress={() => openLegal("terms")} accessibilityRole="link">
+            <Text style={styles.deleteLink}>Terms</Text>
+          </Pressable>
+        </View>
+
         <Pressable onPress={confirmDeletionRequest} accessibilityRole="button">
           <Text style={styles.deleteLink}>Delete my account</Text>
         </Pressable>
@@ -494,6 +507,7 @@ const styles = StyleSheet.create({
   },
   signOutPressed: { backgroundColor: colors.dangerSoft },
   signOutLabel: { color: colors.danger, fontSize: 14, fontWeight: "600" },
+  legalRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.lg },
   deleteLink: {
     ...type.caption,
     color: colors.textMuted,

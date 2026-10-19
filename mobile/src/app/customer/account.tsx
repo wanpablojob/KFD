@@ -278,6 +278,12 @@ export default function CustomerAccountScreen() {
         />
         <View style={styles.divider} />
         <Row
+          label="Help & support"
+          hint="Contact KFD about an order or your account"
+          onPress={() => openLegal("support")}
+        />
+        <View style={styles.divider} />
+        <Row
           label="Privacy policy"
           hint="What KFD keeps about you and why"
           onPress={() => openLegal("privacy")}

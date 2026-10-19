@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { BUSINESS, CONTACT, DELIVERY, hasContactDetails } from "@/lib/site-content";
+import { ContactDetails } from "@/components/contact-details";
+import { BUSINESS, DELIVERY } from "@/lib/site-content";
 
 export const metadata: Metadata = {
   title: "Support — KFD",
@@ -9,16 +10,16 @@ export const metadata: Metadata = {
   alternates: { canonical: "/support" },
 };
 
+const link = "font-semibold text-primary underline underline-offset-2";
+
 /**
  * The support URL that goes into the App Store and Google Play listings.
  *
  * Both stores require a support URL that actually offers a way to contact the
- * developer, and both reviewers open it before they approve anything. The
- * contact channels are the same ones the landing page and the legal pages
- * use, so there is one place to fill them in: `site-content.ts`. Anything
- * still empty is stated plainly instead of being faked, because a listing
- * that promises a support channel and has none is the thing that gets an app
- * rejected.
+ * developer, and both reviewers open it before they approve anything. Contact
+ * channels come from site-content.ts through <ContactDetails>, the same block
+ * the legal pages use. The answers below describe what the app does today;
+ * keep them in step with the Terms when either changes.
  */
 export default function SupportPage() {
   return (
@@ -29,54 +30,66 @@ export default function SupportPage() {
       </p>
 
       <div className="mt-8 flex flex-col gap-6 text-sm leading-relaxed">
-        <section className="flex flex-col gap-2">
-          <h2 className="text-base font-semibold">Contact us</h2>
-          {hasContactDetails() ? (
-            <ul className="list-disc pl-5">
-              {CONTACT.email ? <li>Email: {CONTACT.email}</li> : null}
-              {CONTACT.phone ? <li>Phone: {CONTACT.phone}</li> : null}
-              {CONTACT.messengerUrl ? (
-                <li>
-                  Messenger:{" "}
-                  <a
-                    href={CONTACT.messengerUrl}
-                    className="font-semibold text-primary underline underline-offset-2"
-                  >
-                    message us
-                  </a>
-                </li>
-              ) : null}
-              {CONTACT.supportHours ? (
-                <li>Support hours: {CONTACT.supportHours}</li>
-              ) : null}
-            </ul>
-          ) : (
-            <p>
-              Support contact details are being set up and will be posted here
-              before launch.
-            </p>
-          )}
-        </section>
+        <Section title="Contact us">
+          <ContactDetails />
+          <p className="text-muted-foreground">
+            About an order? Include its reference (it starts with #KFD-) so we
+            can find it straight away.
+          </p>
+        </Section>
 
-        <section className="flex flex-col gap-2">
-          <h2 className="text-base font-semibold">About an order</h2>
+        <Section title="Where is my order?">
           <p>
-            If you already ordered, the fastest way to see where it is is the
-            tracking link we sent you. It works without an account — only the
-            order reference is needed.
+            Open the order in the app, or use the tracking link with your order
+            reference. It works without signing in.
           </p>
           <p>
-            <Link
-              href="/track"
-              className="font-semibold text-primary underline underline-offset-2"
-            >
+            <Link href="/track" className={link}>
               Track an order
             </Link>
           </p>
-        </section>
+        </Section>
 
-        <section className="flex flex-col gap-2">
-          <h2 className="text-base font-semibold">Delivery coverage and hours</h2>
+        <Section title="Cancelling an order">
+          <p>
+            You can cancel in the app until the restaurant accepts the order.
+            After that, contact the restaurant or us as soon as you can; once the
+            food is being prepared it may not be possible to cancel.
+          </p>
+        </Section>
+
+        <Section title="Something was wrong with my order">
+          <p>
+            Contact us with the order reference and what went wrong. KFD staff
+            review every request. If a refund is approved it is paid in cash or
+            by GCash, and it appears on the order in your app.
+          </p>
+        </Section>
+
+        <Section title="Paying">
+          <p>
+            Pay the rider when your food arrives, in cash or by GCash. We do not
+            take card payments. The total you pay is shown before you place the
+            order.
+          </p>
+        </Section>
+
+        <Section title="Your account">
+          <ul className="list-disc pl-5">
+            <li>Forgot your password? On the sign-in screen, tap &ldquo;Forgot password?&rdquo; and we will email you a code.</li>
+            <li>Customers can delete their account in the app under Account, except while an order is on the way.</li>
+            <li>Riders can request deletion in the app under Profile. We close the account after settling any payouts and cash.</li>
+          </ul>
+        </Section>
+
+        <Section title="Riding or selling with KFD">
+          <p>
+            Riders can apply in the KFD app. Restaurants that want to join can
+            contact us using the details above.
+          </p>
+        </Section>
+
+        <Section title="Delivery coverage and hours">
           {DELIVERY.areas.length > 0 || DELIVERY.hours.length > 0 ? (
             <>
               {DELIVERY.areas.length > 0 ? (
@@ -95,28 +108,21 @@ export default function SupportPage() {
           ) : (
             <p>{DELIVERY.note}</p>
           )}
-        </section>
+        </Section>
 
-        <section className="flex flex-col gap-2">
-          <h2 className="text-base font-semibold">Your data and your account</h2>
+        <Section title="Your data">
           <p>
             The{" "}
-            <Link
-              href="/privacy"
-              className="font-semibold text-primary underline underline-offset-2"
-            >
+            <Link href="/privacy" className={link}>
               Privacy Policy
             </Link>{" "}
-            says exactly what we collect and who sees it. The{" "}
-            <Link
-              href="/terms"
-              className="font-semibold text-primary underline underline-offset-2"
-            >
+            says what we collect and who sees it. The{" "}
+            <Link href="/terms" className={link}>
               Terms &amp; Conditions
             </Link>{" "}
-            cover refunds, cancellations and what a rider does on your behalf.
+            cover ordering, cancelling, refunds and deliveries.
           </p>
-        </section>
+        </Section>
       </div>
 
       <Link
@@ -126,5 +132,14 @@ export default function SupportPage() {
         Back to home
       </Link>
     </main>
+  );
+}
+
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="flex flex-col gap-2">
+      <h2 className="text-base font-semibold">{title}</h2>
+      {children}
+    </section>
   );
 }

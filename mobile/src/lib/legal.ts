@@ -8,7 +8,7 @@ import * as WebBrowser from "expo-web-browser";
  */
 const apiUrl = Constants.expoConfig?.extra?.apiUrl as string | undefined;
 
-export type LegalPage = "privacy" | "terms";
+export type LegalPage = "privacy" | "terms" | "support";
 
 /** Null when the build has no API URL configured, so callers hide the link. */
 export function legalUrl(
