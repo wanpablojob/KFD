@@ -65,13 +65,14 @@ API is one POST, and no SDK is involved. Three emails use it:
    arbitrary addresses from a **verified domain**; until one verifies, the
    only working sender is `onboarding@resend.dev` and it only delivers to the
    address that owns the Resend account (fine for a test, not for customers).
-4. Set all three:
+4. Set all three in **Vercel → Project → Settings → Environment Variables**
+   (Production and Preview), then redeploy. The route reads them at request
+   time, so they belong to the deployed project -- a GitHub Actions secret
+   never reaches the running function:
 
-   ```sh
-   gh secret set SUPABASE_SERVICE_ROLE_KEY --repo wanpablojob/KFD
-   gh secret set RESEND_API_KEY --repo wanpablojob/KFD
-   gh secret set ORDER_EMAIL_FROM --repo wanpablojob/KFD
-   ```
+   - `SUPABASE_SERVICE_ROLE_KEY`
+   - `RESEND_API_KEY`
+   - `ORDER_EMAIL_FROM`
 
    `ORDER_EMAIL_FROM` is a string like `KFD <orders@your-domain.com>` and
    must match a domain you verified in step 3.
