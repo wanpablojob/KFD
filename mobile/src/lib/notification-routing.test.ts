@@ -69,6 +69,12 @@ describe("routeForNotification", () => {
     });
   });
 
+  it("opens a merchant's Orders tab for an order alert", () => {
+    const route = routeForNotification({ reference: "KFD-1042" }, "merchant");
+    expect(route).toEqual({ kind: "merchant-orders" });
+    expect(pathForRoute(route!)).toBe("/merchant");
+  });
+
   it("prefers the typed route when a payload carries both a type and a reference", () => {
     // The offer payload includes orderId, and a future one might add a reference
     // for the customer's tracker. The rider screen is the more specific intent.

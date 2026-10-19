@@ -33,7 +33,8 @@ initSentry();
  *
  *   - signed out        -> (public) index=landing, login, track
  *   - rider             -> rider
- *   - merchant/admin    -> account (web-console notice + push toggle)
+ *   - merchant          -> merchant (orders, menu, sales, account)
+ *   - admin             -> account (web-console notice)
  *   - track             -> always public (customers track by reference)
  *
  * The session and role are resolved once in <SessionProvider>; this layout only
@@ -146,7 +147,14 @@ function RootNavigator() {
   const signedOut = !user;
   const isRider = !!user && role?.role === "rider";
   const isCustomer = !!user && role?.role === "customer";
-  const isStaff = !!user && !!role && role.role !== "rider";
+  const isMerchant = !!user && role?.role === "merchant";
+  // Admins only now: merchants have their own surface (below).
+  const isStaff =
+    !!user &&
+    !!role &&
+    role.role !== "rider" &&
+    role.role !== "customer" &&
+    role.role !== "merchant";
 
   return (
     <Stack screenOptions={{ headerShown: false }}>
@@ -168,6 +176,9 @@ function RootNavigator() {
       </Stack.Protected>
       <Stack.Protected guard={isCustomer}>
         <Stack.Screen name="customer" />
+      </Stack.Protected>
+      <Stack.Protected guard={isMerchant}>
+        <Stack.Screen name="merchant" />
       </Stack.Protected>
       <Stack.Protected guard={isStaff}>
         <Stack.Screen name="account" />

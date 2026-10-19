@@ -18,4 +18,7 @@ export const TAB_ICONS = {
   deliveries: { icon: "bicycle-outline", activeIcon: "bicycle" },
   earnings: { icon: "cash-outline", activeIcon: "cash" },
   profile: { icon: "person-outline", activeIcon: "person" },
+  kitchen: { icon: "restaurant-outline", activeIcon: "restaurant" },
+  menu: { icon: "fast-food-outline", activeIcon: "fast-food" },
+  sales: { icon: "stats-chart-outline", activeIcon: "stats-chart" },
 } as const satisfies Record<string, { icon: IconName; activeIcon: IconName }>;

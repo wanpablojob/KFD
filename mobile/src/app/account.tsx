@@ -4,84 +4,29 @@ import {
   SafeAreaView,
   ScrollView,
   StyleSheet,
-  Switch,
   Text,
   View,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { useSession } from "../lib/session-context";
 import { supabase } from "../lib/supabase";
-import {
-  disablePush,
-  enablePush,
-  getPushStatus,
-  watchForTokenRotation,
-  type PushStatus,
-} from "../lib/push";
+import { disablePush, getPushStatus, type PushStatus } from "../lib/push";
 import { shouldUnregisterOnSignOut } from "../lib/push-signout";
 import { colors, radius, shadow, spacing, type } from "../lib/theme";
 
 /**
- * Account home for admin/merchant/other non-rider sessions. This app has no
- * merchant or admin surface -- those logins point at the web console -- so the
- * screen is deliberately a notice plus the one mobile thing a merchant can do:
- * receive new-order push alerts on this device.
+ * Account home for admin sessions. Admin work happens in the web console, so
+ * this is a notice and a sign-out. Merchants have their own surface
+ * (app/merchant), riders and customers theirs.
  */
 export default function AccountRoute() {
   const { user, role, leave } = useSession();
   const [push, setPush] = useState<PushStatus>({ granted: false, registered: false });
-  const [pushBusy, setPushBusy] = useState(false);
 
   useEffect(() => {
     if (!user) return;
     void getPushStatus().then(setPush);
   }, [user]);
-
-  // Re-register a rotated Expo token in place so a merchant with alerts on does
-  // not go silently deaf after a reinstall or permission change.
-  useEffect(() => {
-    if (role?.role !== "merchant" || !push.registered) return;
-    let active = true;
-    let subscription: { remove: () => void } | null = null;
-    void supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!active || !session?.access_token) return;
-      subscription = watchForTokenRotation(session.access_token, () => {
-        if (active) setPush({ granted: true, registered: true });
-      });
-    });
-    return () => {
-      active = false;
-      subscription?.remove();
-    };
-  }, [role, push.registered]);
-
-  async function togglePush() {
-    if (!user || pushBusy) return;
-    setPushBusy(true);
-    try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      const token = session?.access_token;
-      if (!token) return;
-
-      if (push.granted && push.registered) {
-        await disablePush(token);
-        setPush({ granted: false, registered: false });
-      } else {
-        const next = await enablePush(token);
-        setPush(next);
-      }
-    } catch (cause) {
-      setPush({
-        granted: false,
-        registered: false,
-        error: cause instanceof Error ? cause.message : "Push failed. Try again.",
-      });
-    } finally {
-      setPushBusy(false);
-    }
-  }
 
   async function signOut() {
     // Keyed on `registered`, not on the toggle. The toggle asks "is push on?";
@@ -118,31 +63,8 @@ export default function AccountRoute() {
           <Text style={styles.roleLabel}>
             Role: <Text style={styles.bold}>{role?.role}</Text>
           </Text>
-          <Text style={styles.muted}>
-            This mobile app serves riders and customers. Use the web console for
-            {role?.role === "merchant" ? " merchant" : " admin"} work.
-          </Text>
+          <Text style={styles.muted}>Use the KFD web console for admin work.</Text>
         </View>
-
-        {role?.role === "merchant" ? (
-          <View style={styles.pushCard}>
-            <View style={styles.pushCopy}>
-              <Text style={styles.pushTitle}>Order alerts</Text>
-              <Text style={styles.pushMuted}>
-                {push.error
-                  ? push.error
-                  : push.granted && push.registered
-                    ? "This device receives new-order alerts."
-                    : "Get a push when a new order is placed."}
-              </Text>
-            </View>
-            <Switch
-              value={push.granted && push.registered}
-              onValueChange={() => void togglePush()}
-              disabled={pushBusy}
-            />
-          </View>
-        ) : null}
 
         <Pressable style={styles.signOutButton} onPress={() => void signOut()}>
           <Text style={styles.signOutLabel}>Sign out</Text>

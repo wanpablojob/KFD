@@ -18,6 +18,8 @@ export type NotificationRoute =
   | { kind: "rider-offers" }
   /** The rider finished a delivery on another device: open Deliveries. */
   | { kind: "rider-home" }
+  /** A new or updated order at the merchant's restaurant: open their Orders tab. */
+  | { kind: "merchant-orders" }
   /** Public order tracking, by reference. Works signed out. */
   | { kind: "track"; reference: string };
 
@@ -72,8 +74,14 @@ export function routeForNotification(
     return role === "rider" ? { kind: "rider-home" } : null;
   }
 
-  // Reference-only payloads (order status, and legacy merchant alerts) go to
-  // the public tracker, which is deliberately reachable signed out.
+  // Merchant alerts carry only the order reference. For a merchant that means
+  // "an order needs you", so it opens their Orders tab, not the tracker.
+  if (reference && role === "merchant") {
+    return { kind: "merchant-orders" };
+  }
+
+  // Other reference-only payloads (order status for customers) go to the
+  // public tracker, which is deliberately reachable signed out.
   if (reference) {
     return { kind: "track", reference };
   }
@@ -88,6 +96,8 @@ export function pathForRoute(route: NotificationRoute): string {
       return "/rider/offers";
     case "rider-home":
       return "/rider";
+    case "merchant-orders":
+      return "/merchant";
     case "track":
       return `/track?ref=${encodeURIComponent(route.reference)}`;
   }
