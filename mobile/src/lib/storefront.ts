@@ -634,6 +634,8 @@ export interface OrderQuote {
   delivery_fee: number;
   service_fee: number;
   total: number;
+  /** The fee is settled with the rider at the door, so `total` leaves it out (0080). */
+  fee_agreed_in_person?: boolean;
 }
 
 export interface OrderFees {

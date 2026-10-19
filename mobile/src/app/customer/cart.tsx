@@ -409,7 +409,14 @@ export default function CustomerCartScreen() {
           {/* "—" rather than a guess: a stale or assumed figure here is the
               exact failure this screen was rewritten to prevent. */}
           <BillLine label="Subtotal" value={peso(subtotal)} />
-          <BillLine label="Delivery fee" value={peso(quote?.delivery_fee ?? null)} />
+          <BillLine
+            label="Delivery fee"
+            value={
+              quote?.fee_agreed_in_person
+                ? "Agreed with rider"
+                : peso(quote?.delivery_fee ?? null)
+            }
+          />
           <BillLine label="Service fee" value={peso(quote?.service_fee ?? null)} />
           <View style={styles.divider} />
           <BillLine label="Total" value={peso(total)} bold />
