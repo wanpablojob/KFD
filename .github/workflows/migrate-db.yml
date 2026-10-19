@@ -652,6 +652,26 @@ jobs:
 
           failures = []
 
+          def can_execute(role, sig):
+              """has_function_privilege, but a missing function is a finding.
+
+              The signatures below are a hardcoded contract with the schema.
+              A function rebuilt with new parameters (0076 and 0079 both did)
+              otherwise raises 42883 and aborts the whole harness before it
+              prints a single result -- which is exactly how this step hid
+              every other check twice.
+              Returns True, False, or None when the function is missing."""
+              try:
+                  return query(
+                      "select has_function_privilege('%s', '%s', 'EXECUTE') as ok"
+                      % (role, sig)
+                  )[0]["ok"]
+              except RuntimeError as exc:
+                  failures.append(
+                      "function %s does not exist (%s)" % (sig, str(exc)[:120])
+                  )
+                  return None
+
           # 1. The columns the app filters on must exist. A migration that
           #    never landed is invisible until something names a column in a
           #    filter, at which point PostgREST answers 400 and the only
@@ -796,10 +816,7 @@ jobs:
               )
 
           for role, label in [("anon", "anon"), ("authenticated", "authenticated")]:
-              if not query(
-                  "select has_function_privilege('%s', "
-                  "'public.track_order(text)', 'EXECUTE') as ok" % role
-              )[0]["ok"]:
+              if can_execute(role, "public.track_order(text)") is False:
                   failures.append("%s cannot call track_order" % label)
 
           # The function must actually refuse, not merely be un-granted. This
@@ -987,26 +1004,20 @@ jobs:
           # 7. Storefront (customer role): the browse RLS and order creation.
           #    Same impersonated-transaction approach as the merchant/customer
           #    probes above.
-          if not query(
-              "select has_function_privilege('authenticated', "
-              "'public.is_customer()', 'EXECUTE') as ok"
-          )[0]["ok"]:
-              failures.append("authenticated cannot call is_customer")
-          if not query(
-              "select has_function_privilege('authenticated', "
-              "'public.register_customer()', 'EXECUTE') as ok"
-          )[0]["ok"]:
-              failures.append("authenticated cannot call register_customer")
-          # 0076 and 0081 rebuilt customer_place_order with the idempotency key
-          # and the delivery barangay, so the four-argument version no longer
-          # exists. has_function_privilege is a lookup by exact signature: a
-          # stale one raises 42883 and aborts the whole harness.
-          if not query(
-              "select has_function_privilege('authenticated', "
-              "'public.customer_place_order(text, jsonb, text, payment_method, text, text)', "
-              "'EXECUTE') as ok"
-          )[0]["ok"]:
-              failures.append("authenticated cannot call customer_place_order")
+          for sig, what in [
+              ("public.is_customer()", "is_customer"),
+              ("public.register_customer()", "register_customer"),
+              # 0076 and 0081 rebuilt customer_place_order with the idempotency
+              # key and the delivery barangay, so the four-argument version no
+              # longer exists. can_execute reports a stale signature here
+              # instead of raising 42883 and ending the run.
+              (
+                  "public.customer_place_order(text, jsonb, text, payment_method, text, text)",
+                  "customer_place_order",
+              ),
+          ]:
+              if can_execute("authenticated", sig) is False:
+                  failures.append("authenticated cannot call %s" % what)
 
           # No-session callers must be refused before they can do anything,
           # exactly like the provisioning functions in check #3.
@@ -1285,7 +1296,7 @@ jobs:
               ("public.revoke_rider_access(text)", "rider revocation"),
               ("public.rider_access_list()", "rider account listing"),
               ("public.rider_set_status(text)", "rider availability toggle"),
-              ("public.rider_mark_delivered(text)", "rider delivery completion"),
+              ("public.rider_mark_delivered(text, text, numeric, text)", "rider delivery completion"),
               ("public.is_platform_admin()", "role helper used by RLS policies"),
               ("public.current_merchant_restaurant()", "tenant helper used by RLS policies"),
               ("public.is_customer()", "storefront helper used by RLS policies"),
@@ -1293,25 +1304,18 @@ jobs:
               ("public.customer_place_order(text, jsonb, text, payment_method, text, text)", "storefront order creation"),
               ("public.search_restaurants(text, text)", "storefront restaurant search"),
           ]:
-              if query(
-                  "select has_function_privilege('anon', '%s', 'EXECUTE') as ok" % sig
-              )[0]["ok"]:
+              if can_execute("anon", sig) is True:
                   failures.append("anon can execute %s (%s)" % (sig, why))
 
           # ...and the two the public tracking page genuinely needs stay open.
           for sig in ["public.track_order(text)", "public.mint_order_reference()"]:
-              if not query(
-                  "select has_function_privilege('anon', '%s', 'EXECUTE') as ok" % sig
-              )[0]["ok"]:
+              if can_execute("anon", sig) is False:
                   failures.append(
                       "anon cannot execute %s; the signed-out tracking page "
                       "would stop working" % sig
                   )
 
-          if not query(
-              "select has_function_privilege("
-              "'authenticated', 'public.mark_notifications_seen()', 'EXECUTE') as ok"
-          )[0]["ok"]:
+          if can_execute("authenticated", "public.mark_notifications_seen()") is False:
               failures.append("authenticated cannot call mark_notifications_seen")
 
           before = query("select count(*) as n from app_users")[0]["n"]
