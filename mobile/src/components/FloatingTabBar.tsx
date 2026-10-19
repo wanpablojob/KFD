@@ -74,6 +74,10 @@ const LENS_SPRING = { damping: 16, stiffness: 190, mass: 1 } as const;
 const ACTIVE_SCALE = 1.06;
 /** A pressed tab swells a little more while the finger is down. */
 const PRESS_SCALE = 1.12;
+/** How far the lens stretches sideways mid-slide, like a drop pulled along. */
+const LENS_STRETCH = 1.22;
+/** Time to reach full stretch before the spring pulls it back to shape. */
+const LENS_STRETCH_MS = 110;
 
 /* ------------------------------------------------------------------ *
  * === TWEAK: THE LENS ===
@@ -166,6 +170,7 @@ export function FloatingTabBar({
 
   const [lensX] = useState(() => new Animated.Value(0));
   const [lensOpacity] = useState(() => new Animated.Value(0));
+  const [lensStretch] = useState(() => new Animated.Value(1));
   const [show] = useState(() => new Animated.Value(gone ? 0 : 1));
   const scales = useMemo(
     () => Array.from({ length: count }, () => new Animated.Value(1)),
@@ -216,8 +221,31 @@ export function FloatingTabBar({
         duration: 160,
         useNativeDriver: true,
       }),
+      // Stretch out as it leaves, then spring back to shape as it lands, so the
+      // slide reads as one object travelling rather than a jump.
+      Animated.sequence([
+        Animated.timing(lensStretch, {
+          toValue: LENS_STRETCH,
+          duration: LENS_STRETCH_MS,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.spring(lensStretch, {
+          toValue: 1,
+          ...LENS_SPRING,
+          useNativeDriver: true,
+        }),
+      ]),
     ]).start();
-  }, [lensTarget, selectedIndex, innerWidth, prefs.reduceMotion, lensX, lensOpacity]);
+  }, [
+    lensTarget,
+    selectedIndex,
+    innerWidth,
+    prefs.reduceMotion,
+    lensX,
+    lensOpacity,
+    lensStretch,
+  ]);
 
   // === TWEAK: MOTION -- the selected tab's content scale ===
   useEffect(() => {
@@ -305,7 +333,7 @@ export function FloatingTabBar({
       {/* === TWEAK: THE LENS === one shared element that slides, not a
           background per tab: a per-tab background cannot travel, it could only
           cross-fade in place and lose the sense of one object moving along a
-          rail. It sits outside the clipped capsule so it can overhang it. */}
+          rail. It sits outside the clipped capsule so the stretch is not cut. */}
       <Animated.View
         pointerEvents="none"
         style={[
@@ -313,7 +341,18 @@ export function FloatingTabBar({
           {
             width: lensWidth,
             opacity: lensOpacity,
-            transform: [{ translateX: lensX }],
+            transform: [
+              { translateX: lensX },
+              { scaleX: lensStretch },
+              {
+                // Thins slightly as it stretches, so it keeps its volume.
+                scaleY: lensStretch.interpolate({
+                  inputRange: [1, LENS_STRETCH],
+                  outputRange: [1, 0.9],
+                  extrapolate: "clamp",
+                }),
+              },
+            ],
           },
         ]}
       >
@@ -354,7 +393,7 @@ export function FloatingTabBar({
                 <View>
                   <Ionicons
                     name={active ? (tab.activeIcon ?? tab.icon) : tab.icon}
-                    size={26}
+                    size={22}
                     color={tint}
                   />
                   {badge > 0 ? (
@@ -394,8 +433,7 @@ const styles = StyleSheet.create({
   lens: {
     position: "absolute",
     left: 0,
-    // Negative when the lens is taller than the bar, which is the point: it
-    // overhangs the capsule top and bottom.
+    // Centred vertically inside the bar.
     top: (TAB_BAR_METRICS.height - TAB_BAR_METRICS.lensHeight) / 2,
     height: TAB_BAR_METRICS.lensHeight,
     borderRadius: radius.pill,
@@ -433,10 +471,10 @@ const styles = StyleSheet.create({
   },
   tabContent: {
     alignItems: "center",
-    gap: 3,
+    gap: 1,
   },
   label: {
-    fontSize: 12,
+    fontSize: 10.5,
     fontWeight: "600",
   },
   badge: {

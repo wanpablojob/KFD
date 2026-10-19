@@ -153,8 +153,8 @@ describe("lensMetrics", () => {
     expect(lensWidth).toBeLessThanOrEqual(tabWidth);
   });
 
-  it("is taller than the bar so it overhangs both edges", () => {
-    expect(TAB_BAR_METRICS.lensHeight).toBeGreaterThan(TAB_BAR_METRICS.height);
+  it("fits inside the bar rather than overhanging it", () => {
+    expect(TAB_BAR_METRICS.lensHeight).toBeLessThan(TAB_BAR_METRICS.height);
   });
 });
 

@@ -99,27 +99,26 @@ function stripTrailingSlash(value: string): string {
  */
 export const TAB_BAR_METRICS = {
   /** Bar height, excluding the safe-area inset beneath it. */
-  height: 72,
+  height: 58,
   /** Gap between the screen edge and the capsule, each side. */
-  horizontalMargin: 18,
+  horizontalMargin: 28,
   /** Gap between the bottom safe-area inset and the capsule. */
   bottomGap: 10,
   /** Used when a device reports no inset at all (Android with no nav bar). */
   minBottomGap: 12,
   /**
-   * The lens is taller than the bar so it overhangs both edges by a few points
-   * and reads as a separate object riding on the bar rather than a highlight
-   * painted inside it. Its width follows the tab (see lensMetrics).
+   * The lens sits inside the bar with a small margin all round, so the bar
+   * stays one compact capsule. Its width follows the tab (see lensMetrics).
    */
-  lensHeight: 80,
+  lensHeight: 48,
   /** Space left between the lens and the edges of its tab column. */
-  lensSideGap: 4,
+  lensSideGap: 3,
   /** The lens never gets narrower than this, so an icon and label still fit. */
-  lensMinWidth: 56,
+  lensMinWidth: 52,
   /** Nor wider than this, so three tabs do not turn it into a long slab. */
-  lensMaxWidth: 96,
+  lensMaxWidth: 84,
   /** Horizontal inset inside the bar before the tabs begin. */
-  innerPadding: 6,
+  innerPadding: 5,
 } as const;
 
 /**
