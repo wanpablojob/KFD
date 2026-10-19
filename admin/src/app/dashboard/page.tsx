@@ -82,7 +82,7 @@ export default function OverviewPage() {
       label: `Gross Revenue ${WINDOW_LABEL}`,
       value: formatCurrency(deltas.revenue.current),
       delta: periodDelta(deltas.revenue.current, deltas.revenue.previous),
-      hint: "vs prev 7 days",
+      hint: "delivered orders · vs prev 7 days",
     },
     {
       label: `Orders ${WINDOW_LABEL}`,

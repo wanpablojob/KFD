@@ -21,7 +21,12 @@ import type { Order, Restaurant } from "./types.ts";
 
 const NOW = Date.UTC(2026, 8, 28, 12, 0, 0); // Mon 28 Sep 2026, midday UTC
 
-function order(daysAgo: number, total = 100, id = `o${daysAgo}`): Order {
+function order(
+  daysAgo: number,
+  total = 100,
+  id = `o${daysAgo}`,
+  status: Order["status"] = "delivered",
+): Order {
   return {
     id,
     reference: id,
@@ -31,7 +36,7 @@ function order(daysAgo: number, total = 100, id = `o${daysAgo}`): Order {
     subtotal: total,
     deliveryFee: 0,
     total,
-    status: "delivered",
+    status,
     payment: "cash",
     placedAt: new Date(NOW - daysAgo * DAY_MS).toISOString(),
     rider: "",
@@ -97,6 +102,22 @@ test("splitPeriods on no data produces zeros, not NaN", () => {
   assert.equal(d.revenue.current, 0);
   assert.equal(d.revenue.previous, 0);
   assert.equal(periodDelta(d.orders.current, d.orders.previous), 0);
+});
+
+test("revenue counts only delivered orders, while the order flow counts them all", () => {
+  const orders = [
+    order(1, 100, "delivered"),
+    order(1, 50, "pending", "pending"),
+    order(1, 70, "cancelled", "cancelled"),
+    order(2, 30, "preparing", "preparing"),
+  ];
+  const d = splitPeriods(orders, [], NOW);
+  // Revenue is what was earned; the kitchen does not earn an order until it
+  // reaches the customer.
+  assert.equal(d.revenue.current, 100);
+  // Orders is a flow of everything placed, which is what the "Orders" KPI and
+  // the delivery-success rate describe.
+  assert.equal(d.orders.current, 4);
 });
 
 // ---------------------------------------------------------------- 2.2
@@ -184,11 +205,34 @@ test("buildRevenueSeries handles a window spanning a month boundary", () => {
   assert.equal(new Set(series.map((p) => p.label)).size, 7);
 });
 
-test("the chart and the KPI card agree on which orders are in scope", () => {
-  // Both read the same rolling window, so a point in the chart is the same
-  // order counted in the "Orders (7d)" value.
-  const orders = [order(1, 10, "x"), order(2, 20, "y"), order(20, 99, "z")];
+test("buildRevenueSeries plots only delivered orders", () => {
+  const series = buildRevenueSeries(
+    [
+      order(1, 100, "delivered"),
+      order(1, 50, "pending", "pending"),
+      order(1, 70, "cancelled", "cancelled"),
+    ],
+    NOW,
+  );
+  assert.equal(series.reduce((s, p) => s + p.revenue, 0), 100);
+  // The tooltip's order count sits next to the revenue, so it must count the
+  // same delivered orders or the two numbers describe different sets.
+  assert.equal(series.reduce((s, p) => s + p.orders, 0), 1);
+});
+
+test("the chart and the KPI card agree on the delivered orders in scope", () => {
+  // Both read the same rolling window. The chart counts delivered orders
+  // because it plots revenue; the Orders KPI counts everything placed, so a
+  // cancelled order is in one and not the other by design.
+  const orders = [
+    order(1, 10, "x"),
+    order(2, 20, "y"),
+    order(20, 99, "old"),
+    order(1, 40, "cancelled", "cancelled"),
+  ];
   const d = splitPeriods(orders, [], NOW);
   const plotted = buildRevenueSeries(orders, NOW).reduce((s, p) => s + p.orders, 0);
-  assert.equal(d.orders.current, plotted);
+  assert.equal(plotted, 2);
+  assert.equal(d.revenue.current, 30);
+  assert.equal(d.orders.current, 3);
 });

@@ -25,6 +25,20 @@ function inRange(iso: string, start: number, end: number): boolean {
   return t >= start && t < end;
 }
 
+/**
+ * Revenue is recognised on delivery.
+ *
+ * A pending, preparing, in-flight or cancelled order has earned the platform
+ * and the restaurant nothing. Counting it overstated "Gross Revenue" by the
+ * value of every order still in the kitchen, and a cancellation never reversed
+ * it. Merchant Sales (lib/merchant-sales.ts) already uses this definition; the
+ * dashboard now matches it rather than quietly reporting a different number
+ * for the same week.
+ */
+export function countsAsRevenue(order: Order): boolean {
+  return order.status === "delivered";
+}
+
 export interface PeriodDeltas {
   revenue: { current: number; previous: number };
   orders: { current: number; previous: number };
@@ -57,8 +71,12 @@ export function splitPeriods(
 
   return {
     revenue: {
-      current: currentOrders.reduce((s, o) => s + o.total, 0),
-      previous: previousOrders.reduce((s, o) => s + o.total, 0),
+      current: currentOrders
+        .filter(countsAsRevenue)
+        .reduce((s, o) => s + o.total, 0),
+      previous: previousOrders
+        .filter(countsAsRevenue)
+        .reduce((s, o) => s + o.total, 0),
     },
     orders: { current: currentOrders.length, previous: previousOrders.length },
     // "Newly active restaurants in the window" is a flow, so it can carry a
@@ -109,6 +127,7 @@ export function buildRevenueSeries(
   }
 
   for (const o of orders) {
+    if (!countsAsRevenue(o)) continue;
     const t = new Date(o.placedAt).getTime();
     if (t < start || t >= now) continue;
     const key = start + Math.floor((t - start) / DAY_MS) * DAY_MS;
