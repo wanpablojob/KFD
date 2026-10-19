@@ -42,6 +42,12 @@ export interface Order {
    */
   deliveryFailedReason: string | null;
   deliveryFailedAt: string | null;
+  /**
+   * Total refunded against this order (0084), as a positive number. Revenue is
+   * reported net of it. Optional because only the revenue queries join the
+   * refunds table; absent means zero.
+   */
+  refunded?: number;
 }
 
 export interface Restaurant {

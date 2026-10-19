@@ -477,7 +477,29 @@ export async function fetchOrders(range?: DateRange): Promise<Order[]> {
     return query;
   });
 
-  return data.map(toOrder);
+  const refunds = await fetchRefundTotals();
+  return data.map((o) => toOrder(o, refunds.get(o.id) ?? 0));
+}
+
+/**
+ * Refund totals by order id (0084). Refunds are recorded after delivery, so a
+ * refund can be newer than the window the orders were fetched for; every
+ * refund row is read and the revenue helpers subtract it from the order it
+ * belongs to. Admin RLS allows all rows; a merchant only sees their own.
+ */
+async function fetchRefundTotals(): Promise<Map<string, number>> {
+  const rows = await fetchAll((from, to) =>
+    supabase
+      .from("order_refunds")
+      .select("order_id, amount")
+      .order("id")
+      .range(from, to),
+  );
+  const totals = new Map<string, number>();
+  for (const r of rows) {
+    totals.set(r.order_id, (totals.get(r.order_id) ?? 0) + Number(r.amount));
+  }
+  return totals;
 }
 
 /**
@@ -496,7 +518,7 @@ export async function fetchLiveOrders(limit: number): Promise<Order[]> {
   return (data ?? []).map(toOrder);
 }
 
-function toOrder(o: Tables<"orders">): Order {
+function toOrder(o: Tables<"orders">, refunded = 0): Order {
   return {
     id: o.id,
     reference: o.reference,
@@ -518,6 +540,7 @@ function toOrder(o: Tables<"orders">): Order {
         : null,
     deliveryFailedAt:
       typeof o.delivery_failed_at === "string" ? o.delivery_failed_at : null,
+    refunded,
   };
 }
 

@@ -15,7 +15,31 @@ test("counts only delivered orders, using the food subtotal", () => {
     7,
     NOW,
   );
-  assert.deepEqual(rows[0], { date: "2026-10-19", orders: 2, sales: 200 });
+  assert.deepEqual(rows[0], { date: "2026-10-19", orders: 2, sales: 200, refunds: 0 });
+});
+
+test("deducts refunds from the day's sales and reports them separately", () => {
+  const rows = salesByDay(
+    [
+      { placedAt: new Date(2026, 9, 19, 9).toISOString(), status: "delivered", subtotal: 100, refunded: 30 },
+      { placedAt: new Date(2026, 9, 19, 10).toISOString(), status: "delivered", subtotal: 50, refunded: 0 },
+    ],
+    7,
+    NOW,
+  );
+  assert.deepEqual(rows[0], { date: "2026-10-19", orders: 2, sales: 120, refunds: 30 });
+});
+
+test("a refund larger than the food subtotal only removes the food value", () => {
+  // The refund RPC caps at the order total, not the food subtotal, so a refund
+  // that covered delivery fees too must not push the kitchen's sales negative.
+  const rows = salesByDay(
+    [{ placedAt: new Date(2026, 9, 19, 9).toISOString(), status: "delivered", subtotal: 80, refunded: 135 }],
+    7,
+    NOW,
+  );
+  assert.equal(rows[0].sales, 0);
+  assert.equal(rows[0].refunds, 80);
 });
 
 test("files a late-evening order under its local day, not the UTC one", () => {
@@ -51,6 +75,6 @@ test("totals only the requested leading days", () => {
     30,
     NOW,
   );
-  assert.deepEqual(totalOf(rows, 7), { orders: 2, sales: 0.3 });
-  assert.deepEqual(totalOf(rows, 30), { orders: 3, sales: 100.3 });
+  assert.deepEqual(totalOf(rows, 7), { orders: 2, sales: 0.3, refunds: 0 });
+  assert.deepEqual(totalOf(rows, 30), { orders: 3, sales: 100.3, refunds: 0 });
 });

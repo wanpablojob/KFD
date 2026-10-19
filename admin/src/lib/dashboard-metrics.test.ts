@@ -120,6 +120,21 @@ test("revenue counts only delivered orders, while the order flow counts them all
   assert.equal(d.orders.current, 4);
 });
 
+test("revenue is net of refunds, in both the KPI and the chart", () => {
+  // A refund on a delivered order must reduce the number the dashboard calls
+  // revenue. The chart and the KPI read the same net value (0084).
+  const orders = [
+    { ...order(1, 100, "refunded"), refunded: 30 },
+    order(2, 50, "clean"),
+  ];
+  const d = splitPeriods(orders, [], NOW);
+  assert.equal(d.revenue.current, 120);
+  assert.equal(
+    buildRevenueSeries(orders, NOW).reduce((s, p) => s + p.revenue, 0),
+    120,
+  );
+});
+
 // ---------------------------------------------------------------- 2.2
 
 test("buildRevenueSeries always returns exactly 7 points", () => {

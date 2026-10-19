@@ -79,10 +79,10 @@ export default function OverviewPage() {
 
   const kpis = [
     {
-      label: `Gross Revenue ${WINDOW_LABEL}`,
+      label: `Net Revenue ${WINDOW_LABEL}`,
       value: formatCurrency(deltas.revenue.current),
       delta: periodDelta(deltas.revenue.current, deltas.revenue.previous),
-      hint: "delivered orders · vs prev 7 days",
+      hint: "delivered orders, net of refunds · vs prev 7 days",
     },
     {
       label: `Orders ${WINDOW_LABEL}`,
@@ -150,7 +150,7 @@ export default function OverviewPage() {
           <Card>
             <CardHeader
               title="Weekly revenue"
-              subtitle="Orders and gross revenue, last 7 days"
+              subtitle="Orders and net revenue, last 7 days"
               action={<Badge variant="primary">Live</Badge>}
             />
             <RevenueChart data={revenueSeries} />

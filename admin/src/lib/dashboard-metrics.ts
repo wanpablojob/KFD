@@ -34,9 +34,20 @@ function inRange(iso: string, start: number, end: number): boolean {
  * it. Merchant Sales (lib/merchant-sales.ts) already uses this definition; the
  * dashboard now matches it rather than quietly reporting a different number
  * for the same week.
+ *
+ * Refunds (0084) are subtracted too: the number is net revenue, not the value
+ * of the orders before money went back.
  */
 export function countsAsRevenue(order: Order): boolean {
   return order.status === "delivered";
+}
+
+/**
+ * What one delivered order is worth after refunds (0084). The refund RPC caps
+ * the total refunded at the order total, so this cannot go negative.
+ */
+export function netRevenue(order: Order): number {
+  return order.total - (order.refunded ?? 0);
 }
 
 export interface PeriodDeltas {
@@ -73,10 +84,10 @@ export function splitPeriods(
     revenue: {
       current: currentOrders
         .filter(countsAsRevenue)
-        .reduce((s, o) => s + o.total, 0),
+        .reduce((s, o) => s + netRevenue(o), 0),
       previous: previousOrders
         .filter(countsAsRevenue)
-        .reduce((s, o) => s + o.total, 0),
+        .reduce((s, o) => s + netRevenue(o), 0),
     },
     orders: { current: currentOrders.length, previous: previousOrders.length },
     // "Newly active restaurants in the window" is a flow, so it can carry a
@@ -134,7 +145,7 @@ export function buildRevenueSeries(
     const bucket = buckets.get(key);
     if (!bucket) continue;
     bucket.orders += 1;
-    bucket.revenue += o.total;
+    bucket.revenue += netRevenue(o);
   }
 
   return Array.from(buckets.values());

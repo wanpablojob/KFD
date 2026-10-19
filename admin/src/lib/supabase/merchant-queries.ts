@@ -36,6 +36,23 @@ export async function fetchMerchantOrders(): Promise<Order[]> {
       .range(from, to),
   );
 
+  // Refunds (0084). RLS scopes this to the merchant's own restaurant, so the
+  // same query works for admin and merchant without an application filter.
+  const refunds = await fetchAll((from, to) =>
+    supabase
+      .from("order_refunds")
+      .select("order_id, amount")
+      .order("id")
+      .range(from, to),
+  );
+  const refundedByOrder = new Map<string, number>();
+  for (const r of refunds) {
+    refundedByOrder.set(
+      r.order_id,
+      (refundedByOrder.get(r.order_id) ?? 0) + Number(r.amount),
+    );
+  }
+
   return data.map((o) => ({
     id: o.id,
     reference: o.reference,
@@ -59,6 +76,7 @@ export async function fetchMerchantOrders(): Promise<Order[]> {
       typeof o.delivery_failed_reason === "string" ? o.delivery_failed_reason : null,
     deliveryFailedAt:
       typeof o.delivery_failed_at === "string" ? o.delivery_failed_at : null,
+    refunded: refundedByOrder.get(o.id) ?? 0,
   }));
 }
 

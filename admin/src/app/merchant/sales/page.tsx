@@ -25,7 +25,7 @@ function dayLabel(date: string): string {
   return dayFormat.format(new Date(y, m - 1, d));
 }
 
-/** What the kitchen sold, per day, from delivered orders only. */
+/** What the kitchen sold, per day, from delivered orders, net of refunds. */
 export default function MerchantSalesPage() {
   const orders = useAsyncData(() => fetchMerchantOrders());
   const rows = salesByDay(orders.data ?? [], DAYS, new Date());
@@ -36,7 +36,7 @@ export default function MerchantSalesPage() {
     <PageContainer>
       <PageHeader
         title="Sales"
-        description="Food sales from delivered orders. Delivery and service fees are not included, and commission is not deducted."
+        description="Food sales from delivered orders, net of refunds. Delivery and service fees are not included, and commission is not deducted."
       />
 
       <TableBoundary
@@ -45,12 +45,13 @@ export default function MerchantSalesPage() {
         onRetry={orders.refetch}
         errorTitle="Could not load your sales"
         skeletonRows={6}
-        skeletonColumns={3}
+        skeletonColumns={4}
       >
         <StatGrid className="mb-6">
-          <StatCard kpi={{ label: "Sales, last 7 days", value: formatCurrency(week.sales), hint: "Food subtotal" }} />
+          <StatCard kpi={{ label: "Sales, last 7 days", value: formatCurrency(week.sales), hint: "Food subtotal, net of refunds" }} />
           <StatCard kpi={{ label: "Orders, last 7 days", value: String(week.orders), hint: "Delivered" }} />
-          <StatCard kpi={{ label: "Sales, last 30 days", value: formatCurrency(month.sales), hint: "Food subtotal" }} />
+          <StatCard kpi={{ label: "Refunds, last 7 days", value: formatCurrency(week.refunds), hint: "Deducted from sales" }} />
+          <StatCard kpi={{ label: "Sales, last 30 days", value: formatCurrency(month.sales), hint: "Food subtotal, net of refunds" }} />
           <StatCard kpi={{ label: "Orders, last 30 days", value: String(month.orders), hint: "Delivered" }} />
         </StatGrid>
 
@@ -66,6 +67,7 @@ export default function MerchantSalesPage() {
                     { key: "date", header: "Date" },
                     { key: "orders", header: "Delivered orders" },
                     { key: "sales", header: "Food sales (PHP)" },
+                    { key: "refunds", header: "Refunds (PHP)" },
                   ])
                 }
               >
@@ -80,6 +82,7 @@ export default function MerchantSalesPage() {
                   <th className="py-2 font-medium">Day</th>
                   <th className="py-2 text-right font-medium">Orders</th>
                   <th className="py-2 text-right font-medium">Food sales</th>
+                  <th className="py-2 text-right font-medium">Refunds</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -88,6 +91,7 @@ export default function MerchantSalesPage() {
                     <td className="py-2">{dayLabel(row.date)}</td>
                     <td className="py-2 text-right tabular-nums">{row.orders}</td>
                     <td className="py-2 text-right tabular-nums">{formatCurrency(row.sales)}</td>
+                    <td className="py-2 text-right tabular-nums">{formatCurrency(row.refunds)}</td>
                   </tr>
                 ))}
               </tbody>
