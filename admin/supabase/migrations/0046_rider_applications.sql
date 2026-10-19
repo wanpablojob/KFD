@@ -56,6 +56,11 @@
 --    rider up by the rider row's own record, and before approval there is no
 --    rider row. So approval creates the `riders` row first, then calls
 --    set_rider_access() against it. That ordering is the whole trick.
+--
+-- Replay-safe. Production ran this file but the version row never landed (an
+-- interrupted push), so `db push` meets it as pending and would stop on the
+-- first CREATE TYPE. Every object below is therefore created only if missing:
+-- a second run is a no-op, and a fresh database builds exactly the same schema.
 
 begin;
 
@@ -63,13 +68,16 @@ begin;
 -- Pending applications
 -- ---------------------------------------------------------------------------
 
-create type rider_application_status as enum (
-  'pending',
-  'approved',
-  'rejected'
-);
+do $$ begin
+  create type rider_application_status as enum (
+    'pending',
+    'approved',
+    'rejected'
+  );
+exception when duplicate_object then null;
+end $$;
 
-create table rider_applications (
+create table if not exists rider_applications (
   id            uuid primary key default gen_random_uuid(),
 
   -- The auth identity that applied. on delete cascade: if the account is
@@ -110,13 +118,13 @@ create table rider_applications (
 
 -- One pending application per person. Partial, so approve/reject unblocks
 -- re-application. See point 3 above.
-create unique index rider_applications_one_pending_per_user
+create unique index if not exists rider_applications_one_pending_per_user
   on rider_applications (user_id)
   where status = 'pending';
 
 -- The admin queue is "oldest pending first", so index that directly rather
 -- than letting it sort on every load.
-create index rider_applications_pending_created
+create index if not exists rider_applications_pending_created
   on rider_applications (created_at)
   where status = 'pending';
 
@@ -126,6 +134,7 @@ comment on table rider_applications is
 comment on column rider_applications.status is
   'pending = awaiting review, approved = rider row created and account linked, rejected = declined (the applicant may re-apply).';
 
+drop trigger if exists rider_applications_touch on rider_applications;
 create trigger rider_applications_touch
   before update on rider_applications
   for each row execute function set_updated_at();
@@ -140,11 +149,13 @@ create trigger rider_applications_touch
 
 alter table rider_applications enable row level security;
 
+drop policy if exists "applicants read own application" on rider_applications;
 create policy "applicants read own application"
   on rider_applications for select
   to authenticated
   using (user_id = auth.uid());
 
+drop policy if exists "admins read all applications" on rider_applications;
 create policy "admins read all applications"
   on rider_applications for select
   to authenticated
