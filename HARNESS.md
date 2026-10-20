@@ -111,15 +111,27 @@ is why the Next.js critical advisory didn't survive.
 
 ## The MCP servers
 
-`.opencode/opencode.json` starts four MCP servers: `graphify`, `memory`,
-`playwright` and `context7`. The first two are local binaries. The other two
-are npm packages, and they are launched through `scripts/mcp-server.sh`
-rather than through `npx -y <package>@latest`, because `npx` makes every
-session start pay for an npm resolution, a download and a cold install
-before the server answers the handshake. OpenCode gives that handshake a
-fixed number of seconds, so on a cold cache the client gave up first and
-the servers came up as `failed: Request timed out` — the tools were never
-broken, they were late.
+`.opencode/opencode.json` starts five project MCP servers: `graphify`,
+`playwright`, `context7`, `supabase` and `vercel`. The global
+`~/.config/opencode/opencode.jsonc` adds `memory`. `graphify` and `memory` are
+local binaries. `playwright` and `context7` are npm packages, and they are
+launched through `scripts/mcp-server.sh` rather than through
+`npx -y <package>@latest`, because `npx` makes every session start pay for an
+npm resolution, a download and a cold install before the server answers the
+handshake. OpenCode gives that handshake a fixed number of seconds, so on a
+cold cache the client gave up first and the servers came up as
+`failed: Request timed out` — the tools were never broken, they were late.
+
+`supabase` and `vercel` are remote Streamable HTTP servers authenticated with
+OAuth, so no token lives in the config. Supabase is scoped to project
+`ijeqwbrrgfsmymsektih` and pinned to `read_only=true` with the `database`,
+`docs` and `debugging` feature groups: it can inspect schema, run read queries
+and read logs, but it cannot mutate the database. Schema changes still go
+through migrations and `supabase db push`. Vercel grants the same access as
+your Vercel user account. Sign in with `/mcps`, or run
+`opencode mcp auth supabase` / `opencode mcp auth vercel`; until then
+`opencode mcp list` reports `needs authentication`. Never paste a token into
+this file.
 
 The script runs the local copy when there is one and falls back to `npx`
 with a pinned version when there is not. Measured on this machine:
