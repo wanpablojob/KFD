@@ -26,7 +26,8 @@ insert into auth.users (id, email, raw_user_meta_data) values
   ('00000000-0000-0000-0000-0000000090c7', 'ms-rider2@example.test', '{}'),
   ('00000000-0000-0000-0000-0000000090c8', 'ms-merchant4@example.test', '{}'),
   ('00000000-0000-0000-0000-0000000090c9', 'ms-merchant7@example.test', '{}'),
-  ('00000000-0000-0000-0000-0000000090ca', 'ms-merchant5@example.test', '{}');
+  ('00000000-0000-0000-0000-0000000090ca', 'ms-merchant5@example.test', '{}'),
+  ('00000000-0000-0000-0000-0000000090cb', 'ms-admin@example.test', '{}');
 
 insert into restaurants (id, name, cuisine, city, is_open, status, prep_minutes)
 select 'RS-M' || lpad(i::text, 2, '0'), 'Kusina ' || i, 'Filipino', 'Kabankalan', true, 'active', 10
@@ -39,6 +40,7 @@ select 'MI-M' || lpad(i::text, 2, '0'), 'Kusina ' || i, 'RS-M' || lpad(i::text, 
 
 insert into app_users (user_id, role, restaurant_id) values
   ('00000000-0000-0000-0000-0000000090c1', 'customer', null),
+  ('00000000-0000-0000-0000-0000000090cb', 'admin', null),
   ('00000000-0000-0000-0000-0000000090c2', 'merchant', 'RS-M01'),
   ('00000000-0000-0000-0000-0000000090c3', 'merchant', 'RS-M02'),
   ('00000000-0000-0000-0000-0000000090c8', 'merchant', 'RS-M04'),
@@ -603,6 +605,127 @@ begin
     raise exception 'FAIL another customer can read an order';
   end if;
   raise notice 'PASS another customer sees nothing';
+end $$;
+
+-- --------------------------------------------------------------------------
+-- 9. The holes 0093 closed
+-- --------------------------------------------------------------------------
+
+-- A shop named twice is ONE shop: the extra-shop surcharge is not inflated,
+-- and the two lines of the same item add up.
+do $$
+declare v_q record;
+begin
+  select * into v_q
+    from quote_delivery(jsonb_build_array(
+      jsonb_build_object('restaurant_id', 'RS-M01', 'items', jsonb_build_array(jsonb_build_object('menu_item_id', 'MI-M01', 'quantity', 1))),
+      jsonb_build_object('restaurant_id', 'RS-M01', 'items', jsonb_build_array(jsonb_build_object('menu_item_id', 'MI-M01', 'quantity', 2)))
+    ), 'MS-Priced');
+
+  if v_q.shop_count <> 1 then
+    raise exception 'FAIL the same shop was counted twice: %', v_q.shop_count;
+  end if;
+  if v_q.subtotal <> 300 then
+    raise exception 'FAIL the merged lines are wrong: %', v_q.subtotal;
+  end if;
+  if v_q.delivery_fee <> 30 then
+    raise exception 'FAIL the extra-shop surcharge was charged for one shop: %', v_q.delivery_fee;
+  end if;
+  raise notice 'PASS a shop named twice is one shop';
+end $$;
+
+-- The same, at the till: one order for the shop, and the trip's subtotal is
+-- the sum of the orders' subtotals.
+--
+-- The customer already has three trips on the way, which is the cap, so the
+-- one-shop trip from earlier is dropped first: its only shop cancels, and a
+-- trip whose last shop drops out is cancelled with it.
+reset role;
+update orders set status = 'cancelled', rejection_reason = 'Test cleanup'
+ where delivery_id = (select delivery_id from ms_second);
+do $$
+begin
+  if (select status from deliveries where id = (select delivery_id from ms_second)) <> 'cancelled' then
+    raise exception 'FAIL a trip whose only shop dropped out was not cancelled';
+  end if;
+  raise notice 'PASS a trip whose only shop drops out is cancelled';
+end $$;
+
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000090c1","role":"authenticated"}', true);
+create temporary table ms_same_shop as
+select * from customer_place_delivery(
+  jsonb_build_array(
+    jsonb_build_object('restaurant_id', 'RS-M08', 'items', jsonb_build_array(jsonb_build_object('menu_item_id', 'MI-M08', 'quantity', 1))),
+    jsonb_build_object('restaurant_id', 'RS-M08', 'items', jsonb_build_array(jsonb_build_object('menu_item_id', 'MI-M08', 'quantity', 2)))
+  ),
+  '12 Katipunan St., Barangay Poblacion', 'cash', 'ms-same-shop', 'MS-Priced');
+
+reset role;
+do $$
+begin
+  if (select shops from deliveries where id = (select delivery_id from ms_same_shop)) <> 1 then
+    raise exception 'FAIL the trip counts the same shop twice';
+  end if;
+  if (select count(*) from orders where delivery_id = (select delivery_id from ms_same_shop)) <> 1 then
+    raise exception 'FAIL the trip made two orders for one shop';
+  end if;
+  if (select subtotal from deliveries where id = (select delivery_id from ms_same_shop))
+       <> (select sum(subtotal) from orders where delivery_id = (select delivery_id from ms_same_shop)) then
+    raise exception 'FAIL the trip''s subtotal is not the sum of its shops';
+  end if;
+  if (select total from deliveries where id = (select delivery_id from ms_same_shop)) <> 335 then
+    raise exception 'FAIL the trip was priced wrong: %', (select total from deliveries where id = (select delivery_id from ms_same_shop));
+  end if;
+  raise notice 'PASS the trip''s subtotal is the sum of its shops';
+end $$;
+
+-- A part of a trip cannot be claimed on its own: a rider who claimed one
+-- shop would be left holding one kitchen's food with no trip around it.
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000090c4","role":"authenticated"}', true);
+do $$
+begin
+  perform claim_order((select id from orders where delivery_id = (select delivery_id from ms_placed) limit 1));
+  raise exception 'FAIL a part of a trip was claimed';
+exception when others then
+  if sqlerrm not like '%part of a delivery%' then raise exception 'FAIL: %', sqlerrm; end if;
+  raise notice 'PASS a part of a trip cannot be claimed';
+end $$;
+
+-- Nor dispatched on its own by an admin.
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000090cb","role":"authenticated"}', true);
+do $$
+begin
+  perform admin_dispatch_order((select id from orders where delivery_id = (select delivery_id from ms_placed) limit 1));
+  raise exception 'FAIL a part of a trip was dispatched';
+exception when others then
+  if sqlerrm not like '%Dispatch the delivery instead%' then raise exception 'FAIL: %', sqlerrm; end if;
+  raise notice 'PASS a part of a trip cannot be dispatched';
+end $$;
+
+-- The trip's shops are not everybody's business.
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000090c6","role":"authenticated"}', true);
+do $$
+begin
+  if exists (select 1 from delivery_stops((select delivery_id from ms_placed))) then
+    raise exception 'FAIL another customer read a trip''s shops';
+  end if;
+  raise notice 'PASS another customer cannot read a trip''s shops';
+end $$;
+
+-- The rider carrying it can.
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000090c4","role":"authenticated"}', true);
+do $$
+begin
+  if (select count(*) from delivery_stops((select delivery_id from ms_placed))) < 1 then
+    raise exception 'FAIL the rider cannot read the shops of the trip they carry';
+  end if;
+  raise notice 'PASS the rider reads the shops of the trip they carry';
 end $$;
 
 rollback;
