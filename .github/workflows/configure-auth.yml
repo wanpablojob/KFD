@@ -267,6 +267,89 @@ jobs:
               });
             '
 
+      - name: Check the mailer
+        if: ${{ !inputs.dry_run }}
+        env:
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require("fs");
+
+          (async () => {
+          const key = process.env.RESEND_API_KEY || process.env.RESEND_KEY;
+          if (!key) {
+            console.log("No Resend key: nothing to check.");
+            return;
+          }
+          console.error("::add-mask::" + key);
+          const from = process.env.AUTH_EMAIL_FROM || "orders@notifications.kfd.ph";
+
+          // Which domains the account may send from. The address the mail is
+          // sent as has to be one of them, or Resend refuses the message.
+          const domains = await fetch("https://api.resend.com/domains", {
+            headers: { Authorization: `Bearer ${key}` },
+          });
+          if (domains.ok) {
+            const payload = await domains.json();
+            const list = (payload.data || []).map((d) => `${d.name} (${d.status})`);
+            console.log("Resend domains: " + (list.length ? list.join(", ") : "none"));
+          } else {
+            console.log("Resend domains: could not be read (" + domains.status + ")");
+          }
+
+          // A real send, through the same key, from the same address the
+          // mailer uses. This is what tells the owner what to fix: a domain
+          // that is not verified says so in the error.
+          const sent = await fetch("https://api.resend.com/emails", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${key}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              from: `KFD <${from}>`,
+              to: ["appreview.customer@kfd.ph"],
+              subject: "KFD mailer check",
+              text: "The KFD mailer is working.",
+            }),
+          });
+          const sentBody = await sent.text();
+          console.log(
+            sent.ok
+              ? "Test mail sent: " + sentBody.slice(0, 200)
+              : "Test mail refused (" + sent.status + "): " + sentBody.slice(0, 400)
+          );
+
+          // And the whole path the customer walks: a reset code, through
+          // Supabase, out through the mailer.
+          const pub = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+          if (pub) {
+            const recover = await fetch(
+              "https://ijeqwbrrgfsmymsektih.supabase.co/auth/v1/recover",
+              {
+                method: "POST",
+                headers: { apikey: pub, "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  email: "appreview.customer@kfd.ph",
+                  redirect_to: "https://kfd-one.vercel.app/support",
+                }),
+              }
+            );
+            const recoverBody = await recover.text();
+            console.log(
+              "Password reset through Supabase: " +
+                recover.status +
+                " " +
+                recoverBody.slice(0, 300)
+            );
+          }
+          })().catch((e) => {
+            console.error(String(e));
+            process.exit(1);
+          });
+          NODE
+
       - name: Report the current settings
         if: ${{ inputs.dry_run }}
         run: |
