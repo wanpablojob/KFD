@@ -207,7 +207,7 @@ jobs:
             {
               key: "RESEND_API_KEY",
               value: process.env.RESEND_API_KEY || current.RESEND_API_KEY?.value,
-              type: "secret",
+              type: "sensitive",
             },
             {
               key: "NEXT_PUBLIC_SITE_URL",
