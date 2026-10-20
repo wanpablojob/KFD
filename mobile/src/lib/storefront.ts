@@ -550,6 +550,10 @@ export interface CustomerOrder {
    * not the shop's, so the history has to say which is which.
    */
   delivery_id: string | null;
+  /** Why the restaurant could not take it, when it could not. */
+  rejection_reason: string | null;
+  /** Why the rider could not complete it, when they could not. */
+  delivery_failed_reason: string | null;
   items: {
     name: string;
     quantity: number;
@@ -583,6 +587,8 @@ export function mapMyOrderRow(row: Record<string, unknown>): CustomerOrder {
     restaurant_id: (row.restaurant_id as string | null) ?? null,
     rider_id: (row.rider_id as string | null) ?? null,
     delivery_id: (row.delivery_id as string | null) ?? null,
+    rejection_reason: (row.rejection_reason as string | null) ?? null,
+    delivery_failed_reason: (row.delivery_failed_reason as string | null) ?? null,
     items: parseOrderItems(row.items),
     subtotal: Number(row.subtotal),
     delivery_fee: Number(row.delivery_fee),
@@ -600,7 +606,7 @@ export async function fetchMyOrders(): Promise<CustomerOrder[]> {
   const { data, error } = await supabase
     .from("orders")
     .select(
-      "id, reference, restaurant, restaurant_id, rider_id, delivery_id, items, subtotal, delivery_fee, service_fee, total, status, payment, placed_at, delivery_address"
+      "id, reference, restaurant, restaurant_id, rider_id, delivery_id, rejection_reason, delivery_failed_reason, items, subtotal, delivery_fee, service_fee, total, status, payment, placed_at, delivery_address"
     )
     .order("placed_at", { ascending: false })
     .limit(30);

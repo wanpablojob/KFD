@@ -21,6 +21,15 @@ import { useUserRole } from "@/lib/use-user-role";
 const navItems = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboardIcon },
   { href: "/dashboard/orders", label: "Orders", icon: ReceiptIcon },
+  // The trips: one basket from several shops, delivered in one trip. The
+  // orders list is per shop, which is what a merchant and a rider read; this
+  // is the basket as a whole, with its rider and its money.
+  {
+    href: "/dashboard/deliveries",
+    label: "Deliveries",
+    icon: BikeIcon,
+    adminOnly: true,
+  },
   { href: "/dashboard/restaurants", label: "Restaurants", icon: StoreIcon },
   { href: "/dashboard/riders", label: "Riders", icon: BikeIcon },
   { href: "/dashboard/customers", label: "Customers", icon: UsersIcon },
