@@ -203,7 +203,7 @@ jobs:
           const current = JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP + "/vercel-env.json", "utf8"));
 
           const wanted = [
-            { key: "SUPABASE_SERVICE_ROLE_KEY", value: serviceRole, type: "secret" },
+            { key: "SUPABASE_SERVICE_ROLE_KEY", value: serviceRole, type: "sensitive" },
             {
               key: "RESEND_API_KEY",
               value: process.env.RESEND_API_KEY || current.RESEND_API_KEY?.value,
@@ -212,17 +212,17 @@ jobs:
             {
               key: "NEXT_PUBLIC_SITE_URL",
               value: "https://kfd-one.vercel.app",
-              type: "plaintext",
+              type: "plain",
             },
             {
               key: "NEXT_PUBLIC_SUPABASE_URL",
               value: process.env.NEXT_PUBLIC_SUPABASE_URL,
-              type: "plaintext",
+              type: "plain",
             },
             {
               key: "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
               value: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
-              type: "plaintext",
+              type: "plain",
             },
           ].filter((v) => !!v.value);
 
