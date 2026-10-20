@@ -7,10 +7,6 @@
     "build": {
       "model": "opencode/minimax-m3.1-flash-free#max",
       "steps": 100
-    },
-    "neo": {
-      "model": "opencode/big-pickle",
-      "steps": 160
     }
   },
   "compaction": {
