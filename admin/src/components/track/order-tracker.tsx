@@ -3,7 +3,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { formatCurrency, formatDateTime } from "@/lib/format";
-import { fetchTrackedOrder, isTerminal, type TrackedOrder } from "@/lib/tracking";
+import {
+  fetchTrackedDelivery,
+  fetchTrackedOrder,
+  isTerminal,
+  type TrackedDelivery,
+  type TrackedOrder,
+} from "@/lib/tracking";
+import type { OrderStatus } from "@/lib/types";
 
 /**
  * The tracking view itself, kept separate from the route so the page stays a
@@ -11,6 +18,9 @@ import { fetchTrackedOrder, isTerminal, type TrackedOrder } from "@/lib/tracking
  */
 export function OrderTracker({ reference }: { reference: string }) {
   const [order, setOrder] = useState<TrackedOrder | null>(null);
+  // A trip (0092): the reference a customer is given may be the trip's, and
+  // the public tracker has to show the whole delivery.
+  const [delivery, setDelivery] = useState<TrackedDelivery | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "missing" | "error">(
     "loading"
   );
@@ -26,13 +36,25 @@ export function OrderTracker({ reference }: { reference: string }) {
         setOrder(next);
         setState("ready");
         if (isTerminal(next.status)) terminal.current = true;
-      } else {
-        setState("missing");
-        // Nothing to poll for. A not-found is not going to become found by
-        // asking again, and this page is the least authenticated surface in
-        // the app, so it should not keep hitting the database on a timer.
-        terminal.current = true;
+        return;
       }
+
+      // Not an order's reference: it may be a trip's (0092).
+      const trip = await fetchTrackedDelivery(reference);
+      if (trip) {
+        setDelivery(trip);
+        setState("ready");
+        if (trip.status === "delivered" || trip.status === "cancelled") {
+          terminal.current = true;
+        }
+        return;
+      }
+
+      setState("missing");
+      // Nothing to poll for. A not-found is not going to become found by
+      // asking again, and this page is the least authenticated surface in
+      // the app, so it should not keep hitting the database on a timer.
+      terminal.current = true;
     } catch {
       setState("error");
     }
@@ -76,7 +98,7 @@ export function OrderTracker({ reference }: { reference: string }) {
     );
   }
 
-  if (state === "missing" || !order) {
+  if (state === "missing" || (!order && !delivery)) {
     // Deliberately identical for "no such order" and "not trackable without an
     // account". Saying which one it was would confirm that a guessed reference
     // is real.
@@ -95,6 +117,76 @@ export function OrderTracker({ reference }: { reference: string }) {
       </div>
     );
   }
+
+  // A trip (0092): one basket from several shops, one delivery. Every shop's
+  // own status is shown, because the shops decide separately.
+  if (delivery) {
+    return (
+      <div data-tracking-state="ready" className="space-y-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="font-mono text-sm text-muted-foreground">
+              {delivery.reference}
+            </p>
+            <p className="text-lg font-semibold text-card-foreground">
+              {delivery.stops.length === 1
+                ? delivery.stops[0]?.restaurant
+                : `${delivery.stops.length} restaurants, one delivery`}
+            </p>
+          </div>
+          <StatusBadge status={delivery.status as OrderStatus} />
+        </div>
+
+        <p className="text-sm text-muted-foreground">
+          Placed {formatDateTime(delivery.placedAt)}
+          {delivery.rider ? ` · rider ${delivery.rider}` : ""}
+        </p>
+
+        <ul className="divide-y divide-border/70 rounded-(--radius-card) border border-border">
+          {delivery.stops.map((stop) => (
+            <li key={stop.order_id} className="space-y-1 px-4 py-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm font-medium text-card-foreground">
+                  {stop.restaurant}
+                </p>
+                <span className="text-xs text-muted-foreground">
+                  {stop.status.replace(/_/g, " ")}
+                </span>
+              </div>
+              {stop.items.map((item, i) => (
+                <p key={`${stop.order_id}-${i}`} className="text-xs text-muted-foreground">
+                  {item.quantity}× {item.name}
+                </p>
+              ))}
+            </li>
+          ))}
+        </ul>
+
+        <dl className="space-y-1 text-sm">
+          <div className="flex justify-between">
+            <dt className="text-muted-foreground">Subtotal</dt>
+            <dd>{formatCurrency(delivery.subtotal)}</dd>
+          </div>
+          <div className="flex justify-between">
+            <dt className="text-muted-foreground">Delivery fee</dt>
+            <dd>{formatCurrency(delivery.deliveryFee)}</dd>
+          </div>
+          <div className="flex justify-between">
+            <dt className="text-muted-foreground">Service fee</dt>
+            <dd>{formatCurrency(delivery.serviceFee)}</dd>
+          </div>
+          <div className="flex justify-between font-medium">
+            <dt>Total</dt>
+            <dd>{formatCurrency(delivery.total)}</dd>
+          </div>
+        </dl>
+      </div>
+    );
+  }
+
+  // The trip above is the only thing a trip's reference can be; if neither
+  // an order nor a trip was found, the missing state has already rendered.
+  if (!order) return null;
 
   return (
     <div data-tracking-state="ready" className="space-y-6">

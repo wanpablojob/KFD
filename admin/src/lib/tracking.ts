@@ -41,6 +41,81 @@ export function isTerminal(status: OrderStatus | null): boolean {
   return status !== null && TERMINAL.includes(status);
 }
 
+/** A trip (0092): one basket from several shops, one delivery. */
+export interface TrackedDelivery {
+  reference: string;
+  customer: string;
+  deliveryAddress: string | null;
+  deliveryBarangay: string | null;
+  payment: PaymentMethod;
+  subtotal: number;
+  deliveryFee: number;
+  serviceFee: number;
+  total: number;
+  status: string;
+  placedAt: string;
+  rider: string | null;
+  stops: {
+    order_id: string;
+    reference: string;
+    restaurant: string;
+    items: OrderItem[];
+    subtotal: number;
+    status: OrderStatus;
+  }[];
+}
+
+/**
+ * Track a trip by its reference (0092).
+ *
+ * A customer is given the TRIP's reference, so the public tracker has to
+ * understand it: the same posture as track_order -- a fixed projection, and
+ * the address only for the customer who ordered it.
+ */
+export async function fetchTrackedDelivery(
+  reference: string
+): Promise<TrackedDelivery | null> {
+  const { data, error } = await supabase.rpc("track_delivery", {
+    p_reference: reference,
+  });
+  if (error) throw new Error(error.message);
+  const row = Array.isArray(data) ? data[0] : null;
+  if (!row) return null;
+
+  const stops = Array.isArray(row.stops) ? row.stops : [];
+  return {
+    reference: row.reference,
+    customer: row.customer,
+    deliveryAddress: row.delivery_address ?? null,
+    deliveryBarangay: row.delivery_barangay ?? null,
+    payment: row.payment,
+    subtotal: Number(row.subtotal),
+    deliveryFee: Number(row.delivery_fee),
+    serviceFee: Number(row.service_fee),
+    total: Number(row.total),
+    status: row.status,
+    placedAt: row.placed_at,
+    rider: row.rider ?? null,
+    stops: stops.flatMap((stop) => {
+      if (stop === null || typeof stop !== "object") return [];
+      const shop = stop as Record<string, unknown>;
+      if (typeof shop.order_id !== "string") return [];
+      return [
+        {
+          order_id: shop.order_id,
+          reference: typeof shop.reference === "string" ? shop.reference : "",
+          restaurant: typeof shop.restaurant === "string" ? shop.restaurant : "",
+          items: Array.isArray(shop.items)
+            ? (shop.items as unknown as OrderItem[])
+            : [],
+          subtotal: Number(shop.subtotal),
+          status: shop.status as OrderStatus,
+        },
+      ];
+    }),
+  };
+}
+
 export async function fetchTrackedOrder(
   reference: string
 ): Promise<TrackedOrder | null> {
