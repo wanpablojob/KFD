@@ -12,8 +12,12 @@ import "./landing.css";
  * automatically; metadataBase lets it resolve to an absolute URL.
  */
 const title = "KFD | Food delivery sa Kabankalan City";
+// "Follow every step of your order", not "follow your rider": the app shows
+// the order's milestones, and a rider's live location is not something the
+// app has yet. Saying otherwise on the front page is a promise the app cannot
+// keep.
 const description =
-  "Order from local Kabankalan kitchens, pay cash or GCash on delivery, and follow your rider until the food reaches your door. Pili, bayad, hintay.";
+  "Order from local Kabankalan kitchens, pay cash or GCash on delivery, and follow every step of your order. Pili, bayad, hintay.";
 
 export const metadata: Metadata = {
   title,

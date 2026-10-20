@@ -167,7 +167,7 @@ export function LandingScene() {
                 style={turn(2)}
               >
                 Order from local kitchens, pay cash or GCash when it arrives, and
-                follow your rider to your door.
+                follow every step of your order.
               </p>
               <div className="enter flex flex-wrap items-center gap-3" style={turn(3)}>
                 <a href="#app" className={primaryButton}>
@@ -364,7 +364,7 @@ export function LandingScene() {
               {APP_DOWNLOADS.android || APP_DOWNLOADS.iphone ? (
                 <>
                   <p className="max-w-[44ch] text-base leading-relaxed opacity-90">
-                    Order, pay and follow your rider from your phone.
+                    Order, pay and follow every step of your order from your phone.
                   </p>
                   <div className="flex flex-wrap gap-3">
                     {APP_DOWNLOADS.android ? (

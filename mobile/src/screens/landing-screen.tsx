@@ -95,7 +95,7 @@ export function LandingScreen({
           <Text style={styles.headline}>Local kitchens, delivered to your door.</Text>
           <Text style={styles.lead}>
             Order from Kabankalan restaurants, pay cash or GCash when it arrives, and
-            follow your rider the whole way.
+            follow every step of your order.
           </Text>
 
           <Pressable
