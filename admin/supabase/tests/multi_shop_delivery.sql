@@ -347,6 +347,27 @@ exception when others then
   raise notice 'PASS a claimed trip cannot be claimed again';
 end $$;
 
+-- The trip cannot be closed while a shop's food is still on the counter: the
+-- rider would be paid for a stop they never made. The photo has to be in the
+-- bucket first, or the server stops at the photo check before it reaches the
+-- rule under test.
+reset role;
+insert into storage.objects (bucket_id, name)
+select 'delivery-proofs', 'R-MS1/' || delivery_id || '.jpg' from ms_placed;
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000090c4","role":"authenticated"}', true);
+do $$
+begin
+  perform rider_mark_delivery_delivered(
+    (select delivery_id from ms_placed),
+    'R-MS1/' || (select delivery_id from ms_placed) || '.jpg',
+    245);
+  raise exception 'FAIL the trip was closed with a shop still to collect';
+exception when others then
+  if sqlerrm not like '%every restaurant%' then raise exception 'FAIL: %', sqlerrm; end if;
+  raise notice 'PASS a trip cannot be closed before every shop is collected';
+end $$;
+
 -- --------------------------------------------------------------------------
 -- 5. Pickup per shop, one delivery
 -- --------------------------------------------------------------------------
@@ -360,11 +381,24 @@ select id, restaurant_id from orders
  limit 1;
 
 select * from rider_mark_picked_up((select id from ms_parts));
+-- The other shop too: a trip is closed only when every bag is with the rider.
+select * from rider_mark_picked_up((
+  select id from orders
+   where delivery_id = (select delivery_id from ms_placed)
+     and id <> (select id from ms_parts)
+));
 
 do $$
 begin
   if (select status from orders where id = (select id from ms_parts)) <> 'out_for_delivery' then
     raise exception 'FAIL the shop was not marked picked up';
+  end if;
+  if exists (
+    select 1 from orders
+     where delivery_id = (select delivery_id from ms_placed)
+       and status <> 'out_for_delivery'
+  ) then
+    raise exception 'FAIL a shop was not marked picked up';
   end if;
   if (select status from deliveries where id = (select delivery_id from ms_placed)) <> 'out_for_delivery' then
     raise exception 'FAIL the trip is not out for delivery';
@@ -376,9 +410,6 @@ end $$;
 -- 6. Cash variance against the GRAND total, and the payouts
 -- --------------------------------------------------------------------------
 
-reset role;
-insert into storage.objects (bucket_id, name)
-select 'delivery-proofs', 'R-MS1/' || delivery_id || '.jpg' from ms_placed;
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000090c4","role":"authenticated"}', true);
 
@@ -454,6 +485,11 @@ update orders set status = 'confirmed' where delivery_id = (select delivery_id f
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000090c7","role":"authenticated"}', true);
 select * from claim_delivery((select delivery_id from ms_second));
+-- The food is collected, so the rule under test here is the photo's, not the
+-- "collect every shop first" rule.
+select * from rider_mark_picked_up((
+  select id from orders where delivery_id = (select delivery_id from ms_second)
+));
 
 do $$
 begin
