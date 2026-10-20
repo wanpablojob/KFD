@@ -16,6 +16,13 @@
 # address, and one every 60 seconds. A customer who mistypes their address
 # twice, or asks for a code twice, hits a wall that looks like a broken app.
 #
+# The Management API's field names are flat and specific -- the recovery
+# template is mailer_templates_recovery_content, the code length is
+# mailer_otp_length, and the SMTP settings are smtp_host / smtp_port /
+# smtp_user / smtp_pass / smtp_admin_email / smtp_sender_name. The endpoint
+# answers 200 to a body it does not recognise, so the step reads the settings
+# back afterwards and prints what is actually stored.
+#
 # workflow_dispatch only, for the same reason as migrate-db.yml: who can
 # receive a password-reset mail is not something a push should decide.
 #
@@ -74,7 +81,6 @@ jobs:
           node-version: 22
 
       - name: Build the settings
-        id: build
         run: |
           set -euo pipefail
           if [ -n "${RESEND_API_KEY:-}" ]; then
@@ -99,42 +105,41 @@ jobs:
           };
 
           // Read what is set now, so the PATCH only changes the fields this
-          // workflow owns: a template the owner customised by hand, or a
-          // setting this file does not mention, survives.
+          // workflow owns: a setting the owner changed by hand, or one this
+          // file does not mention, survives.
           const current = await (
             await fetch(`https://api.supabase.com/v1/projects/${ref}/config/auth`, { headers })
           ).json();
 
-          const templates = Array.isArray(current.mailer_templates) ? current.mailer_templates : [];
-          const others = templates.filter((t) => t.id !== "ResetPassword");
           const body = {
-            otp_length: 6,
-            otp_expiry: 3600,
+            // The code the app types, and how long it lives.
+            mailer_otp_length: 6,
+            mailer_otp_exp: 3600,
+            // The recovery email. The dashboard calls this the "Reset
+            // password" template; the API calls it recovery.
+            mailer_subjects_recovery: "Your KFD password reset code",
+            mailer_templates_recovery_content: template,
+            // A reset link is a way to take an account over, so it needs the
+            // old password as well as the mail.
             mailer_secure_email_change_enabled: true,
             mailer_autoconfirm: false,
-            mailer_templates: [
-              ...others,
-              { id: "ResetPassword", subject: "Your KFD password reset code", body: template },
-            ],
           };
 
           if (process.env.RESEND_API_KEY) {
-            body.smtp = {
-              host: "smtp.resend.com",
-              port: 465,
-              user: "resend",
-              pass: process.env.RESEND_API_KEY,
-              admin_email: process.env.AUTH_EMAIL_FROM || "orders@notifications.kfd.ph",
-              sender_name: "KFD",
-              max_frequency: 30,
-            };
+            body.smtp_host = "smtp.resend.com";
+            body.smtp_port = "465";
+            body.smtp_user = "resend";
+            body.smtp_pass = process.env.RESEND_API_KEY;
+            body.smtp_admin_email =
+              process.env.AUTH_EMAIL_FROM || "orders@notifications.kfd.ph";
+            body.smtp_sender_name = "KFD";
+            body.smtp_max_frequency = 30;
             // The rate limit belongs to the custom mailer, not to Supabase's
             // built-in one: the Management API refuses RATE_LIMIT_EMAIL_SENT
             // without SMTP_SENDER_NAME ("Custom SMTP required to configure
             // SMTP_SENDER_NAME or RATE_LIMIT_EMAIL_SENT"). So it is set with
             // the mailer, not before it.
             body.rate_limit_email_sent = 30;
-            body.mailer_max_frequency = 30;
           } else {
             console.error(
               "::warning::RESEND_API_KEY is not set: the mailer, the sender name and the email rate limit are left as they are. The Management API will not raise the limit without a custom mailer."
@@ -144,15 +149,26 @@ jobs:
           fs.writeFileSync(process.env.RUNNER_TEMP + "/body.json", JSON.stringify(body));
           // The SMTP password is masked, so the dry run can be read.
           const redacted = JSON.parse(JSON.stringify(body));
-          if (redacted.smtp) redacted.smtp.pass = "***";
+          if (redacted.smtp_pass) redacted.smtp_pass = "***";
+          console.log("Settings to apply:");
           console.log(JSON.stringify(redacted, null, 2));
+          console.log("");
+          console.log("The project currently reports:");
+          const now = {
+            mailer_otp_length: current.mailer_otp_length,
+            mailer_otp_exp: current.mailer_otp_exp,
+            rate_limit_email_sent: current.rate_limit_email_sent,
+            smtp_host: current.smtp_host,
+            smtp_admin_email: current.smtp_admin_email,
+            recovery_template_has_token:
+              (current.mailer_templates_recovery_content || "").includes("{{ .Token }}"),
+          };
+          console.log(JSON.stringify(now, null, 2));
           })().catch((e) => {
             console.error(e);
             process.exit(1);
           });
           NODE
-
-          echo "settings ready"
 
       - name: Apply the settings
         if: ${{ !inputs.dry_run }}
@@ -171,34 +187,26 @@ jobs:
             echo >&2
             exit 1
           fi
-          echo "Auth settings applied. The raw API answer:"
-          printf '%s' "$payload" | node -e '
-            let s = "";
-            process.stdin.on("data", (d) => (s += d)).on("end", () => {
-              let c;
-              try { c = JSON.parse(s); } catch { console.log(s.slice(0, 1500)); return; }
-              if (c.smtp && c.smtp.pass) c.smtp.pass = "***";
-              console.log(JSON.stringify(c, null, 2).slice(0, 3000));
-            });
-          '
-          echo
-          echo "What the project reports now:"
+          echo "Applied. What the project stores now:"
           curl -sS "https://api.supabase.com/v1/projects/${PROJECT_REF}/config/auth" \
             -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
             | node -e '
               let s = "";
               process.stdin.on("data", (d) => (s += d)).on("end", () => {
                 const c = JSON.parse(s);
-                const templates = c.mailer_templates || [];
                 console.log(JSON.stringify({
-                  otp_length: c.otp_length,
-                  otp_expiry: c.otp_expiry,
+                  mailer_otp_length: c.mailer_otp_length,
+                  mailer_otp_exp: c.mailer_otp_exp,
                   rate_limit_email_sent: c.rate_limit_email_sent,
-                  mailer_max_frequency: c.mailer_max_frequency,
-                  smtp_host: c.smtp && c.smtp.host,
-                  smtp_password_set: !!(c.smtp && c.smtp.pass),
-                  template_ids: templates.map((t) => t.id),
-                  reset_body_starts: (templates.find((t) => (t.id || "").toLowerCase().includes("reset")) || {}).body?.slice(0, 160),
+                  smtp_host: c.smtp_host,
+                  smtp_port: c.smtp_port,
+                  smtp_user: c.smtp_user,
+                  smtp_admin_email: c.smtp_admin_email,
+                  smtp_sender_name: c.smtp_sender_name,
+                  smtp_password_set: !!c.smtp_pass,
+                  recovery_subject: c.mailer_subjects_recovery,
+                  recovery_template_has_token:
+                    (c.mailer_templates_recovery_content || "").includes("{{ .Token }}"),
                 }, null, 2));
               });
             '
@@ -215,13 +223,13 @@ jobs:
                 const c = JSON.parse(s);
                 console.log("The project currently reports:");
                 console.log(JSON.stringify({
-                  otp_length: c.otp_length,
+                  mailer_otp_length: c.mailer_otp_length,
+                  mailer_otp_exp: c.mailer_otp_exp,
                   rate_limit_email_sent: c.rate_limit_email_sent,
-                  mailer_max_frequency: c.mailer_max_frequency,
-                  smtp_host: c.smtp && c.smtp.host,
-                  smtp_from: c.smtp && c.smtp.admin_email,
-                  reset_password_template_has_token:
-                    (c.mailer_templates || []).find((t) => t.id === "ResetPassword")?.body?.includes("{{ .Token }}") ?? false,
+                  smtp_host: c.smtp_host,
+                  smtp_admin_email: c.smtp_admin_email,
+                  recovery_template_has_token:
+                    (c.mailer_templates_recovery_content || "").includes("{{ .Token }}"),
                 }, null, 2));
               });
             '
