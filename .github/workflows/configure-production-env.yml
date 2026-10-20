@@ -1,0 +1,266 @@
+# Configure the production environment on Vercel, and the service role key
+# the admin app's server routes need.
+#
+# What this sets, and why each one is needed:
+#
+#   SUPABASE_SERVICE_ROLE_KEY  the order-notify and push routes read orders and
+#                              write notifications with it, because RLS cannot
+#                              help a route that has to notify a rider about
+#                              somebody else's order. Server-side only: it must
+#                              never be a NEXT_PUBLIC_ variable.
+#   RESEND_API_KEY             the order and rider emails. Without it the app
+#                              says "the email was not sent" instead of failing
+#                              silently.
+#   NEXT_PUBLIC_SITE_URL       the real domain. Without it the site falls back
+#                              to the Vercel preview URL, and every canonical
+#                              link, the sitemap and the store listing URLs
+#                              point at a preview host.
+#
+# The service role key is read from the Supabase Management API with the
+# project's access token and written straight into Vercel. It is never printed,
+# never committed, and never leaves the runner.
+#
+# The Resend key is a repository secret (RESEND_API_KEY). It is optional here:
+# the app's own key may already be in the Vercel environment, and this
+# workflow reports which environment variables exist without printing any
+# value.
+#
+# workflow_dispatch only: this changes what production runs with.
+
+name: Configure Production Environment
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Report what would change, change nothing"
+        type: boolean
+        required: false
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: configure-production-env
+  cancel-in-progress: false
+
+jobs:
+  configure:
+    name: Configure production env
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+
+    env:
+      PROJECT_REF: ijeqwbrrgfsmymsektih
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+
+    steps:
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Read the Supabase service role key
+        id: supabase
+        run: |
+          set -euo pipefail
+          node <<'NODE' > "$RUNNER_TEMP/supabase.json"
+          const fs = require("fs");
+
+          (async () => {
+          const token = process.env.SUPABASE_ACCESS_TOKEN;
+          const ref = process.env.PROJECT_REF;
+          if (!token) throw new Error("SUPABASE_ACCESS_TOKEN is not set");
+          const headers = {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          };
+
+          const list = await (
+            await fetch(`https://api.supabase.com/v1/projects/${ref}/api-keys`, { headers })
+          ).json();
+          const keys = Array.isArray(list) ? list : [];
+
+          // Prefer a key that already has a value we can use. The legacy
+          // service_role JWT and the newer sb_secret_ key both work with
+          // supabase-js, so either is fine.
+          let chosen = keys.find((k) => k.api_key && (k.type === "legacy" || k.type === "secret"));
+          let created = false;
+          if (!chosen) {
+            const made = await (
+              await fetch(`https://api.supabase.com/v1/projects/${ref}/api-keys`, {
+                method: "POST",
+                headers,
+                body: JSON.stringify({ name: "kfd-production", type: "secret" }),
+              })
+            ).json();
+            chosen = made.api_key ? made : null;
+            created = true;
+            if (!chosen) {
+              console.error("The Management API returned no usable key:", JSON.stringify(made).slice(0, 500));
+              process.exit(1);
+            }
+          }
+
+          console.error("::add-mask::" + chosen.api_key);
+          fs.writeFileSync(process.env.RUNNER_TEMP + "/service-role-key", chosen.api_key);
+          console.log(
+            JSON.stringify({
+              key_id: chosen.id,
+              key_type: chosen.type,
+              key_name: chosen.name,
+              created_now: created,
+              api_key_present: true,
+            }, null, 2)
+          );
+          })().catch((e) => {
+            console.error(String(e));
+            process.exit(1);
+          });
+          NODE
+
+      - name: Report the Vercel production environment
+        id: vercel
+        run: |
+          set -euo pipefail
+          node <<'NODE' > "$RUNNER_TEMP/vercel-env.json"
+          const fs = require("fs");
+
+          (async () => {
+          const token = process.env.VERCEL_TOKEN;
+          const project = process.env.VERCEL_PROJECT_ID;
+          const team = process.env.VERCEL_ORG_ID;
+          if (!token || !project) throw new Error("VERCEL_TOKEN or VERCEL_PROJECT_ID is not set");
+          const headers = { Authorization: `Bearer ${token}` };
+          const query = team ? `?teamId=${team}&decrypt=true` : "?decrypt=true";
+
+          const res = await fetch(
+            `https://api.vercel.com/v10/projects/${project}/env${query}`,
+            { headers }
+          );
+          const payload = await res.json();
+          if (!res.ok) {
+            console.error("The Vercel API answered", res.status, JSON.stringify(payload).slice(0, 500));
+            process.exit(1);
+          }
+          const envs = payload.envs || [];
+          // Values are written to a file the next step reads. Nothing is
+          // printed: the report below is names only.
+          const byKey = {};
+          for (const e of envs) {
+            byKey[e.key] = { value: e.value, target: e.target, type: e.type, id: e.id };
+          }
+          fs.writeFileSync(process.env.RUNNER_TEMP + "/vercel-env.json", JSON.stringify(byKey));
+          console.log(
+            JSON.stringify(
+              {
+                environment_variables: envs
+                  .filter((e) => (e.target || []).includes("production"))
+                  .map((e) => ({ key: e.key, type: e.type, has_value: !!e.value })),
+                resend_api_key_present: !!byKey.RESEND_API_KEY,
+                service_role_key_present: !!byKey.SUPABASE_SERVICE_ROLE_KEY,
+              },
+              null,
+              2
+            )
+          );
+          })().catch((e) => {
+            console.error(String(e));
+            process.exit(1);
+          });
+          NODE
+
+      - name: Apply the environment
+        if: ${{ !inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require("fs");
+
+          (async () => {
+          const token = process.env.VERCEL_TOKEN;
+          const project = process.env.VERCEL_PROJECT_ID;
+          const team = process.env.VERCEL_ORG_ID;
+          const headers = {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          };
+          const serviceRole = fs.readFileSync(process.env.RUNNER_TEMP + "/service-role-key", "utf8").trim();
+          const current = JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP + "/vercel-env.json", "utf8"));
+
+          const wanted = [
+            { key: "SUPABASE_SERVICE_ROLE_KEY", value: serviceRole, type: "secret" },
+            {
+              key: "RESEND_API_KEY",
+              value: process.env.RESEND_API_KEY || current.RESEND_API_KEY?.value,
+              type: "secret",
+            },
+            {
+              key: "NEXT_PUBLIC_SITE_URL",
+              value: "https://kfd-one.vercel.app",
+              type: "plaintext",
+            },
+          ].filter((v) => !!v.value);
+
+          for (const v of wanted) {
+            const existing = current[v.key];
+            if (existing) {
+              const res = await fetch(
+                `https://api.vercel.com/v10/projects/${project}/env/${existing.id}${team ? `?teamId=${team}` : ""}`,
+                { method: "PATCH", headers, body: JSON.stringify({ value: v.value, type: v.type }) }
+              );
+              console.error(`${v.key}: ${res.ok ? "updated" : "FAILED " + res.status}`);
+              if (!res.ok) console.error((await res.text()).slice(0, 300));
+            } else {
+              const res = await fetch(
+                `https://api.vercel.com/v10/projects/${project}/env${team ? `?teamId=${team}` : ""}`,
+                {
+                  method: "POST",
+                  headers,
+                  body: JSON.stringify({ key: v.key, value: v.value, type: v.type, target: ["production"] }),
+                }
+              );
+              console.error(`${v.key}: ${res.ok ? "created" : "FAILED " + res.status}`);
+              if (!res.ok) console.error((await res.text()).slice(0, 300));
+            }
+          }
+          })().catch((e) => {
+            console.error(String(e));
+            process.exit(1);
+          });
+          NODE
+
+      - name: Report the result
+        if: ${{ !inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          (async () => {
+          const token = process.env.VERCEL_TOKEN;
+          const project = process.env.VERCEL_PROJECT_ID;
+          const team = process.env.VERCEL_ORG_ID;
+          const res = await fetch(
+            `https://api.vercel.com/v10/projects/${project}/env${team ? `?teamId=${team}&decrypt=true` : "?decrypt=true"}`,
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
+          const payload = await res.json();
+          console.log(
+            JSON.stringify(
+              (payload.envs || [])
+                .filter((e) => (e.target || []).includes("production"))
+                .map((e) => ({ key: e.key, type: e.type, has_value: !!e.value })),
+              null,
+              2
+            )
+          );
+          })().catch((e) => {
+            console.error(String(e));
+            process.exit(1);
+          });
+          NODE
