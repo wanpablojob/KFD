@@ -73,6 +73,7 @@ function CustomerShell() {
           <Stack.Screen name="cart" />
           <Stack.Screen name="orders" />
           <Stack.Screen name="account" />
+          <Stack.Screen name="addresses" />
         </Stack>
       </TabBarInsetProvider>
 

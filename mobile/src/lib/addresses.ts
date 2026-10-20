@@ -20,6 +20,12 @@ export interface SavedAddress {
   id: string;
   label: string;
   address: string;
+  /**
+   * The service area this address sits in, when the customer picked one.
+   * Kept beside the text so checkout can price the order without asking for
+   * the barangay again. Older entries have none and still load.
+   */
+  barangay?: string;
 }
 
 const key = (userId: string) => `kfd:addresses:${userId}`;
@@ -49,14 +55,17 @@ async function persist(userId: string, addresses: SavedAddress[]): Promise<void>
 export async function saveAddress(
   userId: string,
   address: string,
-  label?: string
+  label?: string,
+  barangay?: string | null
 ): Promise<SavedAddress[]> {
   const trimmed = normaliseAddress(address);
+  const area = (barangay ?? "").trim();
   const existing = await loadAddresses(userId);
   const created: SavedAddress = {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     label: label?.trim() || addressLabelFor(trimmed),
     address: trimmed,
+    barangay: area || undefined,
   };
   const next = [created, ...existing].slice(0, ADDRESS_LIMIT);
   await persist(userId, next);

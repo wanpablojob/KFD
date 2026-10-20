@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import {
   Alert,
@@ -9,7 +9,7 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useScrollBottomPadding } from "../../components/TabBarInset";
 import { useSession } from "../../lib/session-context";
@@ -23,7 +23,7 @@ import {
   type PushStatus,
 } from "../../lib/push";
 import { deleteMyAccount } from "../../lib/storefront";
-import { clearAddresses } from "../../lib/addresses";
+import { clearAddresses, loadAddresses } from "../../lib/addresses";
 import { openLegal } from "../../lib/legal";
 import { shouldUnregisterOnSignOut } from "../../lib/push-signout";
 import { colors, radius, shadow, spacing, type } from "../../lib/theme";
@@ -59,6 +59,22 @@ export default function CustomerAccountScreen() {
 
   const [push, setPush] = useState<PushStatus>({ granted: false, registered: false });
   const [pushBusy, setPushBusy] = useState(false);
+  const [addressCount, setAddressCount] = useState(0);
+
+  // Recount on focus: the address screen is pushed on top of this one, so the
+  // count has to refresh when the customer comes back.
+  useFocusEffect(
+    useCallback(() => {
+      if (!user) return;
+      let active = true;
+      void loadAddresses(user.id).then((rows) => {
+        if (active) setAddressCount(rows.length);
+      });
+      return () => {
+        active = false;
+      };
+    }, [user])
+  );
 
   useEffect(() => {
     if (!user) return;
@@ -225,6 +241,18 @@ export default function CustomerAccountScreen() {
           <Text style={styles.saveLabel}>{saving ? "Saving…" : "Save"}</Text>
         </Pressable>
         {notice ? <Text style={styles.notice}>{notice}</Text> : null}
+      </View>
+
+      <View style={[styles.card, shadow.card]}>
+        <Row
+          label="Delivery addresses"
+          hint={
+            addressCount > 0
+              ? `${addressCount} saved. Tap one at checkout instead of typing it.`
+              : "Save your home or usual spot so checkout is one tap."
+          }
+          onPress={() => router.push("/customer/addresses" as never)}
+        />
       </View>
 
       <View style={[styles.card, shadow.card, styles.pushCard]}>

@@ -27,6 +27,7 @@ import {
 import { TRAVEL_MINUTES } from "../../lib/delivery-estimate";
 import { colors, radius, shadow, spacing, type } from "../../lib/theme";
 import { NotificationBell } from "../../components/NotificationBell";
+import { CartButton } from "../../components/CartButton";
 
 export default function CustomerHomeScreen() {
   const insets = useSafeAreaInsets();
@@ -96,7 +97,10 @@ export default function CustomerHomeScreen() {
                 location permission and must not imply it knows where they are. */}
             <View style={styles.brandRow}>
               <Text style={styles.brand}>KABANKALAN FOOD DELIVERY</Text>
-              <NotificationBell />
+              <View style={styles.headerActions}>
+                <CartButton />
+                <NotificationBell />
+              </View>
             </View>
             <Text style={type.display}>What are you craving?</Text>
 
@@ -295,7 +299,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    gap: spacing.sm,
   },
+  headerActions: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
   screen: { flex: 1, backgroundColor: colors.background },
   cardClosed: { opacity: 0.6 },
   closedLabel: { ...type.caption, fontWeight: "700", color: colors.danger },

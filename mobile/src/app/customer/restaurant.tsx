@@ -22,6 +22,7 @@ import {
 } from "../../lib/storefront";
 import { useFavorites, useToggleFavorite } from "../../lib/hooks";
 import { useCart } from "../../lib/cart-context";
+import { CartButton } from "../../components/CartButton";
 import { colors, radius, shadow, spacing, type } from "../../lib/theme";
 
 /**
@@ -37,7 +38,6 @@ export default function CustomerMenuScreen() {
   const [menu, setMenu] = useState<MenuItemRow[] | null>(null);
   const [restaurant, setRestaurant] = useState<RestaurantRow | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const { count } = useCart();
   const { data: favorites } = useFavorites();
   const toggleFavorite = useToggleFavorite();
   const isFavorite = !!restaurant && (favorites ?? []).includes(restaurant.id);
@@ -99,13 +99,7 @@ export default function CustomerMenuScreen() {
         <Text style={styles.topTitle} numberOfLines={1}>
           {restaurantName || "Menu"}
         </Text>
-        {count > 0 ? (
-          <View style={styles.topCart}>
-            <Text style={styles.topCartText}>{count}</Text>
-          </View>
-        ) : (
-          <View style={styles.topCart} />
-        )}
+        <CartButton />
       </View>
 
       {sections.length === 0 ? (
@@ -370,17 +364,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
   },
   backBtn: { width: 32, height: 32, justifyContent: "center" },
-  topTitle: { ...type.heading, color: colors.text },
-  topCart: {
-    minWidth: 26,
-    height: 26,
-    borderRadius: radius.pill,
-    backgroundColor: colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 6,
-  },
-  topCartText: { fontSize: 12, fontWeight: "800", color: colors.textInverse },
+  topTitle: { ...type.heading, color: colors.text, flex: 1, textAlign: "center" },
   list: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xxl },
   titleRow: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm },
   titleText: { flex: 1 },

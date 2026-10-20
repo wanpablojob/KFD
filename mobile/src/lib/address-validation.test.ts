@@ -1,4 +1,4 @@
-import { validateAddress, ADDRESS_LIMIT } from "./address-validation";
+import { completeAddress, validateAddress, ADDRESS_LIMIT } from "./address-validation";
 
 describe("validateAddress", () => {
   it("requires something", () => {
@@ -29,5 +29,42 @@ describe("validateAddress", () => {
 
   it("caps the saved list", () => {
     expect(ADDRESS_LIMIT).toBeGreaterThan(0);
+  });
+});
+
+describe("completeAddress", () => {
+  it("leaves the address alone when no barangay was picked", () => {
+    expect(completeAddress("12 Katipunan St.")).toBe("12 Katipunan St.");
+    expect(completeAddress("12 Katipunan St.", null)).toBe("12 Katipunan St.");
+  });
+
+  it("appends the picked barangay", () => {
+    expect(completeAddress("12 Katipunan St.", "Poblacion")).toBe(
+      "12 Katipunan St., Barangay Poblacion"
+    );
+  });
+
+  it("does not repeat a barangay already in the address", () => {
+    expect(completeAddress("12 Katipunan St., Barangay Poblacion", "Poblacion")).toBe(
+      "12 Katipunan St., Barangay Poblacion"
+    );
+    expect(completeAddress("12 Katipunan St., Brgy. Poblacion", "poblacion")).toBe(
+      "12 Katipunan St., Brgy. Poblacion"
+    );
+  });
+
+  it("tidies a trailing comma before appending", () => {
+    expect(completeAddress("12 Katipunan St., ", "Poblacion")).toBe(
+      "12 Katipunan St., Barangay Poblacion"
+    );
+  });
+
+  it("does not invent an address from a barangay alone", () => {
+    expect(completeAddress("   ", "Poblacion")).toBe("");
+  });
+
+  it("produces an address the validator accepts", () => {
+    const complete = completeAddress("12 Mabini St.", "Poblacion");
+    expect(validateAddress(complete)).toBeNull();
   });
 });

@@ -45,6 +45,20 @@ export function normaliseAddress(raw: string): string {
   return raw.trim().replace(/\s+/g, " ");
 }
 
+/**
+ * The address as it is stored and shown: what the customer typed, plus the
+ * barangay they picked when they did not type it. The server prices by the
+ * barangay name and the rider needs that same name on the address, so a single
+ * tap on a saved address has to carry both.
+ */
+export function completeAddress(raw: string, barangay?: string | null): string {
+  const base = normaliseAddress(raw).replace(/[,\s]+$/, "");
+  const area = (barangay ?? "").trim();
+  if (!base || !area) return base;
+  if (base.toLowerCase().includes(area.toLowerCase())) return base;
+  return `${base}, Barangay ${area}`;
+}
+
 export function addressLabelFor(raw: string): string {
   const match = normaliseAddress(raw).match(BARANGAY);
   if (!match) return "Saved";
