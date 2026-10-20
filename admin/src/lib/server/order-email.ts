@@ -180,4 +180,56 @@ export function orderStatusEmail(
   };
 }
 
+/**
+ * The customer's copy for a TRIP (0092).
+ *
+ * A basket from several shops is one order to the customer: one receipt, one
+ * notice per milestone. A shop that drops out is worth saying out loud even
+ * though the trip is still open -- the customer is owed an honest account of
+ * what is happening to their food.
+ */
+const TRIP_STATUS_COPY: Record<string, string> = {
+  confirmed: "Every restaurant accepted your order.",
+  preparing: "Your order is being prepared now.",
+  out_for_delivery: "Your order is on the way.",
+  delivered: "Your order was delivered. Enjoy your meal.",
+  cancelled: "A restaurant could not take its part of your order.",
+};
+
+/**
+ * The customer's status mail for a trip.
+ *
+ * `status` is the status of the thing that changed: the trip's own milestone,
+ * or `cancelled` when a shop dropped out.
+ */
+export function tripStatusEmail(
+  trip: { reference: string; items: OrderEmailData["items"]; total: number },
+  status: string,
+  reason?: string
+): { subject: string; html: string } | null {
+  const copy = TRIP_STATUS_COPY[status];
+  if (!copy) return null;
+
+  const reasonBlock =
+    status === "cancelled" && reason?.trim()
+      ? `<p style="margin:12px 0 0;padding:10px 12px;background:#fef2f2;border-left:3px solid #b90e1f"><strong>Reason:</strong> ${escapeHtml(reason.trim())}</p>`
+      : "";
+
+  const data: OrderEmailData = {
+    reference: trip.reference,
+    restaurant: "your order",
+    customer: "",
+    items: trip.items,
+    total: trip.total,
+  };
+
+  return {
+    subject: `Order ${trip.reference} — ${copy}`,
+    html: layout(
+      `Order ${trip.reference} update`,
+      `<p>${escapeHtml(copy)}</p>${reasonBlock}${summary(data)}`
+    ),
+  };
+}
+
 export { escapeHtml };

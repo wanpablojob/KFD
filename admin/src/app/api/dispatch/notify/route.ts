@@ -106,17 +106,33 @@ export async function POST(req: Request) {
 
   const body = (await req.json().catch(() => ({}))) as Body;
   const orderId = typeof body.orderId === "string" ? body.orderId.trim() : "";
-  if (!orderId) {
-    return NextResponse.json({ error: "orderId is required" }, { status: 400 });
+  // A whole trip (0092): the offers live on the trip, not on a shop's order.
+  const deliveryId =
+    typeof (body as { deliveryId?: unknown }).deliveryId === "string"
+      ? ((body as { deliveryId?: string }).deliveryId ?? "").trim()
+      : "";
+  if (!orderId && !deliveryId) {
+    return NextResponse.json(
+      { error: "orderId or deliveryId is required" },
+      { status: 400 },
+    );
+  }
+
+  // A trip is the dispatcher's business; a merchant's own order is theirs.
+  if (deliveryId && !auth.isAdmin) {
+    return NextResponse.json(
+      { error: "Admins only for a delivery" },
+      { status: 403 },
+    );
   }
 
   // Service role, so these rows are visible regardless of RLS. Nothing from
   // them is returned before the ownership check below; the caller only ever
   // learns counts for an order they are allowed to dispatch.
   const { data: offers, error: offersError } = await supabase
-    .from("order_offers")
+    .from(deliveryId ? "delivery_offers" : "order_offers")
     .select("offered_at, expires_at, riders!inner(user_id)")
-    .eq("order_id", orderId)
+    .eq(deliveryId ? "delivery_id" : "order_id", deliveryId || orderId)
     .eq("status", "offered");
 
   if (offersError) {
@@ -126,9 +142,17 @@ export async function POST(req: Request) {
 
   const { data: order } = await supabase
     .from("orders")
-    .select("reference, restaurant, restaurant_id")
+    .select("reference, restaurant, restaurant_id, delivery_id")
     .eq("id", orderId)
     .maybeSingle();
+
+  const { data: trip } = deliveryId
+    ? await supabase
+        .from("deliveries")
+        .select("id, reference, shops")
+        .eq("id", deliveryId)
+        .maybeSingle()
+    : { data: null };
 
   // A merchant may only alert riders about their own restaurant's order, so a
   // merchant account cannot spam riders with pushes for orders it does not own.
@@ -136,12 +160,36 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Not your order" }, { status: 403 });
   }
 
-  const rows = offers ?? [];
+  let rows = offers ?? [];
+
+  // A part of a trip (0092) is dispatched as the trip: its offers live on the
+  // trip, not on the shop's order. Reading only order_offers here meant the
+  // riders were never told about a basket of several shops.
+  let tripId: string | null = deliveryId || null;
+  let reference = trip?.reference ?? order?.reference ?? orderId;
+
+  if (order?.delivery_id) {
+    const { data: trip } = await supabase
+      .from("deliveries")
+      .select("id, reference, shops")
+      .eq("id", order.delivery_id)
+      .maybeSingle();
+
+    if (trip) {
+      tripId = trip.id;
+      reference = trip.reference;
+      const { data: tripOffers } = await supabase
+        .from("delivery_offers")
+        .select("offered_at, expires_at, riders!inner(user_id)")
+        .eq("delivery_id", trip.id)
+        .eq("status", "offered");
+      rows = tripOffers ?? [];
+    }
+  }
+
   if (rows.length === 0) {
     return NextResponse.json({ notified: 0, skipped: "no live offers" });
   }
-
-  const reference = order?.reference ?? orderId;
 
   // The window is read back off the rows rather than restated as "5 minutes".
   // The dispatch board used to hardcode that sentence in two places, which is a
@@ -172,7 +220,10 @@ export async function POST(req: Request) {
         userId,
         "New delivery offer",
         `Order ${reference} is available${windowSeconds ? ` for ${Math.round(windowSeconds / 60)} min` : ""}. Open the app to accept it.`,
-        { type: "dispatch_offer", orderId },
+        // A trip is accepted as a trip; a single order as a single order.
+        tripId
+          ? { type: "dispatch_offer", deliveryId: tripId, reference }
+          : { type: "dispatch_offer", orderId },
         // Its own channel: an offer expires in minutes and is worth chasing, which
         // is not true of order-status news sharing the same channel.
         OFFERS_CHANNEL_ID,

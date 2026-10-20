@@ -4,6 +4,7 @@ import {
   newOrderEmail,
   orderPlacedEmail,
   orderStatusEmail,
+  tripStatusEmail,
   sendOrderEmail,
   type OrderEmailData,
 } from "@/lib/server/order-email";
@@ -42,6 +43,13 @@ import { checkRateLimit } from "@/lib/server/rate-limit";
 
 interface NotifyBody {
   orderId?: string;
+  /**
+   * A whole trip (0092). A basket from several shops is one order for the
+   * customer: one receipt, one notice per milestone, and one call to this
+   * route -- not one per shop, which would also run the caller into the rate
+   * limit on a ten-shop basket.
+   */
+  deliveryId?: string;
   event?: "placed" | "status_changed";
   reason?: string;
 }
@@ -78,6 +86,39 @@ const CUSTOMER_STATUS_PUSH: Record<
   }),
 };
 
+/**
+ * Customer-facing push copy for a TRIP (0092).
+ *
+ * A basket from several shops is one thing to the customer, so the trip's
+ * milestones are the trip's, not the shops'. A shop that drops out is worth
+ * saying out loud even though the trip itself is still open.
+ */
+const TRIP_STATUS_PUSH: Record<
+  string,
+  (ref: string) => { title: string; body: string }
+> = {
+  confirmed: (r) => ({
+    title: "All restaurants accepted",
+    body: `Every restaurant accepted your order ${r}.`,
+  }),
+  preparing: (r) => ({
+    title: "Your order is being prepared",
+    body: `Order ${r} is being prepared.`,
+  }),
+  out_for_delivery: (r) => ({
+    title: "Your order is on the way",
+    body: `Order ${r} is on the way.`,
+  }),
+  delivered: (r) => ({
+    title: "Your order was delivered",
+    body: `Order ${r} has been delivered.`,
+  }),
+  cancelled: (r) => ({
+    title: "A restaurant could not take it",
+    body: `A restaurant on your order ${r} could not take it. We are sorting it out.`,
+  }),
+};
+
 function serviceClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   // Deliberately NOT NEXT_PUBLIC_*: this key bypasses RLS and must never be
@@ -91,11 +132,11 @@ function serviceClient() {
 
 export async function POST(req: Request) {
   const body = (await req.json().catch(() => ({}))) as NotifyBody;
-  const { orderId, event } = body;
+  const { orderId, deliveryId, event } = body;
 
-  if (!orderId || !event) {
+  if ((!orderId && !deliveryId) || !event) {
     return NextResponse.json(
-      { error: "orderId and event are required" },
+      { error: "orderId or deliveryId, and event, are required" },
       { status: 400 },
     );
   }
@@ -152,26 +193,9 @@ export async function POST(req: Request) {
     );
   }
 
-  // Read the order with the service role: the caller may be a customer, who
-  // has no RLS access to orders at all.
-  const { data: order, error: orderError } = await supabase
-    .from("orders")
-    .select("*")
-    .eq("id", orderId)
-    .maybeSingle();
-
-  if (orderError) {
-    reportServerError(orderError, "orders/notify");
-    return NextResponse.json({ error: orderError.message }, { status: 500 });
-  }
-
-  if (!order) {
-    return NextResponse.json({ error: "Order not found" }, { status: 404 });
-  }
-
-  // The service role bypasses RLS, so the order read above is unscoped by
-  // design. That makes the caller's own access the only thing standing between
-  // a signed-in user and another restaurant's order: without this, anyone with
+  // The service role bypasses RLS, so every read below is unscoped by design.
+  // That makes the caller's own access the only thing standing between a
+  // signed-in user and another restaurant's order: without this, anyone with
   // an account could probe order ids and trigger mail to strangers.
   const { data: callerRow } = await supabase
     .from("app_users")
@@ -179,10 +203,63 @@ export async function POST(req: Request) {
     .eq("user_id", user.id)
     .maybeSingle();
 
+  const callerRole = (callerRow?.role as string | null) ?? null;
+  const callerRestaurantId =
+    (callerRow?.restaurant_id as string | null) ?? null;
+
+  // A TRIP (0092): one basket from several shops, one receipt, one notice per
+  // milestone. The customer is told about the trip; each shop is told about
+  // its own part.
+  let trip: TripRow | null = null;
+  let tripParts: TripPart[] = [];
+
+  if (deliveryId) {
+    const { data: tripRow } = await supabase
+      .from("deliveries")
+      .select("id, reference, customer, customer_user_id, total, status, shops")
+      .eq("id", deliveryId)
+      .maybeSingle();
+
+    if (!tripRow) {
+      return NextResponse.json({ error: "Delivery not found" }, { status: 404 });
+    }
+    trip = tripRow as TripRow;
+    tripParts = await readTripParts(supabase, trip.id);
+  }
+
+  // Read the order with the service role: the caller may be a customer, who
+  // has no RLS access to orders at all.
+  const { data: order, error: orderError } = orderId
+    ? await supabase.from("orders").select("*").eq("id", orderId).maybeSingle()
+    : { data: null, error: null };
+
+  if (orderError) {
+    reportServerError(orderError, "orders/notify");
+    return NextResponse.json({ error: orderError.message }, { status: 500 });
+  }
+
+  if (orderId && !order) {
+    return NextResponse.json({ error: "Order not found" }, { status: 404 });
+  }
+
+  // An order that belongs to a trip carries the trip with it, so the customer
+  // hears about the trip and not about one shop of it.
+  if (!trip && order?.delivery_id) {
+    const { data: tripRow } = await supabase
+      .from("deliveries")
+      .select("id, reference, customer, customer_user_id, total, status, shops")
+      .eq("id", order.delivery_id)
+      .maybeSingle();
+    if (tripRow) {
+      trip = tripRow as TripRow;
+      tripParts = await readTripParts(supabase, trip.id);
+    }
+  }
+
   // The assigned rider's login, so a rider can announce pickup and delivery
   // for their own order and nobody else's.
   let riderUserId: string | null = null;
-  if (order.rider_id) {
+  if (order?.rider_id) {
     const { data: riderRow } = await supabase
       .from("riders")
       .select("user_id")
@@ -191,27 +268,36 @@ export async function POST(req: Request) {
     riderUserId = (riderRow?.user_id as string | null) ?? null;
   }
 
-  const allowed = mayNotifyOrder(
-    event,
-    {
-      userId: user.id,
-      role: (callerRow?.role as string | null) ?? null,
-      restaurantId: (callerRow?.restaurant_id as string | null) ?? null,
-    },
-    {
-      restaurantId: order.restaurant_id ?? null,
-      customerUserId: order.customer_user_id ?? null,
-      riderUserId,
-      status: order.status,
-    },
-  );
+  if (trip && !order) {
+    // The whole trip: only the customer who placed it, or an admin, may
+    // announce it.
+    const isOwner = trip.customer_user_id === user.id;
+    if (!isOwner && callerRole !== "admin") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+  } else if (order) {
+    const allowed = mayNotifyOrder(
+      event,
+      {
+        userId: user.id,
+        role: callerRole,
+        restaurantId: callerRestaurantId,
+      },
+      {
+        restaurantId: order.restaurant_id ?? null,
+        customerUserId: order.customer_user_id ?? null,
+        riderUserId,
+        status: order.status,
+      },
+    );
 
-  if (!allowed) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (!allowed) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
   }
 
   const emailData: OrderEmailData = {
-    reference: order.reference,
+    reference: order?.reference ?? trip?.reference ?? "",
     restaurant: order.restaurant,
     customer: order.customer,
     items: Array.isArray(order.items) ? order.items : [],
@@ -225,36 +311,70 @@ export async function POST(req: Request) {
     let recipients: string[] = [];
     let results: Awaited<ReturnType<typeof sendOrderEmail>>[] = [];
 
-    if (order.restaurant_id) {
+    // A trip: every shop in it gets its own mail about ITS own part, and the
+    // customer gets one receipt for the basket.
+    const shopsToTell: { restaurant_id: string | null; part: TripPart | null }[] =
+      trip
+        ? tripParts
+            .filter((part) => part.restaurant_id)
+            .map((part) => ({ restaurant_id: part.restaurant_id, part }))
+        : order?.restaurant_id
+          ? [{ restaurant_id: order.restaurant_id, part: null }]
+          : [];
+
+    for (const shop of shopsToTell) {
+      if (!shop.restaurant_id) continue;
       const { data: merchantRows } = await supabase
         .from("app_users")
         .select("user_id")
-        .eq("restaurant_id", order.restaurant_id)
+        .eq("restaurant_id", shop.restaurant_id)
         .eq("role", "merchant");
 
       const userIds = (merchantRows ?? []).map((m) => m.user_id as string);
+      if (userIds.length === 0) continue;
 
-      if (userIds.length > 0) {
-        // app_users stores no address, so resolve each merchant's auth email.
-        // The admin API paginates (50 per page by default), so a single call
-        // silently stops resolving merchants once the project has more than
-        // one page of users -- the order is placed, the merchant just never
-        // hears about it. Walk the pages until every id is found or the list
-        // ends, with a hard cap so a very large project cannot turn one order
-        // into an unbounded crawl.
-        recipients = await resolveMerchantEmails(supabase, userIds);
+      // app_users stores no address, so resolve each merchant's auth email.
+      // The admin API paginates (50 per page by default), so a single call
+      // silently stops resolving merchants once the project has more than
+      // one page of users -- the order is placed, the merchant just never
+      // hears about it. Walk the pages until every id is found or the list
+      // ends, with a hard cap so a very large project cannot turn one order
+      // into an unbounded crawl.
+      const shopRecipients = await resolveMerchantEmails(supabase, userIds);
+      recipients = recipients.concat(shopRecipients);
 
-        const mail = newOrderEmail(emailData);
-        results = await Promise.all(
-          recipients.map((to) => sendOrderEmail(to, mail.subject, mail.html)),
-        );
-      }
+      // The merchant sees its OWN part: its food, its own subtotal. The trip's
+      // fees are the customer's business, not the shop's.
+      const shopData: OrderEmailData = shop.part
+        ? {
+            reference: shop.part.reference,
+            restaurant: shop.part.restaurant,
+            customer: trip?.customer ?? order?.customer ?? "",
+            items: Array.isArray(shop.part.items) ? shop.part.items : [],
+            total: Number(shop.part.subtotal),
+          }
+        : emailData;
+
+      const mail = newOrderEmail(shopData);
+      results = results.concat(
+        await Promise.all(
+          shopRecipients.map((to) =>
+            sendOrderEmail(to, mail.subject, mail.html),
+          ),
+        ),
+      );
     }
 
     // Then the customer's receipt. Independent of the merchant mail: even an
     // order the restaurant cannot be emailed about deserves a confirmation.
-    const customerEmail = await resolveCustomerEmail(supabase, order);
-    const customerMail = customerEmail ? orderPlacedEmail(emailData) : null;
+    // For a trip it is ONE receipt for the whole basket, with every shop's
+    // food on it -- the customer paid one bill.
+    const customerEmail = await resolveCustomerEmail(
+      supabase,
+      order ?? { customer_user_id: trip?.customer_user_id ?? null, customer: trip?.customer ?? "", restaurant: "", reference: trip?.reference ?? "", items: [], subtotal: 0, delivery_fee: 0, service_fee: 0, total: trip?.total ?? 0, status: trip?.status ?? "pending", payment: "cash", placed_at: new Date().toISOString() },
+    );
+    const tripMail = trip ? tripEmailData(trip, tripParts) : emailData;
+    const customerMail = customerEmail ? orderPlacedEmail(tripMail) : null;
     const confirmation =
       customerEmail && customerMail
         ? await sendOrderEmail(customerEmail, customerMail.subject, customerMail.html)
@@ -265,14 +385,32 @@ export async function POST(req: Request) {
           };
 
     // Expo Push for the same merchant accounts (Prompt 6.2). Best-effort like
-    // the email: a push failure must not fail the order write.
-    const push = order.restaurant_id
-      ? await sendMerchantOrderPush(
-          supabase,
-          order.restaurant_id,
-          order.reference,
-        )
-      : { ok: false, sent: 0, skipped: "order has no restaurant_id" };
+    // the email: a push failure must not fail the order write. A trip pushes
+    // each shop about ITS own part.
+    const push = trip
+      ? {
+          ok: true,
+          sent: (
+            await Promise.all(
+              shopsToTell.map((shop) =>
+                shop.restaurant_id && shop.part
+                  ? sendMerchantOrderPush(
+                      supabase,
+                      shop.restaurant_id,
+                      shop.part.reference,
+                    )
+                  : Promise.resolve({ ok: false, sent: 0 }),
+              ),
+            )
+          ).reduce((n, r) => n + (r.sent ?? 0), 0),
+        }
+      : order?.restaurant_id
+        ? await sendMerchantOrderPush(
+            supabase,
+            order.restaurant_id,
+            order.reference,
+          )
+        : { ok: false, sent: 0, skipped: "order has no restaurant_id" };
 
     // Counts and outcomes only. The caller is a verified customer, admin, or
     // merchant, but none of them needs the other party's address echoed back:
@@ -295,17 +433,36 @@ export async function POST(req: Request) {
   // customer_user_id and must still fire when there is no address on file. A
   // legacy order placed before customer accounts existed has no user id, which
   // is a skip, not an error. Best-effort -- the status write already landed.
-  const push = await pushCustomerStatus(supabase, order, reason);
+  //
+  // For a trip the customer hears about the TRIP, once per milestone: a
+  // three-shop basket that is confirmed must not send three "confirmed"
+  // notices, and the rider's delivery of the whole trip must send one.
+  const push = trip
+    ? await pushCustomerTripStatus(supabase, trip, order?.status ?? trip.status, reason)
+    : await pushCustomerStatus(supabase, order, reason);
 
-  const mail = orderStatusEmail(emailData, order.status, reason);
+  const mail = trip
+    ? tripStatusEmail(
+        {
+          reference: trip.reference,
+          items: tripEmailData(trip, tripParts).items,
+          total: Number(trip.total),
+        },
+        order?.status === "cancelled" ? "cancelled" : trip.status,
+        reason,
+      )
+    : orderStatusEmail(emailData, order?.status ?? "", reason);
   if (!mail) {
     return NextResponse.json(
-      { skipped: `no email for status ${order.status}`, push },
+      { skipped: `no email for status ${order?.status ?? trip?.status}`, push },
       { status: 202 },
     );
   }
 
-  const email = await resolveCustomerEmail(supabase, order);
+  const email = await resolveCustomerEmail(
+    supabase,
+    order ?? { customer_user_id: trip?.customer_user_id ?? null, customer: trip?.customer ?? "", restaurant: "", reference: trip?.reference ?? "", items: [], subtotal: 0, delivery_fee: 0, service_fee: 0, total: trip?.total ?? 0, status: trip?.status ?? "pending", payment: "cash", placed_at: new Date().toISOString() },
+  );
 
   if (!email) {
     return NextResponse.json(
@@ -323,6 +480,128 @@ export async function POST(req: Request) {
   return NextResponse.json(
     { event, delivered: result.ok, result, push },
     { status: result.ok ? 200 : 202 },
+  );
+}
+
+/** A trip as the notify route sees it. */
+interface TripRow {
+  id: string;
+  reference: string;
+  customer: string;
+  customer_user_id: string | null;
+  total: number;
+  status: string;
+  shops: number;
+}
+
+/** One shop's part of a trip. */
+interface TripPart {
+  id: string;
+  reference: string;
+  restaurant: string;
+  restaurant_id: string | null;
+  items: unknown;
+  subtotal: number;
+  status: string;
+  placed_at: string;
+}
+
+/** The shops of a trip, oldest first: the order the rider collects them in. */
+async function readTripParts(
+  supabase: NonNullable<ReturnType<typeof serviceClient>>,
+  tripId: string,
+): Promise<TripPart[]> {
+  const { data } = await supabase
+    .from("orders")
+    .select(
+      "id, reference, restaurant, restaurant_id, items, subtotal, status, placed_at",
+    )
+    .eq("delivery_id", tripId)
+    .order("placed_at");
+  return (data ?? []) as TripPart[];
+}
+
+/**
+ * The customer's receipt for a whole trip: every shop's food on one list.
+ *
+ * The items carry the shop they came from, because two shops can sell the
+ * same dish and the customer has to be able to tell them apart.
+ */
+function tripEmailData(trip: TripRow, parts: TripPart[]): OrderEmailData {
+  return {
+    reference: trip.reference,
+    restaurant:
+      parts.length === 1
+        ? (parts[0]?.restaurant ?? trip.customer)
+        : `${parts.length} restaurants`,
+    customer: trip.customer,
+    items: parts.flatMap((part) =>
+      (Array.isArray(part.items) ? part.items : []).map((item) => {
+        const row = (item ?? {}) as Record<string, unknown>;
+        return {
+          ...row,
+          name: `${part.restaurant} · ${String(row.name ?? "")}`,
+        } as OrderEmailData["items"][number];
+      }),
+    ),
+    total: Number(trip.total),
+  };
+}
+
+/**
+ * The customer's push for a trip's milestone, once per milestone.
+ *
+ * A three-shop basket that every shop accepts must not send three
+ * "accepted" notices, and the rider's delivery of the whole trip must send
+ * one. The inbox row the push writes is the record of what was already sent,
+ * so the second shop's acceptance finds it and stays quiet.
+ */
+async function pushCustomerTripStatus(
+  supabase: NonNullable<ReturnType<typeof serviceClient>>,
+  trip: TripRow,
+  partStatus: string,
+  reason?: string,
+) {
+  if (!trip.customer_user_id) {
+    return { ok: false, sent: 0, skipped: "trip has no customer account" };
+  }
+
+  // A shop that dropped out is news even though the trip is still open; every
+  // other milestone is the trip's own status.
+  const milestone = partStatus === "cancelled" ? "cancelled" : trip.status;
+
+  const copy = TRIP_STATUS_PUSH[milestone];
+  if (!copy) {
+    return { ok: false, sent: 0, skipped: `no push for status ${milestone}` };
+  }
+
+  const { data: alreadySent } = await supabase
+    .from("notifications")
+    .select("id")
+    .eq("user_id", trip.customer_user_id)
+    .eq("data->>delivery_id", trip.id)
+    .eq("data->>milestone", milestone)
+    .limit(1);
+
+  if (alreadySent && alreadySent.length > 0) {
+    return { ok: true, sent: 0, skipped: "already sent for this trip" };
+  }
+
+  const { title, body } = copy(trip.reference);
+  const withReason =
+    milestone === "cancelled" && reason ? `${body} Reason: ${reason}` : body;
+
+  return sendCustomerPush(
+    supabase,
+    trip.customer_user_id,
+    title,
+    withReason,
+    {
+      type: "order_status",
+      reference: trip.reference,
+      delivery_id: trip.id,
+      milestone,
+    },
   );
 }
 

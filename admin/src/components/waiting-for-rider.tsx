@@ -4,7 +4,13 @@ import { useState } from "react";
 import { Card, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { dispatchOrder, notifyRidersOfOffer } from "@/lib/supabase/dispatch-queries";
+import {
+  dispatchDelivery,
+  dispatchOrder,
+  notifyRidersOfDeliveryOffer,
+  notifyRidersOfOffer,
+  type PendingDelivery,
+} from "@/lib/supabase/dispatch-queries";
 import type { Order } from "@/lib/types";
 
 /**
@@ -17,10 +23,13 @@ import type { Order } from "@/lib/types";
  */
 export function WaitingForRider({
   orders,
+  deliveries,
   now,
   onChanged,
 }: {
   orders: Order[];
+  /** Trips waiting for a rider (0093). */
+  deliveries: PendingDelivery[];
   now: Date;
   onChanged: () => void;
 }) {
@@ -31,7 +40,32 @@ export function WaitingForRider({
     .filter((o) => (o.status === "confirmed" || o.status === "preparing") && !o.rider)
     .sort((a, b) => a.placedAt.localeCompare(b.placedAt));
 
-  if (waiting.length === 0) return null;
+  /** Re-offer a whole trip: one rider takes every shop in the basket. */
+  async function reofferDelivery(deliveryId: string) {
+    setBusy(deliveryId);
+    try {
+      const offered = await dispatchDelivery(deliveryId);
+      const alert = offered > 0 ? await notifyRidersOfDeliveryOffer(deliveryId) : null;
+      setNotes((n) => ({
+        ...n,
+        [deliveryId]:
+          offered === 0
+            ? "No rider is online in this city right now."
+            : `Offered to ${offered} ${offered === 1 ? "rider" : "riders"}${alert && alert.notified > 0 ? `, ${alert.notified} alerted` : ""}.`,
+      }));
+      onChanged();
+    } catch (cause) {
+      setNotes((n) => ({
+        ...n,
+        [deliveryId]:
+          cause instanceof Error ? cause.message : "Could not re-offer this trip.",
+      }));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  if (waiting.length === 0 && deliveries.length === 0) return null;
 
   async function reoffer(orderId: string) {
     setBusy(orderId);
@@ -65,6 +99,35 @@ export function WaitingForRider({
         />
       </div>
       <ul className="divide-y divide-border/70 px-5 pb-3">
+        {/* Trips first (0093): a basket from several shops is one job. */}
+        {deliveries.map((d) => {
+          const minutes = Math.max(0, Math.floor((now.getTime() - new Date(d.placedAt).getTime()) / 60000));
+          return (
+            <li key={d.deliveryId} className="flex flex-wrap items-center justify-between gap-3 py-3">
+              <div className="min-w-0">
+                <p className="flex flex-wrap items-center gap-2 text-sm font-medium text-card-foreground">
+                  {d.reference} · {d.shops === 1 ? "1 restaurant" : `${d.shops} restaurants`}
+                  <Badge variant="secondary" size="sm">Trip</Badge>
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Placed {minutes} min ago · ₱{d.total.toFixed(2)}
+                </p>
+                {notes[d.deliveryId] ? (
+                  <p className="mt-1 text-xs text-muted-foreground" role="status">{notes[d.deliveryId]}</p>
+                ) : null}
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                loading={busy === d.deliveryId}
+                disabled={busy !== null}
+                onClick={() => void reofferDelivery(d.deliveryId)}
+              >
+                Re-offer
+              </Button>
+            </li>
+          );
+        })}
         {waiting.map((o) => {
           const minutes = Math.max(0, Math.floor((now.getTime() - new Date(o.placedAt).getTime()) / 60000));
           return (

@@ -30,6 +30,7 @@ import {
 } from "@/lib/dashboard-metrics";
 import { attentionItems, liveCounts, topRestaurants } from "@/lib/dashboard-attention";
 import { WaitingForRider } from "@/components/waiting-for-rider";
+import { fetchPendingDeliveries } from "@/lib/supabase/dispatch-queries";
 import type { Kpi } from "@/lib/types";
 
 /**
@@ -42,6 +43,9 @@ import type { Kpi } from "@/lib/types";
  */
 export default function OverviewPage() {
   const orders = useAsyncData(() => fetchOrders());
+  // Trips waiting for a rider (0093): a basket from several shops is one
+  // job, and it is dispatched as one.
+  const deliveries = useAsyncData(() => fetchPendingDeliveries());
   const riders = useAsyncData(() => fetchRiders());
   const cash = useAsyncData(() => fetchRiderCashPositions());
   const disputes = useAsyncData(() => fetchDisputedPayouts());
@@ -179,7 +183,15 @@ export default function OverviewPage() {
           </Section>
         </div>
 
-        <WaitingForRider orders={orderRows} now={now} onChanged={orders.refetch} />
+        <WaitingForRider
+          orders={orderRows}
+          deliveries={deliveries.data ?? []}
+          now={now}
+          onChanged={() => {
+            void orders.refetch();
+            void deliveries.refetch();
+          }}
+        />
 
         <Section aria-label="Key metrics">
           <StatGrid>
