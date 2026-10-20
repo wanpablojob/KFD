@@ -244,6 +244,8 @@ export async function setMenuItemAvailable(
 export interface StoreStatus {
   isOpen: boolean;
   prepMinutes: number;
+  /** Shop photo (0090), or null. */
+  imageUrl?: string | null;
 }
 
 export async function fetchStoreStatus(
@@ -251,12 +253,16 @@ export async function fetchStoreStatus(
 ): Promise<StoreStatus | null> {
   const { data, error } = await supabase
     .from("restaurants")
-    .select("is_open, prep_minutes")
+    .select("is_open, prep_minutes, image_url")
     .eq("id", restaurantId)
     .maybeSingle();
   if (error) throw error;
   return data
-    ? { isOpen: Boolean(data.is_open), prepMinutes: Number(data.prep_minutes) }
+    ? {
+        isOpen: Boolean(data.is_open),
+        prepMinutes: Number(data.prep_minutes),
+        imageUrl: data.image_url ?? null,
+      }
     : null;
 }
 
@@ -360,5 +366,28 @@ export function useDeleteMenuItem(restaurantId: string | null) {
     mutationFn: (id: string) => deleteMenuItem(id),
     onSettled: () =>
       queryClient.invalidateQueries({ queryKey: ["merchantMenu", restaurantId] }),
+  });
+}
+
+/**
+ * Upload a shop photo into the restaurant's folder and set it (0090). The
+ * server accepts only a URL inside that folder.
+ */
+export async function setShopImage(restaurantId: string, uri: string): Promise<void> {
+  const url = await uploadMenuImage(restaurantId, uri);
+  const { error } = await supabase.rpc("merchant_set_shop_image", { p_url: url });
+  if (error) throw error;
+}
+
+export function useSetShopImage(restaurantId: string | null) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (uri: string) => {
+      if (!restaurantId)
+        throw new Error("Your account is not attached to a restaurant yet.");
+      return setShopImage(restaurantId, uri);
+    },
+    onSettled: () =>
+      queryClient.invalidateQueries({ queryKey: ["storeStatus", restaurantId] }),
   });
 }

@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import {
   ActivityIndicator,
+  Image,
   FlatList,
   Pressable,
   StyleSheet,
@@ -250,7 +251,15 @@ function RestaurantCard({ row }: { row: RestaurantRow }) {
       }
     >
       <View style={styles.thumb}>
-        <Text style={styles.thumbInitial}>{row.name.charAt(0).toUpperCase()}</Text>
+        {row.image_url ? (
+          <Image
+            source={{ uri: row.image_url }}
+            style={StyleSheet.absoluteFill}
+            accessibilityIgnoresInvertColors
+          />
+        ) : (
+          <Text style={styles.thumbInitial}>{row.name.charAt(0).toUpperCase()}</Text>
+        )}
         {row.rating >= 4.5 ? (
           <View style={styles.ribbon}>
             <Text style={styles.ribbonText}>TOP</Text>
@@ -355,6 +364,7 @@ const styles = StyleSheet.create({
   },
   cardPressed: { backgroundColor: colors.surface },
   thumb: {
+    overflow: "hidden",
     width: 68,
     height: 68,
     borderRadius: radius.md,

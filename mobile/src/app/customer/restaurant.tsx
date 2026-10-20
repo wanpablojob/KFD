@@ -116,6 +116,13 @@ export default function CustomerMenuScreen() {
           ListHeaderComponent={
             restaurant ? (
               <View style={[styles.restaurantHeader, shadow.card]}>
+                {restaurant.image_url ? (
+                  <Image
+                    source={{ uri: restaurant.image_url }}
+                    style={styles.cover}
+                    accessibilityIgnoresInvertColors
+                  />
+                ) : null}
                 <View style={styles.titleRow}>
                   <Text
                     style={[styles.restaurantName, styles.titleText]}
@@ -374,6 +381,14 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     gap: 4,
     marginBottom: spacing.xs,
+    overflow: "hidden",
+  },
+  // Full-bleed across the card's top, cancelling the card's padding.
+  cover: {
+    height: 150,
+    marginHorizontal: -spacing.lg,
+    marginTop: -spacing.lg,
+    marginBottom: spacing.sm,
   },
   restaurantName: { ...type.title, color: colors.text },
   restaurantMeta: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 },
