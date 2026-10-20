@@ -1366,7 +1366,7 @@ jobs:
               ("public.current_merchant_restaurant()", "tenant helper used by RLS policies"),
               ("public.is_customer()", "storefront helper used by RLS policies"),
               ("public.register_customer()", "customer self-service registration"),
-              ("public.customer_place_order(text, jsonb, text, payment_method, text, text)", "storefront order creation"),
+              ("public.customer_place_order(text, jsonb, text, payment_method, text, text, text)", "storefront order creation"),
               ("public.search_restaurants(text, text)", "storefront restaurant search"),
           ]:
               if can_execute("anon", sig) is True:
