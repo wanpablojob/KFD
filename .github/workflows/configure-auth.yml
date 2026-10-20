@@ -1,0 +1,210 @@
+# Configure Supabase Auth: the mailer, the email rate limits and the
+# "Reset password" template.
+#
+# GoTrue's settings are not in the database. They live in the project's
+# configuration and can only be read and written through the Management API,
+# which needs a personal access token -- so this is the path for changing them,
+# the same way migrate-db.yml is the path for changing the schema.
+#
+# Why the template matters: the app's forgot-password screen types a 6-digit
+# code, not a link. The recovery email has to carry {{ .Token }} for that to
+# work (mobile/src/lib/auth.ts says the same in a comment). The template is
+# product copy, so it lives in the repo (admin/supabase/auth/) and is applied
+# from here.
+#
+# Why the rate limits: Supabase's default allows 2 emails per hour to one
+# address, and one every 60 seconds. A customer who mistypes their address
+# twice, or asks for a code twice, hits a wall that looks like a broken app.
+#
+# workflow_dispatch only, for the same reason as migrate-db.yml: who can
+# receive a password-reset mail is not something a push should decide.
+#
+# Required repository secrets:
+#   SUPABASE_ACCESS_TOKEN   a Supabase personal access token
+#   RESEND_API_KEY          the Resend API key -- it is the SMTP password
+# Optional repository secret:
+#   AUTH_EMAIL_FROM         the address the mail is sent from. Defaults to the
+#                           address the order mail already uses
+#                           (orders@notifications.kfd.ph), which has to be a
+#                           verified domain on the Resend account.
+#
+# The Resend SMTP endpoint is smtp.resend.com on port 465, user "resend", and
+# the API key is the password. There is no separate SMTP password to create.
+
+name: Configure Supabase Auth
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Print the settings that would be applied, change nothing"
+        type: boolean
+        required: false
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: configure-auth
+  cancel-in-progress: false
+
+jobs:
+  configure:
+    name: Configure auth
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # The same environment as the migrations. After the secrets move to the
+    # environment scope (A7), a job without this environment could not read
+    # them at all.
+    environment: production
+
+    env:
+      PROJECT_REF: ijeqwbrrgfsmymsektih
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+      AUTH_EMAIL_FROM: ${{ secrets.AUTH_EMAIL_FROM }}
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Build the settings
+        id: build
+        run: |
+          set -euo pipefail
+          if [ -n "${RESEND_API_KEY:-}" ]; then
+            echo "::add-mask::${RESEND_API_KEY}"
+          fi
+          node <<'NODE' > "$RUNNER_TEMP/settings.json"
+          const fs = require("fs");
+
+          (async () => {
+          const ref = process.env.PROJECT_REF;
+          const token = process.env.SUPABASE_ACCESS_TOKEN;
+          const template = fs.readFileSync("admin/supabase/auth/reset-password.txt", "utf8");
+
+          if (!token) {
+            console.error("SUPABASE_ACCESS_TOKEN is not set; nothing to do.");
+            process.exit(1);
+          }
+
+          const headers = {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          };
+
+          // Read what is set now, so the PATCH only changes the fields this
+          // workflow owns: a template the owner customised by hand, or a
+          // setting this file does not mention, survives.
+          const current = await (
+            await fetch(`https://api.supabase.com/v1/projects/${ref}/config/auth`, { headers })
+          ).json();
+
+          const templates = Array.isArray(current.mailer_templates) ? current.mailer_templates : [];
+          const others = templates.filter((t) => t.id !== "ResetPassword");
+          const body = {
+            otp_length: 6,
+            otp_expiry: 3600,
+            mailer_max_frequency: 30,
+            rate_limit_email_sent: 30,
+            mailer_secure_email_change_enabled: true,
+            mailer_autoconfirm: false,
+            mailer_templates: [
+              ...others,
+              { id: "ResetPassword", subject: "Your KFD password reset code", body: template },
+            ],
+          };
+
+          if (process.env.RESEND_API_KEY) {
+            body.smtp = {
+              host: "smtp.resend.com",
+              port: 465,
+              user: "resend",
+              pass: process.env.RESEND_API_KEY,
+              admin_email: process.env.AUTH_EMAIL_FROM || "orders@notifications.kfd.ph",
+              sender_name: "KFD",
+              max_frequency: 30,
+            };
+          } else {
+            console.error("::warning::RESEND_API_KEY is not set: the mailer is left as it is.");
+          }
+
+          fs.writeFileSync(process.env.RUNNER_TEMP + "/body.json", JSON.stringify(body));
+          // The SMTP password is masked, so the dry run can be read.
+          const redacted = JSON.parse(JSON.stringify(body));
+          if (redacted.smtp) redacted.smtp.pass = "***";
+          console.log(JSON.stringify(redacted, null, 2));
+          })().catch((e) => {
+            console.error(e);
+            process.exit(1);
+          });
+          NODE
+
+          echo "settings ready"
+
+      - name: Apply the settings
+        if: ${{ !inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          response=$(curl -sS -w '\n%{http_code}' -X PATCH \
+            "https://api.supabase.com/v1/projects/${PROJECT_REF}/config/auth" \
+            -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
+            -H "Content-Type: application/json" \
+            --data-binary "@$RUNNER_TEMP/body.json")
+          code=$(printf '%s' "$response" | tail -n1)
+          payload=$(printf '%s' "$response" | sed '$d')
+          if [ "$code" != "200" ]; then
+            echo "error: the Management API answered $code" >&2
+            printf '%s' "$payload" | head -c 2000 >&2
+            echo >&2
+            exit 1
+          fi
+          echo "Auth settings applied. What the project now reports:"
+          printf '%s' "$payload" | node -e '
+            let s = "";
+            process.stdin.on("data", (d) => (s += d)).on("end", () => {
+              const c = JSON.parse(s);
+              console.log(JSON.stringify({
+                otp_length: c.otp_length,
+                otp_expiry: c.otp_expiry,
+                mailer_max_frequency: c.mailer_max_frequency,
+                rate_limit_email_sent: c.rate_limit_email_sent,
+                mailer_secure_email_change_enabled: c.mailer_secure_email_change_enabled,
+                smtp_host: c.smtp && c.smtp.host,
+                smtp_port: c.smtp && c.smtp.port,
+                smtp_user: c.smtp && c.smtp.user,
+                smtp_from: c.smtp && c.smtp.admin_email,
+                smtp_password_set: !!(c.smtp && c.smtp.pass),
+                reset_password_template:
+                  (c.mailer_templates || []).find((t) => t.id === "ResetPassword")?.body?.includes("{{ .Token }}") ?? false,
+              }, null, 2));
+            });
+          '
+
+      - name: Report the current settings
+        if: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          curl -sS "https://api.supabase.com/v1/projects/${PROJECT_REF}/config/auth" \
+            -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
+            | node -e '
+              let s = "";
+              process.stdin.on("data", (d) => (s += d)).on("end", () => {
+                const c = JSON.parse(s);
+                console.log("The project currently reports:");
+                console.log(JSON.stringify({
+                  otp_length: c.otp_length,
+                  rate_limit_email_sent: c.rate_limit_email_sent,
+                  mailer_max_frequency: c.mailer_max_frequency,
+                  smtp_host: c.smtp && c.smtp.host,
+                  smtp_from: c.smtp && c.smtp.admin_email,
+                  reset_password_template_has_token:
+                    (c.mailer_templates || []).find((t) => t.id === "ResetPassword")?.body?.includes("{{ .Token }}") ?? false,
+                }, null, 2));
+              });
+            '
