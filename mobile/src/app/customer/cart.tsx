@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import {
   ActivityIndicator,
@@ -8,10 +8,9 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCart } from "../../lib/cart-context";
 import { feeBreakdown, toShopPayload } from "../../lib/cart-logic";
@@ -23,7 +22,6 @@ import { useSession } from "../../lib/session-context";
 import { saveContactPhone } from "../../lib/auth";
 import {
   loadAddresses,
-  saveAddress,
   contactPhoneProblem,
   deleteAddress,
   validateAddress,
@@ -59,18 +57,13 @@ export default function CustomerCartScreen() {
   const [payment, setPayment] = useState<PaymentChoice>("cash");
   const [error, setError] = useState<string | null>(null);
   const [placing, setPlacing] = useState(false);
-  const [savingAddress, setSavingAddress] = useState(false);
-  // Saved addresses are the primary path; the free-text form only opens when
-  // the customer asks for a new place or has none yet.
-  const [adding, setAdding] = useState(false);
-  // The rider calls this number; customer_place_order refuses an order without
-  // one (0076). Each saved address carries its own, filled in when it is
-  // picked, falling back to the account's number.
+  // The rider calls the number saved on the chosen address; customer_place_order
+  // refuses an order without one (0076). Addresses, with their numbers, are
+  // added and edited only in Delivery addresses.
   const savedPhone =
     typeof user?.user_metadata?.phone === "string"
       ? user.user_metadata.phone.trim()
       : "";
-  const [phone, setPhone] = useState(savedPhone);
   // Barangays KFD delivers to. Empty until the owner publishes the list, and
   // then the server takes any address, so the picker only shows once it exists.
   const [areas, setAreas] = useState<string[]>([]);
@@ -93,22 +86,26 @@ export default function CustomerCartScreen() {
     };
   }, []);
 
-  // Saved addresses are per-user and live on the device. Prefill the newest so
-  // a returning customer does not retype the same barangay every order.
-  useEffect(() => {
-    if (!user) return;
-    let active = true;
-    void loadAddresses(user.id).then((rows) => {
-      if (!active) return;
-      setAddresses(rows);
-      setAddress((prev) => prev || rows[0]?.address || "");
-      if (rows[0]?.barangay) setBarangay(rows[0].barangay);
-      if (rows[0]?.phone) setPhone(rows[0].phone);
-    });
-    return () => {
-      active = false;
-    };
-  }, [user]);
+  // Saved addresses are per-user and live on the device. Reloaded each time the
+  // cart is shown, so an address just added in Delivery addresses is there;
+  // the newest is preselected.
+  useFocusEffect(
+    useCallback(() => {
+      if (!user) return;
+      let active = true;
+      void loadAddresses(user.id).then((rows) => {
+        if (!active) return;
+        setAddresses(rows);
+        setAddress((prev) =>
+          rows.some((r) => r.address === prev) ? prev : rows[0]?.address || ""
+        );
+        setBarangay((prev) => prev ?? rows[0]?.barangay ?? null);
+      });
+      return () => {
+        active = false;
+      };
+    }, [user])
+  );
 
   // The text plus the picked barangay. Saving or placing uses this, so the
   // rider always gets the area on the address even when the customer used the
@@ -119,33 +116,12 @@ export default function CustomerCartScreen() {
   // A saved address already knows its area; do not offer a second, conflicting
   // answer. An older saved address without one still shows the picker.
   const lockedBarangay = selectedSaved?.barangay ?? null;
-  const phoneProblem = contactPhoneProblem(phone);
-  const canSaveAddress =
-    !!user &&
-    !addressProblem &&
-    !phoneProblem &&
-    !savingAddress &&
-    (areas.length === 0 || barangay !== null) &&
-    !addresses.some((a) => a.address === completedAddress);
-
-  async function handleSaveAddress() {
-    if (!user || !canSaveAddress) return;
-    setSavingAddress(true);
-    try {
-      const next = await saveAddress(
-        user.id,
-        completedAddress,
-        undefined,
-        barangay,
-        phone
-      );
-      setAddresses(next);
-      setAddress(completedAddress);
-      setAdding(false);
-    } finally {
-      setSavingAddress(false);
-    }
-  }
+  const phone = selectedSaved?.phone?.trim() ?? "";
+  const phoneProblem = selectedSaved
+    ? phone
+      ? contactPhoneProblem(phone)
+      : "This address has no contact number. Delete it and add it again in Delivery addresses."
+    : null;
 
   async function handleDeleteAddress(id: string) {
     if (!user) return;
@@ -155,18 +131,7 @@ export default function CustomerCartScreen() {
   function handleSelectAddress(row: SavedAddress) {
     setAddress(row.address);
     setBarangay(row.barangay ?? null);
-    setPhone(row.phone || savedPhone);
-    setAdding(false);
     setError(null);
-  }
-
-  function cancelAdd() {
-    setAdding(false);
-    setError(null);
-    const first = addresses[0];
-    setAddress(first?.address ?? "");
-    setBarangay(first?.barangay ?? null);
-    setPhone(first?.phone || savedPhone);
   }
 
   // No local arithmetic on purpose. A subtotal computed here would have to be
@@ -205,8 +170,8 @@ export default function CustomerCartScreen() {
       setError("Your cart changed. Review it and try again.");
       return;
     }
-    if (!trimmedAddress) {
-      setError("Enter a delivery address.");
+    if (!selectedSaved || !trimmedAddress) {
+      setError("Choose a delivery address, or add one in Delivery addresses.");
       return;
     }
     // Validate with the same rule the address book uses, so a saved and a typed
@@ -398,56 +363,18 @@ export default function CustomerCartScreen() {
           </View>
         ) : null}
 
-        {adding || addresses.length === 0 ? (
-          <>
-            <TextInput
-              style={styles.input}
-              value={address}
-              onChangeText={setAddress}
-              placeholder="House no., street, barangay, city"
-              placeholderTextColor={colors.textFaint}
-              autoCorrect={false}
-              editable={!placing}
-              accessibilityLabel="New delivery address"
-            />
-            {addresses.length > 0 ? (
-              <Pressable
-                style={styles.cancelAdd}
-                onPress={cancelAdd}
-                disabled={placing}
-                accessibilityRole="button"
-              >
-                <Text style={styles.cancelAddLabel}>Cancel</Text>
-              </Pressable>
-            ) : null}
-          </>
-        ) : (
-          <Pressable
-            style={styles.addAddress}
-            onPress={() => {
-              setAdding(true);
-              setAddress("");
-              setError(null);
-            }}
-            disabled={placing}
-            accessibilityRole="button"
-          >
-            <Ionicons name="add" size={18} color={colors.secondary} />
-            <Text style={styles.addAddressLabel}>Add a new address</Text>
-          </Pressable>
-        )}
+        <Pressable
+          style={styles.addAddress}
+          onPress={() => router.push("/customer/addresses")}
+          disabled={placing}
+          accessibilityRole="button"
+        >
+          <Ionicons name="add" size={18} color={colors.secondary} />
+          <Text style={styles.addAddressLabel}>
+            {addresses.length === 0 ? "Add a delivery address" : "Add a new address"}
+          </Text>
+        </Pressable>
 
-        {canSaveAddress && (adding || addresses.length === 0) ? (
-          <Pressable
-            style={styles.saveAddress}
-            onPress={() => void handleSaveAddress()}
-            disabled={savingAddress}
-          >
-            <Text style={styles.saveAddressLabel}>
-              {savingAddress ? "Saving…" : "Save this address"}
-            </Text>
-          </Pressable>
-        ) : null}
         {addressProblem ? (
           <Text style={styles.error}>{addressProblem.message}</Text>
         ) : null}
@@ -487,23 +414,16 @@ export default function CustomerCartScreen() {
           </>
         ) : null}
 
-        <Text style={styles.fieldLabel}>CONTACT NUMBER</Text>
-        <TextInput
-          style={styles.input}
-          value={phone}
-          onChangeText={setPhone}
-          placeholder="0917 123 4567"
-          placeholderTextColor={colors.textFaint}
-          keyboardType="phone-pad"
-          autoComplete="tel"
-          editable={!placing}
-          accessibilityLabel="Contact number for your rider"
-        />
-        {phone.trim() && phoneProblem ? (
+        {phoneProblem ? (
           <Text style={styles.error}>{phoneProblem}</Text>
-        ) : (
-          <Text style={styles.hint}>The rider calls this number when they arrive.</Text>
-        )}
+        ) : phone ? (
+          <View style={styles.lockedArea}>
+            <Ionicons name="call-outline" size={16} color={colors.textMuted} />
+            <Text style={type.caption}>
+              The rider will call {phone} when they arrive.
+            </Text>
+          </View>
+        ) : null}
 
         <Text style={styles.fieldLabel}>PAYMENT METHOD</Text>
         <View style={styles.payRow}>
@@ -710,16 +630,6 @@ const styles = StyleSheet.create({
   areaActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   areaLabel: { ...type.label, color: colors.text },
   areaLabelActive: { color: colors.textInverse },
-  input: {
-    backgroundColor: colors.card,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    fontSize: 15,
-    color: colors.text,
-  },
   payRow: { flexDirection: "row", gap: spacing.sm },
   savedAddresses: { gap: spacing.sm },
   savedChip: {
@@ -738,15 +648,6 @@ const styles = StyleSheet.create({
   savedChipLabel: { ...type.label, color: colors.textMuted },
   savedChipLabelActive: { color: colors.primaryDark },
   savedChipText: { ...type.caption, color: colors.textFaint },
-  saveAddress: {
-    alignSelf: "flex-start",
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: colors.secondary,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-  },
-  saveAddressLabel: { ...type.label, color: colors.secondary },
   addAddress: {
     flexDirection: "row",
     alignItems: "center",
@@ -755,12 +656,6 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
   },
   addAddressLabel: { ...type.label, color: colors.secondary },
-  cancelAdd: { alignSelf: "flex-start", paddingVertical: spacing.xs },
-  cancelAddLabel: {
-    ...type.caption,
-    color: colors.textMuted,
-    textDecorationLine: "underline",
-  },
   hint: { ...type.caption, color: colors.textFaint },
   lockedArea: {
     flexDirection: "row",

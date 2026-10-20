@@ -1,19 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import {
-  Alert,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useScrollBottomPadding } from "../../components/TabBarInset";
 import { useSession } from "../../lib/session-context";
-import { saveContactPhone, signOut } from "../../lib/auth";
+import { signOut } from "../../lib/auth";
 import { supabase } from "../../lib/supabase";
 import {
   disablePush,
@@ -48,14 +40,6 @@ export default function CustomerAccountScreen() {
     typeof user?.user_metadata?.name === "string" && user.user_metadata.name
       ? user.user_metadata.name
       : email.split("@")[0] || "Customer";
-
-  const savedPhone =
-    typeof user?.user_metadata?.phone === "string" ? user.user_metadata.phone : "";
-  const [phone, setPhone] = useState(savedPhone);
-  const [saving, setSaving] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
-
-  const dirty = phone.trim() !== savedPhone;
 
   const [push, setPush] = useState<PushStatus>({ granted: false, registered: false });
   const [pushBusy, setPushBusy] = useState(false);
@@ -177,19 +161,6 @@ export default function CustomerAccountScreen() {
     }
   }
 
-  async function save() {
-    setSaving(true);
-    setNotice(null);
-    try {
-      await saveContactPhone(phone);
-      setNotice("Saved. Future orders will carry this number.");
-    } catch {
-      setNotice("Could not save. Try again.");
-    } finally {
-      setSaving(false);
-    }
-  }
-
   return (
     <ScrollView
       style={styles.screen}
@@ -210,46 +181,12 @@ export default function CustomerAccountScreen() {
       </View>
 
       <View style={[styles.card, shadow.card]}>
-        <View style={styles.fieldHead}>
-          <Text style={styles.rowLabel}>Contact number</Text>
-          <Text style={styles.hint}>
-            The rider calls this when they are at your door. Orders already placed keep
-            the number that was on file at the time.
-          </Text>
-        </View>
-        <TextInput
-          style={styles.input}
-          value={phone}
-          onChangeText={setPhone}
-          placeholder="09XX XXX XXXX"
-          placeholderTextColor={colors.textFaint}
-          keyboardType="phone-pad"
-          autoComplete="tel"
-          returnKeyType="done"
-          onSubmitEditing={() => void save()}
-        />
-        <Pressable
-          style={({ pressed }) => [
-            styles.save,
-            (!dirty || saving) && styles.saveDisabled,
-            pressed && dirty && !saving && styles.savePressed,
-          ]}
-          accessibilityRole="button"
-          disabled={!dirty || saving}
-          onPress={() => void save()}
-        >
-          <Text style={styles.saveLabel}>{saving ? "Saving…" : "Save"}</Text>
-        </Pressable>
-        {notice ? <Text style={styles.notice}>{notice}</Text> : null}
-      </View>
-
-      <View style={[styles.card, shadow.card]}>
         <Row
           label="Delivery addresses"
           hint={
             addressCount > 0
-              ? `${addressCount} saved. Tap one at checkout instead of typing it.`
-              : "Save your home or usual spot so checkout is one tap."
+              ? `${addressCount} saved, each with the number your rider calls.`
+              : "Save your address and contact number so checkout is one tap."
           }
           onPress={() => router.push("/customer/addresses" as never)}
         />
@@ -415,28 +352,6 @@ const styles = StyleSheet.create({
   rowHint: { ...type.caption, color: colors.textFaint },
   fieldHead: { gap: 2, paddingTop: spacing.lg },
   hint: { ...type.caption, color: colors.textFaint },
-  input: {
-    marginTop: spacing.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
-    borderRadius: radius.sm,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.background,
-    color: colors.text,
-    fontSize: 16,
-  },
-  save: {
-    marginTop: spacing.md,
-    paddingVertical: spacing.md,
-    borderRadius: radius.sm,
-    backgroundColor: colors.primary,
-    alignItems: "center",
-  },
-  saveDisabled: { backgroundColor: colors.border },
-  savePressed: { opacity: 0.7 },
-  saveLabel: { fontSize: 15, fontWeight: "700", color: colors.textInverse },
-  notice: { ...type.caption, color: colors.textMuted, marginTop: spacing.sm },
   divider: { height: 1, backgroundColor: colors.border },
   pushCard: { paddingBottom: spacing.lg },
   pushRow: {
