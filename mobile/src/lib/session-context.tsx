@@ -57,7 +57,12 @@ export function SessionProvider({ children }: PropsWithChildren) {
             if (again.role === null) void signOut();
           })
           .catch(() => {
-            if (active) void signOut();
+            // Registration or the role re-read failed for a reason that is
+            // probably temporary: a dropped request, a slow connection, a
+            // moment of backgrounding. A valid session has to survive that, so
+            // this shows the retry screen instead of destroying it. Only the
+            // confirmed "still no role" answer above signs the user out.
+            if (active) setRoleError(true);
           });
       })
       .catch(() => {

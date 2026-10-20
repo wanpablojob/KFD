@@ -7,6 +7,7 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AppState } from "react-native";
 import NetInfo from "@react-native-community/netinfo";
+import { focusFromAppState, onlineFromNetInfo } from "./connectivity-manager";
 
 /**
  * Query client with persistent cache for offline-first experience.
@@ -35,34 +36,18 @@ const queryClient = new QueryClient({
   },
 });
 
-// React Query's focusManager defaults to the web `window` focus event, which
-// does not exist in React Native, so `refetchOnWindowFocus` never fires. Point
-// it at AppState so screens that opt in (the rider offers queue) refetch when
-// the app returns to the foreground. The query default stays
-// `refetchOnWindowFocus: false`; only queries that ask for focus refetching are
-// affected.
-focusManager.setEventListener((handleFocus) => {
-  const subscription = AppState.addEventListener("change", (state) => {
-    handleFocus(state === "active");
-  });
-  return () => subscription.remove();
-});
-
-// Same problem for onlineManager: it defaults to the browser's `navigator.onLine`,
-// which is undefined in React Native, so it reports "online" forever and the
-// `refetchOnReconnect: "always"` default above never fired. NetInfo is the only
-// source of truth for connectivity on a device, and ConnectivityProvider already
-// uses it for the offline banner -- this is the query-cache half of that signal.
-//
-// `isInternetReachable` is deliberately not consulted: on a captive-portal or
-// captive-wifi network it is null or false while Supabase is perfectly
-// reachable, and treating that as offline would pause polling on a working
-// phone. isConnected false is the only unambiguous signal.
-onlineManager.setEventListener((setOnline) =>
-  NetInfo.addEventListener((state) => {
-    setOnline(state.isConnected !== false);
-  })
-);
+/**
+ * Point React Query at the device's own events. Its defaults are browser events
+ * (`window` focus, `navigator.onLine`) that do not exist in React Native, so
+ * `refetchOnWindowFocus` and `refetchOnReconnect` silently never fired. The two
+ * bridges and the reasoning behind them live in connectivity-manager.ts, where
+ * a fake source can prove them in a test.
+ *
+ * The query default stays `refetchOnWindowFocus: false`; only queries that ask
+ * for focus refetching (the rider offers queue) are affected.
+ */
+focusManager.setEventListener(focusFromAppState(AppState));
+onlineManager.setEventListener(onlineFromNetInfo(NetInfo));
 
 // Experimental persister from TanStack Query v5
 const experimentalPersister = experimental_createQueryPersister({
