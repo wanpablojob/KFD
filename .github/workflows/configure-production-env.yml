@@ -70,7 +70,7 @@ jobs:
         id: supabase
         run: |
           set -euo pipefail
-          node <<'NODE' > "$RUNNER_TEMP/supabase.json"
+          node <<'NODE' > "$RUNNER_TEMP/supabase-report.json"
           const fs = require("fs");
 
           (async () => {
@@ -124,12 +124,13 @@ jobs:
             process.exit(1);
           });
           NODE
+          cat "$RUNNER_TEMP/supabase-report.json"
 
       - name: Report the Vercel production environment
         id: vercel
         run: |
           set -euo pipefail
-          node <<'NODE' > "$RUNNER_TEMP/vercel-env.json"
+          node <<'NODE' > "$RUNNER_TEMP/vercel-report.json"
           const fs = require("fs");
 
           (async () => {
@@ -175,6 +176,7 @@ jobs:
             process.exit(1);
           });
           NODE
+          cat "$RUNNER_TEMP/vercel-report.json"
 
       - name: Apply the environment
         if: ${{ !inputs.dry_run }}
