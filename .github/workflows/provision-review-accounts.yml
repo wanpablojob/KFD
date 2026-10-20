@@ -1,0 +1,308 @@
+# Provision the accounts a store reviewer signs in with, and a trip for the
+# rider to work.
+#
+# Apple and Google both ask for a working account on the app: a customer, a
+# merchant and a rider, with the credentials typed into the login screen. The
+# password is an input, not a value in this file -- it is never committed, and
+# it never appears in the log.
+#
+# The service role key is read from the Supabase Management API with the
+# project's access token and used for two things: the Auth admin API (which
+# hashes the password and writes the identity row the way a sign-up does) and
+# PostgREST (which writes the app's own rows). It is never printed.
+#
+# The customer, the merchant and the rider are created if they are not there
+# and reset if they are, so the workflow can be run again after the owner
+# changes the password.
+#
+# The trip: production had no deliveries at all, so a rider signing in for a
+# review would see an empty screen and could not show what the app does. The
+# trip is one order from the first kitchen, out for delivery, on the review
+# rider -- with the same money on it as a real order (a flat 45.00 delivery
+# fee while no service areas are published, and a 5.00 service fee).
+#
+# workflow_dispatch only: this writes to the live database.
+
+name: Provision Review Accounts
+
+on:
+  workflow_dispatch:
+    inputs:
+      password:
+        description: "The password for all three review accounts"
+        type: string
+        required: true
+      dry_run:
+        description: "Report what would change, change nothing"
+        type: boolean
+        required: false
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: provision-review-accounts
+  cancel-in-progress: false
+
+env:
+  PROJECT_REF: ijeqwbrrgfsmymsektih
+  SUPABASE_URL: https://ijeqwbrrgfsmymsektih.supabase.co
+  SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+
+jobs:
+  provision:
+    name: Provision review accounts
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+
+    steps:
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Read the service role key
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require("fs");
+
+          (async () => {
+          const token = process.env.SUPABASE_ACCESS_TOKEN;
+          const ref = process.env.PROJECT_REF;
+          if (!token) throw new Error("SUPABASE_ACCESS_TOKEN is not set");
+          const headers = {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          };
+          const list = await (
+            await fetch(`https://api.supabase.com/v1/projects/${ref}/api-keys`, { headers })
+          ).json();
+          const keys = Array.isArray(list) ? list : [];
+          const chosen =
+            keys.find((k) => (k.name === "service_role" || k.id === "service_role") && k.api_key) ||
+            keys.find((k) => k.type === "secret" && k.api_key);
+          if (!chosen) throw new Error("No usable service role key on the project");
+          console.error("::add-mask::" + chosen.api_key);
+          fs.writeFileSync(process.env.RUNNER_TEMP + "/service-role-key", chosen.api_key);
+          console.log("Service role key ready (" + chosen.id + ").");
+          })().catch((e) => {
+            console.error(String(e));
+            process.exit(1);
+          });
+          NODE
+
+      - name: Create the accounts and the trip
+        if: ${{ !inputs.dry_run }}
+        env:
+          REVIEW_PASSWORD: ${{ inputs.password }}
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require("fs");
+
+          (async () => {
+          const url = process.env.SUPABASE_URL;
+          const key = fs.readFileSync(process.env.RUNNER_TEMP + "/service-role-key", "utf8").trim();
+          const password = process.env.REVIEW_PASSWORD;
+          if (!password) throw new Error("No password given");
+
+          const adminHeaders = {
+            apikey: key,
+            Authorization: `Bearer ${key}`,
+            "Content-Type": "application/json",
+          };
+          const restHeaders = {
+            ...adminHeaders,
+            Prefer: "return=representation",
+          };
+
+          const accounts = [
+            { key: "customer", email: "appreview.customer@kfd.ph", name: "Review Customer", phone: "09171234567", role: "customer", restaurant_id: null },
+            { key: "merchant", email: "appreview.merchant@kfd.ph", name: "Review Merchant", phone: "09171234567", role: "merchant", restaurant_id: "rst_01" },
+            { key: "rider", email: "appreview.rider@kfd.ph", name: "Review Rider", phone: "09171234567", role: "rider", restaurant_id: null },
+          ];
+
+          const created = {};
+          for (const a of accounts) {
+            const res = await fetch(`${url}/auth/v1/admin/users`, {
+              method: "POST",
+              headers: adminHeaders,
+              body: JSON.stringify({
+                email: a.email,
+                password,
+                email_confirm: true,
+                user_metadata: { name: a.name, phone: a.phone },
+              }),
+            });
+            let body = null;
+            try { body = await res.json(); } catch {}
+            if (res.ok) {
+              created[a.key] = body.id;
+              console.log(`${a.key}: created ${a.email}`);
+              continue;
+            }
+            // Already registered: find it and set the password again, so the
+            // workflow can be re-run with a new one.
+            const list = await (
+              await fetch(`${url}/auth/v1/admin/users?per_page=200`, { headers: adminHeaders })
+            ).json();
+            const found = (list.users || []).find(
+              (u) => (u.email || "").toLowerCase() === a.email.toLowerCase()
+            );
+            if (!found) {
+              console.error(`${a.key}: could not create ${a.email}: ${JSON.stringify(body).slice(0, 200)}`);
+              process.exit(1);
+            }
+            const patched = await fetch(`${url}/auth/v1/admin/users/${found.id}`, {
+              method: "PATCH",
+              headers: adminHeaders,
+              body: JSON.stringify({
+                password,
+                email_confirm: true,
+                user_metadata: { name: a.name, phone: a.phone },
+              }),
+            });
+            if (!patched.ok) {
+              console.error(`${a.key}: could not reset the password: ${await patched.text()}`);
+              process.exit(1);
+            }
+            created[a.key] = found.id;
+            console.log(`${a.key}: reset ${a.email}`);
+          }
+
+          const post = async (path, body, headers = restHeaders) => {
+            const res = await fetch(`${url}/rest/v1/${path}`, {
+              method: "POST",
+              headers,
+              body: JSON.stringify(body),
+            });
+            if (!res.ok) {
+              console.error(`${path}: ${res.status} ${(await res.text()).slice(0, 300)}`);
+              process.exit(1);
+            }
+            const text = await res.text();
+            return text ? JSON.parse(text) : null;
+          };
+
+          // The role each account holds, and the kitchen the merchant runs.
+          for (const a of accounts) {
+            await post(
+              "app_users?on_conflict=user_id",
+              [{ user_id: created[a.key], role: a.role, restaurant_id: a.restaurant_id }],
+              { ...adminHeaders, Prefer: "resolution=merge-duplicates,return=minimal" }
+            );
+          }
+
+          await post("customers?on_conflict=user_id", [{
+            id: "cus_review",
+            name: "Review Customer",
+            email: accounts[0].email,
+            phone: accounts[0].phone,
+            city: "Kabankalan City Proper",
+            user_id: created.customer,
+          }], { ...adminHeaders, Prefer: "resolution=merge-duplicates,return=minimal" });
+
+          await post("riders?on_conflict=id", [{
+            id: "rdr_review",
+            name: "Review Rider",
+            email: accounts[2].email,
+            phone: accounts[2].phone,
+            city: "Kabankalan City Proper",
+            vehicle: "motorcycle",
+            status: "online",
+            user_id: created.rider,
+          }], { ...adminHeaders, Prefer: "resolution=merge-duplicates,return=minimal" });
+
+          // The trip for the rider, if there is not one already.
+          const existing = await (
+            await fetch(`${url}/rest/v1/deliveries?rider_id=eq.rdr_review&select=id&limit=1`, {
+              headers: adminHeaders,
+            })
+          ).json();
+          if (existing.length > 0) {
+            console.log("The review rider already has a trip (" + existing[0].id + ").");
+            return;
+          }
+
+          const delivery = await post("deliveries", {
+            reference: "KFD-REVIEW",
+            customer_user_id: created.customer,
+            customer: "Review Customer",
+            customer_phone: accounts[0].phone,
+            delivery_address: "12 Katipunan St., Barangay Poblacion",
+            delivery_barangay: "Poblacion",
+            city: "Kabankalan City Proper",
+            payment: "cash",
+            status: "out_for_delivery",
+            shops: 1,
+            subtotal: 100,
+            base_delivery_fee: 45,
+            delivery_fee: 45,
+            service_fee: 5,
+            total: 150,
+            fee_agreed_in_person: false,
+            rider_id: "rdr_review",
+            rider: "Review Rider",
+            rider_payout: 25,
+            prep_minutes: 20,
+          });
+          const deliveryId = delivery[0].id;
+          console.log("Trip " + deliveryId + " created for the review rider.");
+
+          await post("orders", {
+            reference: "KFD-REVIEW-1",
+            customer: "Review Customer",
+            restaurant: "D & D Food Hub",
+            items: [{ name: "Chicken Inasal", quantity: 1, price: 100 }],
+            subtotal: 100,
+            delivery_fee: 45,
+            service_fee: 5,
+            total: 150,
+            status: "out_for_delivery",
+            payment: "cash",
+            restaurant_id: "rst_01",
+            customer_user_id: created.customer,
+            customer_phone: accounts[0].phone,
+            delivery_address: "12 Katipunan St., Barangay Poblacion",
+            delivery_barangay: "Poblacion",
+            rider_id: "rdr_review",
+            rider: "Review Rider",
+            rider_payout: 25,
+            delivery_id: deliveryId,
+            prep_minutes: 20,
+          });
+          console.log("The order on that trip is KFD-REVIEW-1.");
+
+          console.log("");
+          console.log("Review accounts (the password is the one this run was given):");
+          for (const a of accounts) console.log(`  ${a.role.padEnd(9)} ${a.email}`);
+          })().catch((e) => {
+            console.error(String(e));
+            process.exit(1);
+          });
+          NODE
+
+      - name: Report
+        if: ${{ !inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          (async () => {
+          const url = process.env.SUPABASE_URL;
+          const key = require("fs").readFileSync(process.env.RUNNER_TEMP + "/service-role-key", "utf8").trim();
+          const headers = { apikey: key, Authorization: `Bearer ${key}` };
+          const riders = await (
+            await fetch(`${url}/rest/v1/riders?id=eq.rdr_review&select=id,name,status`, { headers })
+          ).json();
+          const trips = await (
+            await fetch(`${url}/rest/v1/deliveries?rider_id=eq.rdr_review&select=id,reference,status,total`, { headers })
+          ).json();
+          console.log(JSON.stringify({ riders, trips }, null, 2));
+          })().catch((e) => {
+            console.error(String(e));
+            process.exit(1);
+          });
+          NODE
