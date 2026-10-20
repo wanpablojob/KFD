@@ -12,6 +12,12 @@ export interface AttentionOrder {
   placedAt: string;
   rider: string;
   deliveryFailedAt: string | null;
+  /**
+   * The trip this order is part of (0092), when it is one shop of a basket.
+   * A part of a trip is never dispatched on its own, so it is not counted as
+   * an order waiting for a rider.
+   */
+  deliveryId?: string | null;
 }
 
 export interface AttentionItem {
@@ -47,7 +53,11 @@ export function attentionItems(
     (o) =>
       (o.status === "confirmed" || o.status === "preparing") &&
       !o.rider &&
-      o.deliveryFailedAt === null,
+      o.deliveryFailedAt === null &&
+      // A shop's part of a trip is never dispatched on its own (0092): the
+      // trip is the unit, so counting the parts would count one delivery
+      // three times.
+      !o.deliveryId,
   ).length;
   // A rider gave up on it and it is still open, so it needs reassigning.
   const failed = input.orders.filter(

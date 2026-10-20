@@ -26,9 +26,15 @@ trap cleanup EXIT
 
 cd "$WORK"
 supabase init --force >/dev/null
-# Own project id and ports, so this can run beside another local Supabase.
+# Own project id, and ports that are actually free: a stack somebody left
+# running on the usual port used to fail this gate with an opaque
+# "Starting database... Stopping containers..." while every check it ran was
+# fine. See scripts/db-ports.sh.
+# shellcheck source=scripts/db-ports.sh
+. "$ROOT/scripts/db-ports.sh"
+read -r P_DB P_SHADOW P_API P_STUDIO P_INBUCKET P_ANALYTICS <<<"$(pick_db_ports 56322)"
 sed -i.bak -e "s/^project_id = .*/project_id = \"$PROJECT\"/" \
-  -e "s/54322/56322/;s/54320/56320/;s/54321/56321/;s/54323/56323/;s/54324/56324/;s/54327/56327/" \
+  -e "s/54322/$P_DB/;s/54320/$P_SHADOW/;s/54321/$P_API/;s/54323/$P_STUDIO/;s/54324/$P_INBUCKET/;s/54327/$P_ANALYTICS/" \
   supabase/config.toml
 
 # Realtime off. `-x realtime` stops the container but the CLI still runs
