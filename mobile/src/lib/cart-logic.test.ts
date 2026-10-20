@@ -1,6 +1,9 @@
 import {
   MAX_QUANTITY,
   addLine,
+  cartFingerprint,
+  checkoutNonce,
+  checkoutRequestId,
   countLines,
   removeLine,
   restaurantNameOf,
@@ -131,5 +134,67 @@ describe("quantity cap (mirrors customer_place_order, 0076)", () => {
   it("clamps a typed quantity above the cap", () => {
     const lines = setQuantity([{ ...item("a"), quantity: 1 }], "a", MAX_QUANTITY + 25);
     expect(lines[0].quantity).toBe(MAX_QUANTITY);
+  });
+});
+
+/**
+ * The checkout key. What matters is the pair of properties the server relies
+ * on: a retry of one cart reuses the key, and a changed cart cannot.
+ */
+describe("checkout idempotency key", () => {
+  const cart = (quantity = 2, price = 120): CartLine[] => [
+    {
+      menu_item_id: "m1",
+      name: "Adobo",
+      price,
+      quantity,
+      restaurantId: "r1",
+      restaurantName: "KFD Kitchen",
+    },
+    {
+      menu_item_id: "m2",
+      name: "Halo-halo",
+      price: 90,
+      quantity: 1,
+      restaurantId: "r1",
+      restaurantName: "KFD Kitchen",
+    },
+  ];
+
+  it("fingerprints contents, not the order the lines were added", () => {
+    const forward = cart();
+    const backward = [...forward].reverse();
+    expect(cartFingerprint(forward)).toBe(cartFingerprint(backward));
+  });
+
+  it("changes when a quantity or a price changes", () => {
+    const base = cartFingerprint(cart());
+    expect(cartFingerprint(cart(3))).not.toBe(base);
+    expect(cartFingerprint(cart(2, 125))).not.toBe(base);
+  });
+
+  it("is stable for a retry of the same cart", () => {
+    const nonce = checkoutNonce();
+    expect(checkoutRequestId(nonce, cart())).toBe(checkoutRequestId(nonce, cart()));
+  });
+
+  it("changes after the cart is cleared and rebuilt", () => {
+    expect(checkoutRequestId(checkoutNonce(), cart())).not.toBe(
+      checkoutRequestId(checkoutNonce(), cart())
+    );
+  });
+
+  it("stays inside the server's 8-64 character window for a big cart", () => {
+    const big = Array.from({ length: 30 }, (_, i) => ({
+      menu_item_id: `menu-item-${i}-with-a-long-identifier`,
+      name: `Item ${i}`,
+      price: 999.99,
+      quantity: 50,
+      restaurantId: "restaurant-with-a-long-id",
+      restaurantName: "Kitchen",
+    }));
+    const key = checkoutRequestId(checkoutNonce(), big);
+    expect(key.length).toBeGreaterThanOrEqual(8);
+    expect(key.length).toBeLessThanOrEqual(64);
   });
 });

@@ -2,6 +2,7 @@ import { StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Stack, usePathname, useRouter } from "expo-router";
 import { CartProvider, useCart } from "../../lib/cart-context";
+import { useSession } from "../../lib/session-context";
 import { CartPill } from "../../components/CartPill";
 import { FloatingTabBar, type FloatingTab } from "../../components/FloatingTabBar";
 import { TabBarInsetProvider } from "../../components/TabBarInset";
@@ -14,15 +15,20 @@ import { colors } from "../../lib/theme";
  * layout (role === "customer").
  *
  * The cart lives only inside this navigator: it is cleared on sign-out by the
- * per-user remount of SessionProvider.
+ * per-user remount of SessionProvider, and persisted per user so the OS killing
+ * the app does not empty it.
  *
  * Foodpanda-style chrome lives here rather than in each screen -- the floating
  * tab bar and the cart pill above it -- so the storefront screens stay about
  * their own content.
  */
 export default function CustomerLayout() {
+  const { user } = useSession();
+  // The root navigator only mounts this group for a signed-in customer, so this
+  // is a type guard rather than a state the customer can reach.
+  if (!user) return null;
   return (
-    <CartProvider>
+    <CartProvider userId={user.id}>
       <CustomerShell />
     </CartProvider>
   );

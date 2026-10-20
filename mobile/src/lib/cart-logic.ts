@@ -99,3 +99,42 @@ export function restaurantOf(lines: CartLine[]): string | null {
 export function restaurantNameOf(lines: CartLine[]): string | null {
   return lines.length === 0 ? null : lines[0].restaurantName;
 }
+
+/**
+ * A stable, short digest of what the cart is asking to buy.
+ *
+ * It scopes the checkout idempotency key. The key has to survive a screen
+ * remount (a retry after a lost response must not place a second order), but it
+ * must not survive an edit: `customer_place_order` returns the order already
+ * filed under a repeated key *without* re-pricing it (0081), so reusing the key
+ * after the customer changes a quantity would send them to the wrong order.
+ * Sorting makes the digest depend on contents, not tap order.
+ */
+export function cartFingerprint(lines: CartLine[]): string {
+  const canonical = [...lines]
+    .sort((a, b) => a.menu_item_id.localeCompare(b.menu_item_id))
+    .map((l) => `${l.menu_item_id}:${l.quantity}:${l.price}`)
+    .join("|");
+  // FNV-1a, 32-bit. Not a security hash: it only has to separate two carts a
+  // customer could plausibly retry in a row.
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < canonical.length; i++) {
+    hash ^= canonical.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return `${canonical.length.toString(36)}${(hash >>> 0).toString(36)}`;
+}
+
+/** The random half of a checkout key; regenerated when a cart is cleared. */
+export function checkoutNonce(): string {
+  return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
+}
+
+/**
+ * The idempotency key sent with a checkout: the cart's nonce plus a digest of
+ * its contents. `customer_place_order` accepts 8-64 characters (0076), which
+ * this stays inside for any cart the app can build.
+ */
+export function checkoutRequestId(nonce: string, lines: CartLine[]): string {
+  return `${nonce}-${cartFingerprint(lines)}`;
+}

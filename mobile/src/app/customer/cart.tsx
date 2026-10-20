@@ -44,7 +44,15 @@ const PAYMENTS: { key: PaymentChoice; label: string; glyph: string }[] = [
 export default function CustomerCartScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { lines, setQuantity, remove, clear, restaurantId, restaurantName } = useCart();
+  const {
+    lines,
+    setQuantity,
+    remove,
+    clear,
+    restaurantId,
+    restaurantName,
+    checkoutRequestId,
+  } = useCart();
   const { user } = useSession();
   const [address, setAddress] = useState("");
   const [addresses, setAddresses] = useState<SavedAddress[]>([]);
@@ -68,11 +76,9 @@ export default function CustomerCartScreen() {
   const [barangay, setBarangay] = useState<string | null>(null);
   // Priced for the chosen barangay so the preview matches the zonal fee charged (0080).
   const { quote, loading: quoting, error: quoteError } = useCartQuote(barangay);
-  // One key per checkout, reused on every retry, so a lost response returns the
-  // order that went through instead of placing a second one.
-  const [requestId] = useState(
-    () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`
-  );
+  // The idempotency key comes from the cart context, not this screen: it has to
+  // survive the screen remounting while the cart survives, and it is scoped to
+  // the contents so an edited cart is a new checkout (cart-context.tsx).
 
   useEffect(() => {
     let active = true;
@@ -176,6 +182,11 @@ export default function CustomerCartScreen() {
       setError("Still pricing your cart. Try again in a moment.");
       return;
     }
+    // Only null for an empty cart, which the guard above already returned on.
+    if (!checkoutRequestId) {
+      setError("Your cart changed. Review it and try again.");
+      return;
+    }
     if (!restaurantId) {
       setError("Your cart has items from more than one place. Start a new cart.");
       return;
@@ -212,7 +223,7 @@ export default function CustomerCartScreen() {
         })),
         deliveryAddress: trimmedAddress,
         payment,
-        requestId,
+        requestId: checkoutRequestId,
         barangay,
       });
       clear();
