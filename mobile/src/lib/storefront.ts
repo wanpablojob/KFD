@@ -16,6 +16,8 @@ export interface RestaurantRow {
   is_open: boolean;
   /** Merchant's typical prep time in minutes, for the delivery estimate (0077). */
   prep_minutes: number;
+  /** Shop photo set by the merchant (0090); null shows the initial. */
+  image_url: string | null;
 }
 
 export interface MenuItemRow {
@@ -35,7 +37,7 @@ export async function fetchActiveRestaurants(): Promise<RestaurantRow[]> {
   const { data, error } = await supabase
     .from("restaurants")
     .select(
-      "id, name, cuisine, city, rating, status, archived_at, is_open, prep_minutes"
+      "id, name, cuisine, city, rating, status, archived_at, is_open, prep_minutes, image_url"
     )
     .eq("status", "active")
     .is("archived_at", null)
@@ -52,7 +54,7 @@ export async function fetchRestaurant(id: string): Promise<RestaurantRow | null>
   const { data, error } = await supabase
     .from("restaurants")
     .select(
-      "id, name, cuisine, city, rating, status, archived_at, is_open, prep_minutes"
+      "id, name, cuisine, city, rating, status, archived_at, is_open, prep_minutes, image_url"
     )
     .eq("id", id)
     .eq("status", "active")

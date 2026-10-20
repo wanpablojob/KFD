@@ -13,7 +13,7 @@ import {
   TextInput,
   View,
 } from "react-native";
-import * as ImagePicker from "expo-image-picker";
+import { pickPhoto } from "../lib/pick-photo";
 import { MerchantButton, ui } from "./MerchantUi";
 import {
   uploadMenuImage,
@@ -24,13 +24,6 @@ import { parsePrice } from "../lib/merchant-logic";
 import { colors, radius, spacing, type } from "../lib/theme";
 
 /** Square, compressed: a menu thumbnail, not a print. Keeps uploads small on mobile data. */
-const PICKER_OPTIONS: ImagePicker.ImagePickerOptions = {
-  mediaTypes: ["images"],
-  allowsEditing: true,
-  aspect: [1, 1],
-  quality: 0.6,
-};
-
 /**
  * Add or edit one menu item. `item` null opens it empty for a new item;
  * `visible` false keeps it closed. The photo is uploaded on Save, not on pick,
@@ -65,30 +58,10 @@ export function MenuItemEditor({
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
 
-  async function pick(fromCamera: boolean) {
-    const permission = fromCamera
-      ? await ImagePicker.requestCameraPermissionsAsync()
-      : await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      setError(
-        fromCamera
-          ? "Allow camera access to take a photo."
-          : "Allow photo access to choose a picture."
-      );
-      return;
-    }
-    const result = fromCamera
-      ? await ImagePicker.launchCameraAsync(PICKER_OPTIONS)
-      : await ImagePicker.launchImageLibraryAsync(PICKER_OPTIONS);
-    if (!result.canceled && result.assets[0]) setPhotoUri(result.assets[0].uri);
-  }
-
-  function choosePhoto() {
-    Alert.alert("Menu photo", "Use a clear photo of the dish.", [
-      { text: "Take photo", onPress: () => void pick(true) },
-      { text: "Choose from gallery", onPress: () => void pick(false) },
-      { text: "Cancel", style: "cancel" },
-    ]);
+  async function choosePhoto() {
+    const picked = await pickPhoto("Menu photo", "Use a clear photo of the dish.");
+    if (picked.error) setError(picked.error);
+    if (picked.uri) setPhotoUri(picked.uri);
   }
 
   async function save() {
@@ -129,7 +102,7 @@ export function MenuItemEditor({
             <Text style={type.title}>{item ? "Edit item" : "New menu item"}</Text>
 
             <Pressable
-              onPress={choosePhoto}
+              onPress={() => void choosePhoto()}
               style={styles.photo}
               accessibilityRole="button"
               accessibilityLabel="Add a photo"

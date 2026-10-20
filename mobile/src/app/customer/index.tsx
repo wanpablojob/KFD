@@ -1,6 +1,7 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useMemo } from "react";
 import {
+  Image,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -175,7 +176,17 @@ function Row({
             accessibilityLabel={`${r.name}, ${r.cuisine}${r.is_open ? "" : ", closed"}`}
           >
             <View style={styles.thumb}>
-              <Text style={styles.thumbInitial}>{r.name.charAt(0).toUpperCase()}</Text>
+              {r.image_url ? (
+                <Image
+                  source={{ uri: r.image_url }}
+                  style={StyleSheet.absoluteFill}
+                  accessibilityIgnoresInvertColors
+                />
+              ) : (
+                <Text style={styles.thumbInitial}>
+                  {r.name.charAt(0).toUpperCase()}
+                </Text>
+              )}
             </View>
             <Text style={styles.cardName} numberOfLines={1}>
               {r.name}
@@ -244,6 +255,7 @@ const styles = StyleSheet.create({
   cardClosed: { opacity: 0.6 },
   cardPressed: { opacity: 0.8 },
   thumb: {
+    overflow: "hidden",
     height: 72,
     borderRadius: radius.md,
     backgroundColor: colors.primarySoft,

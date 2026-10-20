@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Pressable, StyleSheet, Switch, Text, View } from "react-native";
+import { Image, Pressable, StyleSheet, Switch, Text, View } from "react-native";
 import {
   MerchantButton,
   MerchantScreen,
@@ -9,7 +9,12 @@ import {
 import { useSession } from "../../lib/session-context";
 import { supabase } from "../../lib/supabase";
 import { openLegal } from "../../lib/legal";
-import { useSaveStoreStatus, useStoreStatus } from "../../lib/merchant";
+import {
+  useSaveStoreStatus,
+  useSetShopImage,
+  useStoreStatus,
+} from "../../lib/merchant";
+import { pickPhoto } from "../../lib/pick-photo";
 import {
   disablePush,
   enablePush,
@@ -18,7 +23,7 @@ import {
   type PushStatus,
 } from "../../lib/push";
 import { shouldUnregisterOnSignOut } from "../../lib/push-signout";
-import { colors, spacing, type } from "../../lib/theme";
+import { colors, radius, spacing, type } from "../../lib/theme";
 
 /** merchant_set_store_status accepts 5 to 120 minutes (0077). */
 const PREP_MIN = 5;
@@ -100,6 +105,25 @@ export default function MerchantAccountScreen() {
   }
 
   const current = store.data;
+  const setPhoto = useSetShopImage(restaurantId);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+
+  async function changePhoto() {
+    setPhotoError(null);
+    const picked = await pickPhoto(
+      "Shop photo",
+      "A wide photo of your shop or best dish.",
+      [16, 9]
+    );
+    if (picked.error) return setPhotoError(picked.error);
+    if (!picked.uri) return;
+    setPhoto.mutate(picked.uri, {
+      onError: (cause) =>
+        setPhotoError(
+          cause instanceof Error ? cause.message : "Could not save the photo."
+        ),
+    });
+  }
   const prep = current?.prepMinutes ?? 20;
   const savePrep = (next: number) =>
     current &&
@@ -113,6 +137,34 @@ export default function MerchantAccountScreen() {
       title={role?.restaurantName ?? "Account"}
       subtitle={user?.email ?? undefined}
     >
+      <MerchantSection label="Shop photo">
+        <Pressable
+          onPress={() => void changePhoto()}
+          disabled={setPhoto.isPending}
+          style={styles.photo}
+          accessibilityRole="button"
+          accessibilityLabel={
+            current?.imageUrl ? "Change shop photo" : "Add shop photo"
+          }
+        >
+          {current?.imageUrl ? (
+            <Image source={{ uri: current.imageUrl }} style={styles.photoImage} />
+          ) : (
+            <Text style={ui.muted}>
+              {setPhoto.isPending
+                ? "Uploading…"
+                : "Tap to add a photo of your shop or best dish"}
+            </Text>
+          )}
+        </Pressable>
+        <Text style={ui.muted}>
+          {setPhoto.isPending
+            ? "Uploading…"
+            : "Customers see this on your card in Home and Shops, and on your menu."}
+        </Text>
+        {photoError ? <Text style={ui.error}>{photoError}</Text> : null}
+      </MerchantSection>
+
       <MerchantSection label="Store">
         {store.isError ? (
           <Text style={ui.error}>Could not load your store status.</Text>
@@ -214,6 +266,19 @@ export default function MerchantAccountScreen() {
 }
 
 const styles = StyleSheet.create({
+  photo: {
+    height: 150,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.surface,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+    paddingHorizontal: spacing.lg,
+  },
+  photoImage: { width: "100%", height: "100%" },
   row: {
     flexDirection: "row",
     alignItems: "center",
