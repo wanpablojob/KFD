@@ -171,27 +171,37 @@ jobs:
             echo >&2
             exit 1
           fi
-          echo "Auth settings applied. What the project now reports:"
+          echo "Auth settings applied. The raw API answer:"
           printf '%s' "$payload" | node -e '
             let s = "";
             process.stdin.on("data", (d) => (s += d)).on("end", () => {
-              const c = JSON.parse(s);
-              console.log(JSON.stringify({
-                otp_length: c.otp_length,
-                otp_expiry: c.otp_expiry,
-                mailer_max_frequency: c.mailer_max_frequency,
-                rate_limit_email_sent: c.rate_limit_email_sent,
-                mailer_secure_email_change_enabled: c.mailer_secure_email_change_enabled,
-                smtp_host: c.smtp && c.smtp.host,
-                smtp_port: c.smtp && c.smtp.port,
-                smtp_user: c.smtp && c.smtp.user,
-                smtp_from: c.smtp && c.smtp.admin_email,
-                smtp_password_set: !!(c.smtp && c.smtp.pass),
-                reset_password_template:
-                  (c.mailer_templates || []).find((t) => t.id === "ResetPassword")?.body?.includes("{{ .Token }}") ?? false,
-              }, null, 2));
+              let c;
+              try { c = JSON.parse(s); } catch { console.log(s.slice(0, 1500)); return; }
+              if (c.smtp && c.smtp.pass) c.smtp.pass = "***";
+              console.log(JSON.stringify(c, null, 2).slice(0, 3000));
             });
           '
+          echo
+          echo "What the project reports now:"
+          curl -sS "https://api.supabase.com/v1/projects/${PROJECT_REF}/config/auth" \
+            -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
+            | node -e '
+              let s = "";
+              process.stdin.on("data", (d) => (s += d)).on("end", () => {
+                const c = JSON.parse(s);
+                const templates = c.mailer_templates || [];
+                console.log(JSON.stringify({
+                  otp_length: c.otp_length,
+                  otp_expiry: c.otp_expiry,
+                  rate_limit_email_sent: c.rate_limit_email_sent,
+                  mailer_max_frequency: c.mailer_max_frequency,
+                  smtp_host: c.smtp && c.smtp.host,
+                  smtp_password_set: !!(c.smtp && c.smtp.pass),
+                  template_ids: templates.map((t) => t.id),
+                  reset_body_starts: (templates.find((t) => (t.id || "").toLowerCase().includes("reset")) || {}).body?.slice(0, 160),
+                }, null, 2));
+              });
+            '
 
       - name: Report the current settings
         if: ${{ inputs.dry_run }}
