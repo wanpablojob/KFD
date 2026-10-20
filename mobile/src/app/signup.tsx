@@ -1,3 +1,4 @@
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useState } from "react";
 import {
   ActivityIndicator,
@@ -6,7 +7,6 @@ import {
   Pressable,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
@@ -14,33 +14,8 @@ import { Link } from "expo-router";
 import { signUpWithEmail, signInWithProvider } from "../lib/auth";
 import { collapseAuthError } from "../lib/auth-errors";
 import { openLegal } from "../lib/legal";
+import { AuthField } from "../components/AuthField";
 import { colors, radius, shadow, spacing, type } from "../lib/theme";
-
-function Field({
-  label,
-  ...inputProps
-}: {
-  label: string;
-} & Omit<
-  React.ComponentProps<typeof TextInput>,
-  "style" | "placeholderTextColor" | "onFocus" | "onBlur"
->) {
-  const [focused, setFocused] = useState(false);
-  return (
-    <View style={styles.field}>
-      <Text style={[styles.fieldLabel, focused && styles.fieldLabelFocused]}>
-        {label}
-      </Text>
-      <TextInput
-        {...inputProps}
-        style={[styles.input, focused && styles.inputFocused]}
-        placeholderTextColor={colors.textFaint}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
-      />
-    </View>
-  );
-}
 
 /**
  * Customer self sign-up. After a successful email/password signUp the session
@@ -124,7 +99,10 @@ export default function SignUpScreen() {
     >
       <View style={styles.frame}>
         <Link href="/login" replace>
-          <Text style={styles.back}>‹ BACK</Text>
+          <View style={styles.backRow}>
+            <Ionicons name="chevron-back" size={20} color={colors.secondary} />
+            <Text style={styles.back}>Back</Text>
+          </View>
         </Link>
 
         <View>
@@ -132,8 +110,8 @@ export default function SignUpScreen() {
           <Text style={styles.subtitle}>Order from any place in Kabankalan</Text>
         </View>
 
-        <Field
-          label="EMAIL"
+        <AuthField
+          label="Email"
           value={email}
           onChangeText={setEmail}
           placeholder="you@example.com"
@@ -144,8 +122,8 @@ export default function SignUpScreen() {
           autoComplete="email"
           editable={!submitting}
         />
-        <Field
-          label="PASSWORD"
+        <AuthField
+          label="Password"
           value={password}
           onChangeText={setPassword}
           placeholder="At least 6 characters"
@@ -154,8 +132,8 @@ export default function SignUpScreen() {
           autoComplete="new-password"
           editable={!submitting}
         />
-        <Field
-          label="CONFIRM PASSWORD"
+        <AuthField
+          label="Confirm password"
           value={confirm}
           onChangeText={setConfirm}
           placeholder="Re-enter password"
@@ -182,7 +160,7 @@ export default function SignUpScreen() {
           {submitting ? (
             <ActivityIndicator color={colors.textInverse} />
           ) : (
-            <Text style={styles.buttonLabel}>CREATE ACCOUNT</Text>
+            <Text style={styles.buttonLabel}>Create account</Text>
           )}
         </Pressable>
 
@@ -221,7 +199,7 @@ export default function SignUpScreen() {
           disabled={submitting}
           onPress={handleGoogle}
         >
-          <Text style={styles.providerGlyph}>G</Text>
+          <Ionicons name="logo-google" size={18} color={colors.primary} />
           <Text style={styles.providerLabel}>Continue with Google</Text>
         </Pressable>
 
@@ -237,6 +215,7 @@ export default function SignUpScreen() {
 }
 
 const styles = StyleSheet.create({
+  backRow: { flexDirection: "row", alignItems: "center", gap: 2 },
   consent: { ...type.caption, textAlign: "center", marginTop: spacing.sm },
   consentLink: {
     color: colors.primary,
@@ -259,20 +238,6 @@ const styles = StyleSheet.create({
   back: { ...type.label, color: colors.secondary },
   title: { fontSize: 26, fontWeight: "800", color: colors.text },
   subtitle: { ...type.caption, color: colors.textMuted, marginTop: 2 },
-  field: { gap: 6 },
-  fieldLabel: { ...type.eyebrow, color: colors.textFaint },
-  fieldLabelFocused: { color: colors.secondary },
-  input: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    fontSize: 15,
-    color: colors.text,
-  },
-  inputFocused: { borderColor: colors.secondary, backgroundColor: colors.card },
   error: { ...type.body, color: colors.danger, textAlign: "center" },
   info: { ...type.body, color: colors.secondary, textAlign: "center" },
   button: {
@@ -306,11 +271,6 @@ const styles = StyleSheet.create({
     minHeight: 48,
   },
   providerPressed: { backgroundColor: colors.surface },
-  providerGlyph: {
-    fontSize: 15,
-    fontWeight: "800",
-    color: colors.primary,
-  },
   providerLabel: { fontSize: 14, fontWeight: "700", color: colors.text },
   signupLink: { alignItems: "center", marginTop: spacing.sm },
   signupLabel: { ...type.caption, color: colors.textMuted },

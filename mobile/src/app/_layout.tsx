@@ -164,18 +164,18 @@ function RootNavigator() {
         <Stack.Screen name="login" />
         <Stack.Screen name="signup" />
         <Stack.Screen name="forgot-password" />
-        {/*
-         * Rider application. Declared with the signed-out group because an
-         * applicant only needs an auth identity, not a rider role -- a new
-         * signup lands here rather than being told they are already a rider.
-         */}
-        <Stack.Screen name="rider-apply" />
       </Stack.Protected>
       <Stack.Protected guard={isRider}>
         <Stack.Screen name="rider" />
       </Stack.Protected>
       <Stack.Protected guard={isCustomer}>
         <Stack.Screen name="customer" />
+        {/*
+         * Rider application, from the customer's Account. It needs a signed-in
+         * account (submit_rider_application uses auth.uid()); it used to sit in
+         * the signed-out group, so the Account link always bounced.
+         */}
+        <Stack.Screen name="rider-apply" />
       </Stack.Protected>
       <Stack.Protected guard={isMerchant}>
         <Stack.Screen name="merchant" />

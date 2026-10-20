@@ -1,3 +1,4 @@
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useState } from "react";
 import {
   ActivityIndicator,
@@ -6,13 +7,13 @@ import {
   Pressable,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { Link } from "expo-router";
 import { requestPasswordReset, resetPasswordWithCode } from "../lib/auth";
 import { resetFormError } from "../lib/password-reset";
+import { AuthField } from "../components/AuthField";
 import { colors, radius, shadow, spacing, type } from "../lib/theme";
 
 /**
@@ -76,7 +77,10 @@ export default function ForgotPasswordScreen() {
     >
       <View style={styles.frame}>
         <Link href="/login" replace>
-          <Text style={styles.back}>‹ BACK</Text>
+          <View style={styles.backRow}>
+            <Ionicons name="chevron-back" size={20} color={colors.secondary} />
+            <Text style={styles.back}>Back</Text>
+          </View>
         </Link>
 
         <View>
@@ -89,8 +93,8 @@ export default function ForgotPasswordScreen() {
         </View>
 
         {!sent ? (
-          <Field
-            label="EMAIL"
+          <AuthField
+            label="Email"
             value={email}
             onChangeText={setEmail}
             placeholder="you@example.com"
@@ -105,8 +109,8 @@ export default function ForgotPasswordScreen() {
           />
         ) : (
           <>
-            <Field
-              label="CODE"
+            <AuthField
+              label="Code from the email"
               value={code}
               onChangeText={setCode}
               placeholder="123456"
@@ -116,8 +120,8 @@ export default function ForgotPasswordScreen() {
               maxLength={6}
               editable={!submitting}
             />
-            <Field
-              label="NEW PASSWORD"
+            <AuthField
+              label="New password"
               value={password}
               onChangeText={setPassword}
               placeholder="At least 6 characters"
@@ -126,8 +130,8 @@ export default function ForgotPasswordScreen() {
               autoComplete="new-password"
               editable={!submitting}
             />
-            <Field
-              label="CONFIRM PASSWORD"
+            <AuthField
+              label="Confirm password"
               value={confirm}
               onChangeText={setConfirm}
               placeholder="Re-enter password"
@@ -157,7 +161,7 @@ export default function ForgotPasswordScreen() {
             <ActivityIndicator color={colors.textInverse} />
           ) : (
             <Text style={styles.buttonLabel}>
-              {sent ? "SET NEW PASSWORD" : "SEND CODE"}
+              {sent ? "Set new password" : "Send code"}
             </Text>
           )}
         </Pressable>
@@ -177,31 +181,8 @@ export default function ForgotPasswordScreen() {
   );
 }
 
-function Field({
-  label,
-  ...inputProps
-}: { label: string } & Omit<
-  React.ComponentProps<typeof TextInput>,
-  "style" | "placeholderTextColor" | "onFocus" | "onBlur"
->) {
-  const [focused, setFocused] = useState(false);
-  return (
-    <View style={styles.field}>
-      <Text style={[styles.fieldLabel, focused && styles.fieldLabelFocused]}>
-        {label}
-      </Text>
-      <TextInput
-        {...inputProps}
-        style={[styles.input, focused && styles.inputFocused]}
-        placeholderTextColor={colors.textFaint}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
-      />
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
+  backRow: { flexDirection: "row", alignItems: "center", gap: 2 },
   container: { flex: 1, backgroundColor: colors.background, justifyContent: "center" },
   frame: {
     marginHorizontal: spacing.lg,
@@ -214,20 +195,6 @@ const styles = StyleSheet.create({
   back: { ...type.label, color: colors.secondary },
   title: { fontSize: 26, fontWeight: "800", color: colors.text },
   subtitle: { ...type.caption, color: colors.textMuted, marginTop: 2 },
-  field: { gap: 6 },
-  fieldLabel: { ...type.eyebrow, color: colors.textFaint },
-  fieldLabelFocused: { color: colors.secondary },
-  input: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    fontSize: 15,
-    color: colors.text,
-  },
-  inputFocused: { borderColor: colors.secondary, backgroundColor: colors.card },
   error: { ...type.body, color: colors.danger, textAlign: "center" },
   button: {
     backgroundColor: colors.primary,

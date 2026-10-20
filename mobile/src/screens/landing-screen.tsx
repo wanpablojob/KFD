@@ -1,41 +1,43 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   Animated,
   Easing,
   Image,
+  ImageBackground,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   useAnimatedValue,
   View,
-  type ViewStyle,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
-import { useGlassPreferences } from "../components/GlassSurface";
-import type { IconName } from "../components/tab-icons";
-import { colors, radius, spacing, type } from "../lib/theme";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { signInWithProvider } from "../lib/auth";
+import { collapseAuthError } from "../lib/auth-errors";
+import { colors, radius, shadow, spacing, type } from "../lib/theme";
 
-export type LandingAction = "login";
+export type LandingAction = "login" | "signup" | "track";
 
 /**
- * Signed-out landing -- the gateway to the shared sign-in.
+ * Signed-out landing: what KFD is, and one obvious way in.
  *
- * Customers track orders on the web by reference; the mobile app is account
- * first, so the landing is deliberately one screen with a single decision:
- * sign in. The role is resolved from app_users after login, never chosen here.
- *
- * The background drifts: two soft colour blobs and a few small food icons, each
- * on its own slow loop so they never move in step. Transforms only, on the
- * native driver, and all of it stops under Reduce Motion.
+ * A food photo under a red band carries the brand; the cream sheet below asks
+ * one question (new or returning?) with Google as the fastest path. Tracking
+ * works without an account, so it is offered too. The role is resolved from
+ * app_users after sign-in, never chosen here.
  */
 export function LandingScreen({
   onAction,
 }: {
   onAction: (action: LandingAction) => void;
 }) {
-  const { reduceMotion } = useGlassPreferences();
+  const insets = useSafeAreaInsets();
   const rise = useAnimatedValue(0);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     Animated.timing(rise, {
@@ -49,216 +51,211 @@ export function LandingScreen({
   const riseStyle = {
     opacity: rise,
     transform: [
-      { translateY: rise.interpolate({ inputRange: [0, 1], outputRange: [28, 0] }) },
+      { translateY: rise.interpolate({ inputRange: [0, 1], outputRange: [24, 0] }) },
     ],
   };
 
+  async function google() {
+    if (busy) return;
+    setError(null);
+    setBusy(true);
+    try {
+      await signInWithProvider("google");
+      // Success and cancel both land in the session listener; cancel stays here.
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? (collapseAuthError(cause.message) ?? cause.message)
+          : "Google sign-in failed. Try again."
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
-    <View style={styles.container}>
-      <View style={StyleSheet.absoluteFill} pointerEvents="none">
-        <Drift
-          still={reduceMotion}
-          dx={30}
-          dy={24}
-          duration={9000}
-          style={styles.blobTop}
+    <View style={styles.screen}>
+      <ScrollView contentContainerStyle={styles.scroll} bounces={false}>
+        <ImageBackground
+          source={require("../../assets/landing-food.jpg")}
+          style={[styles.hero, { paddingTop: insets.top + spacing.xl }]}
+          imageStyle={styles.heroImage}
+          accessibilityLabel="A plate of chicken inasal with rice"
         >
-          <View style={[styles.blob, { backgroundColor: colors.primarySoft }]} />
-        </Drift>
-        <Drift
-          still={reduceMotion}
-          dx={-26}
-          dy={-30}
-          duration={11000}
-          style={styles.blobBottom}
-        >
-          <View style={[styles.blob, { backgroundColor: colors.goldSoft }]} />
-        </Drift>
+          <View style={styles.heroShade} />
+          <Animated.View style={[styles.brand, riseStyle]}>
+            <Image source={require("../../assets/logo.png")} style={styles.logo} />
+            <Text style={styles.title}>KFD</Text>
+            <Text style={styles.subtitle}>Kabankalan Food Delivery</Text>
+          </Animated.View>
+        </ImageBackground>
 
-        <FoodIcon
-          still={reduceMotion}
-          name="pizza-outline"
-          top="14%"
-          left="72%"
-          duration={4200}
-        />
-        <FoodIcon
-          still={reduceMotion}
-          name="fast-food-outline"
-          top="24%"
-          left="10%"
-          duration={5200}
-        />
-        <FoodIcon
-          still={reduceMotion}
-          name="cafe-outline"
-          top="70%"
-          left="80%"
-          duration={4800}
-        />
-        <FoodIcon
-          still={reduceMotion}
-          name="bicycle-outline"
-          top="80%"
-          left="14%"
-          duration={5600}
-        />
-        <FoodIcon
-          still={reduceMotion}
-          name="ice-cream-outline"
-          top="62%"
-          left="46%"
-          duration={6100}
-        />
-      </View>
+        <Animated.View style={[styles.sheet, riseStyle]}>
+          {/* TODO(owner): a Hiligaynon line here, written by a native speaker. */}
+          <Text style={styles.headline}>Local kitchens, delivered to your door.</Text>
+          <Text style={styles.lead}>
+            Order from Kabankalan restaurants, pay cash or GCash when it arrives, and
+            follow your rider the whole way.
+          </Text>
 
-      <View style={styles.inner}>
-        <Animated.View style={[styles.brand, riseStyle]}>
-          <Image source={require("../../assets/logo.png")} style={styles.logo} />
-          <Text style={styles.title}>KFD</Text>
-          <Text style={styles.subtitle}>Kabankalan Food Delivery</Text>
-        </Animated.View>
-
-        <Animated.View style={{ opacity: rise }}>
           <Pressable
             accessibilityRole="button"
+            onPress={() => onAction("signup")}
             style={({ pressed }) => [
-              styles.button,
-              pressed ? styles.buttonPressed : null,
+              styles.primary,
+              shadow.card,
+              pressed && styles.primaryPressed,
             ]}
-            onPress={() => onAction("login")}
           >
-            <Text style={styles.buttonLabel}>Sign in</Text>
+            <Text style={styles.primaryLabel}>Create an account</Text>
           </Pressable>
+
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => void google()}
+            disabled={busy}
+            style={({ pressed }) => [styles.google, pressed && styles.googlePressed]}
+          >
+            {busy ? (
+              <ActivityIndicator color={colors.primary} />
+            ) : (
+              <>
+                <Ionicons name="logo-google" size={18} color={colors.primary} />
+                <Text style={styles.googleLabel}>Continue with Google</Text>
+              </>
+            )}
+          </Pressable>
+
+          {error ? <Text style={styles.error}>{error}</Text> : null}
+
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => onAction("login")}
+            style={styles.textButton}
+          >
+            <Text style={styles.textButtonLabel}>
+              Already have an account? <Text style={styles.bold}>Sign in</Text>
+            </Text>
+          </Pressable>
+
+          <View style={styles.links}>
+            <Pressable
+              onPress={() => onAction("track")}
+              accessibilityRole="link"
+              hitSlop={8}
+              style={styles.link}
+            >
+              <Ionicons name="navigate-outline" size={16} color={colors.secondary} />
+              <Text style={styles.linkLabel}>Track an order</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => onAction("signup")}
+              accessibilityRole="link"
+              hitSlop={8}
+              style={styles.link}
+            >
+              <Ionicons name="bicycle-outline" size={16} color={colors.secondary} />
+              <Text style={styles.linkLabel}>Ride with KFD</Text>
+            </Pressable>
+          </View>
+          <Text style={styles.riderHint}>
+            Riders: create an account, then tap Apply to deliver in Account.
+          </Text>
+
+          {/* CC BY-SA 4.0 asks for the author and licence beside the photo. */}
+          <Text style={styles.credit}>Photo: Ralff Nestor Nacor, CC BY-SA 4.0</Text>
         </Animated.View>
-      </View>
-      <StatusBar style="dark" />
+      </ScrollView>
+      <StatusBar style="light" />
     </View>
   );
 }
 
-/** Moves its child back and forth along (dx, dy) on an endless eased loop. */
-function Drift({
-  dx,
-  dy,
-  duration,
-  still,
-  style,
-  children,
-}: {
-  dx: number;
-  dy: number;
-  duration: number;
-  still: boolean;
-  style?: ViewStyle;
-  children: ReactNode;
-}) {
-  const t = useAnimatedValue(0);
-
-  useEffect(() => {
-    if (still) {
-      t.setValue(0);
-      return;
-    }
-    const half = (toValue: number) =>
-      Animated.timing(t, {
-        toValue,
-        duration: duration / 2,
-        easing: Easing.inOut(Easing.sin),
-        useNativeDriver: true,
-      });
-    const loop = Animated.loop(Animated.sequence([half(1), half(0)]));
-    loop.start();
-    return () => loop.stop();
-  }, [t, duration, still]);
-
-  return (
-    <Animated.View
-      style={[
-        style,
-        {
-          transform: [
-            { translateX: t.interpolate({ inputRange: [0, 1], outputRange: [0, dx] }) },
-            { translateY: t.interpolate({ inputRange: [0, 1], outputRange: [0, dy] }) },
-          ],
-        },
-      ]}
-    >
-      {children}
-    </Animated.View>
-  );
-}
-
-/** A small, faint food icon that bobs a few points up and down. */
-function FoodIcon({
-  name,
-  top,
-  left,
-  duration,
-  still,
-}: {
-  name: IconName;
-  top: `${number}%`;
-  left: `${number}%`;
-  duration: number;
-  still: boolean;
-}) {
-  return (
-    <Drift
-      still={still}
-      dx={0}
-      dy={-10}
-      duration={duration}
-      style={{ position: "absolute", top, left }}
-    >
-      <Ionicons name={name} size={26} color={colors.secondary} style={styles.icon} />
-    </Drift>
-  );
-}
-
-const BLOB = 320;
-
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
+  screen: { flex: 1, backgroundColor: colors.background },
+  scroll: { flexGrow: 1 },
+  hero: {
+    minHeight: 320,
+    alignItems: "center",
     justifyContent: "center",
-    overflow: "hidden",
+    paddingBottom: spacing.xxl + spacing.lg,
   },
-  blob: { width: BLOB, height: BLOB, borderRadius: BLOB / 2, opacity: 0.8 },
-  blobTop: { position: "absolute", top: -BLOB / 3, right: -BLOB / 3 },
-  blobBottom: { position: "absolute", bottom: -BLOB / 3, left: -BLOB / 3 },
-  icon: { opacity: 0.28 },
-  inner: { padding: spacing.xl, gap: spacing.xxl },
+  heroImage: { resizeMode: "cover" },
+  // The brand red over the photo, so the badge reads on any part of the image.
+  heroShade: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: colors.primary,
+    opacity: 0.72,
+  },
   brand: { alignItems: "center", gap: spacing.xs },
-  logo: {
-    width: 88,
-    height: 88,
-    marginBottom: spacing.md,
-  },
+  logo: { width: 104, height: 104, marginBottom: spacing.sm },
   title: {
     fontSize: 40,
-    fontWeight: "800",
-    letterSpacing: 4,
-    color: colors.primary,
+    fontWeight: "900",
+    letterSpacing: 5,
+    color: colors.textInverse,
   },
   subtitle: {
     ...type.eyebrow,
     letterSpacing: 2,
+    color: colors.goldSoft,
+    textTransform: "uppercase",
   },
-  button: {
+  sheet: {
+    flex: 1,
+    marginTop: -spacing.xl,
+    backgroundColor: colors.background,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    padding: spacing.xl,
+    gap: spacing.md,
+  },
+  headline: { ...type.display, fontSize: 26 },
+  lead: {
+    ...type.body,
+    color: colors.textMuted,
+    lineHeight: 22,
+    marginBottom: spacing.sm,
+  },
+  primary: {
     backgroundColor: colors.primary,
     borderRadius: radius.pill,
-    paddingVertical: spacing.lg,
+    minHeight: 52,
     alignItems: "center",
+    justifyContent: "center",
   },
-  buttonPressed: {
-    backgroundColor: colors.primaryDark,
-    transform: [{ scale: 0.98 }],
+  primaryPressed: { backgroundColor: colors.primaryDark },
+  primaryLabel: { ...type.heading, color: colors.textInverse },
+  google: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    minHeight: 50,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  buttonLabel: {
-    ...type.heading,
-    color: colors.textInverse,
-    letterSpacing: 0.5,
+  googlePressed: { backgroundColor: colors.surface },
+  googleLabel: { ...type.label, color: colors.text, fontWeight: "700" },
+  error: { ...type.body, color: colors.danger, textAlign: "center" },
+  textButton: { alignItems: "center", paddingVertical: spacing.sm },
+  textButtonLabel: { ...type.body, color: colors.textMuted },
+  bold: { color: colors.primary, fontWeight: "800" },
+  links: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: spacing.xl,
+    marginTop: spacing.sm,
+  },
+  link: { flexDirection: "row", alignItems: "center", gap: 6 },
+  linkLabel: { ...type.label, color: colors.secondary },
+  riderHint: { ...type.caption, color: colors.textFaint, textAlign: "center" },
+  credit: {
+    fontSize: 10,
+    color: colors.textFaint,
+    textAlign: "center",
+    marginTop: "auto",
   },
 });

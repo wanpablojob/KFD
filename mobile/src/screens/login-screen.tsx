@@ -1,3 +1,4 @@
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useState } from "react";
 import {
   ActivityIndicator,
@@ -7,12 +8,12 @@ import {
   Pressable,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { Link } from "expo-router";
 import { signInWithPassword, signInWithProvider } from "../lib/auth";
+import { AuthField } from "../components/AuthField";
 import { colors, radius, shadow, spacing, type } from "../lib/theme";
 
 /**
@@ -71,7 +72,10 @@ export function LoginScreen({ onBack }: { onBack?: () => void }) {
       <View style={styles.frame}>
         {onBack ? (
           <Pressable style={styles.back} onPress={onBack}>
-            <Text style={styles.backLabel}>‹ BACK</Text>
+            <View style={styles.backRow}>
+              <Ionicons name="chevron-back" size={20} color={colors.secondary} />
+              <Text style={styles.backLabel}>Back</Text>
+            </View>
           </Pressable>
         ) : null}
 
@@ -79,14 +83,14 @@ export function LoginScreen({ onBack }: { onBack?: () => void }) {
           <Image source={require("../../assets/logo.png")} style={styles.logo} />
           <View>
             <Text style={styles.title}>KFD</Text>
-            <Text style={styles.subtitle}>KABANKALAN FOOD DELIVERY</Text>
+            <Text style={styles.subtitle}>Kabankalan Food Delivery</Text>
           </View>
         </View>
 
         <Text style={styles.lead}>Local food, delivered to your door</Text>
 
-        <Field
-          label="EMAIL"
+        <AuthField
+          label="Email"
           value={email}
           onChangeText={setEmail}
           placeholder="you@example.com"
@@ -97,8 +101,8 @@ export function LoginScreen({ onBack }: { onBack?: () => void }) {
           autoComplete="email"
           editable={!submitting}
         />
-        <Field
-          label="PASSWORD"
+        <AuthField
+          label="Password"
           value={password}
           onChangeText={setPassword}
           placeholder="Password"
@@ -133,7 +137,7 @@ export function LoginScreen({ onBack }: { onBack?: () => void }) {
           disabled={submitting}
           onPress={() => void handleProvider("google")}
         >
-          <Text style={styles.providerGlyph}>G</Text>
+          <Ionicons name="logo-google" size={18} color={colors.primary} />
           <Text style={styles.providerLabel}>Continue with Google</Text>
         </Pressable>
 
@@ -145,32 +149,6 @@ export function LoginScreen({ onBack }: { onBack?: () => void }) {
       </View>
       <StatusBar style="dark" />
     </KeyboardAvoidingView>
-  );
-}
-
-function Field({
-  label,
-  ...inputProps
-}: {
-  label: string;
-} & Omit<
-  React.ComponentProps<typeof TextInput>,
-  "style" | "placeholderTextColor" | "onFocus" | "onBlur"
->) {
-  const [focused, setFocused] = useState(false);
-  return (
-    <View style={styles.field}>
-      <Text style={[styles.fieldLabel, focused && styles.fieldLabelFocused]}>
-        {label}
-      </Text>
-      <TextInput
-        {...inputProps}
-        style={[styles.input, focused && styles.inputFocused]}
-        placeholderTextColor={colors.textFaint}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
-      />
-    </View>
   );
 }
 
@@ -189,13 +167,14 @@ function SubmitButton({ busy, onPress }: { busy: boolean; onPress: () => void })
       {busy ? (
         <ActivityIndicator color={colors.textInverse} />
       ) : (
-        <Text style={styles.buttonLabel}>SIGN IN</Text>
+        <Text style={styles.buttonLabel}>Sign in</Text>
       )}
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
+  backRow: { flexDirection: "row", alignItems: "center", gap: 2 },
   container: {
     flex: 1,
     backgroundColor: colors.background,
@@ -224,20 +203,6 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   lead: { ...type.body, color: colors.textMuted, marginTop: -spacing.sm },
-  field: { gap: 6 },
-  fieldLabel: { ...type.eyebrow, color: colors.textFaint },
-  fieldLabelFocused: { color: colors.secondary },
-  input: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    fontSize: 15,
-    color: colors.text,
-  },
-  inputFocused: { borderColor: colors.secondary, backgroundColor: colors.card },
   error: { ...type.body, color: colors.danger, textAlign: "center" },
   button: {
     backgroundColor: colors.primary,
@@ -271,11 +236,6 @@ const styles = StyleSheet.create({
     minHeight: 48,
   },
   providerPressed: { backgroundColor: colors.surface },
-  providerGlyph: {
-    fontSize: 15,
-    fontWeight: "800",
-    color: colors.primary,
-  },
   providerLabel: { fontSize: 14, fontWeight: "700", color: colors.text },
   signupLink: { alignItems: "center" },
   forgotLink: { alignSelf: "flex-end", marginTop: -spacing.sm },

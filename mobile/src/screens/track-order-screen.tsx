@@ -1,3 +1,4 @@
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useState } from "react";
 import {
   ActivityIndicator,
@@ -118,9 +119,15 @@ export function TrackOrderScreen({
         contentContainerStyle={[styles.inner, { paddingTop: spacing.lg + insets.top }]}
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.link} onPress={onBack}>
-          ‹ Back
-        </Text>
+        <Pressable
+          onPress={onBack}
+          accessibilityRole="button"
+          hitSlop={8}
+          style={styles.backRow}
+        >
+          <Ionicons name="chevron-back" size={20} color={colors.primary} />
+          <Text style={styles.link}>Back</Text>
+        </Pressable>
         <View style={styles.heading}>
           <Text style={styles.title}>Track your order</Text>
           <Text style={styles.subtitle}>
@@ -496,6 +503,12 @@ function FeeRow({ label, value }: { label: string; value: number }) {
 }
 
 const styles = StyleSheet.create({
+  backRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    alignSelf: "flex-start",
+  },
   container: { flex: 1, backgroundColor: colors.background },
   inner: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xxl },
   link: { ...type.label, color: colors.secondary },
