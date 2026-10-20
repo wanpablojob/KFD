@@ -18,6 +18,7 @@ import { useSession } from "../../lib/session-context";
 import { supabase } from "../../lib/supabase";
 import { requestRiderAccountDeletion } from "../../lib/storefront";
 import { openLegal } from "../../lib/legal";
+import { MerchantButton } from "../../components/MerchantUi";
 import {
   RIDER_STATUSES,
   riderStatusMeta,
@@ -188,9 +189,13 @@ export default function RiderProfileRoute() {
     return (
       <View style={[styles.center, { backgroundColor: colors.background }]}>
         <Text style={styles.error}>{gate.message}</Text>
-        <Pressable style={styles.signOut} onPress={() => void refetch()}>
-          <Text style={styles.signOutLabel}>Try again</Text>
-        </Pressable>
+        <View style={styles.signOut}>
+          <MerchantButton
+            label="Try again"
+            tone="outline"
+            onPress={() => void refetch()}
+          />
+        </View>
         <StatusBar style="dark" />
       </View>
     );
@@ -200,9 +205,13 @@ export default function RiderProfileRoute() {
     return (
       <View style={[styles.center, { backgroundColor: colors.background }]}>
         <Text style={styles.error}>No rider profile is linked to this account.</Text>
-        <Pressable style={styles.signOut} onPress={() => void signOutAndUnregister()}>
-          <Text style={styles.signOutLabel}>Sign out</Text>
-        </Pressable>
+        <View style={styles.signOut}>
+          <MerchantButton
+            label="Sign out"
+            tone="danger"
+            onPress={() => void signOutAndUnregister()}
+          />
+        </View>
         <StatusBar style="dark" />
       </View>
     );
@@ -319,13 +328,6 @@ export default function RiderProfileRoute() {
           </Text>
         </View>
 
-        <Pressable
-          style={({ pressed }) => [styles.signOut, pressed && styles.signOutPressed]}
-          onPress={() => void signOutAndUnregister()}
-        >
-          <Text style={styles.signOutLabel}>Sign out</Text>
-        </Pressable>
-
         <View style={styles.legalRow}>
           <Pressable onPress={() => openLegal("support")} accessibilityRole="link">
             <Text style={styles.deleteLink}>Help & support</Text>
@@ -336,6 +338,16 @@ export default function RiderProfileRoute() {
           <Pressable onPress={() => openLegal("terms")} accessibilityRole="link">
             <Text style={styles.deleteLink}>Terms</Text>
           </Pressable>
+        </View>
+
+        {/* The same button as the merchant Account tab, so signing out looks
+            and sits the same in every surface. */}
+        <View style={styles.signOut}>
+          <MerchantButton
+            label="Sign out"
+            tone="danger"
+            onPress={() => void signOutAndUnregister()}
+          />
         </View>
 
         <Pressable onPress={confirmDeletionRequest} accessibilityRole="button">
@@ -411,16 +423,7 @@ const styles = StyleSheet.create({
   meta: { ...type.body, color: colors.textMuted },
   metaHint: { ...type.caption, color: colors.textFaint },
   statusHint: { ...type.caption, color: colors.textMuted },
-  signOut: {
-    alignSelf: "flex-start",
-    borderWidth: 1,
-    borderColor: colors.danger,
-    borderRadius: radius.md,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.xl,
-  },
-  signOutPressed: { backgroundColor: colors.dangerSoft },
-  signOutLabel: { color: colors.danger, fontSize: 14, fontWeight: "600" },
+  signOut: { flexDirection: "row" },
   legalRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.lg },
   deleteLink: {
     ...type.caption,
