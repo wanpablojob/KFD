@@ -110,8 +110,6 @@ jobs:
           const body = {
             otp_length: 6,
             otp_expiry: 3600,
-            mailer_max_frequency: 30,
-            rate_limit_email_sent: 30,
             mailer_secure_email_change_enabled: true,
             mailer_autoconfirm: false,
             mailer_templates: [
@@ -130,8 +128,17 @@ jobs:
               sender_name: "KFD",
               max_frequency: 30,
             };
+            // The rate limit belongs to the custom mailer, not to Supabase's
+            // built-in one: the Management API refuses RATE_LIMIT_EMAIL_SENT
+            // without SMTP_SENDER_NAME ("Custom SMTP required to configure
+            // SMTP_SENDER_NAME or RATE_LIMIT_EMAIL_SENT"). So it is set with
+            // the mailer, not before it.
+            body.rate_limit_email_sent = 30;
+            body.mailer_max_frequency = 30;
           } else {
-            console.error("::warning::RESEND_API_KEY is not set: the mailer is left as it is.");
+            console.error(
+              "::warning::RESEND_API_KEY is not set: the mailer, the sender name and the email rate limit are left as they are. The Management API will not raise the limit without a custom mailer."
+            );
           }
 
           fs.writeFileSync(process.env.RUNNER_TEMP + "/body.json", JSON.stringify(body));
