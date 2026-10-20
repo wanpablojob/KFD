@@ -437,11 +437,26 @@ export async function POST(req: Request) {
   // For a trip the customer hears about the TRIP, once per milestone: a
   // three-shop basket that is confirmed must not send three "confirmed"
   // notices, and the rider's delivery of the whole trip must send one.
+  // A cancellation the customer made themselves needs no notice: they know,
+  // and the wording for a shop dropping out would be wrong.
+  const cancelledByCustomer =
+    order?.status === "cancelled" &&
+    order?.rejection_reason === "Cancelled by customer";
+
   const push = trip
-    ? await pushCustomerTripStatus(supabase, trip, order?.status ?? trip.status, reason)
+    ? cancelledByCustomer
+      ? { ok: true, sent: 0, skipped: "the customer cancelled it" }
+      : await pushCustomerTripStatus(
+          supabase,
+          trip,
+          order?.status ?? trip.status,
+          reason,
+        )
     : await pushCustomerStatus(supabase, order, reason);
 
-  const mail = trip
+  const mail = trip && cancelledByCustomer
+    ? null
+    : trip
     ? tripStatusEmail(
         {
           reference: trip.reference,
