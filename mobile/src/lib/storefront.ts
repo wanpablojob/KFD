@@ -805,6 +805,12 @@ export async function placeCustomerOrder(args: {
   requestId: string;
   /** Required by the server once service_areas is published (0077). */
   barangay?: string | null;
+  /**
+   * The number the rider calls for this order (0098). The account's number is
+   * the fallback, so this is only needed when the customer gave a different
+   * number for this address.
+   */
+  contactPhone?: string | null;
 }): Promise<PlaceOrderResult> {
   const { data, error } = await supabase.rpc("customer_place_order", {
     p_restaurant_id: args.restaurantId,
@@ -813,6 +819,7 @@ export async function placeCustomerOrder(args: {
     p_payment: args.payment,
     p_client_request_id: args.requestId,
     p_delivery_barangay: args.barangay ?? undefined,
+    p_contact_phone: args.contactPhone ?? undefined,
   });
   if (error) throw error;
   if (!data || data.length !== 1) {
@@ -958,6 +965,12 @@ export async function placeDelivery(args: {
   requestId: string;
   /** Required by the server once service_areas is published (0077). */
   barangay?: string | null;
+  /**
+   * The number the rider calls for this trip (0098). The account's number is
+   * the fallback, so this is only needed when the customer gave a different
+   * number for this address.
+   */
+  contactPhone?: string | null;
 }): Promise<PlaceDeliveryResult> {
   const { data, error } = await supabase.rpc("customer_place_delivery", {
     p_shops: args.shops,
@@ -965,6 +978,7 @@ export async function placeDelivery(args: {
     p_payment: args.payment,
     p_client_request_id: args.requestId,
     p_delivery_barangay: args.barangay ?? undefined,
+    p_contact_phone: args.contactPhone ?? undefined,
   });
   if (error) throw error;
   if (!data || data.length !== 1) {

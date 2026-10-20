@@ -19,7 +19,6 @@ import { useTabBarInset } from "../../components/TabBarInset";
 import { TRAVEL_MINUTES } from "../../lib/delivery-estimate";
 import { useCartQuote } from "../../lib/cart-quote";
 import { useSession } from "../../lib/session-context";
-import { saveContactPhone } from "../../lib/auth";
 import {
   loadAddresses,
   contactPhoneProblem,
@@ -57,13 +56,11 @@ export default function CustomerCartScreen() {
   const [payment, setPayment] = useState<PaymentChoice>("cash");
   const [error, setError] = useState<string | null>(null);
   const [placing, setPlacing] = useState(false);
-  // The rider calls the number saved on the chosen address; customer_place_order
-  // refuses an order without one (0076). Addresses, with their numbers, are
-  // added and edited only in Delivery addresses.
-  const savedPhone =
-    typeof user?.user_metadata?.phone === "string"
-      ? user.user_metadata.phone.trim()
-      : "";
+  // The rider calls the number saved on the chosen address; the server refuses
+  // an order without one (0076, 0098). Addresses, with their numbers, are
+  // added and edited only in Delivery addresses. The number is sent with the
+  // order (0098) rather than written onto the account, so choosing an address
+  // no longer replaces the customer's own number.
   // Barangays KFD delivers to. Empty until the owner publishes the list, and
   // then the server takes any address, so the picker only shows once it exists.
   const [areas, setAreas] = useState<string[]>([]);
@@ -193,9 +190,6 @@ export default function CustomerCartScreen() {
     setError(null);
     setPlacing(true);
     try {
-      // customer_place_order copies the account's number onto the order, so the
-      // number for this address has to be the account's number when it lands.
-      if (newPhone !== savedPhone) await saveContactPhone(newPhone);
       const result = await placeDelivery({
         // One entry per shop: the server prices each shop and the trip as a
         // whole, and mints one order per shop under it.
@@ -204,6 +198,11 @@ export default function CustomerCartScreen() {
         payment,
         requestId: checkoutRequestId,
         barangay,
+        // The number for THIS delivery (0098). The account's number is the
+        // server's fallback; it used to be overwritten here, which quietly
+        // replaced the customer's own number with the one they gave for an
+        // address.
+        contactPhone: newPhone,
       });
       clear();
       // The moment alerts start to matter: ask once so "on the way" and
