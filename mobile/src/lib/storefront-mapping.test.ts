@@ -92,28 +92,48 @@ describe("mapRiderOfferRow", () => {
 });
 
 describe("mapMyOrderRow", () => {
+  const base = {
+    id: "o1",
+    reference: "KFD-001",
+    restaurant: "KFD Kitchen",
+    restaurant_id: null,
+    rider_id: null,
+    items: null,
+    subtotal: 120,
+    delivery_fee: 30,
+    service_fee: 10,
+    total: 160,
+    status: "delivered",
+    payment: "cash",
+    placed_at: "2026-10-20T10:00:00Z",
+    delivery_address: null,
+  };
+
   it("keeps the nullable columns nullable and survives a missing item list", () => {
-    const row = mapMyOrderRow({
-      id: "o1",
-      reference: "KFD-001",
-      restaurant: "KFD Kitchen",
-      restaurant_id: null,
-      rider_id: null,
-      items: null,
-      subtotal: 120,
-      delivery_fee: 30,
-      service_fee: 10,
-      total: 160,
-      status: "delivered",
-      payment: "cash",
-      placed_at: "2026-10-20T10:00:00Z",
-      delivery_address: null,
-    });
+    const row = mapMyOrderRow(base);
 
     expect(row.restaurant_id).toBeNull();
     expect(row.rider_id).toBeNull();
     expect(row.delivery_address).toBeNull();
     expect(row.items).toEqual([]);
     expect(row.total).toBe(160);
+  });
+
+  it("drops garbage item entries and keeps a reorderable menu id", () => {
+    const row = mapMyOrderRow({
+      ...base,
+      items: [
+        null,
+        "x",
+        { name: 3 },
+        { name: "Adobo", quantity: 2, price: 120, menu_item_id: "m1" },
+        { name: "No price", quantity: 1 },
+      ],
+    });
+
+    expect(row.items).toEqual([
+      { name: "Adobo", quantity: 2, price: 120, menu_item_id: "m1" },
+      { name: "No price", quantity: 1, price: 0 },
+    ]);
   });
 });

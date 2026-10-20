@@ -105,22 +105,29 @@ export interface OrderLine {
   name: string;
   quantity: number;
   price: number;
+  /** Absent on orders placed before 0053; reorder then falls back to name. */
+  menu_item_id?: string | null;
 }
 
 /**
  * orders.items is jsonb, so the schema types it as `Json` and nothing downstream
- * can trust it. customer_place_order writes {name, quantity, price} per line,
- * so parse that and drop anything that does not fit rather than casting the
- * array and pretending. Same guard as the admin dispatch list.
+ * can trust it. customer_place_order writes {name, quantity, price, menu_item_id}
+ * per line, so parse that and drop anything that does not fit rather than casting
+ * the array and pretending. Same guard as the admin dispatch list.
  */
 function parseOrderItems(value: unknown): OrderLine[] {
   if (!Array.isArray(value)) return [];
   const lines: OrderLine[] = [];
   for (const entry of value) {
     if (entry === null || typeof entry !== "object") continue;
-    const { name, quantity, price } = entry as Record<string, unknown>;
+    const { name, quantity, price, menu_item_id } = entry as Record<string, unknown>;
     if (typeof name !== "string" || typeof quantity !== "number") continue;
-    lines.push({ name, quantity, price: typeof price === "number" ? price : 0 });
+    lines.push({
+      name,
+      quantity,
+      price: typeof price === "number" ? price : 0,
+      ...(typeof menu_item_id === "string" ? { menu_item_id } : {}),
+    });
   }
   return lines;
 }
@@ -560,7 +567,7 @@ export function mapMyOrderRow(row: Record<string, unknown>): CustomerOrder {
     restaurant: String(row.restaurant),
     restaurant_id: (row.restaurant_id as string | null) ?? null,
     rider_id: (row.rider_id as string | null) ?? null,
-    items: Array.isArray(row.items) ? (row.items as CustomerOrder["items"]) : [],
+    items: parseOrderItems(row.items),
     subtotal: Number(row.subtotal),
     delivery_fee: Number(row.delivery_fee),
     service_fee: Number(row.service_fee),
