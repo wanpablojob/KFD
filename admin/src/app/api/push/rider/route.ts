@@ -102,8 +102,38 @@ export async function POST(req: Request) {
     reportServerError(orderError, "push/rider");
     return NextResponse.json({ error: orderError.message }, { status: 500 });
   }
+
+  // A trip (0092): the rider closes a trip with the trip's id, and the trip
+  // is what they were paid for. Without this the rider never heard that a
+  // multi-shop delivery had been completed, or what it earned.
   if (!order) {
-    return NextResponse.json({ skipped: "order not found" });
+    const { data: trip } = await supabase
+      .from("deliveries")
+      .select("id, reference, rider_id, rider_payout, riders!inner(user_id)")
+      .eq("id", orderId)
+      .maybeSingle();
+
+    if (!trip) {
+      return NextResponse.json({ skipped: "order not found" });
+    }
+
+    const tripRider = trip.riders as unknown as { user_id: string | null } | null;
+    if (!tripRider?.user_id || tripRider.user_id !== user.id) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const tripPayout = Number(trip.rider_payout ?? 0);
+    const tripResult = await sendRiderPush(
+      supabase,
+      user.id,
+      "Delivery completed",
+      tripPayout > 0
+        ? `Delivery ${trip.reference} is complete. You earned ₱${tripPayout.toFixed(2)}.`
+        : `Delivery ${trip.reference} is complete.`,
+      { type: "delivery_completed", deliveryId: trip.id },
+    );
+
+    return NextResponse.json(tripResult);
   }
 
   // Service role bypassed RLS, so the caller's identity is the only thing

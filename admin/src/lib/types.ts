@@ -36,6 +36,12 @@ export interface Order {
   /** Merchant's stated reason for a cancellation. Null on other statuses. */
   rejectionReason: string | null;
   /**
+   * The trip this order is part of (0092), when it is one shop of a basket.
+   * Null for a single-shop order. The trip is dispatched and offered as a
+   * whole, so a shop's part is never on the waiting list on its own.
+   */
+  deliveryId?: string | null;
+  /**
    * Why the assigned rider could not complete this delivery (migration 0044).
    * Survives reassignment, so an operator can see that the order bounced before
    * deciding who to give it to next. Null unless a rider reported a failure.

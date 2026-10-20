@@ -36,8 +36,17 @@ export function WaitingForRider({
   const [busy, setBusy] = useState<string | null>(null);
   const [notes, setNotes] = useState<Record<string, string>>({});
 
+  // A shop's part of a trip is never dispatched on its own (0092): the trip
+  // is offered to riders as a whole, and it is the trip that is listed here.
+  // Showing the parts too would offer the dispatcher a button that cannot
+  // work.
   const waiting = orders
-    .filter((o) => (o.status === "confirmed" || o.status === "preparing") && !o.rider)
+    .filter(
+      (o) =>
+        (o.status === "confirmed" || o.status === "preparing") &&
+        !o.rider &&
+        !o.deliveryId,
+    )
     .sort((a, b) => a.placedAt.localeCompare(b.placedAt));
 
   /** Re-offer a whole trip: one rider takes every shop in the basket. */

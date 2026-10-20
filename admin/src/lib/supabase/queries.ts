@@ -534,6 +534,7 @@ function toOrder(o: Tables<"orders">, refunded = 0): Order {
     rider: o.rider ?? "",
     rejectionReason:
       typeof o.rejection_reason === "string" ? o.rejection_reason : null,
+    deliveryId: o.delivery_id ?? null,
     deliveryFailedReason:
       typeof o.delivery_failed_reason === "string"
         ? o.delivery_failed_reason

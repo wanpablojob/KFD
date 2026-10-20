@@ -210,7 +210,19 @@ export function TrackOrderScreen({
         ) : null}
 
         {delivery ? (
-          <DeliveryCard delivery={delivery} updatedAt={dataUpdatedAt} />
+          <DeliveryCard
+            delivery={delivery}
+            updatedAt={dataUpdatedAt}
+            reporting={{
+              open: reportingOpen,
+              busy: reporting.isPending,
+              error: reporting.error instanceof Error ? reporting.error.message : null,
+              done: reported,
+              onOpen: () => setReportingOpen(true),
+              onClose: () => setReportingOpen(false),
+              onSubmit: submitReport,
+            }}
+          />
         ) : null}
 
         {!delivery && order ? (
@@ -247,9 +259,19 @@ export function TrackOrderScreen({
 function DeliveryCard({
   delivery,
   updatedAt,
+  reporting,
 }: {
   delivery: TrackedDelivery;
   updatedAt: number;
+  reporting: {
+    open: boolean;
+    busy: boolean;
+    error: string | null;
+    done: boolean;
+    onOpen: () => void;
+    onClose: () => void;
+    onSubmit: (reason: string) => void;
+  };
 }) {
   const cancelled = delivery.status === "cancelled";
   const delivered = delivery.status === "delivered";
@@ -341,6 +363,14 @@ function DeliveryCard({
         </View>
       ) : null}
 
+      {/* A problem with the delivery is a problem with the whole trip: the
+          report reaches every stop's payout (0097). */}
+      <ReportProblem status={delivery.status} reporting={reporting} />
+
+      {/* A problem with the delivery is a problem with the whole trip: the
+          report reaches every stop's payout (0097). */}
+      <ReportProblem status={delivery.status} reporting={reporting} />
+
       <Text style={styles.meta}>
         Updated {new Date(updatedAt).toLocaleTimeString()}
       </Text>
@@ -360,10 +390,11 @@ function DeliveryCard({
  * into the delivery and nothing about money coming back.
  */
 function ReportProblem({
-  order,
+  status,
   reporting,
 }: {
-  order: TrackedOrder;
+  /** The order's or the trip's status: the wording follows it. */
+  status: string;
   reporting: {
     open: boolean;
     busy: boolean;
@@ -390,9 +421,9 @@ function ReportProblem({
     return (
       <View style={styles.reportBlock}>
         <Text style={styles.reportIntro}>
-          {order.status === "delivered" ? "Wrong order, or it never arrived?" : null}
+          {status === "delivered" ? "Wrong order, or it never arrived?" : null}
         </Text>
-        {order.status === "delivered" ? (
+        {status === "delivered" ? (
           <Text
             style={styles.reportLink}
             onPress={reporting.onOpen}
@@ -594,7 +625,7 @@ function OrderCard({
         </View>
       ) : null}
 
-      <ReportProblem order={order} reporting={reporting} />
+      <ReportProblem status={order.status} reporting={reporting} />
 
       <View style={styles.footer}>
         <Text style={styles.meta}>

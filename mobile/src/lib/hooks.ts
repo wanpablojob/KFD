@@ -4,6 +4,7 @@ import {
   fetchOrderFees,
   searchRestaurants,
   fetchMenu,
+  fetchMyDeliveries,
   fetchMyOrders,
   fetchFavorites,
   fetchMyRefunds,
@@ -37,6 +38,7 @@ import {
   type RiderProfile,
   type RestaurantRow,
   type MenuItemRow,
+  type CustomerDelivery,
   type CustomerOrder,
   type PlaceOrderResult,
   type PlaceOrderItem,
@@ -100,6 +102,20 @@ export function useMyOrders() {
   return useQuery({
     queryKey: queryKeys.orders(),
     queryFn: fetchMyOrders,
+    placeholderData: (prev) => prev,
+  });
+}
+
+/**
+ * The customer's own trips (0092).
+ *
+ * A basket from several shops is one order for the customer, and the history
+ * shows the trip's reference rather than a shop's.
+ */
+export function useMyDeliveries() {
+  return useQuery({
+    queryKey: ["myDeliveries"],
+    queryFn: fetchMyDeliveries,
     placeholderData: (prev) => prev,
   });
 }
@@ -401,6 +417,7 @@ export type {
   RestaurantRow,
   MenuItemRow,
   CustomerOrder,
+  CustomerDelivery,
   PlaceOrderResult,
   PlaceOrderItem,
   PaymentChoice,

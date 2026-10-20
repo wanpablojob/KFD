@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useRef, useState, useMemo } from "react";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import {
   ActivityIndicator,
@@ -18,10 +18,12 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useScrollBottomPadding } from "../../components/TabBarInset";
 import {
+  useMyDeliveries,
   useMyOrders,
   useCancelOrder,
   useMyRatings,
   useRateOrder,
+  type CustomerDelivery,
   type CustomerOrder,
   useMyRefunds,
 } from "../../lib/hooks";
@@ -47,6 +49,15 @@ export default function CustomerOrdersScreen() {
   const bottomPadding = useScrollBottomPadding();
   const { user } = useSession();
   const { data: orders, isLoading, isError, error, refetch } = useMyOrders();
+  // The customer's own trips (0092): a basket from several shops is one
+  // order for the customer, and the reference they were given is the trip's.
+  const { data: deliveries } = useMyDeliveries();
+  // A shop's part of a trip (0092) is shown with the trip's reference: that
+  // is the reference the customer can track and the one the trip answers to.
+  const tripsById = useMemo(
+    () => new Map((deliveries ?? []).map((d) => [d.id, d])),
+    [deliveries]
+  );
   const [mounted, setMounted] = useState(false);
   const { count, shops, replace } = useCart();
   const router = useRouter();
@@ -276,6 +287,7 @@ export default function CustomerOrdersScreen() {
         renderItem={({ item }) => (
           <OrderCard
             order={item}
+            trip={item.delivery_id ? tripsById.get(item.delivery_id) : undefined}
             onReorder={reorder}
             reordering={reorderingRef === item.reference}
             onCancel={handleCancel}
@@ -387,6 +399,7 @@ function StarRow({
 
 function OrderCard({
   order,
+  trip,
   onReorder,
   reordering,
   onCancel,
@@ -396,6 +409,8 @@ function OrderCard({
   refunded,
 }: {
   order: CustomerOrder;
+  /** The trip this order is part of, when it is one shop of a basket. */
+  trip?: CustomerDelivery;
   refunded: number;
   onReorder: (order: CustomerOrder) => void;
   reordering: boolean;
@@ -417,14 +432,23 @@ function OrderCard({
       onPress={() =>
         router.push({
           pathname: "/track",
-          params: { ref: order.reference },
+          params: { ref: trip?.reference ?? order.reference },
         })
       }
     >
       <View style={styles.cardHead}>
         <View style={styles.cardHeadText}>
-          <Text style={styles.ref}>{order.reference}</Text>
+          {/* A shop's part of a trip is tracked by the TRIP's reference, so
+              that is the reference the customer is given here (0092). */}
+          <Text style={styles.ref}>{trip?.reference ?? order.reference}</Text>
           <Text style={type.body}>{order.restaurant}</Text>
+          {trip ? (
+            <Text style={type.caption}>
+              {trip.shops === 1
+                ? "1 restaurant in this delivery"
+                : `Part of ${trip.shops} restaurants in one delivery`}
+            </Text>
+          ) : null}
         </View>
         <View
           style={[

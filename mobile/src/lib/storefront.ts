@@ -544,6 +544,12 @@ export interface CustomerOrder {
   restaurant_id: string | null;
   /** Null when no rider has been assigned; decides if the rider can be rated. */
   rider_id: string | null;
+  /**
+   * The trip this order is part of (0092), when it is one shop of a basket.
+   * Null for a single-shop order. The customer is given the trip's reference,
+   * not the shop's, so the history has to say which is which.
+   */
+  delivery_id: string | null;
   items: {
     name: string;
     quantity: number;
@@ -576,6 +582,7 @@ export function mapMyOrderRow(row: Record<string, unknown>): CustomerOrder {
     restaurant: String(row.restaurant),
     restaurant_id: (row.restaurant_id as string | null) ?? null,
     rider_id: (row.rider_id as string | null) ?? null,
+    delivery_id: (row.delivery_id as string | null) ?? null,
     items: parseOrderItems(row.items),
     subtotal: Number(row.subtotal),
     delivery_fee: Number(row.delivery_fee),
@@ -593,12 +600,46 @@ export async function fetchMyOrders(): Promise<CustomerOrder[]> {
   const { data, error } = await supabase
     .from("orders")
     .select(
-      "id, reference, restaurant, restaurant_id, rider_id, items, subtotal, delivery_fee, service_fee, total, status, payment, placed_at, delivery_address"
+      "id, reference, restaurant, restaurant_id, rider_id, delivery_id, items, subtotal, delivery_fee, service_fee, total, status, payment, placed_at, delivery_address"
     )
     .order("placed_at", { ascending: false })
     .limit(30);
   if (error) throw error;
   return ((data ?? []) as unknown as Record<string, unknown>[]).map(mapMyOrderRow);
+}
+
+/** One of the customer's own trips (0092). */
+export interface CustomerDelivery {
+  id: string;
+  reference: string;
+  status: string;
+  shops: number;
+  total: number;
+  placed_at: string;
+}
+
+/**
+ * The customer's own trips, newest first.
+ *
+ * A basket from several shops is one trip, and the customer is given the
+ * trip's reference -- so the history needs the trip's reference to show, and
+ * the trip's own status and total. RLS: customer_user_id = auth.uid().
+ */
+export async function fetchMyDeliveries(): Promise<CustomerDelivery[]> {
+  const { data, error } = await supabase
+    .from("deliveries")
+    .select("id, reference, status, shops, total, placed_at")
+    .order("placed_at", { ascending: false })
+    .limit(30);
+  if (error) throw error;
+  return ((data ?? []) as unknown as Record<string, unknown>[]).map((row) => ({
+    id: String(row.id),
+    reference: String(row.reference),
+    status: String(row.status),
+    shops: Number(row.shops),
+    total: Number(row.total),
+    placed_at: String(row.placed_at),
+  }));
 }
 
 /**

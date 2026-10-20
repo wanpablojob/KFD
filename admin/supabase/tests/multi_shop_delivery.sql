@@ -713,7 +713,61 @@ begin
 end $$;
 
 -- --------------------------------------------------------------------------
--- 10. The holes 0093 closed
+-- 10. The customer can report a problem with a trip
+-- --------------------------------------------------------------------------
+
+-- The reference the customer is holding is the trip's, so the report has to
+-- find the trip: the rider is paid per stop, so every stop is disputed.
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000090c1","role":"authenticated"}', true);
+do $$
+declare v_rows int;
+begin
+  select count(*) into v_rows
+    from report_delivery_issue(
+      (select reference from deliveries where id = (select delivery_id from ms_placed)),
+      'The food arrived cold');
+
+  if v_rows <> 2 then
+    raise exception 'FAIL the report covered % stops, expected 2', v_rows;
+  end if;
+  raise notice 'PASS a problem with a trip disputes every stop of it';
+end $$;
+
+-- The ledger is the server's table: the check runs with the client's
+-- privileges lifted.
+reset role;
+do $$
+begin
+  if exists (
+    select 1 from rider_payouts p
+      join orders o on o.id = p.order_id
+     where o.delivery_id = (select delivery_id from ms_placed)
+       and p.settlement_state <> 'disputed'
+  ) then
+    raise exception 'FAIL a stop of the trip was not disputed';
+  end if;
+  raise notice 'PASS every stop of the trip is disputed';
+end $$;
+set local role authenticated;
+
+-- And it is refused once the window has closed, like a single order.
+reset role;
+update rider_payouts set review_expires_at = now() - interval '1 minute'
+ where order_id in (select id from orders where delivery_id = (select delivery_id from ms_placed));
+set local role authenticated;
+do $$
+begin
+  perform report_delivery_issue(
+    (select reference from deliveries where id = (select delivery_id from ms_placed)),
+    'Too late');
+  raise exception 'FAIL a closed window was accepted';
+exception when others then
+  if sqlerrm not like '%review window%' then raise exception 'FAIL: %', sqlerrm; end if;
+  raise notice 'PASS the 24-hour window is enforced on a trip too';
+end $$;
+
+-- --------------------------------------------------------------------------
+-- 11. The holes 0093 closed
 -- --------------------------------------------------------------------------
 
 -- A shop named twice is ONE shop: the extra-shop surcharge is not inflated,
