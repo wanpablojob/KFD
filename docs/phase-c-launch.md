@@ -190,6 +190,29 @@ report, which falls back to `1.0.0` when it is missing.
 The `preview` environment needs the same variables, so the preview build
 in Phase A is a rehearsal of the production build.
 
+### Preview builds, and the iOS credential they need
+
+A build for testing -- `eas build --profile preview --platform all` -- takes
+the `preview` environment and distributes internally, so it never reaches the
+stores. That is the right build for handing a fix to a rider or a reviewer.
+
+Two things about it are worth knowing before it is needed:
+
+- **iOS needs an Ad Hoc provisioning profile, and the project has none.**
+  `distribution: internal` means EAS wants an Ad Hoc profile for
+  `ph.kabankalan.kfd`; with no Ad Hoc profile and no App Store Connect API key
+  on the project, the build stops with "EAS CLI couldn't find any credentials
+  suitable for internal distribution" and asks for an interactive run. The
+  Android build is unaffected -- it uses the keystore already configured on the
+  project. Either create the profile once with `eas credentials` (it needs the
+  Apple account and its 2FA) or add an App Store Connect API key under
+  EAS -> Credentials -> iOS, after which builds can create profiles on their
+  own.
+- **CI cannot build anything yet.** `.github/workflows/build-mobile.yml` needs
+  the `EXPO_TOKEN` secret and the `EAS_PROJECT_ID` variable; without them the
+  run warns and skips, by design. Until `EXPO_TOKEN` is set, a build is a
+  laptop with the EAS CLI signed in.
+
 ## 8. Seeding production
 
 Seed restaurants, menus and service areas with real, permission-cleared
