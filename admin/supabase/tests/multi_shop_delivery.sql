@@ -204,17 +204,30 @@ begin
     raise exception 'FAIL a new trip is not pending';
   end if;
 
-  -- The shops: each part carries its own food and no fees at all, so a
-  -- merchant's sales never include the delivery fee or another shop's food.
+  -- The shops: each part carries its own food, and its share of the trip's
+  -- fees (0094), so every peso is counted once by the books that read
+  -- order.total.
   if (select count(*) from orders where delivery_id = (select delivery_id from ms_placed)) <> 2 then
     raise exception 'FAIL the trip did not create one order per shop';
   end if;
   if exists (
     select 1 from orders
      where delivery_id = (select delivery_id from ms_placed)
-       and (subtotal <> 100 or delivery_fee <> 0 or service_fee <> 0 or total <> 100)
+       and (subtotal <> 100 or total <> subtotal + delivery_fee + service_fee)
   ) then
-    raise exception 'FAIL a shop''s order carries fees or the wrong subtotal';
+    raise exception 'FAIL a shop''s order does not add up';
+  end if;
+  if (select sum(total) from orders where delivery_id = (select delivery_id from ms_placed))
+       <> (select total from deliveries where id = (select delivery_id from ms_placed)) then
+    raise exception 'FAIL the shops'' totals do not add up to the trip''s total';
+  end if;
+  if (select sum(delivery_fee) from orders where delivery_id = (select delivery_id from ms_placed))
+       <> (select delivery_fee from deliveries where id = (select delivery_id from ms_placed)) then
+    raise exception 'FAIL the delivery fee was not shared between the shops';
+  end if;
+  if (select sum(service_fee) from orders where delivery_id = (select delivery_id from ms_placed))
+       <> (select service_fee from deliveries where id = (select delivery_id from ms_placed)) then
+    raise exception 'FAIL the service fee was not shared between the shops';
   end if;
   if (select count(distinct restaurant_id) from orders where delivery_id = (select delivery_id from ms_placed)) <> 2 then
     raise exception 'FAIL the two parts are not two different shops';
@@ -494,6 +507,29 @@ begin
   end if;
   if (select total from deliveries where id = (select delivery_id from ms_three)) <> 135 then
     raise exception 'FAIL the trip was not re-priced: %', (select total from deliveries where id = (select delivery_id from ms_three));
+  end if;
+  -- The shops' shares are re-cut: the extra-shop surcharge went with the shop
+  -- that rejected, so the shops that are left carry the fees that are left.
+  if (select sum(o.total) from orders o
+       where o.delivery_id = (select delivery_id from ms_three)
+         and o.status <> 'cancelled')
+       <> (select total from deliveries where id = (select delivery_id from ms_three)) then
+    raise exception 'FAIL the shops'' totals no longer add up to the re-priced trip';
+  end if;
+  if (select sum(o.delivery_fee + o.service_fee) from orders o
+       where o.delivery_id = (select delivery_id from ms_three)
+         and o.status <> 'cancelled')
+       <> (select delivery_fee + service_fee from deliveries where id = (select delivery_id from ms_three)) then
+    raise exception 'FAIL the fees were not re-cut after the rejection';
+  end if;
+  -- The shop that dropped out takes its share of the fees with it.
+  if exists (
+    select 1 from orders
+     where delivery_id = (select delivery_id from ms_three)
+       and status = 'cancelled'
+       and (delivery_fee <> 0 or service_fee <> 0)
+  ) then
+    raise exception 'FAIL the shop that dropped out kept a share of the fees';
   end if;
   raise notice 'PASS a rejecting shop is dropped and the trip is re-priced';
 end $$;
