@@ -91,17 +91,22 @@ export function TrackOrderScreen({
 
   // The assigned rider's GCash QR, only for an e_wallet order. The server
   // returns it only to the order's own customer, so others see no block.
+  // A trip (0092) is paid like an order, and the rider's QR and phone are
+  // found by the reference the customer was given -- the trip's.
+  const payment = delivery?.payment ?? order?.payment;
+  const status = delivery?.status ?? order?.status;
+
   const { data: riderPayment } = useOrderRiderPayment(
     submitted,
-    enabled && order?.payment === "e_wallet"
+    enabled && payment === "e_wallet"
   );
 
   // 0078: the rider's phone, for the order's own customer while it is under way.
   const { data: riderContact } = useRiderContact(
     submitted,
     enabled &&
-      !!order &&
-      ["confirmed", "preparing", "out_for_delivery"].includes(order.status)
+      !!status &&
+      ["confirmed", "preparing", "out_for_delivery"].includes(status)
   );
 
   // 0075: report a problem with a delivery. Held here rather than in OrderCard

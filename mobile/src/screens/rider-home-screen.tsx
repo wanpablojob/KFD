@@ -228,7 +228,9 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
       // the rows, which skipped parseOrderItems and the null handling, so every
       // page after the first rendered raw jsonb items. The hand-written types
       // claimed items was already OrderLine[], so nothing flagged it.
-      const page = await fetchRiderOrdersPage(nextCursor, 20);
+      // The legacy orders only, like page 1: a trip's shops are listed as
+      // one trip, so paging must not bring them back one by one (0092).
+      const page = await fetchRiderOrdersPage(nextCursor, 20, true);
       // mergeOrderPages, not [...prev, ...rows]: an order that changed status
       // between the page-1 fetch and this one can appear in both, and appending
       // it twice gives two rows with the same key.

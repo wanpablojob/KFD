@@ -680,7 +680,40 @@ begin
 end $$;
 
 -- --------------------------------------------------------------------------
--- 9. The holes 0093 closed
+-- 9. The customer can reach the rider on a trip
+-- --------------------------------------------------------------------------
+
+-- The reference the customer was given is the trip's, so the rider's contact
+-- details have to be findable by it (0096). The trip used here is still under
+-- way: a delivered trip has no rider to reach.
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000090c1","role":"authenticated"}', true);
+do $$
+declare v_row record;
+begin
+  select * into v_row
+    from order_rider_contact((select reference from deliveries where id = (select delivery_id from ms_four)));
+  if v_row.rider_name is null then
+    raise exception 'FAIL the customer cannot reach the rider on a trip';
+  end if;
+  raise notice 'PASS the customer can reach the rider on a trip';
+end $$;
+
+-- But only the trip's own customer.
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000090c6","role":"authenticated"}', true);
+do $$
+begin
+  if exists (
+    select 1 from order_rider_contact((select reference from deliveries where id = (select delivery_id from ms_four)))
+  ) then
+    raise exception 'FAIL another customer can reach the rider on a trip';
+  end if;
+  raise notice 'PASS another customer cannot reach the rider on a trip';
+end $$;
+
+-- --------------------------------------------------------------------------
+-- 10. The holes 0093 closed
 -- --------------------------------------------------------------------------
 
 -- A shop named twice is ONE shop: the extra-shop surcharge is not inflated,
