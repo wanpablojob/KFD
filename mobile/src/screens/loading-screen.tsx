@@ -42,13 +42,34 @@ const DASH_GAP = 14;
 
 /** Playful lines that rotate under the real status message. */
 const FUN_LINES = [
-  "Firing up the grill…",
-  "Marinating the inasal…",
-  "Warming up the scooter…",
+  "Firing up the inasal grill…",
+  "Passing the sugarcane fields…",
+  "Crossing the Ilog River bridge…",
   "Toasting the piaya…",
-  "Checking the shortcut through the barangay…",
-  "Packing extra rice…",
+  "Practising Sinulog steps at the stoplight…",
+  "Packing extra rice, of course…",
+  "Warming up the scooter…",
 ];
+
+/** Sugarcane beside the road, Negros being sugar country: x and height in px. */
+const CANE = [
+  { x: 6, h: 34 },
+  { x: 18, h: 46 },
+  { x: 30, h: 28 },
+  { x: 58, h: 40 },
+  { x: 70, h: 52 },
+  { x: 82, h: 32 },
+  { x: 128, h: 44 },
+  { x: 140, h: 30 },
+  { x: 176, h: 50 },
+  { x: 188, h: 36 },
+  { x: 200, h: 46 },
+  { x: 236, h: 30 },
+  { x: 248, h: 48 },
+  { x: 260, h: 38 },
+];
+/** Sky above the cane, in cells, so the scene has room for the sun. */
+const SKY_CELLS = 4;
 
 const PIXEL_COLORS: Record<string, string> = {
   X: colors.primary,
@@ -81,7 +102,8 @@ function PixelRider() {
 }
 
 /**
- * The cream loading screen with the pixel rider, made livelier: the rider
+ * The cream loading screen with the pixel rider, set in Negros: sugarcane
+ * fields and a sun behind the road, and lines about Kabankalan. The rider
  * drives along a static road and loops back in from the left, bobbing and
  * puffing exhaust, the logo bounces, and a playful line
  * rotates under the real status. Everything stops under Reduce Motion.
@@ -181,6 +203,14 @@ export function LoadingScreen({ message }: { message?: string }) {
         <Text style={styles.subtitle}>Kabankalan Food Delivery</Text>
 
         <View style={styles.track}>
+          {/* Static scenery: the sun and a sugarcane field behind the road. */}
+          <View style={styles.sun} />
+          {CANE.map((c) => (
+            <View key={c.x} style={[styles.cane, { left: c.x, height: c.h }]}>
+              <View style={[styles.leaf, { top: c.h * 0.3 }]} />
+              <View style={[styles.leaf, styles.leafRight, { top: c.h * 0.55 }]} />
+            </View>
+          ))}
           {/* A static road: asphalt with a dashed centre line. Only the rider moves. */}
           <View style={styles.road}>
             <View style={styles.lane}>
@@ -261,7 +291,7 @@ const styles = StyleSheet.create({
   },
   track: {
     width: TRACK_W,
-    height: RIDER_H + CELL * 2,
+    height: RIDER_H + CELL * (2 + SKY_CELLS),
     marginTop: spacing.xl,
     overflow: "hidden",
   },
@@ -277,7 +307,34 @@ const styles = StyleSheet.create({
   },
   lane: { flexDirection: "row", gap: DASH_GAP, paddingLeft: DASH_GAP / 2 },
   dash: { width: DASH_W, height: 3, backgroundColor: colors.gold },
-  rider: { position: "absolute", left: 0, top: CELL },
+  rider: { position: "absolute", left: 0, top: CELL * (1 + SKY_CELLS) },
+  sun: {
+    position: "absolute",
+    top: CELL,
+    right: CELL * 4,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: colors.gold,
+  },
+  cane: {
+    position: "absolute",
+    bottom: CELL * 4,
+    width: 3,
+    borderRadius: 2,
+    backgroundColor: colors.success,
+    opacity: 0.5,
+  },
+  leaf: {
+    position: "absolute",
+    left: -8,
+    width: 10,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: colors.success,
+    transform: [{ rotate: "-30deg" }],
+  },
+  leafRight: { left: 1, transform: [{ rotate: "30deg" }] },
   puff: {
     position: "absolute",
     top: 11 * CELL,

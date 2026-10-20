@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Stack, router } from "expo-router";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -40,8 +40,20 @@ initSentry();
  * The session and role are resolved once in <SessionProvider>; this layout only
  * reads the result, so guards are synchronous and correct on cold start.
  */
+/** The loading screen stays at least this long on launch, so the intro plays. */
+const MIN_INTRO_MS = 3000;
+
 function RootNavigator() {
   const { user, sessionLoading, role, roleError, retryRole, leave } = useSession();
+
+  // Session restore is often instant, which flashed the loading screen past
+  // before the rider had crossed it. Hold it for MIN_INTRO_MS on cold start;
+  // anything slower than that keeps it up as before.
+  const [introDone, setIntroDone] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setIntroDone(true), MIN_INTRO_MS);
+    return () => clearTimeout(timer);
+  }, []);
 
   // A tap on a push routes by the payload's `type`, so a rider's dispatch offer
   // opens the offers tab rather than the public tracker. getLastNotificationResponse
@@ -120,6 +132,10 @@ function RootNavigator() {
 
   if (sessionLoading) {
     return <LoadingScreen message="Restoring session…" />;
+  }
+
+  if (!introDone) {
+    return <LoadingScreen />;
   }
 
   if (user && role === null && !roleError) {
