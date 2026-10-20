@@ -33,7 +33,11 @@ fi
 SCHEMA_DUMP="$1"
 DATA_DUMP="${2:-}"
 CONTAINER="kfd-restore-rehearsal-$$"
-IMAGE="postgres:16-alpine"
+# The image major version has to match the server the dump came from: a
+# PostgreSQL 17 dump grants MAINTAIN (a privilege type 17 added), and a 16
+# container refuses it with "unrecognized privilege type". Supabase runs
+# PostgreSQL 17 today; when it moves, this moves with it.
+IMAGE="postgres:17-alpine"
 LOGDIR="$(mktemp -d "${TMPDIR:-/tmp}/kfd-restore.XXXXXX")"
 
 for file in "$SCHEMA_DUMP" ${DATA_DUMP:+"$DATA_DUMP"}; do
@@ -88,6 +92,14 @@ fi
 #
 # The pg_* roles are left out on purpose: Postgres 14 and up ship them, and
 # their names are reserved.
+#
+# The `auth` schema is stubbed for the same reason: every RLS policy and every
+# `user_id uuid default auth.uid()` column in a Supabase database references
+# auth.uid(), which lives in the platform's auth schema and is not part of a
+# public-schema dump. Without these stubs the restore dies on the first table
+# with "schema auth does not exist" -- which is a gap in this rehearsal, not a
+# bad backup. The stubs return null/empty because a rehearsal proves the data
+# and structure come back; it does not run policies.
 if ! docker exec -i "$CONTAINER" psql -v ON_ERROR_STOP=1 -U postgres -d rehearsal -q >"$LOGDIR/roles.log" 2>&1 <<'SQL'
 create role anon nologin noinherit;
 create role authenticated nologin noinherit;
@@ -98,6 +110,35 @@ create role supabase_auth_admin login noinherit createrole password 'rehearsal';
 create role supabase_storage_admin login noinherit createrole password 'rehearsal';
 create role dashboard_user login password 'rehearsal';
 create role supabase_read_only_user nologin;
+
+create schema if not exists auth;
+create or replace function auth.uid() returns uuid
+  language sql stable as $$ select null::uuid $$;
+create or replace function auth.jwt() returns jsonb
+  language sql stable as $$ select '{}'::jsonb $$;
+create or replace function auth.role() returns text
+  language sql stable as $$ select null::text $$;
+create or replace function auth.email() returns text
+  language sql stable as $$ select null::text $$;
+
+-- The tables the platform owns, which a public-schema dump references but
+-- never contains: auth.users (the accounts a view joins to, and the column
+-- defaults) and storage.objects (the upload a delivery proof is checked
+-- against). They are stubbed empty, with the columns the dump actually names.
+create table if not exists auth.users (
+  id uuid primary key,
+  email text,
+  raw_user_meta_data jsonb,
+  created_at timestamptz default now()
+);
+
+create schema if not exists storage;
+create table if not exists storage.objects (
+  id uuid primary key default gen_random_uuid(),
+  bucket_id text,
+  name text,
+  owner uuid
+);
 SQL
 then
   echo "warning: could not create every Supabase role. The restore below is"
