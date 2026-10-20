@@ -59,6 +59,8 @@ jobs:
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
       RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+      # The key the owner put in the production environment, under this name.
+      RESEND_KEY: ${{ secrets.RESEND_KEY }}
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
 
@@ -220,6 +222,7 @@ jobs:
               // value is written under the name the code reads.
               value:
                 process.env.RESEND_API_KEY ||
+                process.env.RESEND_KEY ||
                 current.RESEND_API_KEY?.value ||
                 current.RESEND_KEY?.value,
               type: "sensitive",
