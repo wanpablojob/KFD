@@ -59,6 +59,8 @@ jobs:
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
       RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
 
     steps:
       - name: Set up Node
@@ -87,10 +89,14 @@ jobs:
           ).json();
           const keys = Array.isArray(list) ? list : [];
 
-          // Prefer a key that already has a value we can use. The legacy
+          // The service_role key, and only that one: the list also holds the
+          // anon key, and a run that picked the wrong one would put the anon
+          // key in production and call it the service role key. The legacy
           // service_role JWT and the newer sb_secret_ key both work with
           // supabase-js, so either is fine.
-          let chosen = keys.find((k) => k.api_key && (k.type === "legacy" || k.type === "secret"));
+          let chosen =
+            keys.find((k) => (k.name === "service_role" || k.id === "service_role") && k.api_key) ||
+            keys.find((k) => k.type === "secret" && k.api_key);
           let created = false;
           if (!chosen) {
             const made = await (
@@ -206,6 +212,16 @@ jobs:
             {
               key: "NEXT_PUBLIC_SITE_URL",
               value: "https://kfd-one.vercel.app",
+              type: "plaintext",
+            },
+            {
+              key: "NEXT_PUBLIC_SUPABASE_URL",
+              value: process.env.NEXT_PUBLIC_SUPABASE_URL,
+              type: "plaintext",
+            },
+            {
+              key: "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
+              value: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
               type: "plaintext",
             },
           ].filter((v) => !!v.value);
