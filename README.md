@@ -220,9 +220,10 @@ Two environments are supported:
 - **Production**: a manual `workflow_dispatch` from `main` with
   `target=production` and `confirm_production=deploy`. The job refuses to run
   unless `CI OK` is green for that exact commit. `admin/vercel.json` sets
-  `git.deploymentEnabled.main` to `false`, so a push to `main` never deploys
-  production on its own; only the CLI deploy aliases the domain. Pull-request
-  previews are unaffected.
+  `git.deploymentEnabled` to `false`: Vercel's Git integration creates no
+  deployments at all, so the workflow is the only deploy path. This keeps
+  production from being aliased by a push and stops duplicate preview builds
+  that lack the project's environment variables.
 
 Required secrets (add in `Settings → Secrets and variables → Actions`):
 
