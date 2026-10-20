@@ -125,9 +125,10 @@ export async function signOut() {
  *
  * There is no order -> customers join path in the schema (customers.id is free
  * text with no auth link, while orders.customer_user_id is a uuid), so the
- * profile contact lives on the auth account and customer_place_order copies it
- * onto the order. That is also why this is the customer's own profile rather
- * than an admin screen: they maintain it, and it is snapshotted per order.
+ * delivery contact lives on the auth account and customer_place_order copies
+ * it onto the order. The customer edits it per delivery address; checkout
+ * syncs the chosen address's number here before placing, and it is snapshotted
+ * per order.
  */
 export async function saveContactPhone(phone: string): Promise<void> {
   const trimmed = phone.trim();

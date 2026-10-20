@@ -46,12 +46,6 @@ export default function CustomerAddressesScreen() {
   const insets = useSafeAreaInsets();
   const bottomPadding = useScrollBottomPadding();
   const { user } = useSession();
-  // New addresses start with the account's number; most people order to
-  // themselves, and it can be changed for someone else's place.
-  const profilePhone =
-    typeof user?.user_metadata?.phone === "string"
-      ? user.user_metadata.phone.trim()
-      : "";
 
   const [addresses, setAddresses] = useState<SavedAddress[]>([]);
   const [areas, setAreas] = useState<string[]>([]);
@@ -60,7 +54,7 @@ export default function CustomerAddressesScreen() {
   const [label, setLabel] = useState("");
   const [address, setAddress] = useState("");
   const [barangay, setBarangay] = useState<string | null>(null);
-  const [phone, setPhone] = useState(profilePhone);
+  const [phone, setPhone] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -100,7 +94,7 @@ export default function CustomerAddressesScreen() {
     setLabel("");
     setAddress("");
     setBarangay(null);
-    setPhone(profilePhone);
+    setPhone("");
     setError(null);
   }
 

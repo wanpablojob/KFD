@@ -72,12 +72,9 @@ export default function CustomerCartScreen() {
   const [adding, setAdding] = useState(false);
   // The rider calls this number; customer_place_order refuses an order without
   // one (0076). Each saved address carries its own, filled in when it is
-  // picked, falling back to the account's number.
-  const savedPhone =
-    typeof user?.user_metadata?.phone === "string"
-      ? user.user_metadata.phone.trim()
-      : "";
-  const [phone, setPhone] = useState(savedPhone);
+  // picked. Checkout syncs the chosen number to the account because the RPC
+  // still reads the number there.
+  const [phone, setPhone] = useState("");
   // Barangays KFD delivers to. Empty until the owner publishes the list, and
   // then the server takes any address, so the picker only shows once it exists.
   const [areas, setAreas] = useState<string[]>([]);
@@ -162,7 +159,7 @@ export default function CustomerCartScreen() {
   function handleSelectAddress(row: SavedAddress) {
     setAddress(row.address);
     setBarangay(row.barangay ?? null);
-    setPhone(row.phone || savedPhone);
+    setPhone(row.phone ?? "");
     setAdding(false);
     setError(null);
   }
@@ -173,7 +170,7 @@ export default function CustomerCartScreen() {
     const first = addresses[0];
     setAddress(first?.address ?? "");
     setBarangay(first?.barangay ?? null);
-    setPhone(first?.phone || savedPhone);
+    setPhone(first?.phone ?? "");
   }
 
   // No local arithmetic on purpose. A subtotal computed here would have to be
@@ -233,9 +230,9 @@ export default function CustomerCartScreen() {
     setError(null);
     setPlacing(true);
     try {
-      // customer_place_order copies the account's number onto the order, so the
-      // number for this address has to be the account's number when it lands.
-      if (newPhone !== savedPhone) await saveContactPhone(newPhone);
+      // customer_place_order copies the number from the auth account onto the
+      // order, so sync this address's number there before placing it.
+      await saveContactPhone(newPhone);
       const result = await placeCustomerOrder({
         restaurantId,
         items: lines.map((l) => ({
