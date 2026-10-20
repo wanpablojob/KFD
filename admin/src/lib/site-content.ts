@@ -76,12 +76,17 @@ export const HERO_PHOTO = "/images/food/hero-inasal.jpg";
 export const KITCHEN_PHOTO = "/images/food/inasal-plate.jpg";
 
 /**
- * TODO(owner): where people get the app. Null hides the button; with both null
- * the landing page offers the waitlist instead. The Android link is the EAS
- * preview build's download page; the iPhone link is the TestFlight public link.
+ * Where people get the app. Null hides the button; with both null the landing
+ * page offers the waitlist instead.
+ *
+ * The Android link is the EAS preview build (an APK, built on the "preview"
+ * channel, so it receives over-the-air updates on that channel). The iPhone
+ * link is the TestFlight public link, which needs the Apple Developer account
+ * and an App Store Connect app: TODO(owner), until then it stays null.
  */
 export const APP_DOWNLOADS = {
-  android: null as string | null,
+  android:
+    "https://expo.dev/artifacts/eas/ztQudJV_NfC0Mp723mibfJSDpSg7RunddRyZXmtWoGw.apk" as string | null,
   iphone: null as string | null,
 } as const;
 
