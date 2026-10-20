@@ -15,7 +15,9 @@ import {
   View,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
+import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { GcashQrModal } from "../components/GcashQrModal";
 import { useScrollBottomPadding } from "../components/TabBarInset";
 import { supabase } from "../lib/supabase";
 import { signOut } from "../lib/auth";
@@ -90,6 +92,11 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
   // filed as if it matched.
   const [flash, setFlash] = useState<string | null>(null);
 
+  // The rider shows the customer their own GCash QR at the door, so the code
+  // comes from the app instead of a second app and a second login.
+  const [qrVisible, setQrVisible] = useState(false);
+
+  const router = useRouter();
   const connectivity = useConnectivity();
   const queryClient = useQueryClient();
   const offline =
@@ -103,6 +110,7 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
     isPending,
   } = useRiderOrders(null, 20);
   const profileQuery = useRiderProfile(userId);
+  const gcashQrUrl = profileQuery.data?.gcash_qr_url ?? null;
 
   // The order the completion sheet is showing, projected to the handful of
   // fields the sheet needs. Derived rather than copied into separate state so
@@ -496,6 +504,32 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
                 </View>
               )}
 
+              {/* The rider's own payment handle. Only an e_wallet order needs
+                  it, and only while there is still a delivery to make. A rider
+                  who has not attached one yet is sent to the profile form
+                  rather than shown a button that cannot open anything. */}
+              {item.payment === "e_wallet" && canDeliver ? (
+                <Pressable
+                  style={styles.qrRow}
+                  onPress={() =>
+                    gcashQrUrl ? setQrVisible(true) : router.navigate("/rider/profile")
+                  }
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    gcashQrUrl
+                      ? "Show your GCash QR to the customer"
+                      : "Add your GCash QR in your profile"
+                  }
+                >
+                  <Text style={styles.qrLabel}>
+                    {gcashQrUrl ? "Show GCash QR" : "Add your GCash QR"}
+                  </Text>
+                  <Text style={styles.qrHint}>
+                    {gcashQrUrl ? "Customer scans to pay" : "Set it in Profile"}
+                  </Text>
+                </Pressable>
+              ) : null}
+
               {/* What they are picking up. */}
               <View style={styles.block}>
                 <Text style={styles.blockLabel}>Items</Text>
@@ -610,6 +644,13 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
           );
           afterCompleted(orderId);
         }}
+      />
+
+      <GcashQrModal
+        visible={qrVisible && Boolean(gcashQrUrl)}
+        url={gcashQrUrl}
+        name={profileQuery.data?.gcash_name ?? null}
+        onClose={() => setQrVisible(false)}
       />
 
       <Modal
@@ -817,6 +858,21 @@ const styles = StyleSheet.create({
   },
   callLabel: { ...type.body, color: colors.primary, fontWeight: "700" },
   callNumber: { ...type.caption, color: colors.textMuted },
+  qrRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.md,
+    marginTop: spacing.sm,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.sm,
+    backgroundColor: colors.primarySoft,
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  qrLabel: { ...type.body, color: colors.primary, fontWeight: "700" },
+  qrHint: { ...type.caption, color: colors.textMuted },
   noPhone: { ...type.caption, color: colors.textFaint },
   // Column, not a row. Both children are full width and the second can shrink
   // and ellipsize, so the card's own width is the only thing that constrains

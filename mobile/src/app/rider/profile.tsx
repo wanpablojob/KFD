@@ -6,18 +6,14 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { GcashQrForm } from "../../components/GcashQrForm";
 import { useScrollBottomPadding } from "../../components/TabBarInset";
 import { signOut } from "../../lib/auth";
-import {
-  useRiderEarningsSummary,
-  useRiderProfile,
-  useSetRiderGcash,
-} from "../../lib/hooks";
+import { useRiderEarningsSummary, useRiderProfile } from "../../lib/hooks";
 import { useSession } from "../../lib/session-context";
 import { supabase } from "../../lib/supabase";
 import { requestRiderAccountDeletion } from "../../lib/storefront";
@@ -301,7 +297,11 @@ export default function RiderProfileRoute() {
           {push.error ? <Text style={styles.error}>{push.error}</Text> : null}
         </View>
 
-        <GcashForm initialUrl={profile.gcash_qr_url} initialName={profile.gcash_name} />
+        <GcashQrForm
+          riderId={profile.id}
+          initialUrl={profile.gcash_qr_url}
+          initialName={profile.gcash_name}
+        />
 
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>Account</Text>
@@ -343,75 +343,6 @@ export default function RiderProfileRoute() {
         </Pressable>
       </ScrollView>
       <StatusBar style="dark" />
-    </View>
-  );
-}
-
-/** Rider's GCash payment handle: the QR the customer scans on an e_wallet order. */
-function GcashForm({
-  initialUrl,
-  initialName,
-}: {
-  initialUrl: string | null;
-  initialName: string | null;
-}) {
-  const setGcash = useSetRiderGcash();
-  const [url, setUrl] = useState(initialUrl ?? "");
-  const [name, setName] = useState(initialName ?? "");
-  const [notice, setNotice] = useState<string | null>(null);
-
-  const dirty =
-    url.trim() !== (initialUrl ?? "") || name.trim() !== (initialName ?? "");
-
-  function save() {
-    setNotice(null);
-    setGcash.mutate(
-      { qrUrl: url.trim() || null, name: name.trim() || null },
-      {
-        onSuccess: () => setNotice("Saved."),
-        onError: (cause) =>
-          setNotice(cause instanceof Error ? cause.message : "Could not save."),
-      }
-    );
-  }
-
-  return (
-    <View style={styles.section}>
-      <Text style={styles.sectionLabel}>GCash payment</Text>
-      <Text style={styles.pushCopy}>
-        Paste the link to your GCash QR image and the account name. Customers who choose
-        GCash see this QR on their tracking screen once you accept their delivery.
-      </Text>
-      <TextInput
-        style={styles.input}
-        value={url}
-        onChangeText={setUrl}
-        placeholder="https://…/my-gcash-qr.png"
-        placeholderTextColor={colors.textFaint}
-        autoCapitalize="none"
-        autoCorrect={false}
-        keyboardType="url"
-        accessibilityLabel="GCash QR image link"
-      />
-      <TextInput
-        style={styles.input}
-        value={name}
-        onChangeText={setName}
-        placeholder="GCash account name"
-        placeholderTextColor={colors.textFaint}
-        accessibilityLabel="GCash account name"
-      />
-      <Pressable
-        style={[styles.gcashSave, (!dirty || setGcash.isPending) && styles.disabled]}
-        disabled={!dirty || setGcash.isPending}
-        onPress={save}
-        accessibilityRole="button"
-      >
-        <Text style={styles.gcashSaveLabel}>
-          {setGcash.isPending ? "Saving…" : "Save"}
-        </Text>
-      </Pressable>
-      {notice ? <Text style={styles.meta}>{notice}</Text> : null}
     </View>
   );
 }
@@ -480,23 +411,6 @@ const styles = StyleSheet.create({
   meta: { ...type.body, color: colors.textMuted },
   metaHint: { ...type.caption, color: colors.textFaint },
   statusHint: { ...type.caption, color: colors.textMuted },
-  input: {
-    ...type.body,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    color: colors.text,
-  },
-  gcashSave: {
-    alignSelf: "flex-start",
-    backgroundColor: colors.primary,
-    borderRadius: radius.md,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.xl,
-  },
-  gcashSaveLabel: { ...type.label, color: colors.textInverse, fontWeight: "700" },
   signOut: {
     alignSelf: "flex-start",
     borderWidth: 1,
