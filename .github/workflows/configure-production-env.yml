@@ -167,10 +167,18 @@ jobs:
           console.log(
             JSON.stringify(
               {
-                environment_variables: envs
-                  .filter((e) => (e.target || []).includes("production"))
-                  .map((e) => ({ key: e.key, type: e.type, has_value: !!e.value })),
+                // Every variable, with the targets it applies to: a variable
+                // set for "preview" only looks absent from a report that
+                // lists production alone, and that is how a missing key in
+                // production goes unnoticed.
+                environment_variables: envs.map((e) => ({
+                  key: e.key,
+                  type: e.type,
+                  targets: e.target,
+                  has_value: !!e.value,
+                })),
                 resend_api_key_present: !!byKey.RESEND_API_KEY,
+                resend_key_present: !!byKey.RESEND_KEY,
                 service_role_key_present: !!byKey.SUPABASE_SERVICE_ROLE_KEY,
               },
               null,
@@ -206,7 +214,14 @@ jobs:
             { key: "SUPABASE_SERVICE_ROLE_KEY", value: serviceRole, type: "sensitive" },
             {
               key: "RESEND_API_KEY",
-              value: process.env.RESEND_API_KEY || current.RESEND_API_KEY?.value,
+              // The app reads RESEND_API_KEY. A key set under RESEND_KEY is
+              // the same key under another name, and the admin app would
+              // never see it -- so both names are accepted here and the
+              // value is written under the name the code reads.
+              value:
+                process.env.RESEND_API_KEY ||
+                current.RESEND_API_KEY?.value ||
+                current.RESEND_KEY?.value,
               type: "sensitive",
             },
             {

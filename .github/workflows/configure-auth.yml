@@ -71,6 +71,9 @@ jobs:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
       AUTH_EMAIL_FROM: ${{ secrets.AUTH_EMAIL_FROM }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
 
     steps:
       - uses: actions/checkout@v7
@@ -104,6 +107,28 @@ jobs:
             "Content-Type": "application/json",
           };
 
+          // The Resend key from the Vercel production environment, if the
+          // owner put it there. Only a "plain" or "encrypted" variable can be
+          // read back; a "sensitive" one is write-only by design.
+          async function resendKeyFromVercel() {
+            const vToken = process.env.VERCEL_TOKEN;
+            const project = process.env.VERCEL_PROJECT_ID;
+            const team = process.env.VERCEL_ORG_ID;
+            if (!vToken || !project) return null;
+            const q = team ? `?teamId=${team}&decrypt=true` : "?decrypt=true";
+            const res = await fetch(
+              `https://api.vercel.com/v10/projects/${project}/env${q}`,
+              { headers: { Authorization: `Bearer ${vToken}` } }
+            );
+            if (!res.ok) return null;
+            const payload = await res.json();
+            const envs = payload.envs || [];
+            const hit =
+              envs.find((e) => e.key === "RESEND_API_KEY" && e.value) ||
+              envs.find((e) => e.key === "RESEND_KEY" && e.value);
+            return hit ? hit.value : null;
+          }
+
           // Read what is set now, so the PATCH only changes the fields this
           // workflow owns: a setting the owner changed by hand, or one this
           // file does not mention, survives.
@@ -125,11 +150,26 @@ jobs:
             mailer_autoconfirm: false,
           };
 
-          if (process.env.RESEND_API_KEY) {
+          // The Resend key: the repository secret, or the one the admin app
+          // already has in the Vercel production environment. The owner put
+          // it there; the app reads RESEND_API_KEY, so both names are tried.
+          // A "sensitive" Vercel variable cannot be read back, so that case
+          // ends with the warning below and the owner is asked to add the key
+          // under the name the code reads.
+          let resendKey = process.env.RESEND_API_KEY;
+          if (!resendKey) {
+            resendKey = await resendKeyFromVercel();
+            if (resendKey) {
+              console.error("::notice::Using the Resend key from the Vercel production environment.");
+            }
+          }
+
+          if (resendKey) {
+            console.error("::add-mask::" + resendKey);
             body.smtp_host = "smtp.resend.com";
             body.smtp_port = "465";
             body.smtp_user = "resend";
-            body.smtp_pass = process.env.RESEND_API_KEY;
+            body.smtp_pass = resendKey;
             body.smtp_admin_email =
               process.env.AUTH_EMAIL_FROM || "orders@notifications.kfd.ph";
             body.smtp_sender_name = "KFD";
@@ -140,12 +180,25 @@ jobs:
             // SMTP_SENDER_NAME or RATE_LIMIT_EMAIL_SENT"). So it is set with
             // the mailer, not before it.
             body.rate_limit_email_sent = 30;
+
+            // The domains the Resend account may send from. The address the
+            // mail is sent as has to be one of them, or the mail is rejected
+            // by Resend and the reset code never arrives.
+            const domains = await fetch("https://api.resend.com/domains", {
+              headers: { Authorization: `Bearer ${resendKey}` },
+            });
+            if (domains.ok) {
+              const payload = await domains.json();
+              const list = (payload.data || []).map((d) => `${d.name} (${d.status})`);
+              console.error(
+                "::notice::Resend domains: " + (list.length ? list.join(", ") : "none")
+              );
+            }
           } else {
             console.error(
               "::warning::RESEND_API_KEY is not set: the mailer, the sender name and the email rate limit are left as they are. The Management API will not raise the limit without a custom mailer."
             );
           }
-
           fs.writeFileSync(process.env.RUNNER_TEMP + "/body.json", JSON.stringify(body));
           // The SMTP password is masked, so the dry run can be read.
           const redacted = JSON.parse(JSON.stringify(body));
@@ -169,6 +222,7 @@ jobs:
             process.exit(1);
           });
           NODE
+          cat "$RUNNER_TEMP/settings.json"
 
       - name: Apply the settings
         if: ${{ !inputs.dry_run }}
