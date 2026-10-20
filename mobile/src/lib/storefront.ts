@@ -292,13 +292,20 @@ export async function declineRiderOffer(orderId: string): Promise<void> {
 /** Cursor-paginated orders for the calling rider. */
 export async function fetchRiderOrdersPage(
   cursor: string | null,
-  limit = 20
+  limit = 20,
+  /**
+   * Only the orders that are not part of a trip (0092). A trip's shops are
+   * listed as one trip, not one card per shop, so the rider's list asks for
+   * the rest.
+   */
+  onlyLegacy = false
 ): Promise<RiderOrderPageResult> {
   // Omitted rather than null for page 1: p_cursor defaults to null in SQL, and
   // the generated arg type is optional, not nullable.
   const { data, error } = await supabase.rpc("fetch_rider_orders_page", {
     p_cursor: cursor ?? undefined,
     p_limit: limit,
+    p_only_legacy: onlyLegacy,
   });
   if (error) throw error;
 
@@ -923,11 +930,13 @@ export async function placeDelivery(args: {
     throw new Error("Order was not placed. Try again.");
   }
 
-  // Each shop is told about its own part; the customer is told about the trip
-  // once. The API checks the caller against the token, not the body.
-  for (const orderId of data[0].order_ids ?? []) {
-    void postApi("/api/orders/notify", { orderId, event: "placed" });
-  }
+  // One call for the whole trip: the route tells each shop about its own part
+  // and the customer about the basket. A call per shop would also run the
+  // customer into the route's rate limit on a ten-shop basket.
+  void postApi("/api/orders/notify", {
+    deliveryId: data[0].delivery_id,
+    event: "placed",
+  });
 
   return data[0];
 }
@@ -1028,6 +1037,186 @@ export async function fetchTrackedDelivery(
       ];
     }),
   };
+}
+
+/**
+ * A trip the rider is carrying (0092).
+ *
+ * One basket from several shops: one address, one drop-off, one amount to
+ * collect. The stops are fetched separately, per trip.
+ */
+export interface RiderDelivery {
+  delivery_id: string;
+  reference: string;
+  customer: string;
+  delivery_address: string;
+  customer_phone: string;
+  shops: number;
+  subtotal: number;
+  delivery_fee: number;
+  service_fee: number;
+  total: number;
+  status: string;
+  /** Cash to collect, or a GCash scan to expect. */
+  payment: PaymentChoice;
+  placed_at: string;
+}
+
+/** One shop's stop in a trip. */
+export interface DeliveryStop {
+  order_id: string;
+  reference: string;
+  restaurant: string;
+  restaurant_id: string;
+  items: {
+    menu_item_id: string;
+    name: string;
+    quantity: number;
+    price: number;
+  }[];
+  subtotal: number;
+  status: string;
+}
+
+/**
+ * A trip offered to the rider (0092).
+ *
+ * One basket from several shops is ONE offer: the rider takes the whole trip
+ * or none of it, so it is not offered shop by shop.
+ */
+export interface RiderDeliveryOffer {
+  offerId: number;
+  deliveryId: string;
+  reference: string;
+  customer: string;
+  deliveryAddress: string;
+  customerPhone: string;
+  shops: number;
+  subtotal: number;
+  deliveryFee: number;
+  serviceFee: number;
+  total: number;
+  /** What the rider earns per stop (0092: payout is per stop). */
+  payoutPerStop: number;
+  city: string;
+  offeredAt: string;
+  expiresAt: string;
+}
+
+/** The trips offered to the signed-in rider. */
+export async function fetchRiderDeliveryOffers(): Promise<RiderDeliveryOffer[]> {
+  const { data, error } = await supabase.rpc("fetch_rider_delivery_offers");
+  if (error) throw error;
+  return (data ?? []).map((row) => ({
+    offerId: row.offer_id,
+    deliveryId: row.delivery_id,
+    reference: row.reference,
+    customer: row.customer,
+    deliveryAddress: row.delivery_address ?? "",
+    customerPhone: row.customer_phone ?? "",
+    shops: row.shops,
+    subtotal: Number(row.subtotal),
+    deliveryFee: Number(row.delivery_fee),
+    serviceFee: Number(row.service_fee),
+    total: Number(row.total),
+    payoutPerStop: Number(row.payout_per_stop),
+    city: row.city ?? "",
+    offeredAt: row.offered_at,
+    expiresAt: row.expires_at,
+  }));
+}
+
+/**
+ * Accept a whole trip (0092).
+ *
+ * One rider takes every shop in the basket: the claim freezes the payout per
+ * stop and hands back the stops to collect.
+ */
+export async function claimDelivery(
+  deliveryId: string
+): Promise<{ reference: string; rider_payout: number }> {
+  const { data, error } = await supabase.rpc("claim_delivery", {
+    p_delivery_id: deliveryId,
+  });
+  if (error) throw error;
+  if (!data || data.length !== 1) {
+    throw new Error("That delivery is no longer available.");
+  }
+  return data[0];
+}
+
+/** Turn a trip down (0092). A decline sticks: the rider is not asked again. */
+export async function declineDelivery(
+  deliveryId: string,
+  reason?: string
+): Promise<void> {
+  const { error } = await supabase.rpc("decline_delivery", {
+    p_delivery_id: deliveryId,
+    p_reason: reason ?? undefined,
+  });
+  if (error) throw error;
+}
+
+/** The trips assigned to the signed-in rider. */
+export async function fetchRiderDeliveries(): Promise<RiderDelivery[]> {
+  const { data, error } = await supabase.rpc("rider_my_deliveries", {
+    p_limit: 20,
+  });
+  if (error) throw error;
+  return (data ?? []).map((row) => ({
+    delivery_id: row.delivery_id,
+    reference: row.reference,
+    customer: row.customer,
+    delivery_address: row.delivery_address ?? "",
+    customer_phone: row.customer_phone ?? "",
+    shops: row.shops,
+    subtotal: Number(row.subtotal),
+    delivery_fee: Number(row.delivery_fee),
+    service_fee: Number(row.service_fee),
+    total: Number(row.total),
+    status: row.status,
+    payment: row.payment as PaymentChoice,
+    placed_at: row.placed_at,
+  }));
+}
+
+/** The shops of a trip, for the rider's trip screen. */
+export async function fetchDeliveryStops(deliveryId: string): Promise<DeliveryStop[]> {
+  const { data, error } = await supabase.rpc("delivery_stops", {
+    p_delivery_id: deliveryId,
+  });
+  if (error) throw error;
+  return (data ?? []).map((row) => ({
+    order_id: row.order_id,
+    reference: row.reference,
+    restaurant: row.restaurant,
+    restaurant_id: row.restaurant_id ?? "",
+    subtotal: Number(row.subtotal),
+    status: row.status,
+    items: (parseOrderItems(row.items) ?? []).map((item) => ({
+      menu_item_id: item.menu_item_id ?? "",
+      name: item.name,
+      quantity: item.quantity,
+      price: Number(item.price),
+    })),
+  }));
+}
+
+/**
+ * Give a whole trip back (0092).
+ *
+ * The trip and its shops go back to confirmed with no rider, and it is offered
+ * again -- to a different rider, because the one who gave up is not asked twice.
+ */
+export async function reportFailedDeliveryTrip(
+  deliveryId: string,
+  reason: string
+): Promise<void> {
+  const { error } = await supabase.rpc("rider_report_failed_delivery_trip", {
+    p_delivery_id: deliveryId,
+    p_reason: reason,
+  });
+  if (error) throw error;
 }
 
 /**

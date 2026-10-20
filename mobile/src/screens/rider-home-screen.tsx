@@ -30,17 +30,19 @@ import { deliveryActions } from "../lib/delivery-actions";
 import { paymentLabel } from "../lib/payment-label";
 import { footerMeta } from "../lib/order-timestamp";
 import { useConnectivity } from "../lib/connectivity-context";
+import { TripCard } from "../components/TripCard";
 import {
   CompleteDeliverySheet,
   type CompleteSheetOrder,
 } from "../components/CompleteDeliverySheet";
 import {
   useMarkPickedUp,
+  useRiderDeliveries,
   useRiderOrders,
   useRiderProfile,
   type RiderOrderPageResult,
 } from "../lib/hooks";
-import { fetchRiderOrdersPage } from "../lib/storefront";
+import { fetchRiderOrdersPage, reportFailedDeliveryTrip } from "../lib/storefront";
 import { colors, radius, spacing, type } from "../lib/theme";
 import { NotificationBell } from "../components/NotificationBell";
 
@@ -80,6 +82,9 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
   // needs a field rather than a confirm dialog -- Alert.prompt is iOS-only and
   // Android is where most of these riders are.
   const [failingId, setFailingId] = useState<string | null>(null);
+  // A trip is given back as a whole (0092), so the failure form can be about
+  // a trip or about a single order.
+  const [failingTripId, setFailingTripId] = useState<string | null>(null);
   const [failReason, setFailReason] = useState("");
   const [reporting, setReporting] = useState(false);
 
@@ -87,6 +92,9 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
   // the escape hatch. It gets a confirmation sheet showing the amount being
   // settled, so neither button is a single irreversible tap.
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  // The trip being closed, when the rider is completing a whole basket rather
+  // than a single order (0092).
+  const [confirmingTripId, setConfirmingTripId] = useState<string | null>(null);
   // A one-line confirmation of what was just recorded, so a cash amount that
   // differed from the total is visibly acknowledged rather than silently
   // filed as if it matched.
@@ -108,7 +116,11 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
     error: page1Error,
     refetch: refetchPage1,
     isPending,
-  } = useRiderOrders(null, 20);
+  } = useRiderOrders(null, 20, true);
+  // Trips: one basket from several shops, listed as one job (0092). The
+  // orders list above is asked for the legacy orders only, so a trip is not
+  // shown once per shop.
+  const { data: trips } = useRiderDeliveries();
   const profileQuery = useRiderProfile(userId);
   const gcashQrUrl = profileQuery.data?.gcash_qr_url ?? null;
 
@@ -127,6 +139,22 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
       total: Number(order.total),
     };
   }, [confirmingId, orders]);
+
+  // The trip being closed. A trip is one delivery for the rider: one photo,
+  // one cash collection against the whole basket's total.
+  const completingTrip = useMemo(() => {
+    const trip = (trips ?? []).find((t) => t.delivery_id === confirmingTripId);
+    if (!trip) return null;
+    return {
+      id: trip.delivery_id,
+      reference: trip.reference,
+      customer: trip.customer,
+      restaurant: trip.shops === 1 ? "1 restaurant" : `${trip.shops} restaurants`,
+      payment: trip.payment as CompleteSheetOrder["payment"],
+      total: Number(trip.total),
+      isTrip: true,
+    };
+  }, [confirmingTripId, trips]);
 
   // Reset pagination whenever page 1 resolves to a new result. Adjusting state
   // during render (rather than in an effect) is React's documented pattern for
@@ -276,6 +304,7 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
 
   function closeFailReport() {
     setFailingId(null);
+    setFailingTripId(null);
     setFailReason("");
   }
 
@@ -302,6 +331,30 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
     }
     closeFailReport();
     // The order left this rider's list, so page 1 has to be re-read.
+    await refetchPage1();
+  }
+
+  /**
+   * Give a whole trip back (0092). The trip and its shops go back to
+   * confirmed with no rider, and it is offered again -- to a different rider,
+   * because the one who gave up is not asked twice.
+   */
+  async function reportFailedTrip(deliveryId: string) {
+    const reason = failReason.trim();
+    if (!reason || reporting) return;
+    setReporting(true);
+    setFetchError(null);
+    try {
+      await reportFailedDeliveryTrip(deliveryId, reason);
+    } catch (cause) {
+      setFetchError(
+        cause instanceof Error ? cause.message : "Could not return the trip."
+      );
+      setReporting(false);
+      return;
+    }
+    setReporting(false);
+    closeFailReport();
     await refetchPage1();
   }
 
@@ -413,6 +466,23 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
                 <Text style={styles.flashText}>{flash}</Text>
               </View>
             ) : null}
+
+            {/* Trips first (0092): a basket from several shops is one job for
+                the rider, and it belongs above the single-order list. */}
+            {(trips ?? []).map((trip) => (
+              <TripCard
+                key={trip.delivery_id}
+                trip={trip}
+                busy={pickingUpId !== null || reporting}
+                pickingUpId={pickingUpId}
+                onPickUp={(orderId) => void pickedUp.mutateAsync(orderId)}
+                onComplete={() => setConfirmingTripId(trip.delivery_id)}
+                onReportFailed={() => {
+                  setFailReason("");
+                  setFailingTripId(trip.delivery_id);
+                }}
+              />
+            ))}
           </View>
         }
         ListEmptyComponent={
@@ -632,11 +702,15 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
           a cash order, the GCash reference on a wallet order. See
           CompleteDeliverySheet, which owns those fields and their validation. */}
       <CompleteDeliverySheet
-        order={completing}
+        order={completingTrip ?? completing}
         riderId={profileQuery.data?.id ?? null}
-        onCancel={() => setConfirmingId(null)}
+        onCancel={() => {
+          setConfirmingId(null);
+          setConfirmingTripId(null);
+        }}
         onDone={({ flagged, cashRecorded, orderId }) => {
           setConfirmingId(null);
+          setConfirmingTripId(null);
           setFlash(
             flagged
               ? `Saved ₱${Number(cashRecorded ?? 0).toFixed(2)} collected — differs from the total, flagged for review.`
@@ -654,7 +728,7 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
       />
 
       <Modal
-        visible={failingId !== null}
+        visible={failingId !== null || failingTripId !== null}
         transparent
         animationType="fade"
         onRequestClose={closeFailReport}
@@ -707,12 +781,18 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
                     (!failReason.trim() || reporting) && styles.disabled,
                   ]}
                   disabled={!failReason.trim() || reporting}
-                  onPress={() => failingId && void reportFailed(failingId)}
+                  onPress={() =>
+                    failingTripId
+                      ? void reportFailedTrip(failingTripId)
+                      : failingId && void reportFailed(failingId)
+                  }
                 >
                   {reporting ? (
                     <ActivityIndicator color={colors.textInverse} size="small" />
                   ) : (
-                    <Text style={styles.failButtonLabel}>Return to restaurant</Text>
+                    <Text style={styles.failButtonLabel}>
+                      {failingTripId ? "Return the trip" : "Return to restaurant"}
+                    </Text>
                   )}
                 </Pressable>
               </View>

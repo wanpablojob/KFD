@@ -17,7 +17,11 @@ import {
   validateCompletion,
   type PaymentKind,
 } from "../lib/delivery-proof";
-import { CompletionError, completeDelivery } from "../lib/delivery-complete";
+import {
+  CompletionError,
+  completeDelivery,
+  completeDeliveryTrip,
+} from "../lib/delivery-complete";
 
 /**
  * The sheet that replaced a single "Yes, delivered" tap.
@@ -39,6 +43,11 @@ export interface CompleteSheetOrder {
   restaurant: string;
   payment: PaymentKind;
   total: number;
+  /**
+   * True for a trip (0092): a basket from several shops, closed as one
+   * delivery with one photo, one cash collection and one set of payouts.
+   */
+  isTrip?: boolean;
 }
 
 interface Props {
@@ -129,14 +138,23 @@ export function CompleteDeliverySheet({ order, riderId, onCancel, onDone }: Prop
 
     setSubmitting(true);
     try {
-      const result = await completeDelivery(riderId, {
-        orderId: order.id,
-        payment: order.payment,
-        orderTotal: order.total,
-        photoUri,
-        cashCollected: cash,
-        gcashReference: reference,
-      });
+      const result = order.isTrip
+        ? await completeDeliveryTrip(riderId, {
+            deliveryId: order.id,
+            payment: order.payment,
+            orderTotal: order.total,
+            photoUri,
+            cashCollected: cash,
+            gcashReference: reference,
+          })
+        : await completeDelivery(riderId, {
+            orderId: order.id,
+            payment: order.payment,
+            orderTotal: order.total,
+            photoUri,
+            cashCollected: cash,
+            gcashReference: reference,
+          });
       const flagged = result.flagged ?? false;
       const orderId = order.id;
       reset();

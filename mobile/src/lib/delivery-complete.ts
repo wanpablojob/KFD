@@ -120,6 +120,74 @@ export async function completeDelivery(
   };
 }
 
+/**
+ * Close a whole trip (0092).
+ *
+ * One basket from several shops is one delivery: one photo, one cash
+ * collection against the trip's grand total, one GCash reference. The proof
+ * path is the trip's, not a shop's, and the server checks it that way.
+ */
+export async function completeDeliveryTrip(
+  riderId: string,
+  input: Omit<CompletionInput, "orderId"> & { deliveryId: string }
+): Promise<CompleteResult> {
+  const check = validateCompletion({
+    ...input,
+    orderId: input.deliveryId,
+  });
+  if (!check.ok) {
+    throw new CompletionError(check.error ?? "photo-required", check.error);
+  }
+
+  const photoUri = input.photoUri as string;
+  const mime = mimeFromUri(photoUri);
+  const path = proofPath(riderId, input.deliveryId, mime);
+
+  const asset = await fetch(photoUri);
+  if (!asset.ok) {
+    throw new CompletionError(
+      "Could not read that photo. Take it again.",
+      "photo-required"
+    );
+  }
+  const blob = await asset.blob();
+
+  const { error: uploadError } = await supabase.storage
+    .from(PROOF_BUCKET)
+    .upload(path, blob, { contentType: mime, upsert: false });
+
+  if (uploadError && !isAlreadyUploaded(uploadError)) {
+    throw new CompletionError(
+      "Could not upload the delivery photo. Check your connection and try again.",
+      "photo-required"
+    );
+  }
+
+  const { error } = await supabase.rpc("rider_mark_delivery_delivered", {
+    p_delivery_id: input.deliveryId,
+    p_proof_path: path,
+    p_cash_collected: check.cash,
+    p_gcash_reference: check.reference || undefined,
+  });
+
+  if (error) {
+    throw new CompletionError(error.message);
+  }
+
+  // One notice for the trip, not one per shop: the customer hears that their
+  // delivery arrived, once.
+  void postApi("/api/orders/notify", {
+    deliveryId: input.deliveryId,
+    event: "status_changed",
+  });
+
+  return {
+    orderId: input.deliveryId,
+    cashRecorded: check.cash ?? null,
+    flagged: Boolean(check.warning),
+  };
+}
+
 function isAlreadyUploaded(error: { statusCode?: string; code?: string }): boolean {
   return error.statusCode === "409" || error.code === "ResourceAlreadyExists";
 }

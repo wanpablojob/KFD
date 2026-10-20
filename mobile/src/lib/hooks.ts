@@ -17,6 +17,9 @@ import {
   setRiderGcash,
   fetchTrackedDelivery,
   fetchTrackedOrder,
+  fetchRiderDeliveries,
+  fetchRiderDeliveryOffers,
+  fetchDeliveryStops,
   reportDeliveryIssue,
   fetchRiderOrdersPage,
   fetchRiderOffers,
@@ -144,6 +147,46 @@ export function useTrackDelivery(reference: string, enabled: boolean) {
   });
 }
 
+/**
+ * The trips offered to the rider (0092).
+ *
+ * Polls like the single-order offers: an offer expires in minutes, and one
+ * that silently went stale is worse than one that showed up late.
+ */
+export function useRiderDeliveryOffers() {
+  return useQuery({
+    queryKey: ["riderDeliveryOffers"],
+    queryFn: fetchRiderDeliveryOffers,
+    refetchOnWindowFocus: true,
+    refetchInterval: 10_000,
+  });
+}
+
+/**
+ * The trips the signed-in rider is carrying (0092).
+ *
+ * Polled like the rest of the rider's work, so a trip that is offered and
+ * claimed shows up without the rider pulling to refresh.
+ */
+export function useRiderDeliveries() {
+  return useQuery({
+    queryKey: ["riderDeliveries"],
+    queryFn: fetchRiderDeliveries,
+    refetchOnWindowFocus: true,
+    refetchInterval: 20_000,
+  });
+}
+
+/** The shops of a trip, for the rider's trip screen. */
+export function useDeliveryStops(deliveryId: string | null) {
+  return useQuery({
+    queryKey: ["deliveryStops", deliveryId],
+    queryFn: () => fetchDeliveryStops(deliveryId as string),
+    enabled: Boolean(deliveryId),
+    refetchOnWindowFocus: true,
+  });
+}
+
 export function usePlaceOrder() {
   const queryClient = useQueryClient();
 
@@ -243,10 +286,15 @@ export function useSearchRestaurants(query: string, cuisine: string | null) {
   });
 }
 
-export function useRiderOrders(initialCursor: string | null = null, limit = 20) {
+export function useRiderOrders(
+  initialCursor: string | null = null,
+  limit = 20,
+  /** Only the orders that are not part of a trip (0092). */
+  onlyLegacy = false
+) {
   return useQuery({
-    queryKey: ["riderOrders", initialCursor],
-    queryFn: () => fetchRiderOrdersPage(initialCursor, limit),
+    queryKey: ["riderOrders", initialCursor, onlyLegacy],
+    queryFn: () => fetchRiderOrdersPage(initialCursor, limit, onlyLegacy),
     placeholderData: (prev) => prev,
   });
 }

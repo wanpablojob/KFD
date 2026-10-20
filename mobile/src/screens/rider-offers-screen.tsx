@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useScrollBottomPadding } from "../components/TabBarInset";
 import { signOut } from "../lib/auth";
 import { supabase } from "../lib/supabase";
+import { claimDelivery, declineDelivery } from "../lib/storefront";
 import { offerWindowLabel } from "../lib/offer-window";
 import { isOfferClaimable, secondsUntilExpiry } from "../lib/offer-claimable";
 import { riderStatusMeta } from "../lib/rider-status";
@@ -23,6 +24,7 @@ import { riderProfileGate } from "../lib/rider-profile-gate";
 import {
   useAcceptOffer,
   useDeclineOffer,
+  useRiderDeliveryOffers,
   useRiderOffers,
   useRiderProfile,
 } from "../lib/hooks";
@@ -89,6 +91,9 @@ export function RiderOffersScreen({ userId }: { userId: string }) {
   const insets = useSafeAreaInsets();
   const bottomPadding = useScrollBottomPadding();
   const { data: offers, error, isPending, refetch } = useRiderOffers();
+  // Trips (0092): a basket from several shops is offered as one job, so the
+  // rider takes the whole trip or none of it.
+  const { data: tripOffers, refetch: refetchTripOffers } = useRiderDeliveryOffers();
   const profileQuery = useRiderProfile(userId);
   const { refetch: refetchProfile } = profileQuery;
   const accept = useAcceptOffer();
@@ -162,6 +167,35 @@ export function RiderOffersScreen({ userId }: { userId: string }) {
     } catch (cause) {
       setActionError(cause instanceof Error ? cause.message : "Could not decline.");
       await refetch();
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  /** Accept a whole trip: one claim takes every shop in the basket. */
+  async function onAcceptTrip(deliveryId: string) {
+    if (busyId) return;
+    setBusyId(deliveryId);
+    setActionError(null);
+    try {
+      await claimDelivery(deliveryId);
+    } catch (cause) {
+      setActionError(cause instanceof Error ? cause.message : "Could not accept.");
+      await refetchTripOffers();
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function onDeclineTrip(deliveryId: string) {
+    if (busyId) return;
+    setBusyId(deliveryId);
+    setActionError(null);
+    try {
+      await declineDelivery(deliveryId);
+    } catch (cause) {
+      setActionError(cause instanceof Error ? cause.message : "Could not decline.");
+      await refetchTripOffers();
     } finally {
       setBusyId(null);
     }
@@ -260,6 +294,87 @@ export function RiderOffersScreen({ userId }: { userId: string }) {
                 </Text>
               </View>
             ) : null}
+
+            {/* Trips (0092): one offer for a basket from several shops, taken
+                whole. Listed first, because a trip is the bigger job. */}
+            {(tripOffers ?? []).map((offer) => {
+              const expired = secondsUntilExpiry(offer.expiresAt, now) <= 0;
+              const busy = busyId === offer.deliveryId;
+              return (
+                <View
+                  key={offer.deliveryId}
+                  style={[styles.card, expired && styles.cardStale]}
+                >
+                  <View style={styles.cardHeader}>
+                    <Text style={styles.ref}>{offer.reference}</Text>
+                    <View style={styles.headerRight}>
+                      <Text style={styles.orderStatus}>
+                        {offer.shops === 1
+                          ? "1 restaurant"
+                          : `${offer.shops} restaurants`}
+                      </Text>
+                      <Text style={[styles.countdown, expired && styles.countdownGone]}>
+                        {countdown(offer.expiresAt, now)}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <Text style={styles.restaurant}>
+                    {offer.shops === 1 ? "One delivery" : "One delivery, several stops"}
+                  </Text>
+
+                  <View style={styles.block}>
+                    <Text style={styles.blockLabel}>Pick up &amp; deliver to</Text>
+                    <Text style={styles.blockValue}>{offer.deliveryAddress}</Text>
+                    {offer.customer ? (
+                      <Text style={styles.noPhone}>Customer: {offer.customer}</Text>
+                    ) : null}
+                  </View>
+
+                  <View style={styles.footer}>
+                    <Text style={styles.payout}>
+                      {`Earn ₱${Number(offer.payoutPerStop).toFixed(2)} per stop`}
+                    </Text>
+                    <Text style={styles.total}>
+                      Customer pays ₱{Number(offer.total).toFixed(2)}
+                    </Text>
+                  </View>
+
+                  <View style={styles.actions}>
+                    <Pressable
+                      style={[
+                        styles.declineButton,
+                        (busy || expired || offline) && styles.disabled,
+                      ]}
+                      disabled={busy || expired || offline}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Decline ${offer.reference}`}
+                      onPress={() => void onDeclineTrip(offer.deliveryId)}
+                    >
+                      <Text style={styles.declineLabel}>Decline</Text>
+                    </Pressable>
+                    <Pressable
+                      style={[
+                        styles.acceptButton,
+                        (expired || busy || offline) && styles.disabled,
+                      ]}
+                      disabled={expired || busy || offline}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Accept ${offer.reference}`}
+                      onPress={() => void onAcceptTrip(offer.deliveryId)}
+                    >
+                      {busy ? (
+                        <ActivityIndicator color={colors.textInverse} size="small" />
+                      ) : (
+                        <Text style={styles.acceptLabel}>
+                          {expired ? "Expired" : "Accept"}
+                        </Text>
+                      )}
+                    </Pressable>
+                  </View>
+                </View>
+              );
+            })}
           </View>
         }
         ListEmptyComponent={
