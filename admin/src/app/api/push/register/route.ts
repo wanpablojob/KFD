@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { reportServerError } from "@/lib/server/report-error";
+import { checkRateLimit } from "@/lib/server/rate-limit";
 
 /**
  * POST /api/push/register
@@ -99,6 +100,14 @@ export async function POST(req: Request) {
   // it is set; TypeScript cannot see through the destructured guard.
   const client = supabase!;
 
+  const limited = checkRateLimit(`push-register:${callerId}`, 20, 60_000);
+  if (!limited.allowed) {
+    return NextResponse.json(
+      { error: "Too many registration attempts. Try again shortly." },
+      { status: 429, headers: { "Retry-After": String(limited.retryAfterSeconds) } },
+    );
+  }
+
   const body = (await req.json().catch(() => ({}))) as RegisterBody;
   const deviceId = typeof body.deviceId === "string" ? body.deviceId.trim() : "";
   const token = typeof body.token === "string" ? body.token.trim() : "";
@@ -135,6 +144,28 @@ export async function POST(req: Request) {
     );
   }
 
+  // A push token identifies a physical install. The upsert conflicts on
+  // `token`, so without this check a caller who learns another user's token
+  // could re-point that row at their own account and start receiving the
+  // pushes the real owner signed up for. Refuse instead of transferring.
+  const { data: existing, error: existingError } = await client
+    .from("push_tokens")
+    .select("user_id")
+    .eq("token", token)
+    .maybeSingle();
+
+  if (existingError) {
+    reportServerError(existingError, "push/register");
+    return NextResponse.json({ error: existingError.message }, { status: 500 });
+  }
+
+  if (existing && existing.user_id !== callerId) {
+    return NextResponse.json(
+      { error: "This device is registered to another account" },
+      { status: 409 }
+    );
+  }
+
   const { error: upsertError } = await client.from("push_tokens").upsert(
     { id: deviceId, user_id: callerId, token, platform },
     { onConflict: "token", ignoreDuplicates: false }
@@ -153,6 +184,14 @@ export async function DELETE(req: Request) {
   const { callerId, error } = await authenticatedCaller(req, supabase);
   if (error) return error;
   const client = supabase!;
+
+  const limited = checkRateLimit(`push-unregister:${callerId}`, 20, 60_000);
+  if (!limited.allowed) {
+    return NextResponse.json(
+      { error: "Too many requests. Try again shortly." },
+      { status: 429, headers: { "Retry-After": String(limited.retryAfterSeconds) } },
+    );
+  }
 
   const url = new URL(req.url);
   const deviceId = (url.searchParams.get("deviceId") ?? "").trim();

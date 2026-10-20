@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { sendRiderPush } from "@/lib/server/push-notify";
 import { reportServerError } from "@/lib/server/report-error";
+import { checkRateLimit } from "@/lib/server/rate-limit";
 
 /**
  * POST /api/push/rider
@@ -72,6 +73,17 @@ export async function POST(req: Request) {
   } = await caller.auth.getUser(token);
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // The rider app calls this once per delivery, so the ceiling is well above
+  // normal use. It exists so a rider who scripts the route cannot turn the
+  // platform's push account into a self-spam channel.
+  const limited = checkRateLimit(`push-rider:${user.id}`, 20, 60_000);
+  if (!limited.allowed) {
+    return NextResponse.json(
+      { error: "Too many requests. Try again shortly." },
+      { status: 429, headers: { "Retry-After": String(limited.retryAfterSeconds) } },
+    );
   }
 
   const body = (await req.json().catch(() => ({}))) as Body;

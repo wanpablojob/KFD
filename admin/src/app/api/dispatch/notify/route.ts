@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { sendRiderPush, OFFERS_CHANNEL_ID } from "@/lib/server/push-notify";
 import { reportServerError } from "@/lib/server/report-error";
+import { checkRateLimit } from "@/lib/server/rate-limit";
 
 export const runtime = "nodejs";
 
@@ -90,6 +91,18 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
   const { supabase } = auth;
+
+  // Re-offering is a legitimate repeat action, so the ceiling is generous; it
+  // exists to stop a scripted caller turning the route into a push cannon
+  // pointed at every rider in the zone. Keyed by the verified user, never the
+  // order id in the body.
+  const limited = checkRateLimit(`dispatch-notify:${auth.user.id}`, 20, 60_000);
+  if (!limited.allowed) {
+    return NextResponse.json(
+      { error: "Too many dispatch alerts. Try again shortly." },
+      { status: 429, headers: { "Retry-After": String(limited.retryAfterSeconds) } },
+    );
+  }
 
   const body = (await req.json().catch(() => ({}))) as Body;
   const orderId = typeof body.orderId === "string" ? body.orderId.trim() : "";

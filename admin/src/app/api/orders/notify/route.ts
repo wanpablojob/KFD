@@ -14,6 +14,7 @@ import {
   sendCustomerPush,
 } from "@/lib/server/push-notify";
 import { reportServerError } from "@/lib/server/report-error";
+import { checkRateLimit } from "@/lib/server/rate-limit";
 
 /**
  * POST /api/orders/notify
@@ -138,6 +139,19 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // Each accepted call sends mail through Resend and push through Expo on the
+  // platform account. Without a bound, a signed-in customer could repeat a
+  // "placed" call for their own order and email every merchant at the
+  // restaurant as fast as the route answers. The key is the verified user id,
+  // not a body field, so nobody can spend another account's budget.
+  const limited = checkRateLimit(`orders-notify:${user.id}`, 8, 60_000);
+  if (!limited.allowed) {
+    return NextResponse.json(
+      { error: "Too many notifications requested. Try again shortly." },
+      { status: 429, headers: { "Retry-After": String(limited.retryAfterSeconds) } },
+    );
+  }
+
   // Read the order with the service role: the caller may be a customer, who
   // has no RLS access to orders at all.
   const { data: order, error: orderError } = await supabase
@@ -222,10 +236,13 @@ export async function POST(req: Request) {
 
       if (userIds.length > 0) {
         // app_users stores no address, so resolve each merchant's auth email.
-        const { data: authList } = await supabase.auth.admin.listUsers();
-        recipients = userIds
-          .map((id) => authList?.users.find((u) => u.id === id)?.email)
-          .filter((e): e is string => Boolean(e));
+        // The admin API paginates (50 per page by default), so a single call
+        // silently stops resolving merchants once the project has more than
+        // one page of users -- the order is placed, the merchant just never
+        // hears about it. Walk the pages until every id is found or the list
+        // ends, with a hard cap so a very large project cannot turn one order
+        // into an unbounded crawl.
+        recipients = await resolveMerchantEmails(supabase, userIds);
 
         const mail = newOrderEmail(emailData);
         results = await Promise.all(
@@ -257,11 +274,17 @@ export async function POST(req: Request) {
         )
       : { ok: false, sent: 0, skipped: "order has no restaurant_id" };
 
+    // Counts and outcomes only. The caller is a verified customer, admin, or
+    // merchant, but none of them needs the other party's address echoed back:
+    // a merchant or the assigned rider could otherwise read the customer's
+    // email straight out of this response, and the customer could harvest
+    // every merchant address at the restaurant. The recipient list stays
+    // server-side; the UI only needs to know whether the mail went out.
     return NextResponse.json({
       event,
-      recipients,
+      recipientCount: recipients.length,
       results,
-      customer: { to: customerEmail, result: confirmation },
+      customer: { configured: Boolean(customerEmail), result: confirmation },
       push,
     });
   }
@@ -294,9 +317,11 @@ export async function POST(req: Request) {
   const result = await sendOrderEmail(email, mail.subject, mail.html);
 
   // A 202 keeps the merchant's accept/reject from failing just because email
-  // is down; the status change is the thing that matters.
+  // is down; the status change is the thing that matters. The address is
+  // deliberately not echoed: this response reaches a merchant or rider, and
+  // the customer's email is not theirs to read.
   return NextResponse.json(
-    { event, to: email, result, push },
+    { event, delivered: result.ok, result, push },
     { status: result.ok ? 200 : 202 },
   );
 }
@@ -330,4 +355,43 @@ async function pushCustomerStatus(
     type: "order_status",
     reference: order.reference,
   });
+}
+
+/**
+ * Resolve auth emails for a set of user ids, walking the admin API's pages.
+ *
+ * `app_users` carries no address, so `auth.users` is the only source. The
+ * admin list endpoint is paginated (50 per page by default), and the previous
+ * single call resolved at most the first page -- every merchant beyond it was
+ * silently skipped, so the order was placed and the kitchen was never told.
+ * Results keep the caller's order and drop ids with no account, which is a
+ * skip rather than an error.
+ */
+async function resolveMerchantEmails(
+  supabase: NonNullable<ReturnType<typeof serviceClient>>,
+  userIds: string[],
+): Promise<string[]> {
+  const wanted = new Set(userIds);
+  const emails = new Map<string, string>();
+  const perPage = 1000;
+
+  // A cap rather than `while (true)`: a project large enough to exceed twenty
+  // pages should degrade to "some merchants were not emailed", never to a
+  // request that crawls the whole user table before it can answer.
+  for (let page = 1; page <= 20 && emails.size < wanted.size; page++) {
+    const { data, error } = await supabase.auth.admin.listUsers({ page, perPage });
+    if (error || !data?.users?.length) break;
+
+    for (const user of data.users) {
+      if (user.id && user.email && wanted.has(user.id)) {
+        emails.set(user.id, user.email);
+      }
+    }
+
+    if (data.users.length < perPage) break;
+  }
+
+  return userIds
+    .map((id) => emails.get(id))
+    .filter((email): email is string => Boolean(email));
 }
