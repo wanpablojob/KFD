@@ -216,7 +216,9 @@ export async function POST(req: Request) {
   if (deliveryId) {
     const { data: tripRow } = await supabase
       .from("deliveries")
-      .select("id, reference, customer, customer_user_id, total, status, shops")
+      .select(
+        "id, reference, customer, customer_user_id, total, status, shops, rider_id",
+      )
       .eq("id", deliveryId)
       .maybeSingle();
 
@@ -247,7 +249,9 @@ export async function POST(req: Request) {
   if (!trip && order?.delivery_id) {
     const { data: tripRow } = await supabase
       .from("deliveries")
-      .select("id, reference, customer, customer_user_id, total, status, shops")
+      .select(
+        "id, reference, customer, customer_user_id, total, status, shops, rider_id",
+      )
       .eq("id", order.delivery_id)
       .maybeSingle();
     if (tripRow) {
@@ -269,10 +273,20 @@ export async function POST(req: Request) {
   }
 
   if (trip && !order) {
-    // The whole trip: only the customer who placed it, or an admin, may
-    // announce it.
+    // The whole trip: the customer who placed it, the rider carrying it, or an
+    // admin. The rider is here to close the trip ("delivered"), and the
+    // customer to place it.
     const isOwner = trip.customer_user_id === user.id;
-    if (!isOwner && callerRole !== "admin") {
+    let isTripRider = false;
+    if (trip.rider_id) {
+      const { data: tripRider } = await supabase
+        .from("riders")
+        .select("user_id")
+        .eq("id", trip.rider_id)
+        .maybeSingle();
+      isTripRider = tripRider?.user_id === user.id;
+    }
+    if (!isOwner && !isTripRider && callerRole !== "admin") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
   } else if (order) {
@@ -507,6 +521,8 @@ interface TripRow {
   total: number;
   status: string;
   shops: number;
+  /** The rider carrying it, when it has one. */
+  rider_id: string | null;
 }
 
 /** One shop's part of a trip. */
