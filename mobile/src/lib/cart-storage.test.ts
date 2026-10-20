@@ -7,6 +7,7 @@ import {
   saveCart,
 } from "./cart-storage";
 import type { CartLine } from "./cart-logic";
+import { MAX_SHOPS } from "./cart-logic";
 
 /**
  * The cart on disk. The failure this guards against is silent: a cart that
@@ -69,12 +70,23 @@ describe("parseStoredCart", () => {
     }
   });
 
-  it("rejects a cart spanning two restaurants", () => {
+  it("keeps a cart spanning two restaurants", () => {
+    // A basket may hold food from several kitchens now (0092): one rider
+    // collects them all and delivers it in one trip.
     const stored = JSON.stringify({
       nonce,
       lines: [line(), line({ menu_item_id: "m2", restaurantId: "r2" })],
     });
-    expect(parseStoredCart(stored)).toBeNull();
+    const parsed = parseStoredCart(stored);
+    expect(parsed).not.toBeNull();
+    expect(parsed?.lines).toHaveLength(2);
+  });
+
+  it("rejects a cart with more shops than the server will deliver", () => {
+    const lines = Array.from({ length: MAX_SHOPS + 1 }, (_, i) =>
+      line({ menu_item_id: `m${i}`, restaurantId: `r${i}` })
+    );
+    expect(parseStoredCart(JSON.stringify({ nonce, lines }))).toBeNull();
   });
 });
 

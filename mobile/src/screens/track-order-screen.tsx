@@ -17,13 +17,19 @@ import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   useTrackOrder,
+  useTrackDelivery,
   useOrderRiderPayment,
   useRiderContact,
   useReportDeliveryIssue,
 } from "../lib/hooks";
 import { orderProgress, type ProgressStep } from "../lib/order-progress";
 import { deliveryWindow, formatWindow } from "../lib/delivery-estimate";
-import type { TrackedOrder, RiderPayment, RiderContact } from "../lib/storefront";
+import type {
+  TrackedOrder,
+  TrackedDelivery,
+  RiderPayment,
+  RiderContact,
+} from "../lib/storefront";
 import { colors, radius, shadow, spacing, type } from "../lib/theme";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -31,6 +37,16 @@ const STATUS_LABEL: Record<string, string> = {
   confirmed: "Confirmed",
   preparing: "Being prepared",
   out_for_delivery: "Out for delivery",
+  delivered: "Delivered",
+  cancelled: "Cancelled",
+};
+
+/** The trip's own states (0092), which are not quite the order's. */
+const TRIP_STATUS_LABEL: Record<string, string> = {
+  pending: "Waiting for the shops",
+  confirmed: "All shops accepted",
+  preparing: "Being prepared",
+  out_for_delivery: "On the way",
   delivered: "Delivered",
   cancelled: "Cancelled",
 };
@@ -67,6 +83,11 @@ export function TrackOrderScreen({
     isFetching,
     dataUpdatedAt,
   } = useTrackOrder(submitted, enabled);
+
+  // A reference can be a trip (0092): one basket from several shops, one
+  // rider, one drop-off. The trip is shown when there is one; otherwise this
+  // is the single-shop order tracker it has always been.
+  const { data: delivery } = useTrackDelivery(submitted, enabled);
 
   // The assigned rider's GCash QR, only for an e_wallet order. The server
   // returns it only to the order's own customer, so others see no block.
@@ -177,11 +198,17 @@ export function TrackOrderScreen({
           </Text>
         ) : null}
 
-        {enabled && !isLoading && !isError && order === null ? (
-          <Text style={styles.statusNote}>No order found with that reference.</Text>
+        {enabled && !isLoading && !isError && order === null && !delivery ? (
+          <Text style={styles.statusNote}>
+            No order or delivery found with that reference.
+          </Text>
         ) : null}
 
-        {order ? (
+        {delivery ? (
+          <DeliveryCard delivery={delivery} updatedAt={dataUpdatedAt} />
+        ) : null}
+
+        {!delivery && order ? (
           <OrderCard
             order={order}
             updatedAt={dataUpdatedAt}
@@ -202,6 +229,117 @@ export function TrackOrderScreen({
       </ScrollView>
       <StatusBar style="dark" />
     </KeyboardAvoidingView>
+  );
+}
+
+/**
+ * A trip: one basket from several shops, one rider, one drop-off (0092).
+ *
+ * The customer watches every shop's own status, because the shops decide
+ * separately: one kitchen can be cooking while another is still deciding. The
+ * trip's own status is the trip's.
+ */
+function DeliveryCard({
+  delivery,
+  updatedAt,
+}: {
+  delivery: TrackedDelivery;
+  updatedAt: number;
+}) {
+  const cancelled = delivery.status === "cancelled";
+  const delivered = delivery.status === "delivered";
+  const extraShops = Math.max(delivery.stops.length - 1, 0);
+  const surcharge = delivery.delivery_fee - delivery.base_delivery_fee;
+
+  return (
+    <View style={styles.card}>
+      <View style={styles.cardHeader}>
+        <Text style={styles.cardRef}>{delivery.reference}</Text>
+        <View
+          style={[
+            styles.status,
+            cancelled && styles.statusCancelled,
+            delivered && styles.statusDelivered,
+          ]}
+        >
+          <Text
+            style={[
+              styles.statusLabel,
+              cancelled && styles.statusLabelCancelled,
+              delivered && styles.statusLabelDelivered,
+            ]}
+          >
+            {TRIP_STATUS_LABEL[delivery.status] ?? delivery.status}
+          </Text>
+        </View>
+      </View>
+
+      <Text style={styles.cardRestaurant}>
+        {delivery.stops.length === 1
+          ? delivery.stops[0]?.restaurant
+          : `${delivery.stops.length} restaurants, one delivery`}
+      </Text>
+
+      {/* Every shop's own status: the kitchens decide separately, and the
+          customer is owed the truth about each one. */}
+      <View style={styles.items}>
+        {delivery.stops.map((stop) => (
+          <View key={stop.order_id} style={styles.shopBlock}>
+            <View style={styles.shopRow}>
+              <Text style={styles.itemName} numberOfLines={1}>
+                {stop.restaurant}
+              </Text>
+              <Text style={styles.shopStatus}>
+                {STATUS_LABEL[stop.status] ?? stop.status}
+              </Text>
+            </View>
+            {stop.items.map((item, index) => (
+              <View key={`${item.menu_item_id}-${index}`} style={styles.itemRow}>
+                <Text style={styles.meta}>
+                  {item.quantity}× {item.name}
+                </Text>
+                <Text style={styles.itemPrice}>
+                  ₱{(Number(item.price) * Number(item.quantity)).toFixed(2)}
+                </Text>
+              </View>
+            ))}
+          </View>
+        ))}
+      </View>
+
+      <View style={styles.fees}>
+        <FeeRow label="Subtotal" value={delivery.subtotal} />
+        <FeeRow label="Delivery fee" value={delivery.delivery_fee} />
+        {extraShops > 0 ? (
+          <Text style={styles.meta}>
+            {`₱${delivery.base_delivery_fee.toFixed(2)} rate + ₱${(surcharge / extraShops).toFixed(2)} × ${extraShops} extra ${extraShops === 1 ? "shop" : "shops"}`}
+          </Text>
+        ) : null}
+        <FeeRow label="Service fee" value={delivery.service_fee} />
+        <View style={styles.totalRow}>
+          <Text style={styles.totalLabel}>Total</Text>
+          <Text style={styles.totalValue}>₱{Number(delivery.total).toFixed(2)}</Text>
+        </View>
+      </View>
+
+      {delivery.rider ? (
+        <View style={styles.addressBlock}>
+          <Text style={styles.addressLabel}>Your rider</Text>
+          <Text style={styles.addressValue}>{delivery.rider}</Text>
+        </View>
+      ) : null}
+
+      {delivery.delivery_address ? (
+        <View style={styles.addressBlock}>
+          <Text style={styles.addressLabel}>Deliver to</Text>
+          <Text style={styles.addressValue}>{delivery.delivery_address}</Text>
+        </View>
+      ) : null}
+
+      <Text style={styles.meta}>
+        Updated {new Date(updatedAt).toLocaleTimeString()}
+      </Text>
+    </View>
   );
 }
 
@@ -599,6 +737,14 @@ const styles = StyleSheet.create({
   cardRestaurant: { ...type.body, color: colors.textMuted },
   items: { gap: 4, marginTop: 4 },
   itemRow: { flexDirection: "row", justifyContent: "space-between" },
+  shopBlock: { gap: 2, paddingBottom: spacing.sm },
+  shopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+  },
+  shopStatus: { ...type.caption, color: colors.textMuted },
   itemName: { ...type.body, color: colors.text },
   itemPrice: { ...type.body, color: colors.text },
   fees: {

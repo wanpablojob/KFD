@@ -1,11 +1,16 @@
 /**
- * Cart line maths and the multi-restaurant rule, kept as pure functions so they
+ * Cart line maths and the multi-shop rule, kept as pure functions so they
  * can be tested without React or Supabase.
  *
- * The bug this replaces: `add` returned the previous cart unchanged when the
- * incoming line came from a different restaurant, so tapping ADD on a second
- * restaurant looked like nothing happened. Only checkout ever complained, and
- * by then the customer had no idea which line was the problem.
+ * A cart may hold food from several restaurants. The customer checks out once
+ * and one rider collects from every shop in the basket and delivers it in one
+ * trip, so nothing here needs to know which shop a line came from beyond
+ * grouping the lines for the screen and pricing them together.
+ *
+ * The rule that used to live here -- one restaurant per cart, with a "start a
+ * new cart?" prompt -- is gone: a basket with food from ten kitchens is one
+ * basket now. What is left is the cap the server enforces (0092): ten shops in
+ * one delivery.
  */
 
 export interface CartLine {
@@ -14,41 +19,37 @@ export interface CartLine {
   price: number;
   quantity: number;
   restaurantId: string;
-  /** Carried so "start a new cart?" can name what would be cleared. */
+  /** Carried so the checkout can name the shop a line came from. */
   restaurantName: string;
+}
+
+/** One shop's part of the cart. */
+export interface CartShop {
+  restaurantId: string;
+  restaurantName: string;
+  lines: CartLine[];
+  /** How many items in total, across the shop's lines. */
+  count: number;
+  /** The shop's own food, so the screen can show a subtotal per shop. */
+  subtotal: number;
 }
 
 export type AddResult =
   | { kind: "added"; lines: CartLine[] }
   | { kind: "merged"; lines: CartLine[] }
-  /** Blocked: the cart holds a different restaurant. Caller must resolve. */
-  | {
-      kind: "other_restaurant";
-      lines: CartLine[];
-      pending: CartLine;
-      /**
-       * What the customer stands to lose. A destructive confirm that cannot
-       * say what it destroys is a coin flip.
-       */
-      previousRestaurantName: string;
-      previousItemCount: number;
-    };
+  /** Refused: the basket already holds the maximum number of shops. */
+  | { kind: "too_many_shops"; lines: CartLine[]; shopCount: number };
+
+/** Mirrors customer_place_delivery's cap (0092): ten shops in one delivery. */
+export const MAX_SHOPS = 10;
+
+/** Mirrors customer_place_order's per-line cap (0076), so the stepper stops where the server would. */
+export const MAX_QUANTITY = 50;
 
 export function addLine(
   lines: CartLine[],
   line: Omit<CartLine, "quantity">
 ): AddResult {
-  const other = lines.find((l) => l.restaurantId !== line.restaurantId);
-  if (other) {
-    return {
-      kind: "other_restaurant",
-      lines,
-      pending: { ...line, quantity: 1 },
-      previousRestaurantName: other.restaurantName,
-      previousItemCount: countLines(lines),
-    };
-  }
-
   const existing = lines.find((l) => l.menu_item_id === line.menu_item_id);
   if (existing) {
     return {
@@ -61,11 +62,17 @@ export function addLine(
     };
   }
 
+  // A new shop in the basket. The server refuses an eleventh, so the app
+  // refuses it here too, with a message the customer can read.
+  if (
+    !lines.some((l) => l.restaurantId === line.restaurantId) &&
+    shopCountOf(lines) >= MAX_SHOPS
+  ) {
+    return { kind: "too_many_shops", lines, shopCount: shopCountOf(lines) };
+  }
+
   return { kind: "added", lines: [...lines, { ...line, quantity: 1 }] };
 }
-
-/** Mirrors customer_place_order's per-line cap (0076), so the stepper stops where the server would. */
-export const MAX_QUANTITY = 50;
 
 export function setQuantity(
   lines: CartLine[],
@@ -91,13 +98,60 @@ export function subtotalOf(lines: CartLine[]): number {
   return lines.reduce((n, l) => n + l.price * l.quantity, 0);
 }
 
-export function restaurantOf(lines: CartLine[]): string | null {
-  return lines.length === 0 ? null : lines[0].restaurantId;
+/**
+ * The cart split by shop, in the order the shops were added.
+ *
+ * The checkout shows one card per shop with its own subtotal, because that is
+ * what the customer bought from that kitchen, and the whole trip is priced
+ * together on top of it.
+ */
+export function groupByRestaurant(lines: CartLine[]): CartShop[] {
+  const shops: CartShop[] = [];
+  for (const line of lines) {
+    const shop = shops.find((s) => s.restaurantId === line.restaurantId);
+    if (shop) {
+      shop.lines.push(line);
+      shop.count += line.quantity;
+      shop.subtotal += line.price * line.quantity;
+      continue;
+    }
+    shops.push({
+      restaurantId: line.restaurantId,
+      restaurantName: line.restaurantName,
+      lines: [line],
+      count: line.quantity,
+      subtotal: line.price * line.quantity,
+    });
+  }
+  return shops;
 }
 
-/** The restaurant the cart belongs to, for the checkout header. */
-export function restaurantNameOf(lines: CartLine[]): string | null {
-  return lines.length === 0 ? null : lines[0].restaurantName;
+/** How many different shops the basket holds. */
+export function shopCountOf(lines: CartLine[]): number {
+  return new Set(lines.map((l) => l.restaurantId)).size;
+}
+
+/** Is the basket at the server's cap of shops? */
+export function isFullCart(lines: CartLine[]): boolean {
+  return shopCountOf(lines) >= MAX_SHOPS;
+}
+
+/**
+ * The basket as the server wants it: one entry per shop, each with its lines.
+ *
+ * The order of the shops is the order they were added, so the trip is picked
+ * up in the order the customer saw.
+ */
+export function toShopPayload(
+  lines: CartLine[]
+): { restaurant_id: string; items: { menu_item_id: string; quantity: number }[] }[] {
+  return groupByRestaurant(lines).map((shop) => ({
+    restaurant_id: shop.restaurantId,
+    items: shop.lines.map((line) => ({
+      menu_item_id: line.menu_item_id,
+      quantity: line.quantity,
+    })),
+  }));
 }
 
 /**
@@ -105,9 +159,9 @@ export function restaurantNameOf(lines: CartLine[]): string | null {
  *
  * It scopes the checkout idempotency key. The key has to survive a screen
  * remount (a retry after a lost response must not place a second order), but it
- * must not survive an edit: `customer_place_order` returns the order already
- * filed under a repeated key *without* re-pricing it (0081), so reusing the key
- * after the customer changes a quantity would send them to the wrong order.
+ * must not survive an edit: `customer_place_delivery` returns the trip already
+ * filed under a repeated key *without* re-pricing it (0092), so reusing the key
+ * after the customer changes a quantity would send them to the wrong trip.
  * Sorting makes the digest depend on contents, not tap order.
  */
 export function cartFingerprint(lines: CartLine[]): string {
@@ -132,9 +186,53 @@ export function checkoutNonce(): string {
 
 /**
  * The idempotency key sent with a checkout: the cart's nonce plus a digest of
- * its contents. `customer_place_order` accepts 8-64 characters (0076), which
- * this stays inside for any cart the app can build.
+ * its contents. `customer_place_delivery` accepts 8-64 characters (0076),
+ * which this stays inside for any cart the app can build.
  */
 export function checkoutRequestId(nonce: string, lines: CartLine[]): string {
   return `${nonce}-${cartFingerprint(lines)}`;
+}
+
+/**
+ * The delivery fee, split so the customer can see what they are paying for.
+ *
+ * The server sends the fee for the destination barangay (`base_delivery_fee`)
+ * and the fee for the whole trip (`delivery_fee`), which also carries 10.00
+ * for every shop after the first (0092). The surcharge is the difference, so
+ * the app never hardcodes the price: it shows what the server charged.
+ */
+export interface FeeBreakdown {
+  /** The barangay's own delivery rate. */
+  base: number;
+  /** How many shops are in the basket after the first. */
+  extraShops: number;
+  /** What each extra shop costs. */
+  extraShopFee: number;
+  /** The whole delivery fee: base plus the extra shops. */
+  deliveryFee: number;
+  serviceFee: number;
+  total: number;
+  /** True when the fee is settled with the rider at the door. */
+  feeAgreedInPerson: boolean;
+}
+
+export function feeBreakdown(quote: {
+  shop_count: number;
+  base_delivery_fee: number;
+  delivery_fee: number;
+  service_fee: number;
+  total: number;
+  fee_agreed_in_person?: boolean;
+}): FeeBreakdown {
+  const extraShops = Math.max(quote.shop_count - 1, 0);
+  const surcharge = quote.delivery_fee - quote.base_delivery_fee;
+  return {
+    base: quote.base_delivery_fee,
+    extraShops,
+    extraShopFee: extraShops > 0 ? surcharge / extraShops : 0,
+    deliveryFee: quote.delivery_fee,
+    serviceFee: quote.service_fee,
+    total: quote.total,
+    feeAgreedInPerson: quote.fee_agreed_in_person === true,
+  };
 }

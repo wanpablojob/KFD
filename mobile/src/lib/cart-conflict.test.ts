@@ -1,11 +1,15 @@
 import { INITIAL, reducer, type CartState } from "./cart-context";
-import { countLines, type CartLine } from "./cart-logic";
+import { countLines, shopCountOf, type CartLine } from "./cart-logic";
 
 /**
- * The cart-conflict flow, end to end through the reducer the screen actually
- * uses. Pure cart maths is covered in cart-logic.test.ts; what matters here is
- * that the customer's choices are respected and nothing is lost or duplicated
- * behind their back.
+ * The cart state, end to end through the reducer the screen actually uses.
+ * Pure cart maths is covered in cart-logic.test.ts; what matters here is that
+ * a basket holding food from several kitchens keeps all of it, and that
+ * nothing the customer chose is lost or duplicated behind their back.
+ *
+ * The old flow asked "your cart has items from another place, start a new
+ * cart?". That is gone (0092): one basket can hold ten kitchens, and one
+ * rider collects them all.
  */
 
 const line = (
@@ -31,81 +35,59 @@ const cartAtJollibee = (): CartState => {
 };
 
 describe("adding from a second restaurant", () => {
-  it("holds the line instead of dropping it, and leaves the cart alone", () => {
-    const before = cartAtJollibee();
-    const after = reducer(before, { type: "add", line: mcdonalds("burger") });
+  it("keeps both shops' food in the basket", () => {
+    const after = reducer(cartAtJollibee(), {
+      type: "add",
+      line: mcdonalds("burger"),
+    });
 
-    expect(after.pending?.line.menu_item_id).toBe("burger");
-    expect(after.lines).toEqual(before.lines);
-    expect(countLines(after.lines)).toBe(2);
+    expect(after.lines).toHaveLength(2);
+    expect(shopCountOf(after.lines)).toBe(2);
+    // The Jollibee items are untouched.
+    expect(countLines(after.lines)).toBe(3);
   });
 
-  it("records what clearing would cost the customer", () => {
-    const after = reducer(cartAtJollibee(), { type: "add", line: mcdonalds("burger") });
-    expect(after.pending?.previousRestaurantName).toBe("Jollibee");
-    expect(after.pending?.previousItemCount).toBe(2);
-  });
-
-  it("moves the question to the newest item if they tap ADD elsewhere", () => {
-    const asked = reducer(cartAtJollibee(), { type: "add", line: mcdonalds("burger") });
-    const moved = reducer(asked, { type: "add", line: mcdonalds("fries") });
-
-    expect(moved.pending?.line.menu_item_id).toBe("fries");
-    expect(moved.lines).toEqual(asked.lines);
+  it("does not ask the customer to start a new cart", () => {
+    const after = reducer(cartAtJollibee(), {
+      type: "add",
+      line: mcdonalds("burger"),
+    });
+    expect(Object.keys(after)).toEqual(["lines"]);
   });
 });
 
-describe("KEEP CART", () => {
-  it("drops the held line and keeps the cart exactly as it was", () => {
-    const before = cartAtJollibee();
-    const asked = reducer(before, { type: "add", line: mcdonalds("burger") });
-    const kept = reducer(asked, { type: "dismissPending" });
-
-    expect(kept.pending).toBeNull();
-    expect(kept.lines).toEqual(before.lines);
-  });
-});
-
-describe("CLEAR & ADD", () => {
-  it("replaces the cart with the held line", () => {
-    const asked = reducer(cartAtJollibee(), { type: "add", line: mcdonalds("burger") });
-    const swapped = reducer(asked, { type: "acceptPending" });
-
-    expect(swapped.pending).toBeNull();
-    expect(swapped.lines).toHaveLength(1);
-    expect(swapped.lines[0].menu_item_id).toBe("burger");
-    expect(swapped.lines[0].quantity).toBe(1);
-    expect(swapped.lines[0].restaurantName).toBe("McDonalds");
+describe("editing the basket", () => {
+  it("removes one shop's line and keeps the other", () => {
+    let s = reducer(cartAtJollibee(), {
+      type: "add",
+      line: mcdonalds("burger"),
+    });
+    s = reducer(s, { type: "remove", menu_item_id: "burger" });
+    expect(shopCountOf(s.lines)).toBe(1);
+    expect(countLines(s.lines)).toBe(2);
   });
 
-  it("leaves the new cart able to accept more from the same restaurant", () => {
-    const asked = reducer(cartAtJollibee(), { type: "add", line: mcdonalds("burger") });
-    const swapped = reducer(asked, { type: "acceptPending" });
-    const more = reducer(swapped, { type: "add", line: mcdonalds("fries") });
-
-    expect(more.pending).toBeNull();
-    expect(more.lines.map((l) => l.menu_item_id)).toEqual(["burger", "fries"]);
-  });
-});
-
-describe("no stale question", () => {
-  it("clears a held line once the customer adds normally again", () => {
-    const asked = reducer(cartAtJollibee(), { type: "add", line: mcdonalds("burger") });
-    const resolved = reducer(asked, { type: "dismissPending" });
-    const added = reducer(resolved, { type: "add", line: jollibee("b") });
-
-    expect(added.pending).toBeNull();
-    expect(added.lines.map((l) => l.menu_item_id)).toEqual(["a", "b"]);
+  it("replaces the whole basket, for a reorder", () => {
+    const s = reducer(cartAtJollibee(), {
+      type: "replace",
+      lines: [{ ...mcdonalds("fries"), quantity: 1 }],
+    });
+    expect(s.lines).toHaveLength(1);
+    expect(s.lines[0].menu_item_id).toBe("fries");
   });
 
-  it("ignores accept and dismiss when nothing is held", () => {
-    const clean = cartAtJollibee();
-    expect(reducer(clean, { type: "acceptPending" })).toBe(clean);
-    expect(reducer(clean, { type: "dismissPending" }).lines).toEqual(clean.lines);
+  it("empties the basket on clear", () => {
+    const s = reducer(cartAtJollibee(), { type: "clear" });
+    expect(s.lines).toEqual([]);
   });
 
-  it("empties cart and held line together", () => {
-    const asked = reducer(cartAtJollibee(), { type: "add", line: mcdonalds("burger") });
-    expect(reducer(asked, { type: "clear" })).toEqual(INITIAL);
+  it("restores a basket from disk, shops and all", () => {
+    const stored: CartLine[] = [
+      { ...jollibee("a"), quantity: 1 },
+      { ...mcdonalds("burger"), quantity: 2 },
+    ];
+    const s = reducer(INITIAL, { type: "hydrate", lines: stored });
+    expect(s.lines).toEqual(stored);
+    expect(shopCountOf(s.lines)).toBe(2);
   });
 });

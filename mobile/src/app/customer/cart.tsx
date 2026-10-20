@@ -14,9 +14,9 @@ import {
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCart } from "../../lib/cart-context";
+import { feeBreakdown, toShopPayload } from "../../lib/cart-logic";
 import { autoEnablePushOnce } from "../../lib/push";
 import { useTabBarInset } from "../../components/TabBarInset";
-import { useActiveRestaurants } from "../../lib/hooks";
 import { TRAVEL_MINUTES } from "../../lib/delivery-estimate";
 import { useCartQuote } from "../../lib/cart-quote";
 import { useSession } from "../../lib/session-context";
@@ -32,7 +32,7 @@ import {
 import { completeAddress } from "../../lib/address-validation";
 import {
   fetchServiceAreas,
-  placeCustomerOrder,
+  placeDelivery,
   type PaymentChoice,
 } from "../../lib/storefront";
 import { colors, radius, shadow, spacing, type } from "../../lib/theme";
@@ -51,15 +51,8 @@ export default function CustomerCartScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const tabInset = useTabBarInset();
-  const {
-    lines,
-    setQuantity,
-    remove,
-    clear,
-    restaurantId,
-    restaurantName,
-    checkoutRequestId,
-  } = useCart();
+  const { lines, shops, shopCount, setQuantity, remove, clear, checkoutRequestId } =
+    useCart();
   const { user } = useSession();
   const [address, setAddress] = useState("");
   const [addresses, setAddresses] = useState<SavedAddress[]>([]);
@@ -181,14 +174,20 @@ export default function CustomerCartScreen() {
   // the fee in particular has no client copy worth having.
   const subtotal = quote?.subtotal ?? null;
   const total = quote?.total ?? null;
+  // The delivery fee, split so the customer can see what they are paying for:
+  // the destination's own rate, plus 10.00 for every shop after the first.
+  const fees = quote ? feeBreakdown(quote) : null;
   // Anything but a settled quote means the button would charge a number the
   // customer has not actually seen.
-  // The restaurant as the catalogue last saw it: open or not, and its prep
-  // time for the estimate. The server still refuses a closed kitchen; this
-  // only says so before the customer taps, instead of after.
-  const { data: catalogue } = useActiveRestaurants();
-  const kitchen = (catalogue ?? []).find((r) => r.id === restaurantId) ?? null;
-  const kitchenClosed = kitchen !== null && !kitchen.is_open;
+  // The shops as the server last saw them: open or not. The server still
+  // refuses a closed kitchen; this only says so before the customer taps,
+  // instead of after.
+  const kitchenClosed = quote?.shops?.some((s) => s.is_open === false) === true;
+  // The slowest kitchen sets the estimate: one rider still has to collect from
+  // every shop before the bag leaves the last one.
+  const prepMinutes = quote?.shops?.length
+    ? Math.max(...quote.shops.map((s) => s.prep_minutes ?? 0))
+    : null;
   const canPlace = quote !== null && !quoting && !placing && !kitchenClosed;
 
   async function handlePlaceOrder() {
@@ -204,10 +203,6 @@ export default function CustomerCartScreen() {
     // Only null for an empty cart, which the guard above already returned on.
     if (!checkoutRequestId) {
       setError("Your cart changed. Review it and try again.");
-      return;
-    }
-    if (!restaurantId) {
-      setError("Your cart has items from more than one place. Start a new cart.");
       return;
     }
     if (!trimmedAddress) {
@@ -236,12 +231,10 @@ export default function CustomerCartScreen() {
       // customer_place_order copies the account's number onto the order, so the
       // number for this address has to be the account's number when it lands.
       if (newPhone !== savedPhone) await saveContactPhone(newPhone);
-      const result = await placeCustomerOrder({
-        restaurantId,
-        items: lines.map((l) => ({
-          menu_item_id: l.menu_item_id,
-          quantity: l.quantity,
-        })),
+      const result = await placeDelivery({
+        // One entry per shop: the server prices each shop and the trip as a
+        // whole, and mints one order per shop under it.
+        shops: toShopPayload(lines),
         deliveryAddress: trimmedAddress,
         payment,
         requestId: checkoutRequestId,
@@ -291,11 +284,11 @@ export default function CustomerCartScreen() {
         <View style={styles.backBtn} />
         <View style={styles.topTitles}>
           <Text style={styles.topTitle}>Your cart</Text>
-          {restaurantName ? (
-            <Text style={type.caption} numberOfLines={1}>
-              {restaurantName}
-            </Text>
-          ) : null}
+          <Text style={type.caption} numberOfLines={1}>
+            {shopCount === 1
+              ? shops[0]?.restaurantName
+              : `${shopCount} restaurants · one delivery`}
+          </Text>
         </View>
         <View style={styles.backBtn} />
       </View>
@@ -304,39 +297,51 @@ export default function CustomerCartScreen() {
         contentContainerStyle={styles.list}
         keyboardShouldPersistTaps="handled"
       >
-        {lines.map((line) => (
-          <View key={line.menu_item_id} style={[styles.line, shadow.card]}>
-            <View style={styles.lineInfo}>
-              <Text style={styles.lineName} numberOfLines={1}>
-                {line.name}
+        {shops.map((shop) => (
+          <View key={shop.restaurantId} style={styles.shopGroup}>
+            <View style={styles.shopHead}>
+              <Text style={styles.shopName} numberOfLines={1}>
+                {shop.restaurantName}
               </Text>
-              <Text style={type.price}>₱{(line.price * line.quantity).toFixed(2)}</Text>
+              <Text style={styles.shopSubtotal}>{peso(shop.subtotal)}</Text>
             </View>
-            <View style={styles.lineFoot}>
-              <View style={styles.stepper}>
-                <Pressable
-                  style={styles.stepBtn}
-                  onPress={() => setQuantity(line.menu_item_id, line.quantity - 1)}
-                  accessibilityLabel={`Remove one ${line.name}`}
-                >
-                  <Text style={styles.stepMinus}>−</Text>
-                </Pressable>
-                <Text style={styles.stepQty}>{line.quantity}</Text>
-                <Pressable
-                  style={styles.stepBtn}
-                  onPress={() => setQuantity(line.menu_item_id, line.quantity + 1)}
-                  accessibilityLabel={`Add one ${line.name}`}
-                >
-                  <Text style={styles.stepPlus}>+</Text>
-                </Pressable>
+            {shop.lines.map((line) => (
+              <View key={line.menu_item_id} style={[styles.line, shadow.card]}>
+                <View style={styles.lineInfo}>
+                  <Text style={styles.lineName} numberOfLines={1}>
+                    {line.name}
+                  </Text>
+                  <Text style={type.price}>
+                    ₱{(line.price * line.quantity).toFixed(2)}
+                  </Text>
+                </View>
+                <View style={styles.lineFoot}>
+                  <View style={styles.stepper}>
+                    <Pressable
+                      style={styles.stepBtn}
+                      onPress={() => setQuantity(line.menu_item_id, line.quantity - 1)}
+                      accessibilityLabel={`Remove one ${line.name}`}
+                    >
+                      <Text style={styles.stepMinus}>−</Text>
+                    </Pressable>
+                    <Text style={styles.stepQty}>{line.quantity}</Text>
+                    <Pressable
+                      style={styles.stepBtn}
+                      onPress={() => setQuantity(line.menu_item_id, line.quantity + 1)}
+                      accessibilityLabel={`Add one ${line.name}`}
+                    >
+                      <Text style={styles.stepPlus}>+</Text>
+                    </Pressable>
+                  </View>
+                  <Pressable
+                    onPress={() => remove(line.menu_item_id)}
+                    accessibilityLabel={`Remove ${line.name}`}
+                  >
+                    <Text style={styles.remove}>Remove</Text>
+                  </Pressable>
+                </View>
               </View>
-              <Pressable
-                onPress={() => remove(line.menu_item_id)}
-                accessibilityLabel={`Remove ${line.name}`}
-              >
-                <Text style={styles.remove}>Remove</Text>
-              </Pressable>
-            </View>
+            ))}
           </View>
         ))}
 
@@ -533,27 +538,36 @@ export default function CustomerCartScreen() {
           <BillLine
             label="Delivery fee"
             value={
-              quote?.fee_agreed_in_person
+              fees?.feeAgreedInPerson
                 ? "Agreed with rider"
-                : peso(quote?.delivery_fee ?? null)
+                : peso(fees?.deliveryFee ?? null)
             }
           />
-          <BillLine label="Service fee" value={peso(quote?.service_fee ?? null)} />
+          {fees && fees.extraShops > 0 ? (
+            <Text style={styles.feeNote}>
+              {peso(fees.base)} rate + {peso(fees.extraShopFee)} × {fees.extraShops}{" "}
+              extra {fees.extraShops === 1 ? "shop" : "shops"}
+            </Text>
+          ) : null}
+          <BillLine label="Service fee" value={peso(fees?.serviceFee ?? null)} />
           <View style={styles.divider} />
           <BillLine label="Total" value={peso(total)} bold />
         </View>
 
-        {kitchen ? (
+        {kitchenClosed ? (
           <View style={styles.etaRow}>
-            <Ionicons
-              name={kitchenClosed ? "close-circle-outline" : "time-outline"}
-              size={16}
-              color={kitchenClosed ? colors.danger : colors.textMuted}
-            />
-            <Text style={kitchenClosed ? styles.etaClosed : type.caption}>
-              {kitchenClosed
-                ? `${kitchen.name} has closed for now. Your cart is saved for when it opens.`
-                : `Delivery in about ${kitchen.prep_minutes + TRAVEL_MINUTES.min}–${kitchen.prep_minutes + TRAVEL_MINUTES.max} min`}
+            <Ionicons name="close-circle-outline" size={16} color={colors.danger} />
+            <Text style={styles.etaClosed}>
+              One of the shops in your cart has closed for now. Your cart is saved for
+              when it opens.
+            </Text>
+          </View>
+        ) : prepMinutes !== null ? (
+          <View style={styles.etaRow}>
+            <Ionicons name="time-outline" size={16} color={colors.textMuted} />
+            <Text style={type.caption}>
+              Delivery in about {prepMinutes + TRAVEL_MINUTES.min}–
+              {prepMinutes + TRAVEL_MINUTES.max} min
             </Text>
           </View>
         ) : null}
@@ -637,6 +651,15 @@ const styles = StyleSheet.create({
   topTitles: { flex: 1, alignItems: "center" },
   topTitle: { ...type.heading, color: colors.text },
   list: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xl },
+  shopGroup: { gap: spacing.sm },
+  shopHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.md,
+  },
+  shopName: { ...type.label, color: colors.text, flex: 1 },
+  shopSubtotal: { ...type.label, color: colors.textMuted },
   line: {
     backgroundColor: colors.card,
     borderRadius: radius.lg,
@@ -801,6 +824,7 @@ const styles = StyleSheet.create({
     color: colors.textInverse,
   },
   etaRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
+  feeNote: { ...type.caption, color: colors.textFaint, marginTop: -spacing.xs },
   etaClosed: { ...type.caption, color: colors.danger, fontWeight: "700", flex: 1 },
   emptyTitle: { ...type.title, color: colors.textMuted },
   browseBtn: {

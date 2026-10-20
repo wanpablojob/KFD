@@ -15,6 +15,7 @@ import {
   rateOrder,
   fetchOrderRiderPayment,
   setRiderGcash,
+  fetchTrackedDelivery,
   fetchTrackedOrder,
   reportDeliveryIssue,
   fetchRiderOrdersPage,
@@ -116,6 +117,28 @@ export function useTrackOrder(reference: string, enabled: boolean) {
       const status = query.state.data?.status;
       // undefined while the first fetch is in flight, which is not terminal.
       if (status && isTerminalStatus(status)) return false;
+      return 15_000;
+    },
+  });
+}
+
+/**
+ * Live tracking for a trip that may hold food from several shops (0092).
+ *
+ * Polls while the trip is moving and stops at a terminal status, the same as
+ * the single-shop order tracker.
+ */
+export function useTrackDelivery(reference: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ["trackDelivery", reference],
+    queryFn: () => fetchTrackedDelivery(reference),
+    enabled: enabled && reference.trim().length > 0,
+    refetchOnWindowFocus: true,
+    refetchInterval: (query) => {
+      const status = query.state.data?.status;
+      if (status && (status === "delivered" || status === "cancelled")) {
+        return false;
+      }
       return 15_000;
     },
   });

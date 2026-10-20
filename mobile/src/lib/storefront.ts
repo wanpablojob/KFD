@@ -784,6 +784,253 @@ export async function placeCustomerOrder(args: {
 }
 
 /**
+ * One shop's part of a basket, as the server wants it (0092).
+ *
+ * The basket may hold food from several restaurants: the customer checks out
+ * once and one rider collects from every shop and delivers it in one trip.
+ */
+export type QuoteShop = {
+  restaurant_id: string;
+  items: PlaceOrderItem[];
+};
+
+/** What the server prices for one shop, so the checkout can show a per-shop subtotal. */
+export interface QuotedShop {
+  restaurant_id: string;
+  restaurant: string;
+  is_open: boolean;
+  prep_minutes: number | null;
+  subtotal: number;
+  items: {
+    menu_item_id: string;
+    name: string;
+    quantity: number;
+    price: number;
+  }[];
+}
+
+export interface DeliveryQuote {
+  shop_count: number;
+  subtotal: number;
+  /** The destination's own delivery rate, without the extra-shop surcharge. */
+  base_delivery_fee: number;
+  /** The whole delivery fee: the rate plus 10.00 per extra shop (0092). */
+  delivery_fee: number;
+  service_fee: number;
+  total: number;
+  fee_agreed_in_person?: boolean;
+  unknown_barangay?: boolean;
+  shops: QuotedShop[];
+}
+
+export interface PlaceDeliveryResult {
+  delivery_id: string;
+  reference: string;
+  order_ids: string[];
+  total: number;
+  status: string;
+}
+
+/**
+ * The per-shop rows of a quote, mapped field by field.
+ *
+ * The RPC returns the shops as jsonb, so the generated type says `Json`. The
+ * screen needs a name, a subtotal and a line list per shop, and a hand-edited
+ * or truncated row must not become `undefined` halfway down a list.
+ */
+function mapQuotedShops(value: unknown): QuotedShop[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    if (entry === null || typeof entry !== "object") return [];
+    const shop = entry as Record<string, unknown>;
+    if (typeof shop.restaurant_id !== "string") return [];
+    const items = Array.isArray(shop.items) ? shop.items : [];
+    return [
+      {
+        restaurant_id: shop.restaurant_id,
+        restaurant: typeof shop.restaurant === "string" ? shop.restaurant : "",
+        is_open: shop.is_open !== false,
+        prep_minutes: typeof shop.prep_minutes === "number" ? shop.prep_minutes : null,
+        subtotal: typeof shop.subtotal === "number" ? shop.subtotal : 0,
+        items: items.flatMap((item) => {
+          if (item === null || typeof item !== "object") return [];
+          const row = item as Record<string, unknown>;
+          if (typeof row.menu_item_id !== "string") return [];
+          return [
+            {
+              menu_item_id: row.menu_item_id,
+              name: typeof row.name === "string" ? row.name : "",
+              quantity: typeof row.quantity === "number" ? row.quantity : 0,
+              price: typeof row.price === "number" ? row.price : 0,
+            },
+          ];
+        }),
+      },
+    ];
+  });
+}
+
+/**
+ * Server-authoritative price preview for a basket with food from several
+ * shops (0092).
+ *
+ * The delivery fee is the destination's rate plus 10.00 for every shop after
+ * the first, and the service fee is charged once for the whole checkout. The
+ * screen shows that split; the numbers come from here, never from the app.
+ */
+export async function quoteDelivery(args: {
+  shops: QuoteShop[];
+  /** Destination, so the quoted fee is the zonal one the trip will charge. */
+  barangay?: string | null;
+}): Promise<DeliveryQuote> {
+  const { data, error } = await supabase.rpc("quote_delivery", {
+    p_shops: args.shops,
+    p_delivery_barangay: args.barangay ?? undefined,
+  });
+  if (error) throw error;
+  if (!data || data.length !== 1) {
+    throw new Error("Could not price this cart. Try again.");
+  }
+  const row = data[0];
+  return { ...row, shops: mapQuotedShops(row.shops) };
+}
+
+/**
+ * Place the whole basket as one trip (0092).
+ *
+ * Server-side priced + minted: the client never sends a total. Idempotent on
+ * the request id, so a retry after a lost response returns the trip that
+ * landed instead of placing a second one.
+ */
+export async function placeDelivery(args: {
+  shops: QuoteShop[];
+  deliveryAddress: string;
+  payment: PaymentChoice;
+  /** Same value on every retry of one checkout. */
+  requestId: string;
+  /** Required by the server once service_areas is published (0077). */
+  barangay?: string | null;
+}): Promise<PlaceDeliveryResult> {
+  const { data, error } = await supabase.rpc("customer_place_delivery", {
+    p_shops: args.shops,
+    p_delivery_address: args.deliveryAddress,
+    p_payment: args.payment,
+    p_client_request_id: args.requestId,
+    p_delivery_barangay: args.barangay ?? undefined,
+  });
+  if (error) throw error;
+  if (!data || data.length !== 1) {
+    throw new Error("Order was not placed. Try again.");
+  }
+
+  // Each shop is told about its own part; the customer is told about the trip
+  // once. The API checks the caller against the token, not the body.
+  for (const orderId of data[0].order_ids ?? []) {
+    void postApi("/api/orders/notify", { orderId, event: "placed" });
+  }
+
+  return data[0];
+}
+
+/**
+ * One shop's part of a trip, as the tracker shows it.
+ *
+ * A trip may hold food from several shops (0092): each one has its own status,
+ * and the customer watches all of them at once.
+ */
+export interface TrackedDeliveryStop {
+  order_id: string;
+  reference: string;
+  restaurant: string;
+  items: {
+    menu_item_id: string;
+    name: string;
+    quantity: number;
+    price: number;
+  }[];
+  subtotal: number;
+  status: string;
+}
+
+export interface TrackedDelivery {
+  reference: string;
+  customer: string;
+  delivery_address: string | null;
+  delivery_barangay: string | null;
+  payment: PaymentChoice;
+  subtotal: number;
+  base_delivery_fee: number;
+  delivery_fee: number;
+  service_fee: number;
+  total: number;
+  status: string;
+  placed_at: string;
+  rider: string | null;
+  stops: TrackedDeliveryStop[];
+}
+
+/**
+ * Track a trip by its reference (0092).
+ *
+ * Returns null when the reference is not a trip, so the screen can fall back
+ * to the single-shop order it has always shown.
+ */
+export async function fetchTrackedDelivery(
+  reference: string
+): Promise<TrackedDelivery | null> {
+  const { data, error } = await supabase.rpc("track_delivery", {
+    p_reference: reference,
+  });
+  if (error) throw error;
+  if (!data || data.length === 0) return null;
+  const row = data[0];
+  const stops = Array.isArray(row.stops) ? row.stops : [];
+  return {
+    reference: row.reference,
+    customer: row.customer,
+    delivery_address: row.delivery_address ?? null,
+    delivery_barangay: row.delivery_barangay ?? null,
+    payment: row.payment,
+    subtotal: Number(row.subtotal),
+    base_delivery_fee: Number(row.base_delivery_fee),
+    delivery_fee: Number(row.delivery_fee),
+    service_fee: Number(row.service_fee),
+    total: Number(row.total),
+    status: row.status,
+    placed_at: row.placed_at,
+    rider: row.rider ?? null,
+    stops: stops.flatMap((stop) => {
+      if (stop === null || typeof stop !== "object") return [];
+      const shop = stop as Record<string, unknown>;
+      if (typeof shop.order_id !== "string") return [];
+      const items = Array.isArray(shop.items) ? shop.items : [];
+      return [
+        {
+          order_id: shop.order_id,
+          reference: typeof shop.reference === "string" ? shop.reference : "",
+          restaurant: typeof shop.restaurant === "string" ? shop.restaurant : "",
+          subtotal: typeof shop.subtotal === "number" ? shop.subtotal : 0,
+          status: typeof shop.status === "string" ? shop.status : "pending",
+          items: items.flatMap((item) => {
+            if (item === null || typeof item !== "object") return [];
+            const row2 = item as Record<string, unknown>;
+            if (typeof row2.menu_item_id !== "string") return [];
+            return [
+              {
+                menu_item_id: row2.menu_item_id,
+                name: typeof row2.name === "string" ? row2.name : "",
+                quantity: typeof row2.quantity === "number" ? row2.quantity : 0,
+                price: typeof row2.price === "number" ? row2.price : 0,
+              },
+            ];
+          }),
+        },
+      ];
+    }),
+  };
+}
+
+/**
  * Cancel the caller's own order. The server allows it only while the order is
  * still pending (0076) and only for the order's customer, so the error message
  * is the source of truth for "too late".

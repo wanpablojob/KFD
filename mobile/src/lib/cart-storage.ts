@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { MAX_QUANTITY, type CartLine } from "./cart-logic";
+import { MAX_QUANTITY, MAX_SHOPS, type CartLine } from "./cart-logic";
 
 /**
  * The cart on disk, so the OS killing a backgrounded app does not lose it.
@@ -67,9 +67,11 @@ export function parseStoredCart(raw: string | null): StoredCart | null {
   if (!Array.isArray(cart.lines) || cart.lines.length === 0) return null;
   if (!cart.lines.every(isLine)) return null;
 
-  // One restaurant per cart, the rule addLine enforces and the server assumes.
-  const restaurantId = (cart.lines[0] as CartLine).restaurantId;
-  if (cart.lines.some((line) => (line as CartLine).restaurantId !== restaurantId)) {
+  // A cart may hold food from several shops now, but never more than the
+  // server will deliver in one trip (0092). A stored cart that breaks the cap
+  // cannot have come from this app, so it is discarded rather than repaired.
+  const shops = new Set((cart.lines as CartLine[]).map((line) => line.restaurantId));
+  if (shops.size > MAX_SHOPS) {
     return null;
   }
 

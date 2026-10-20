@@ -1,15 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useCart } from "./cart-context";
-import { quoteOrder, type OrderQuote } from "./storefront";
+import { toShopPayload } from "./cart-logic";
+import { quoteDelivery, type DeliveryQuote } from "./storefront";
 
 interface QuoteResult {
   key: string;
-  quote: OrderQuote | null;
+  quote: DeliveryQuote | null;
   error: string | null;
 }
 
 export interface CartQuote {
-  quote: OrderQuote | null;
+  quote: DeliveryQuote | null;
   loading: boolean;
   error: string | null;
 }
@@ -22,13 +23,17 @@ export interface CartQuote {
  * cart as it stands *now*, and returns to null the moment the cart changes, so
  * a total can never lag one edit behind the customer.
  *
+ * The basket may hold food from several shops (0092): the whole thing is
+ * priced as one trip, with the delivery fee carrying 10.00 for every shop
+ * after the first and the service fee charged once.
+ *
  * The fetch never writes a loading flag: it records an answer tagged with the
  * cart it answers, and `loading` is derived from whether that tag still matches.
  * Stale replies are dropped by sequence number, because an RPC cannot be
  * aborted once it is sent.
  */
 export function useCartQuote(barangay?: string | null): CartQuote {
-  const { lines, restaurantId } = useCart();
+  const { lines } = useCart();
   const [result, setResult] = useState<QuoteResult | null>(null);
   const seq = useRef(0);
 
@@ -36,27 +41,24 @@ export function useCartQuote(barangay?: string | null): CartQuote {
   // any quantity or barangay change does.
   const key = useMemo(
     () =>
-      restaurantId
-        ? `${restaurantId}|${barangay ?? ""}|${lines
+      lines.length > 0
+        ? `${barangay ?? ""}|${lines
             .map((l) => `${l.menu_item_id}:${l.quantity}`)
             .join(",")}`
         : "",
-    [restaurantId, barangay, lines]
+    [barangay, lines]
   );
 
   useEffect(() => {
-    if (!key || !restaurantId) return;
+    if (!key) return;
     const mine = ++seq.current;
-    const items = lines.map((l) => ({
-      menu_item_id: l.menu_item_id,
-      quantity: l.quantity,
-    }));
+    const shops = toShopPayload(lines);
 
     // Coalesce the burst of quantity taps a customer makes on one item.
     const timer = setTimeout(() => {
       void (async () => {
         try {
-          const quote = await quoteOrder({ restaurantId, items, barangay });
+          const quote = await quoteDelivery({ shops, barangay });
           if (mine === seq.current) setResult({ key, quote, error: null });
         } catch (cause) {
           if (mine === seq.current) {
@@ -72,7 +74,7 @@ export function useCartQuote(barangay?: string | null): CartQuote {
     }, 250);
 
     return () => clearTimeout(timer);
-  }, [key, restaurantId, barangay, lines]);
+  }, [key, barangay, lines]);
 
   if (!key) return { quote: null, loading: false, error: null };
   const settled = result?.key === key;

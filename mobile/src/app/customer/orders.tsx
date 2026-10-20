@@ -48,7 +48,7 @@ export default function CustomerOrdersScreen() {
   const { user } = useSession();
   const { data: orders, isLoading, isError, error, refetch } = useMyOrders();
   const [mounted, setMounted] = useState(false);
-  const { count, restaurantId, replace } = useCart();
+  const { count, shops, replace } = useCart();
   const router = useRouter();
   const [reorderingRef, setReorderingRef] = useState<string | null>(null);
   const cancel = useCancelOrder();
@@ -156,8 +156,11 @@ export default function CustomerOrdersScreen() {
         restaurantId: restaurantIdForOrder,
         restaurantName: order.restaurant,
       }));
+      // Reordering replaces the whole basket, so the customer is told when
+      // the basket holds food from another place (a basket may now hold
+      // several, 0092).
       const replacing =
-        count > 0 && !!restaurantId && restaurantId !== restaurantIdForOrder;
+        count > 0 && shops.some((s) => s.restaurantId !== restaurantIdForOrder);
       const go = () => {
         replace(cartLines);
         router.push("/customer/cart");

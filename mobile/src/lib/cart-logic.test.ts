@@ -1,15 +1,19 @@
 import {
   MAX_QUANTITY,
+  MAX_SHOPS,
   addLine,
   cartFingerprint,
   checkoutNonce,
   checkoutRequestId,
   countLines,
+  feeBreakdown,
+  groupByRestaurant,
+  isFullCart,
   removeLine,
-  restaurantNameOf,
-  restaurantOf,
   setQuantity,
+  shopCountOf,
   subtotalOf,
+  toShopPayload,
 } from "./cart-logic";
 import type { CartLine } from "./cart-logic";
 
@@ -49,52 +53,160 @@ describe("addLine", () => {
     expect(second.kind).toBe("added");
   });
 
-  // This is the bug: the old add() returned `prev` untouched here, so the tap
-  // looked broken and only checkout ever explained why.
-  it("reports other_restaurant instead of silently dropping the line", () => {
+  // A basket may hold food from several kitchens now: one rider collects from
+  // all of them and delivers it in one trip (0092).
+  it("allows a line from ANOTHER restaurant", () => {
     const first = addLine([], item("a", "r1"));
     if (first.kind !== "added") throw new Error("setup");
     const second = addLine(first.lines, item("b", "r2"));
-    expect(second.kind).toBe("other_restaurant");
-    if (second.kind !== "other_restaurant") throw new Error("wrong kind");
-    expect(second.pending.menu_item_id).toBe("b");
-    expect(second.lines).toHaveLength(1);
+    expect(second.kind).toBe("added");
+    if (second.kind !== "added") throw new Error("wrong kind");
+    expect(second.lines).toHaveLength(2);
+    expect(shopCountOf(second.lines)).toBe(2);
   });
 
-  it("leaves the cart untouched while the conflict is unresolved", () => {
-    const first = addLine([], item("a", "r1"));
-    if (first.kind !== "added") throw new Error("setup");
-    const blocked = addLine(first.lines, item("b", "r2"));
-    if (blocked.kind !== "other_restaurant") throw new Error("wrong kind");
-    // Nothing was written, so a customer who backs out gets the cart they had.
-    expect(blocked.lines).toEqual(first.lines);
+  it("refuses an eleventh shop, and says so", () => {
+    let lines: CartLine[] = [];
+    for (let i = 0; i < MAX_SHOPS; i++) {
+      const r = addLine(lines, item(`m${i}`, `r${i}`));
+      if (r.kind !== "added") throw new Error("setup");
+      lines = r.lines;
+    }
+    expect(shopCountOf(lines)).toBe(MAX_SHOPS);
+    expect(isFullCart(lines)).toBe(true);
+
+    const blocked = addLine(lines, item("m10", "r10"));
+    expect(blocked.kind).toBe("too_many_shops");
+    if (blocked.kind !== "too_many_shops") throw new Error("wrong kind");
+    expect(blocked.shopCount).toBe(MAX_SHOPS);
+    // The basket is left as it was, so nothing the customer chose is lost.
+    expect(blocked.lines).toEqual(lines);
   });
 
-  // The confirm is destructive, so it has to say what it destroys.
-  it("names the restaurant and item count that clearing would discard", () => {
-    const first = addLine([], item("a", "r1"));
-    if (first.kind !== "added") throw new Error("setup");
-    const twice = addLine(first.lines, item("a", "r1"));
-    if (twice.kind !== "merged") throw new Error("setup");
-    const blocked = addLine(twice.lines, item("b", "r2"));
-    if (blocked.kind !== "other_restaurant") throw new Error("wrong kind");
-    expect(blocked.previousRestaurantName).toBe("Jollibee");
-    expect(blocked.previousItemCount).toBe(2);
-    expect(blocked.pending.restaurantName).toBe("McDonalds");
+  it("still allows another line from a shop already in the basket", () => {
+    let lines: CartLine[] = [];
+    for (let i = 0; i < MAX_SHOPS; i++) {
+      const r = addLine(lines, item(`m${i}`, `r${i}`));
+      if (r.kind !== "added") throw new Error("setup");
+      lines = r.lines;
+    }
+    const same = addLine(lines, item("another", "r3"));
+    expect(same.kind).toBe("added");
   });
 });
 
-describe("restaurant of the cart", () => {
-  const one: CartLine = { ...item("a", "r1"), quantity: 2 };
+/**
+ * The checkout groups the basket by shop, so the customer can see what they
+ * bought from each kitchen and what it came to.
+ */
+describe("grouping the cart by shop", () => {
+  const lines: CartLine[] = [
+    { ...item("a", "r1"), quantity: 2, price: 100 },
+    { ...item("b", "r1"), quantity: 1, price: 50 },
+    { ...item("c", "r2"), quantity: 3, price: 80 },
+  ];
 
-  it("is null for an empty cart", () => {
-    expect(restaurantOf([])).toBeNull();
-    expect(restaurantNameOf([])).toBeNull();
+  it("keeps one group per shop, in the order the shops were added", () => {
+    const shops = groupByRestaurant(lines);
+    expect(shops).toHaveLength(2);
+    expect(shops[0].restaurantId).toBe("r1");
+    expect(shops[1].restaurantId).toBe("r2");
   });
 
-  it("reads off the first line", () => {
-    expect(restaurantOf([one])).toBe("r1");
-    expect(restaurantNameOf([one])).toBe("Jollibee");
+  it("gives each shop its own lines, count and subtotal", () => {
+    const shops = groupByRestaurant(lines);
+    expect(shops[0].lines).toHaveLength(2);
+    expect(shops[0].count).toBe(3);
+    expect(shops[0].subtotal).toBe(250);
+    expect(shops[1].count).toBe(3);
+    expect(shops[1].subtotal).toBe(240);
+  });
+
+  it("names the shop", () => {
+    expect(groupByRestaurant(lines)[0].restaurantName).toBe("Jollibee");
+  });
+
+  it("is empty for an empty cart", () => {
+    expect(groupByRestaurant([])).toEqual([]);
+    expect(shopCountOf([])).toBe(0);
+    expect(isFullCart([])).toBe(false);
+  });
+
+  it("sends the server one entry per shop, each with its lines", () => {
+    const payload = toShopPayload(lines);
+    expect(payload).toHaveLength(2);
+    expect(payload[0].restaurant_id).toBe("r1");
+    expect(payload[0].items).toEqual([
+      { menu_item_id: "a", quantity: 2 },
+      { menu_item_id: "b", quantity: 1 },
+    ]);
+    expect(payload[1].items).toEqual([{ menu_item_id: "c", quantity: 3 }]);
+  });
+});
+
+/**
+ * The fee the customer is shown: the destination's own rate, plus 10.00 for
+ * every shop after the first, and one service fee for the whole trip (0092).
+ */
+describe("the delivery fee breakdown", () => {
+  it("is just the rate for one shop", () => {
+    const fees = feeBreakdown({
+      shop_count: 1,
+      base_delivery_fee: 30,
+      delivery_fee: 30,
+      service_fee: 5,
+      total: 135,
+    });
+    expect(fees.base).toBe(30);
+    expect(fees.extraShops).toBe(0);
+    expect(fees.extraShopFee).toBe(0);
+    expect(fees.deliveryFee).toBe(30);
+    expect(fees.serviceFee).toBe(5);
+    expect(fees.total).toBe(135);
+    expect(fees.feeAgreedInPerson).toBe(false);
+  });
+
+  it("adds the extra-shop charge for three shops", () => {
+    const fees = feeBreakdown({
+      shop_count: 3,
+      base_delivery_fee: 30,
+      delivery_fee: 50,
+      service_fee: 5,
+      total: 355,
+    });
+    expect(fees.extraShops).toBe(2);
+    expect(fees.extraShopFee).toBe(10);
+    expect(fees.deliveryFee).toBe(50);
+    expect(fees.total).toBe(355);
+  });
+
+  it("keeps the service fee at one for the whole checkout", () => {
+    const fees = feeBreakdown({
+      shop_count: 10,
+      base_delivery_fee: 30,
+      delivery_fee: 120,
+      service_fee: 5,
+      total: 1125,
+    });
+    expect(fees.extraShops).toBe(9);
+    expect(fees.extraShopFee).toBe(10);
+    expect(fees.serviceFee).toBe(5);
+  });
+
+  it("says when the fee is settled with the rider at the door", () => {
+    const fees = feeBreakdown({
+      shop_count: 2,
+      base_delivery_fee: 0,
+      delivery_fee: 10,
+      service_fee: 5,
+      total: 215,
+      fee_agreed_in_person: true,
+    });
+    expect(fees.feeAgreedInPerson).toBe(true);
+    // The rate is not in the total, but the extra-shop charge is a known price.
+    expect(fees.base).toBe(0);
+    expect(fees.deliveryFee).toBe(10);
+    expect(fees.extraShopFee).toBe(10);
   });
 });
 

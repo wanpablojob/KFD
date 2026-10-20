@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Image,
   Pressable,
   SectionList,
@@ -215,7 +216,7 @@ function MenuItemCard({
   restaurantId: string;
   restaurantName: string;
 }) {
-  const { add, lines, setQuantity, pending, acceptPending, dismissPending } = useCart();
+  const { add, lines, setQuantity } = useCart();
   const inCart = lines.find((l) => l.menu_item_id === row.id)?.quantity ?? 0;
 
   const line = {
@@ -227,49 +228,20 @@ function MenuItemCard({
   };
 
   /**
-   * This item is the one the customer is being asked about. Asking here, next to
-   * the button they just pressed, is the point: `add` holds the line rather than
-   * dropping it, so the tap always does something visible.
+   * Adding from another restaurant is normal now: the basket holds food from
+   * several kitchens and one rider collects them all. What the basket cannot
+   * hold is an eleventh kitchen, and that has to say so out loud rather than
+   * swallowing the tap.
    */
-  const conflict = pending?.line.menu_item_id === row.id ? pending : null;
-
-  if (conflict) {
-    return (
-      <View style={[styles.item, shadow.card]}>
-        <View style={styles.itemBody}>
-          <Text style={styles.itemName}>{row.name}</Text>
-          <Text style={type.caption}>
-            Your cart has {conflict.previousItemCount}{" "}
-            {conflict.previousItemCount === 1 ? "item" : "items"} from{" "}
-            {conflict.previousRestaurantName}. Adding this starts a new cart.
-          </Text>
-        </View>
-        <View style={styles.conflictActions}>
-          <Pressable
-            style={({ pressed }) => [
-              styles.conflictKeep,
-              pressed && styles.conflictKeepPressed,
-            ]}
-            onPress={dismissPending}
-            accessibilityLabel="Keep current cart"
-          >
-            <Text style={styles.conflictKeepLabel}>KEEP CART</Text>
-          </Pressable>
-          <Pressable
-            style={({ pressed }) => [
-              styles.conflictSwap,
-              pressed && styles.conflictSwapPressed,
-              shadow.raised,
-            ]}
-            onPress={acceptPending}
-            accessibilityLabel="Clear current cart and add this item"
-          >
-            <Text style={styles.conflictSwapLabel}>CLEAR &amp; ADD</Text>
-          </Pressable>
-        </View>
-      </View>
-    );
-  }
+  const handleAdd = () => {
+    const result = add(line);
+    if (result.kind === "too_many_shops") {
+      Alert.alert(
+        "Ten restaurants is the limit",
+        "You can order from up to 10 restaurants in one delivery. Remove one to add another."
+      );
+    }
+  };
 
   return (
     <View style={[styles.item, shadow.card]}>
@@ -302,7 +274,7 @@ function MenuItemCard({
           </Text>
           <Pressable
             style={styles.stepBtn}
-            onPress={() => add(line)}
+            onPress={handleAdd}
             disabled={inCart >= MAX_QUANTITY}
             hitSlop={6}
             accessibilityRole="button"
@@ -322,7 +294,7 @@ function MenuItemCard({
             closed && styles.addBtnClosed,
             pressed && !closed && styles.addBtnPressed,
           ]}
-          onPress={() => add(line)}
+          onPress={handleAdd}
           disabled={closed}
           accessibilityLabel={
             closed ? `${row.name}, restaurant closed` : `Add ${row.name} to cart`
