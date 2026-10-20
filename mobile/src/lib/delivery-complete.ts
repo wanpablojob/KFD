@@ -14,6 +14,7 @@
 
 import { supabase } from "./supabase";
 import { postApi } from "./admin-api";
+import { uploadLocalImage } from "./image-upload";
 import {
   PROOF_BUCKET,
   proofPath,
@@ -63,22 +64,28 @@ export async function completeDelivery(
 
   // 1. Upload first. `upsert: false` so a retry cannot silently overwrite the
   //    photo that belongs to an already-closed delivery.
-  const asset = await fetch(photoUri);
-  if (!asset.ok) {
-    throw new CompletionError(
-      "Could not read that photo. Take it again.",
-      "photo-required"
-    );
-  }
-  const blob = await asset.blob();
-
-  const { error: uploadError } = await supabase.storage
-    .from(PROOF_BUCKET)
-    .upload(path, blob, { contentType: mime, upsert: false });
+  const upload = await uploadLocalImage({
+    bucket: PROOF_BUCKET,
+    path,
+    uri: photoUri,
+    contentType: mime,
+  });
 
   // Already there means an earlier attempt uploaded it and then lost the RPC;
   // reuse it, or a retry at the door could never get past this step.
-  if (uploadError && !isAlreadyUploaded(uploadError)) {
+  const alreadyThere =
+    !upload.ok &&
+    upload.failure.kind === "rejected" &&
+    upload.failure.error !== undefined &&
+    isAlreadyUploaded(upload.failure.error);
+
+  if (!upload.ok && !alreadyThere) {
+    if (upload.failure.kind === "unreadable") {
+      throw new CompletionError(
+        "Could not read that photo. Take it again.",
+        "photo-required"
+      );
+    }
     throw new CompletionError(
       "Could not upload the delivery photo. Check your connection and try again.",
       "photo-required"
@@ -143,20 +150,26 @@ export async function completeDeliveryTrip(
   const mime = mimeFromUri(photoUri);
   const path = proofPath(riderId, input.deliveryId, mime);
 
-  const asset = await fetch(photoUri);
-  if (!asset.ok) {
-    throw new CompletionError(
-      "Could not read that photo. Take it again.",
-      "photo-required"
-    );
-  }
-  const blob = await asset.blob();
+  const upload = await uploadLocalImage({
+    bucket: PROOF_BUCKET,
+    path,
+    uri: photoUri,
+    contentType: mime,
+  });
 
-  const { error: uploadError } = await supabase.storage
-    .from(PROOF_BUCKET)
-    .upload(path, blob, { contentType: mime, upsert: false });
+  const alreadyThere =
+    !upload.ok &&
+    upload.failure.kind === "rejected" &&
+    upload.failure.error !== undefined &&
+    isAlreadyUploaded(upload.failure.error);
 
-  if (uploadError && !isAlreadyUploaded(uploadError)) {
+  if (!upload.ok && !alreadyThere) {
+    if (upload.failure.kind === "unreadable") {
+      throw new CompletionError(
+        "Could not read that photo. Take it again.",
+        "photo-required"
+      );
+    }
     throw new CompletionError(
       "Could not upload the delivery photo. Check your connection and try again.",
       "photo-required"

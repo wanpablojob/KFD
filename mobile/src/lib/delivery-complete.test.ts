@@ -25,11 +25,28 @@ const INPUT = {
   gcashReference: "",
 };
 
+/**
+ * A React Native Blob: the bytes, a size, and slice() -- which is how the
+ * content type is attached before the file goes to Storage. See image-upload.
+ */
+function fakeBlob() {
+  return {
+    size: 12,
+    slice: jest.fn((_start: number, _end: number, type: string) => ({
+      size: 12,
+      type,
+    })),
+  };
+}
+
 describe("completeDelivery", () => {
+  let blob: ReturnType<typeof fakeBlob>;
+
   beforeEach(() => {
     supabase.rpc.mockReset().mockResolvedValue({ error: null });
     supabase.upload.mockReset();
-    global.fetch = jest.fn().mockResolvedValue({ ok: true, blob: async () => "blob" });
+    blob = fakeBlob();
+    global.fetch = jest.fn().mockResolvedValue({ ok: true, blob: async () => blob });
   });
 
   it("uploads to the rider's folder, then closes the order with that path", async () => {
@@ -37,14 +54,28 @@ describe("completeDelivery", () => {
 
     await completeDelivery("R-1", INPUT);
 
-    expect(supabase.upload).toHaveBeenCalledWith("R-1/O-1.jpg", "blob", {
-      contentType: "image/jpeg",
-      upsert: false,
-    });
+    expect(supabase.upload).toHaveBeenCalledWith(
+      "R-1/O-1.jpg",
+      { size: 12, type: "image/jpeg" },
+      {
+        contentType: "image/jpeg",
+        upsert: false,
+      }
+    );
     expect(supabase.rpc).toHaveBeenCalledWith(
       "rider_mark_delivered",
       expect.objectContaining({ p_order_id: "O-1", p_proof_path: "R-1/O-1.jpg" })
     );
+  });
+
+  it("gives the uploaded bytes the content type the bucket allows", async () => {
+    supabase.upload.mockResolvedValue({ error: null });
+
+    await completeDelivery("R-1", INPUT);
+
+    // Without this the part reaches Storage as text/plain and is refused
+    // with 415 InvalidMimeType, which is what broke every photo upload.
+    expect(blob.slice).toHaveBeenCalledWith(0, 12, "image/jpeg");
   });
 
   it("retries past a photo an earlier attempt already uploaded", async () => {
@@ -65,6 +96,14 @@ describe("completeDelivery", () => {
     await expect(completeDelivery("R-1", INPUT)).rejects.toThrow(
       /upload the delivery photo/
     );
+    expect(supabase.rpc).not.toHaveBeenCalled();
+  });
+
+  it("stops before the RPC when the photo cannot be read", async () => {
+    global.fetch = jest.fn().mockResolvedValue({ ok: false });
+
+    await expect(completeDelivery("R-1", INPUT)).rejects.toThrow(/read that photo/);
+    expect(supabase.upload).not.toHaveBeenCalled();
     expect(supabase.rpc).not.toHaveBeenCalled();
   });
 });

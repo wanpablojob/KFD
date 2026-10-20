@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as ImageManipulator from "expo-image-manipulator";
 import { supabase } from "./supabase";
 import { postApi } from "./admin-api";
+import { uploadLocalImage } from "./image-upload";
 import { targetWidthFor } from "./image-sizing";
 import type { OrderStatus } from "./merchant-logic";
 
@@ -257,14 +258,21 @@ export async function uploadMenuImage(
   const ext = lower.endsWith(".png") ? "png" : lower.endsWith(".webp") ? "webp" : "jpg";
   const contentType = ext === "jpg" ? "image/jpeg" : `image/${ext}`;
   const uploadUri = await preparePhotoForUpload(uri);
-  const asset = await fetch(uploadUri);
-  if (!asset.ok) throw new Error("Could not read that photo. Pick it again.");
   const path = `${restaurantId}/${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-  const { error } = await supabase.storage
-    .from(MENU_IMAGE_BUCKET)
-    .upload(path, await asset.blob(), { contentType, upsert: false });
-  if (error)
+
+  const outcome = await uploadLocalImage({
+    bucket: MENU_IMAGE_BUCKET,
+    path,
+    uri: uploadUri,
+    contentType,
+  });
+
+  if (!outcome.ok) {
+    if (outcome.failure.kind === "unreadable") {
+      throw new Error("Could not read that photo. Pick it again.");
+    }
     throw new Error("Could not upload the photo. Check your connection and try again.");
+  }
   return supabase.storage.from(MENU_IMAGE_BUCKET).getPublicUrl(path).data.publicUrl;
 }
 
