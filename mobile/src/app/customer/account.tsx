@@ -21,13 +21,12 @@ import { shouldUnregisterOnSignOut } from "../../lib/push-signout";
 import { colors, radius, shadow, spacing, type } from "../../lib/theme";
 
 /**
- * Customer profile: who you are signed in as, how the rider reaches you, what
- * you have ordered, and the way out. The session user is the source of truth
- * for the email -- there is no customers table to drift from.
+ * Customer profile: who you are signed in as, what you have ordered, and the
+ * way out. The session user is the source of truth for the email -- there is
+ * no customers table to drift from.
  *
- * The contact number lives here because there is no order -> customer join to
- * read it from. customer_place_order copies it onto each order, so a rider
- * always dials the number that was on file when they ordered.
+ * The rider's contact number belongs to each delivery address, not the
+ * account. Checkout copies the chosen address's number onto the order.
  */
 export default function CustomerAccountScreen() {
   const router = useRouter();
@@ -105,7 +104,7 @@ export default function CustomerAccountScreen() {
   function confirmDeleteAccount() {
     Alert.alert(
       "Delete your account?",
-      "Your login, saved contact number and address history are removed. Past orders stay in KFD's records without your name. This cannot be undone.",
+      "Your login and saved delivery addresses are removed. Past orders stay in KFD's records without your name. This cannot be undone.",
       [
         { text: "Keep account", style: "cancel" },
         {

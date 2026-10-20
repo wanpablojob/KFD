@@ -27,14 +27,57 @@ as $$
 declare
   v_restaurant text := public.current_merchant_restaurant();
   v_url text := nullif(btrim(coalesce(p_url, '')), '');
+  v_issuer text;
+  v_origin text;
+  v_prefix text;
+  v_object text;
 begin
   if v_restaurant is null then
     raise exception 'Your account is not attached to a restaurant.' using errcode = '42501';
   end if;
 
-  if v_url is not null
-     and v_url not like '%/storage/v1/object/public/menu-images/' || v_restaurant || '/%' then
-    raise exception 'Upload the photo from the app first.' using errcode = '22023';
+  if v_url is not null then
+    -- The public URL host is the same project host as the signed JWT's issuer,
+    -- so the merchant cannot point the shop at an arbitrary site by keeping
+    -- the bucket path in the string.
+    v_issuer := current_setting('request.jwt.claims', true);
+    v_origin := nullif(
+      regexp_replace(
+        coalesce((v_issuer::jsonb) ->> 'iss', ''),
+        '/auth/v1/?$',
+        ''
+      ),
+      ''
+    );
+    if v_origin is null then
+      raise exception 'Could not verify the photo upload.' using errcode = '42501';
+    end if;
+
+    v_prefix := v_origin || '/storage/v1/object/public/menu-images/' || v_restaurant || '/';
+    v_object := substring(v_url from length(v_prefix) + 1);
+
+    if not starts_with(v_url, v_prefix)
+       -- Reject traversal and encoded traversal, query strings and fragments:
+       -- the stored working URL is the plain storage object path.
+       or v_url ~ '(^|/)\.\.(/|$)'
+       or v_url ~* '%2e|%2f|%5c'
+       or position(chr(92) in v_url) > 0
+       or position('?' in v_url) > 0
+       or position('#' in v_url) > 0
+    then
+      raise exception 'Upload the photo from the app first.' using errcode = '22023';
+    end if;
+
+    -- The object must already exist in the merchant's own folder; the bucket
+    -- policy (0086) is what lets them upload there in the first place.
+    if not exists (
+      select 1
+        from storage.objects o
+       where o.bucket_id = 'menu-images'
+         and o.name = v_restaurant || '/' || v_object
+    ) then
+      raise exception 'Upload the photo from the app first.' using errcode = '22023';
+    end if;
   end if;
 
   update restaurants set image_url = v_url where id = v_restaurant;
@@ -43,7 +86,7 @@ end;
 $$;
 
 comment on function public.merchant_set_shop_image(text)
-  is 'The calling merchant sets or clears their shop photo; the URL must be in their own menu-images folder (0090).';
+  is 'The calling merchant sets or clears their shop photo; the URL must be an existing upload in their own menu-images folder on this project (0090).';
 
 revoke all on function public.merchant_set_shop_image(text) from public, anon;
 grant execute on function public.merchant_set_shop_image(text) to authenticated;
@@ -95,7 +138,7 @@ begin
       r.archived_at,
       r.is_open,
       r.prep_minutes,
-      r.image_url
+      coalesce(r.image_url, '') as image_url
     from restaurants r
     where r.status = 'active'
       and r.archived_at is null
