@@ -215,8 +215,6 @@ const styles = StyleSheet.create({
   logo: {
     width: 60,
     height: 60,
-    borderRadius: radius.md,
-    backgroundColor: colors.primary,
   },
   title: { fontSize: 28, fontWeight: "800", letterSpacing: 3, color: colors.primary },
   subtitle: {

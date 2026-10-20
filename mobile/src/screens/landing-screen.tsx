@@ -234,7 +234,6 @@ const styles = StyleSheet.create({
   logo: {
     width: 88,
     height: 88,
-    borderRadius: radius.lg,
     marginBottom: spacing.md,
   },
   title: {
