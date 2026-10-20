@@ -3,24 +3,21 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Stack, usePathname, useRouter } from "expo-router";
 import { CartProvider, useCart } from "../../lib/cart-context";
 import { useSession } from "../../lib/session-context";
-import { CartPill } from "../../components/CartPill";
 import { FloatingTabBar, type FloatingTab } from "../../components/FloatingTabBar";
 import { TabBarInsetProvider } from "../../components/TabBarInset";
 import { TAB_ICONS } from "../../components/tab-icons";
-import { cartPillInset, resolveTabIndex } from "../../lib/tab-bar";
+import { resolveTabIndex } from "../../lib/tab-bar";
 import { colors } from "../../lib/theme";
 
 /**
- * Customer surface (browse -> order -> track), guarded as a group in the root
- * layout (role === "customer").
+ * Customer surface, guarded as a group in the root layout (role === "customer").
  *
  * The cart lives only inside this navigator: it is cleared on sign-out by the
  * per-user remount of SessionProvider, and persisted per user so the OS killing
  * the app does not empty it.
  *
- * Foodpanda-style chrome lives here rather than in each screen -- the floating
- * tab bar and the cart pill above it -- so the storefront screens stay about
- * their own content.
+ * Five tabs, foodpanda-style: Home, Shops, Orders, Cart (with the item count)
+ * and Account. The chrome lives here so the screens stay about their content.
  */
 export default function CustomerLayout() {
   const { user } = useSession();
@@ -36,7 +33,9 @@ export default function CustomerLayout() {
 
 const TABS: (FloatingTab & { route: string })[] = [
   { key: "home", route: "/customer", label: "Home", ...TAB_ICONS.home },
+  { key: "shops", route: "/customer/shops", label: "Shops", ...TAB_ICONS.shops },
   { key: "orders", route: "/customer/orders", label: "Orders", ...TAB_ICONS.orders },
+  { key: "cart", route: "/customer/cart", label: "Cart", ...TAB_ICONS.cart },
   {
     key: "account",
     route: "/customer/account",
@@ -46,35 +45,37 @@ const TABS: (FloatingTab & { route: string })[] = [
 ];
 const ROUTES = TABS.map((tab) => tab.route);
 
-/** The cart pins its own checkout footer, which the bar would sit on top of. */
-const CART_ROUTE = "/customer/cart";
+/**
+ * Screens that are not tabs but belong to one. Without this, the prefix rule
+ * would light Home for a restaurant page opened from Shops.
+ */
+const PARENT_TAB: Record<string, number> = {
+  "/customer/restaurant": 1,
+  "/customer/addresses": 4,
+};
 
 function CustomerShell() {
   const pathname = usePathname();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { count, subtotal } = useCart();
+  const { count } = useCart();
 
-  const onCart = pathname === CART_ROUTE;
-  const pillVisible = count > 0 && !onCart;
-  const items = `${count} item${count === 1 ? "" : "s"}`;
-
-  // The cart count rides on the Home tab, where the storefront is.
   const tabs = TABS.map((tab) =>
-    tab.key === "home" && count > 0
-      ? { ...tab, badge: count, accessibilityLabel: `Home, ${items} in cart` }
+    tab.key === "cart" && count > 0
+      ? {
+          ...tab,
+          badge: count,
+          accessibilityLabel: `Cart, ${count} item${count === 1 ? "" : "s"}`,
+        }
       : tab
   );
 
   return (
     <View style={styles.root}>
-      <TabBarInsetProvider
-        bottomInset={insets.bottom}
-        hasBar={!onCart}
-        above={cartPillInset(pillVisible)}
-      >
+      <TabBarInsetProvider bottomInset={insets.bottom}>
         <Stack screenOptions={{ headerShown: false, animation: "fade_from_bottom" }}>
           <Stack.Screen name="index" />
+          <Stack.Screen name="shops" />
           <Stack.Screen name="restaurant" />
           <Stack.Screen name="cart" />
           <Stack.Screen name="orders" />
@@ -83,17 +84,10 @@ function CustomerShell() {
         </Stack>
       </TabBarInsetProvider>
 
-      <CartPill
-        visible={pillVisible}
-        count={count}
-        subtotal={subtotal}
-        onPress={() => router.push(CART_ROUTE as never)}
-      />
       <FloatingTabBar
         tabs={tabs}
-        selectedIndex={resolveTabIndex(pathname, ROUTES)}
+        selectedIndex={PARENT_TAB[pathname] ?? resolveTabIndex(pathname, ROUTES)}
         onChange={(index) => router.navigate(TABS[index].route as never)}
-        hidden={onCart}
       />
     </View>
   );

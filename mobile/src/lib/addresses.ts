@@ -14,7 +14,11 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ADDRESS_LIMIT, addressLabelFor, normaliseAddress } from "./address-validation";
 
-export { ADDRESS_LIMIT, validateAddress } from "./address-validation";
+export {
+  ADDRESS_LIMIT,
+  contactPhoneProblem,
+  validateAddress,
+} from "./address-validation";
 
 export interface SavedAddress {
   id: string;
@@ -26,6 +30,8 @@ export interface SavedAddress {
    * the barangay again. Older entries have none and still load.
    */
   barangay?: string;
+  /** Who the rider calls at this address. Older entries have none and still load. */
+  phone?: string;
 }
 
 const key = (userId: string) => `kfd:addresses:${userId}`;
@@ -56,7 +62,8 @@ export async function saveAddress(
   userId: string,
   address: string,
   label?: string,
-  barangay?: string | null
+  barangay?: string | null,
+  phone?: string | null
 ): Promise<SavedAddress[]> {
   const trimmed = normaliseAddress(address);
   const area = (barangay ?? "").trim();
@@ -66,6 +73,7 @@ export async function saveAddress(
     label: label?.trim() || addressLabelFor(trimmed),
     address: trimmed,
     barangay: area || undefined,
+    phone: phone?.trim() || undefined,
   };
   const next = [created, ...existing].slice(0, ADDRESS_LIMIT);
   await persist(userId, next);

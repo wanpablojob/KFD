@@ -18,6 +18,7 @@ import { useScrollBottomPadding } from "../../components/TabBarInset";
 import { useSession } from "../../lib/session-context";
 import {
   ADDRESS_LIMIT,
+  contactPhoneProblem,
   deleteAddress,
   loadAddresses,
   saveAddress,
@@ -45,6 +46,12 @@ export default function CustomerAddressesScreen() {
   const insets = useSafeAreaInsets();
   const bottomPadding = useScrollBottomPadding();
   const { user } = useSession();
+  // New addresses start with the account's number; most people order to
+  // themselves, and it can be changed for someone else's place.
+  const profilePhone =
+    typeof user?.user_metadata?.phone === "string"
+      ? user.user_metadata.phone.trim()
+      : "";
 
   const [addresses, setAddresses] = useState<SavedAddress[]>([]);
   const [areas, setAreas] = useState<string[]>([]);
@@ -53,6 +60,7 @@ export default function CustomerAddressesScreen() {
   const [label, setLabel] = useState("");
   const [address, setAddress] = useState("");
   const [barangay, setBarangay] = useState<string | null>(null);
+  const [phone, setPhone] = useState(profilePhone);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -77,18 +85,22 @@ export default function CustomerAddressesScreen() {
   const atLimit = addresses.length >= ADDRESS_LIMIT;
   const completed = completeAddress(address, barangay);
   const addressProblem = address.trim() ? validateAddress(completed) : null;
+  const phoneProblem = phone.trim() ? contactPhoneProblem(phone) : null;
   const canSave =
     !!user &&
     !saving &&
     !atLimit &&
     address.trim().length > 0 &&
     addressProblem === null &&
+    phone.trim().length > 0 &&
+    phoneProblem === null &&
     (areas.length === 0 || barangay !== null);
 
   function resetForm() {
     setLabel("");
     setAddress("");
     setBarangay(null);
+    setPhone(profilePhone);
     setError(null);
   }
 
@@ -98,7 +110,7 @@ export default function CustomerAddressesScreen() {
     setError(null);
     setNotice(null);
     try {
-      const next = await saveAddress(user.id, completed, label, barangay);
+      const next = await saveAddress(user.id, completed, label, barangay, phone);
       setAddresses(next);
       resetForm();
       setNotice("Saved. You can pick it at checkout.");
@@ -145,7 +157,8 @@ export default function CustomerAddressesScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <Text style={type.caption}>
-          Saved on this phone. At checkout, tap the address you are at.
+          Saved on this phone. At checkout, tap an address and its contact number goes
+          to the rider.
         </Text>
 
         {loading ? (
@@ -169,6 +182,17 @@ export default function CustomerAddressesScreen() {
                 {row.barangay ? (
                   <Text style={styles.addressArea}>Barangay {row.barangay}</Text>
                 ) : null}
+                <View style={styles.phoneRow}>
+                  <Ionicons
+                    name="call-outline"
+                    size={14}
+                    color={row.phone ? colors.textMuted : colors.danger}
+                  />
+                  <Text style={row.phone ? styles.addressArea : styles.phoneMissing}>
+                    {row.phone ??
+                      "No contact number. Delete and add it again with one."}
+                  </Text>
+                </View>
               </View>
               <Pressable
                 onPress={() => confirmDelete(row)}
@@ -221,6 +245,22 @@ export default function CustomerAddressesScreen() {
               editable={!saving}
             />
 
+            <Text style={styles.fieldLabel}>CONTACT NUMBER</Text>
+            <TextInput
+              style={styles.input}
+              value={phone}
+              onChangeText={setPhone}
+              placeholder="0917 123 4567"
+              placeholderTextColor={colors.textFaint}
+              keyboardType="phone-pad"
+              autoComplete="tel"
+              editable={!saving}
+              accessibilityLabel="Contact number for this address"
+            />
+            <Text style={styles.hint}>
+              The rider calls this number when they arrive.
+            </Text>
+
             {areas.length > 0 ? (
               <>
                 <Text style={styles.fieldLabel}>BARANGAY</Text>
@@ -256,6 +296,7 @@ export default function CustomerAddressesScreen() {
             {addressProblem ? (
               <Text style={styles.error}>{addressProblem.message}</Text>
             ) : null}
+            {phoneProblem ? <Text style={styles.error}>{phoneProblem}</Text> : null}
             {error ? <Text style={styles.error}>{error}</Text> : null}
             {notice ? <Text style={styles.notice}>{notice}</Text> : null}
 
@@ -281,6 +322,8 @@ export default function CustomerAddressesScreen() {
 }
 
 const styles = StyleSheet.create({
+  phoneRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 },
+  phoneMissing: { ...type.caption, color: colors.danger, flex: 1 },
   screen: { flex: 1, backgroundColor: colors.background },
   topBar: {
     flexDirection: "row",

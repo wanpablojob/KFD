@@ -122,17 +122,6 @@ export const TAB_BAR_METRICS = {
 } as const;
 
 /**
- * The customer's "View cart" pill, which floats above the bar rather than inside
- * it. Its height is here for the same reason as the bar's: the inset screens
- * reserve and the pill that occupies it must agree.
- */
-export const CART_PILL_METRICS = {
-  height: 52,
-  /** Gap between the top of the bar and the bottom of the pill. */
-  gap: 10,
-} as const;
-
-/**
  * Height a scrolling screen must leave clear so its last row is not under the
  * bar. This is the value `useTabBarInset()` returns.
  *
@@ -156,11 +145,6 @@ export function tabBarBottom(bottomInset: number): number {
   return (
     Math.max(bottomInset, TAB_BAR_METRICS.minBottomGap) + TAB_BAR_METRICS.bottomGap
   );
-}
-
-/** Space the cart pill adds above the bar while it is showing. */
-export function cartPillInset(visible: boolean): number {
-  return visible ? CART_PILL_METRICS.height + CART_PILL_METRICS.gap : 0;
 }
 
 /**

@@ -1,4 +1,9 @@
-import { completeAddress, validateAddress, ADDRESS_LIMIT } from "./address-validation";
+import {
+  completeAddress,
+  contactPhoneProblem,
+  validateAddress,
+  ADDRESS_LIMIT,
+} from "./address-validation";
 
 describe("validateAddress", () => {
   it("requires something", () => {
@@ -66,5 +71,20 @@ describe("completeAddress", () => {
   it("produces an address the validator accepts", () => {
     const complete = completeAddress("12 Mabini St.", "Poblacion");
     expect(validateAddress(complete)).toBeNull();
+  });
+});
+
+describe("contactPhoneProblem", () => {
+  it("accepts mobile and landline numbers with spacing", () => {
+    expect(contactPhoneProblem("0917 123 4567")).toBeNull();
+    expect(contactPhoneProblem("+63 917-123-4567")).toBeNull();
+    expect(contactPhoneProblem("471 2345")).toBeNull();
+  });
+
+  it("refuses empty, too short, too long and lettered numbers", () => {
+    expect(contactPhoneProblem("  ")).toMatch(/Add a contact number/);
+    expect(contactPhoneProblem("12345")).toMatch(/valid contact number/);
+    expect(contactPhoneProblem("1234567890123456")).toMatch(/valid contact number/);
+    expect(contactPhoneProblem("0917 CALL ME")).toMatch(/valid contact number/);
   });
 });

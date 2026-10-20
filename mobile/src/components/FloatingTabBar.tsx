@@ -32,7 +32,7 @@ import type { IconName } from "./tab-icons";
  *     ]}
  *     selectedIndex={selected}
  *     onChange={(i) => router.navigate(TABS[i].route)}
- *     hidden={pathname === "/customer/cart"}
+ *     hidden={pathname === "/customer/checkout"}
  *   />
  *
  * The bar is absolutely positioned over the screen, so the layout also wraps its

@@ -29,7 +29,7 @@ import { colors, radius, shadow, spacing, type } from "../../lib/theme";
 import { NotificationBell } from "../../components/NotificationBell";
 import { CartButton } from "../../components/CartButton";
 
-export default function CustomerHomeScreen() {
+export default function CustomerShopsScreen() {
   const insets = useSafeAreaInsets();
   const bottomPadding = useScrollBottomPadding();
   const [query, setQuery] = useState("");

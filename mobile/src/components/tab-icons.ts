@@ -12,6 +12,8 @@ export type IconName = ComponentProps<typeof Ionicons>["name"];
  */
 export const TAB_ICONS = {
   home: { icon: "home-outline", activeIcon: "home" },
+  shops: { icon: "storefront-outline", activeIcon: "storefront" },
+  cart: { icon: "cart-outline", activeIcon: "cart" },
   orders: { icon: "receipt-outline", activeIcon: "receipt" },
   account: { icon: "person-outline", activeIcon: "person" },
   available: { icon: "flash-outline", activeIcon: "flash" },

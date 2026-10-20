@@ -1,8 +1,6 @@
 import {
-  CART_PILL_METRICS,
   MIN_TOUCH_TARGET,
   TAB_BAR_METRICS,
-  cartPillInset,
   lensMetrics,
   resolveTabIndex,
   tabBarBottom,
@@ -18,7 +16,7 @@ import {
  * between the rider and customer surfaces.
  */
 
-const CUSTOMER_ROUTES = ["/customer", "/customer/orders", "/customer/account"];
+const CUSTOMER_ROUTES = ["/customer", "/customer/orders", "/customer/account"]; // a subset of the live tabs
 const RIDER_ROUTES = ["/rider/offers", "/rider", "/rider/earnings", "/rider/profile"];
 
 describe("resolveTabIndex", () => {
@@ -189,22 +187,7 @@ describe("tabBarInset", () => {
   });
 });
 
-describe("cart pill", () => {
-  it("adds the pill and its gap only while it shows", () => {
-    expect(cartPillInset(false)).toBe(0);
-    expect(cartPillInset(true)).toBe(CART_PILL_METRICS.height + CART_PILL_METRICS.gap);
-  });
-
-  it("stacks the pill on top of the bar's inset", () => {
-    expect(tabBarInset(34, true, cartPillInset(true))).toBe(
-      tabBarInset(34) + cartPillInset(true)
-    );
-  });
-
-  it("reserves nothing for the pill when the bar itself is hidden", () => {
-    expect(tabBarInset(34, false, cartPillInset(true))).toBe(0);
-  });
-
+describe("bar position", () => {
   it("puts the bar's bottom edge where the inset says it is", () => {
     expect(tabBarBottom(34) + TAB_BAR_METRICS.height).toBe(tabBarInset(34));
     expect(tabBarBottom(0)).toBe(

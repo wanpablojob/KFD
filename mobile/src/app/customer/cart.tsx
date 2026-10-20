@@ -15,6 +15,7 @@ import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCart } from "../../lib/cart-context";
 import { autoEnablePushOnce } from "../../lib/push";
+import { useTabBarInset } from "../../components/TabBarInset";
 import { useActiveRestaurants } from "../../lib/hooks";
 import { TRAVEL_MINUTES } from "../../lib/delivery-estimate";
 import { useCartQuote } from "../../lib/cart-quote";
@@ -23,6 +24,7 @@ import { saveContactPhone } from "../../lib/auth";
 import {
   loadAddresses,
   saveAddress,
+  contactPhoneProblem,
   deleteAddress,
   validateAddress,
   type SavedAddress,
@@ -35,15 +37,20 @@ import {
 } from "../../lib/storefront";
 import { colors, radius, shadow, spacing, type } from "../../lib/theme";
 
-const PAYMENTS: { key: PaymentChoice; label: string; glyph: string }[] = [
-  { key: "cash", label: "Cash on delivery", glyph: "₱" },
-  { key: "e_wallet", label: "GCash (scan rider's QR)", glyph: "◉" },
+const PAYMENTS: {
+  key: PaymentChoice;
+  label: string;
+  icon: "cash-outline" | "qr-code-outline";
+}[] = [
+  { key: "cash", label: "Cash on delivery", icon: "cash-outline" },
+  { key: "e_wallet", label: "GCash (scan rider's QR)", icon: "qr-code-outline" },
 ];
 
 /** Review -> address -> pay -> place. Every peso shown here comes from the server. */
 export default function CustomerCartScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const tabInset = useTabBarInset();
   const {
     lines,
     setQuantity,
@@ -64,12 +71,13 @@ export default function CustomerCartScreen() {
   // the customer asks for a new place or has none yet.
   const [adding, setAdding] = useState(false);
   // The rider calls this number; customer_place_order refuses an order without
-  // one (0076). Asked here only when the profile has none.
+  // one (0076). Each saved address carries its own, filled in when it is
+  // picked, falling back to the account's number.
   const savedPhone =
     typeof user?.user_metadata?.phone === "string"
       ? user.user_metadata.phone.trim()
       : "";
-  const [phone, setPhone] = useState("");
+  const [phone, setPhone] = useState(savedPhone);
   // Barangays KFD delivers to. Empty until the owner publishes the list, and
   // then the server takes any address, so the picker only shows once it exists.
   const [areas, setAreas] = useState<string[]>([]);
@@ -102,6 +110,7 @@ export default function CustomerCartScreen() {
       setAddresses(rows);
       setAddress((prev) => prev || rows[0]?.address || "");
       if (rows[0]?.barangay) setBarangay(rows[0].barangay);
+      if (rows[0]?.phone) setPhone(rows[0].phone);
     });
     return () => {
       active = false;
@@ -117,9 +126,11 @@ export default function CustomerCartScreen() {
   // A saved address already knows its area; do not offer a second, conflicting
   // answer. An older saved address without one still shows the picker.
   const lockedBarangay = selectedSaved?.barangay ?? null;
+  const phoneProblem = contactPhoneProblem(phone);
   const canSaveAddress =
     !!user &&
     !addressProblem &&
+    !phoneProblem &&
     !savingAddress &&
     (areas.length === 0 || barangay !== null) &&
     !addresses.some((a) => a.address === completedAddress);
@@ -128,7 +139,13 @@ export default function CustomerCartScreen() {
     if (!user || !canSaveAddress) return;
     setSavingAddress(true);
     try {
-      const next = await saveAddress(user.id, completedAddress, undefined, barangay);
+      const next = await saveAddress(
+        user.id,
+        completedAddress,
+        undefined,
+        barangay,
+        phone
+      );
       setAddresses(next);
       setAddress(completedAddress);
       setAdding(false);
@@ -145,6 +162,7 @@ export default function CustomerCartScreen() {
   function handleSelectAddress(row: SavedAddress) {
     setAddress(row.address);
     setBarangay(row.barangay ?? null);
+    setPhone(row.phone || savedPhone);
     setAdding(false);
     setError(null);
   }
@@ -155,6 +173,7 @@ export default function CustomerCartScreen() {
     const first = addresses[0];
     setAddress(first?.address ?? "");
     setBarangay(first?.barangay ?? null);
+    setPhone(first?.phone || savedPhone);
   }
 
   // No local arithmetic on purpose. A subtotal computed here would have to be
@@ -207,14 +226,16 @@ export default function CustomerCartScreen() {
       return;
     }
     const newPhone = phone.trim();
-    if (!savedPhone && (newPhone.match(/\d/g) ?? []).length < 7) {
-      setError("Enter a contact number so your rider can reach you.");
+    if (phoneProblem) {
+      setError(phoneProblem);
       return;
     }
     setError(null);
     setPlacing(true);
     try {
-      if (!savedPhone) await saveContactPhone(newPhone);
+      // customer_place_order copies the account's number onto the order, so the
+      // number for this address has to be the account's number when it lands.
+      if (newPhone !== savedPhone) await saveContactPhone(newPhone);
       const result = await placeCustomerOrder({
         restaurantId,
         items: lines.map((l) => ({
@@ -253,7 +274,7 @@ export default function CustomerCartScreen() {
             shadow.card,
             pressed && styles.browseBtnPressed,
           ]}
-          onPress={() => router.replace("/customer")}
+          onPress={() => router.navigate("/customer/shops")}
         >
           <Text style={styles.browseLabel}>Browse restaurants</Text>
         </Pressable>
@@ -267,13 +288,7 @@ export default function CustomerCartScreen() {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <View style={[styles.topBar, { paddingTop: spacing.lg + insets.top }]}>
-        <Pressable
-          style={styles.backBtn}
-          onPress={() => router.back()}
-          accessibilityLabel="Back"
-        >
-          <Ionicons name="chevron-back" size={28} color={colors.text} />
-        </Pressable>
+        <View style={styles.backBtn} />
         <View style={styles.topTitles}>
           <Text style={styles.topTitle}>Your cart</Text>
           {restaurantName ? (
@@ -355,6 +370,11 @@ export default function CustomerCartScreen() {
                       {a.address}
                       {a.barangay ? ` · ${a.barangay}` : ""}
                     </Text>
+                    {a.phone ? (
+                      <Text style={styles.savedChipText} numberOfLines={1}>
+                        {a.phone}
+                      </Text>
+                    ) : null}
                   </Pressable>
                   <Pressable
                     onPress={() => void handleDeleteAddress(a.id)}
@@ -458,22 +478,23 @@ export default function CustomerCartScreen() {
           </>
         ) : null}
 
-        {!savedPhone ? (
-          <>
-            <Text style={styles.fieldLabel}>CONTACT NUMBER</Text>
-            <TextInput
-              style={styles.input}
-              value={phone}
-              onChangeText={setPhone}
-              placeholder="09XX XXX XXXX"
-              placeholderTextColor={colors.textFaint}
-              keyboardType="phone-pad"
-              autoComplete="tel"
-              editable={!placing}
-              accessibilityLabel="Contact number for your rider"
-            />
-          </>
-        ) : null}
+        <Text style={styles.fieldLabel}>CONTACT NUMBER</Text>
+        <TextInput
+          style={styles.input}
+          value={phone}
+          onChangeText={setPhone}
+          placeholder="0917 123 4567"
+          placeholderTextColor={colors.textFaint}
+          keyboardType="phone-pad"
+          autoComplete="tel"
+          editable={!placing}
+          accessibilityLabel="Contact number for your rider"
+        />
+        {phone.trim() && phoneProblem ? (
+          <Text style={styles.error}>{phoneProblem}</Text>
+        ) : (
+          <Text style={styles.hint}>The rider calls this number when they arrive.</Text>
+        )}
 
         <Text style={styles.fieldLabel}>PAYMENT METHOD</Text>
         <View style={styles.payRow}>
@@ -492,9 +513,11 @@ export default function CustomerCartScreen() {
                 accessibilityRole="radio"
                 accessibilityState={{ selected: active }}
               >
-                <Text style={[styles.payGlyph, active && styles.payGlyphActive]}>
-                  {p.glyph}
-                </Text>
+                <Ionicons
+                  name={p.icon}
+                  size={24}
+                  color={active ? colors.primary : colors.textMuted}
+                />
                 <Text style={[styles.payLabel, active && styles.payLabelActive]}>
                   {p.label}
                 </Text>
@@ -539,12 +562,14 @@ export default function CustomerCartScreen() {
         {error ? <Text style={styles.error}>{error}</Text> : null}
       </ScrollView>
 
-      {/* The tab bar is hidden on this screen, so the footer owns the bottom
-          edge and must clear the home indicator itself. */}
+      {/* The cart is a tab, so its footer sits just above the floating bar. */}
       <View
         style={[
           styles.footer,
-          { paddingBottom: Math.max(spacing.xl, insets.bottom + spacing.md) },
+          {
+            paddingBottom:
+              tabInset > 0 ? tabInset + spacing.sm : insets.bottom + spacing.md,
+          },
         ]}
       >
         <Pressable
@@ -728,8 +753,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xs,
   },
   payCardActive: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
-  payGlyph: { fontSize: 18, color: colors.secondary },
-  payGlyphActive: { color: colors.primary },
   payLabel: {
     fontSize: 11,
     fontWeight: "600",

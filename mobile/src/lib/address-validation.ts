@@ -69,3 +69,17 @@ export function addressLabelFor(raw: string): string {
   const firstWord = after.split(" ")[0];
   return firstWord ? `${word} ${firstWord}` : word;
 }
+
+/**
+ * Why a contact number cannot be used, or null when it can. The rider calls
+ * it at the door, so it needs enough digits to be a real Philippine mobile or
+ * landline number (7 to 15 digits, spaces and dashes allowed).
+ */
+export function contactPhoneProblem(raw: string): string | null {
+  const digits = (raw.match(/\d/g) ?? []).length;
+  if (digits === 0) return "Add a contact number so your rider can reach you.";
+  if (digits < 7 || digits > 15 || /[^\d\s()+-]/.test(raw.trim())) {
+    return "Enter a valid contact number, e.g. 0917 123 4567.";
+  }
+  return null;
+}

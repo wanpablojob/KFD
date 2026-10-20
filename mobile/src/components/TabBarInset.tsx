@@ -29,7 +29,7 @@ export function TabBarInsetProvider({
   bottomInset: number;
   /** False when the bar is hidden on this route, e.g. the cart. */
   hasBar?: boolean;
-  /** Space taken by anything floating above the bar, e.g. cartPillInset(). */
+  /** Space taken by anything floating above the bar. */
   above?: number;
   children: ReactNode;
 }) {
