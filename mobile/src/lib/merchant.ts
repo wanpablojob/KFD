@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import * as ImageManipulator from "expo-image-manipulator";
 import { supabase } from "./supabase";
 import { postApi } from "./admin-api";
+import { targetWidthFor } from "./image-sizing";
 import type { OrderStatus } from "./merchant-logic";
 
 /**
@@ -206,6 +208,42 @@ export async function deleteMenuItem(id: string): Promise<void> {
 export const MENU_IMAGE_BUCKET = "menu-images";
 
 /**
+ * Make a photo small enough to upload.
+ *
+ * A phone camera takes 12 megapixels, so the photo a merchant picks is 1-2 MB
+ * and is uploaded whole: a minute on a rural connection, a merchant waiting
+ * in their kitchen, and a bucket full of the same plate at four times the size
+ * it needs to be. 800px is wide enough for the card the photo appears on.
+ *
+ * A photo that is already narrow enough is uploaded as it is -- enlarging it
+ * would only make it blurrier -- and so is one whose size cannot be read.
+ *
+ * If the resize itself fails the original photo is used: a big photo is a
+ * slow upload, a failed upload is a merchant with no photo at all.
+ */
+export async function preparePhotoForUpload(uri: string): Promise<string> {
+  try {
+    const original = await ImageManipulator.ImageManipulator.manipulate(uri).renderAsync();
+    const width = targetWidthFor(original.width);
+    if (width === null) return uri;
+
+    const resized = ImageManipulator.ImageManipulator.manipulate(uri);
+    resized.resize({ width });
+    const saved = await resized
+      .renderAsync()
+      .then((image) =>
+        image.saveAsync({
+          compress: 0.85,
+          format: ImageManipulator.SaveFormat.JPEG,
+        })
+      );
+    return saved.uri;
+  } catch {
+    return uri;
+  }
+}
+
+/**
  * Upload a menu photo and return its public URL (0086). The first folder is the
  * restaurant id, which is what the storage policy checks; a fresh name per
  * upload means a replaced photo never needs an overwrite permission.
@@ -219,7 +257,8 @@ export async function uploadMenuImage(
   const lower = uri.toLowerCase();
   const ext = lower.endsWith(".png") ? "png" : lower.endsWith(".webp") ? "webp" : "jpg";
   const contentType = ext === "jpg" ? "image/jpeg" : `image/${ext}`;
-  const asset = await fetch(uri);
+  const uploadUri = await preparePhotoForUpload(uri);
+  const asset = await fetch(uploadUri);
   if (!asset.ok) throw new Error("Could not read that photo. Pick it again.");
   const path = `${restaurantId}/${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
   const { error } = await supabase.storage
