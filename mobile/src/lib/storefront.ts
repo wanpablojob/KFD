@@ -235,6 +235,8 @@ export async function markOrderPickedUp(orderId: string): Promise<void> {
     p_order_id: orderId,
   });
   if (error) throw error;
+  // Tell the customer "on the way": push plus inbox. Best-effort, never blocks.
+  void postApi("/api/orders/notify", { orderId, event: "status_changed" });
 }
 
 /** Decline an offer. The system offers it to the next rider in rotation. */

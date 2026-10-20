@@ -79,3 +79,21 @@ test("a caller with no app_users row gets nothing", () => {
   assert.equal(mayNotifyOrder("placed", stranger, ownOrder), false);
   assert.equal(mayNotifyOrder("status_changed", stranger, ownOrder), false);
 });
+
+const rider: CallerScope = { userId: "u-rider", role: "rider", restaurantId: null };
+const assigned = (status: string) => ({ ...ownOrder, riderUserId: "u-rider", status });
+
+test("the assigned rider may announce pickup and delivery", () => {
+  assert.equal(mayNotifyOrder("status_changed", rider, assigned("out_for_delivery")), true);
+  assert.equal(mayNotifyOrder("status_changed", rider, assigned("delivered")), true);
+});
+
+test("a rider may not announce kitchen statuses, other riders' orders, or new orders", () => {
+  assert.equal(mayNotifyOrder("status_changed", rider, assigned("confirmed")), false);
+  assert.equal(mayNotifyOrder("status_changed", rider, assigned("cancelled")), false);
+  assert.equal(
+    mayNotifyOrder("status_changed", rider, { ...assigned("delivered"), riderUserId: "u-other" }),
+    false,
+  );
+  assert.equal(mayNotifyOrder("placed", rider, assigned("delivered")), false);
+});

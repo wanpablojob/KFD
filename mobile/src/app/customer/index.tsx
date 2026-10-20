@@ -26,6 +26,7 @@ import {
 } from "../../lib/storefront-empty";
 import { TRAVEL_MINUTES } from "../../lib/delivery-estimate";
 import { colors, radius, shadow, spacing, type } from "../../lib/theme";
+import { NotificationBell } from "../../components/NotificationBell";
 
 export default function CustomerHomeScreen() {
   const insets = useSafeAreaInsets();
@@ -93,7 +94,10 @@ export default function CustomerHomeScreen() {
           <View style={styles.header}>
             {/* The brand name, not the customer's location: the app has no
                 location permission and must not imply it knows where they are. */}
-            <Text style={styles.brand}>KABANKALAN FOOD DELIVERY</Text>
+            <View style={styles.brandRow}>
+              <Text style={styles.brand}>KABANKALAN FOOD DELIVERY</Text>
+              <NotificationBell />
+            </View>
             <Text style={type.display}>What are you craving?</Text>
 
             <View style={[styles.search, shadow.card]}>
@@ -287,6 +291,11 @@ function RestaurantCard({ row }: { row: RestaurantRow }) {
 }
 
 const styles = StyleSheet.create({
+  brandRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
   screen: { flex: 1, backgroundColor: colors.background },
   cardClosed: { opacity: 0.6 },
   closedLabel: { ...type.caption, fontWeight: "700", color: colors.danger },

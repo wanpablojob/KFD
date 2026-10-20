@@ -4,6 +4,7 @@ import * as Device from "expo-device";
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 import Constants from "expo-constants";
+import { supabase } from "./supabase";
 
 /**
  * Expo Push client (Prompt 6.2).
@@ -239,6 +240,25 @@ export async function enablePush(accessToken: string): Promise<PushStatus> {
 
   await SecureStore.setItemAsync(REGISTERED_KEY, "1");
   return { granted: true, registered: true };
+}
+
+const AUTO_ASKED_KEY = "kfd.push.autoAsked";
+
+/**
+ * Turn alerts on without the user hunting for a toggle -- once per install.
+ * Called at the moment alerts start to matter (a merchant's first visit, a
+ * customer's first order). After the first attempt it never runs again, so a
+ * user who later switches alerts off in Account stays off.
+ */
+export async function autoEnablePushOnce(): Promise<void> {
+  if ((await SecureStore.getItemAsync(AUTO_ASKED_KEY)) === "1") return;
+  if ((await getPushStatus()).registered) return;
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (!session?.access_token) return;
+  await SecureStore.setItemAsync(AUTO_ASKED_KEY, "1");
+  await enablePush(session.access_token).catch(() => {});
 }
 
 export async function disablePush(accessToken: string): Promise<void> {

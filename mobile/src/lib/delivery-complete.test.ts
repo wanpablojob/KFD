@@ -3,6 +3,8 @@ import { completeDelivery } from "./delivery-complete";
 declare const require: (id: string) => unknown;
 declare const global: { fetch: jest.Mock };
 
+jest.mock("./admin-api", () => ({ postApi: jest.fn() }));
+
 jest.mock("./supabase", () => {
   const upload = jest.fn();
   return {

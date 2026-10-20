@@ -40,6 +40,7 @@ import {
 } from "../lib/hooks";
 import { fetchRiderOrdersPage } from "../lib/storefront";
 import { colors, radius, spacing, type } from "../lib/theme";
+import { NotificationBell } from "../components/NotificationBell";
 
 type AssignedOrder = RiderOrderPageResult["items"][0];
 
@@ -384,6 +385,7 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
               {loadingMore && (
                 <ActivityIndicator size="small" color={colors.secondary} />
               )}
+              <NotificationBell />
             </View>
             {/* The write buttons below are disabled while offline, so the screen
                 has to say why -- an inert button with no reason reads as a bug. */}

@@ -12,6 +12,7 @@ import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useScrollBottomPadding } from "./TabBarInset";
 import { colors, radius, shadow, spacing, type } from "../lib/theme";
+import { NotificationBell } from "./NotificationBell";
 
 /** One merchant tab: a scrolling page with a title, pull-to-refresh and room for the tab bar. */
 export function MerchantScreen({
@@ -46,9 +47,12 @@ export function MerchantScreen({
           ) : undefined
         }
       >
-        <View style={ui.header}>
-          <Text style={ui.title}>{title}</Text>
-          {subtitle ? <Text style={ui.subtitle}>{subtitle}</Text> : null}
+        <View style={ui.headerRow}>
+          <View style={ui.header}>
+            <Text style={ui.title}>{title}</Text>
+            {subtitle ? <Text style={ui.subtitle}>{subtitle}</Text> : null}
+          </View>
+          <NotificationBell />
         </View>
         {children}
       </ScrollView>
@@ -141,7 +145,8 @@ export const ui = StyleSheet.create({
     padding: spacing.lg,
   },
   content: { padding: spacing.lg, gap: spacing.lg },
-  header: { gap: spacing.xs },
+  header: { gap: spacing.xs, flex: 1 },
+  headerRow: { flexDirection: "row", alignItems: "flex-start", gap: spacing.md },
   title: { ...type.display, fontSize: 26 },
   subtitle: { ...type.caption, color: colors.textMuted },
   section: {

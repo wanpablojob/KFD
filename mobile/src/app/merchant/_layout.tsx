@@ -8,8 +8,7 @@ import { FloatingTabBar, type FloatingTab } from "../../components/FloatingTabBa
 import { TabBarInsetProvider } from "../../components/TabBarInset";
 import { TAB_ICONS } from "../../components/tab-icons";
 import { colors } from "../../lib/theme";
-import { enablePush, ensureNotificationChannels, getPushStatus } from "../../lib/push";
-import { supabase } from "../../lib/supabase";
+import { autoEnablePushOnce, ensureNotificationChannels } from "../../lib/push";
 import { useMerchantOrders } from "../../lib/merchant";
 import { resolveTabIndex } from "../../lib/tab-bar";
 
@@ -56,21 +55,7 @@ function useMerchantAlerts() {
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    let active = true;
-    void (async () => {
-      await ensureNotificationChannels();
-      const status = await getPushStatus();
-      if (!active || status.registered) return;
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (active && session?.access_token) {
-        await enablePush(session.access_token).catch(() => {});
-      }
-    })();
-    return () => {
-      active = false;
-    };
+    void ensureNotificationChannels().then(autoEnablePushOnce);
   }, []);
 
   useEffect(() => {

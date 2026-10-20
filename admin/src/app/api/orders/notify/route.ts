@@ -165,6 +165,18 @@ export async function POST(req: Request) {
     .eq("user_id", user.id)
     .maybeSingle();
 
+  // The assigned rider's login, so a rider can announce pickup and delivery
+  // for their own order and nobody else's.
+  let riderUserId: string | null = null;
+  if (order.rider_id) {
+    const { data: riderRow } = await supabase
+      .from("riders")
+      .select("user_id")
+      .eq("id", order.rider_id)
+      .maybeSingle();
+    riderUserId = (riderRow?.user_id as string | null) ?? null;
+  }
+
   const allowed = mayNotifyOrder(
     event,
     {
@@ -175,6 +187,8 @@ export async function POST(req: Request) {
     {
       restaurantId: order.restaurant_id ?? null,
       customerUserId: order.customer_user_id ?? null,
+      riderUserId,
+      status: order.status,
     },
   );
 

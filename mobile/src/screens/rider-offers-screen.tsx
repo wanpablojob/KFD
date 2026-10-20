@@ -29,6 +29,7 @@ import {
 import { colors, radius, spacing, type } from "../lib/theme";
 import type { RiderOffer } from "../lib/hooks";
 import type { RiderProfile } from "../lib/storefront";
+import { NotificationBell } from "../components/NotificationBell";
 
 const STATUS_LABEL: Record<string, string> = {
   pending: "Pending",
@@ -244,6 +245,7 @@ export function RiderOffersScreen({ userId }: { userId: string }) {
                 </Text>
               </View>
               <ActivityIndicator size="small" color={colors.textFaint} />
+              <NotificationBell />
             </View>
             {profile.status !== "online" ? (
               <OfflineBanner status={profile.status} onGoOnline={goOnline} />

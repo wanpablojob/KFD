@@ -27,7 +27,14 @@ export interface CallerScope {
 export interface OrderScope {
   restaurantId: string | null;
   customerUserId: string | null;
+  /** auth.users id of the assigned rider, or null. */
+  riderUserId?: string | null;
+  /** The order's current status, as read from the database. */
+  status?: string;
 }
+
+/** The status changes that are the rider's to announce: pickup and handover. */
+const RIDER_STATUSES = ["out_for_delivery", "delivered"];
 
 export function mayNotifyOrder(
   event: NotifyEvent,
@@ -42,8 +49,20 @@ export function mayNotifyOrder(
     return !!order.customerUserId && order.customerUserId === caller.userId;
   }
 
-  // status_changed belongs to the merchant who cooks the order. Admins were
-  // handled above; customers and everyone else have no business here.
+  // The assigned rider announces the two changes they make: picking the food
+  // up and handing it over. That is how the customer hears "on the way" and
+  // "delivered"; nobody else drives those statuses.
+  if (
+    caller.role === "rider" &&
+    !!order.riderUserId &&
+    order.riderUserId === caller.userId &&
+    RIDER_STATUSES.includes(order.status ?? "")
+  ) {
+    return true;
+  }
+
+  // Otherwise status_changed belongs to the merchant who cooks the order.
+  // Customers and everyone else have no business here.
   return (
     caller.role === "merchant" &&
     !!order.restaurantId &&

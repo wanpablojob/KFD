@@ -14,6 +14,7 @@ import {
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCart } from "../../lib/cart-context";
+import { autoEnablePushOnce } from "../../lib/push";
 import { useActiveRestaurants } from "../../lib/hooks";
 import { TRAVEL_MINUTES } from "../../lib/delivery-estimate";
 import { useCartQuote } from "../../lib/cart-quote";
@@ -183,6 +184,9 @@ export default function CustomerCartScreen() {
         barangay,
       });
       clear();
+      // The moment alerts start to matter: ask once so "on the way" and
+      // "delivered" reach this phone. Never blocks or delays the tracker.
+      void autoEnablePushOnce();
       router.replace({
         pathname: "/track",
         params: { ref: result.reference },

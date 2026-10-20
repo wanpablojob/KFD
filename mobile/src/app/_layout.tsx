@@ -183,6 +183,11 @@ function RootNavigator() {
       <Stack.Protected guard={isStaff}>
         <Stack.Screen name="account" />
       </Stack.Protected>
+      {/* The inbox, for every signed-in role. After the role groups so it is
+          never the screen the navigator falls back to. */}
+      <Stack.Protected guard={!!user && !!role}>
+        <Stack.Screen name="notifications" />
+      </Stack.Protected>
       {/*
        * Public tracking is declared LAST on purpose. When a screen becomes
        * protected (e.g. a signed-in customer leaving /login), the navigator

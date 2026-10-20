@@ -27,6 +27,28 @@ export interface PushResult {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type ServiceClient = SupabaseClient<any>;
 
+/**
+ * Keep a copy of the alert in each user's in-app inbox (0087). Written before
+ * the device lookup, so a user with alerts switched off still sees it in the
+ * app. Best-effort like the push itself: an inbox failure never fails a send.
+ */
+async function recordInbox(
+  supabase: ServiceClient,
+  userIds: string[],
+  title: string,
+  body: string,
+  data: Record<string, unknown> = {},
+): Promise<void> {
+  if (userIds.length === 0) return;
+  try {
+    await supabase
+      .from("notifications")
+      .insert(userIds.map((user_id) => ({ user_id, title, body, data })));
+  } catch {
+    // inbox is a courtesy on top of the push
+  }
+}
+
 export async function sendMerchantOrderPush(
   supabase: ServiceClient,
   restaurantId: string,
@@ -49,6 +71,14 @@ export async function sendMerchantOrderPush(
   if (userIds.length === 0) {
     return { ok: false, sent: 0, skipped: "no merchant account for this restaurant" };
   }
+
+  await recordInbox(
+    supabase,
+    userIds,
+    `New order ${orderReference}`,
+    "A new KFD order needs your attention.",
+    { reference: orderReference },
+  );
 
   const { data: tokens, error: tokensError } = await supabase
     .from("push_tokens")
@@ -169,6 +199,8 @@ export async function sendUserPush(
   /** Defaults to the order-alert channel; offers override it. */
   channelId: string = ORDERS_CHANNEL_ID,
 ): Promise<PushResult> {
+  await recordInbox(supabase, [userId], title, body, data);
+
   const { data: tokens, error: tokensError } = await supabase
     .from("push_tokens")
     .select("token")

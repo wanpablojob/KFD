@@ -13,6 +13,7 @@
  */
 
 import { supabase } from "./supabase";
+import { postApi } from "./admin-api";
 import {
   PROOF_BUCKET,
   proofPath,
@@ -105,6 +106,12 @@ export async function completeDelivery(
     // delivery is lost.
     throw new CompletionError(error.message);
   }
+
+  // Tell the customer "delivered": push plus inbox. Best-effort, never blocks.
+  void postApi("/api/orders/notify", {
+    orderId: input.orderId,
+    event: "status_changed",
+  });
 
   return {
     orderId: input.orderId,
