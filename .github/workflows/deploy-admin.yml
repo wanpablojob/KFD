@@ -51,7 +51,11 @@ jobs:
   # ---- Staging (Pull Request preview) ---------------------------------
   preview:
     name: Deploy staging preview
-    if: github.event_name == 'pull_request'
+    # Dependabot PRs run without repository secrets (GitHub withholds them from
+    # that actor), so the deploy job can only fail its own guard on every
+    # dependency bump. CI still runs on those PRs; the summary job says the
+    # preview was skipped and why.
+    if: github.event_name == 'pull_request' && github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment:
@@ -207,11 +211,14 @@ jobs:
           TARGET: ${{ inputs.target }}
           CONFIRM: ${{ inputs.confirm_production }}
           HEAD_SHA: ${{ github.sha }}
+          ACTOR: ${{ github.actor }}
         run: |
           {
             echo "### Deploy summary"
             echo ""
-            if [ "$EVENT" = "pull_request" ]; then
+            if [ "$EVENT" = "pull_request" ] && [ "$ACTOR" = "dependabot[bot]" ]; then
+              echo "Dependabot PR: the preview deploy is skipped, because GitHub does not expose repository secrets to Dependabot runs. CI still runs."
+            elif [ "$EVENT" = "pull_request" ]; then
               echo "Pull request: the preview job deploys to Vercel staging. Production is a manual dispatch from main."
             elif [ "$EVENT" = "workflow_dispatch" ]; then
               if [ "$TARGET" = "production" ] && [ "$CONFIRM" = "deploy" ]; then
