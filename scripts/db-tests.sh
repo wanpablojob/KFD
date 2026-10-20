@@ -17,7 +17,7 @@ MIGRATIONS="$ROOT/admin/supabase/migrations"
 TESTS="$ROOT/admin/supabase/tests"
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/kfd-dbtests.XXXXXX")"
 PROJECT="kfd-dbtests"
-EXCLUDE="gotrue,realtime,storage-api,imgproxy,kong,mailpit,postgrest,studio,edge-runtime,logflare,vector,supavisor"
+EXCLUDE="gotrue,realtime,storage-api,imgproxy,kong,mailpit,postgrest,postgres-meta,studio,edge-runtime,logflare,vector,supavisor"
 
 cleanup() {
   (cd "$WORK" && supabase stop --no-backup >/dev/null 2>&1) || true
@@ -30,6 +30,14 @@ supabase init --force >/dev/null
 sed -i.bak -e "s/^project_id = .*/project_id = \"$PROJECT\"/" \
   -e "s/54322/56322/;s/54320/56320/;s/54321/56321/;s/54323/56323/;s/54324/56324/;s/54327/56327/" \
   supabase/config.toml
+
+# Realtime off. `-x realtime` stops the container but the CLI still runs
+# Realtime's own migrations during `supabase start`; on a fresh volume they race
+# the service's entrypoint and abort the whole start with
+# `duplicate key value ... schema_migrations_pkey` (CLI 2.117). The tests below
+# are SQL and never touch the service, and migration 0007's publication still
+# exists without it.
+sed -i.bak '/^\[realtime\]/,/^\[/s/^enabled = true/enabled = false/' supabase/config.toml
 mkdir -p supabase/migrations
 cp "$MIGRATIONS"/*.sql supabase/migrations/
 

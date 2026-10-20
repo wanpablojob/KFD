@@ -40,6 +40,10 @@ supabase init --force >/dev/null
 sed -i.bak -e 's/^project_id = .*/project_id = "kfd-typegen"/' \
   -e 's/54322/56332/;s/54320/56330/;s/54321/56331/;s/54323/56333/;s/54324/56334/;s/54327/56337/' \
   supabase/config.toml
+
+# Same reason as scripts/db-tests.sh: the CLI runs Realtime's migrations even
+# when the service is excluded, and on a fresh volume they abort the start.
+sed -i.bak '/^\[realtime\]/,/^\[/s/^enabled = true/enabled = false/' supabase/config.toml
 mkdir -p supabase/migrations
 cp "$MIGRATIONS"/*.sql supabase/migrations/
 
