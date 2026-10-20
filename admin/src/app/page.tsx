@@ -13,7 +13,7 @@ import "./landing.css";
  */
 const title = "KFD | Food delivery sa Kabankalan City";
 const description =
-  "Order from local Kabankalan kitchens, pay cash on delivery, and follow your rider until the food reaches your door. Pili, bayad, hintay.";
+  "Order from local Kabankalan kitchens, pay cash or GCash on delivery, and follow your rider until the food reaches your door. Pili, bayad, hintay.";
 
 export const metadata: Metadata = {
   title,

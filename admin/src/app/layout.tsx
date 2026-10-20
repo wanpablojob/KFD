@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Silkscreen } from "next/font/google";
+import { Fraunces, Geist, Geist_Mono } from "next/font/google";
 import { SITE_URL } from "@/lib/site-url";
 import "./globals.css";
 
@@ -14,15 +14,14 @@ const geistMono = Geist_Mono({
 });
 
 /**
- * Display face for the pixel art surfaces only. Silkscreen rather than Press
- * Start 2P: Press Start 2P is roughly twice as wide per glyph and stops being
- * readable past ~16px, which rules it out for body copy and long headings.
- * next/font self-hosts it at build time, so there is no runtime CDN request.
+ * The brand's display face, for landing headings only. A soft, warm serif reads
+ * as home cooking and sits well beside the round red badge; Geist stays the body
+ * and dashboard face. next/font self-hosts it, so there is no runtime CDN call.
  */
-const silkscreen = Silkscreen({
-  variable: "--font-pixel",
+const fraunces = Fraunces({
+  variable: "--font-fraunces",
   subsets: ["latin"],
-  weight: ["400", "700"],
+  weight: ["600", "700", "800"],
 });
 
 export const metadata: Metadata = {
@@ -47,7 +46,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${geistSans.variable} ${geistMono.variable} ${silkscreen.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${fraunces.variable} h-full antialiased`}
     >
       <body className="min-h-full">
         <script dangerouslySetInnerHTML={{ __html: themeInit }} />

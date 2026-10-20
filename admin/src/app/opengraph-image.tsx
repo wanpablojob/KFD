@@ -1,17 +1,21 @@
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { ImageResponse } from "next/og";
 
 /**
  * The link preview for Messenger and Facebook shares.
  *
  * Generated rather than a bitmap so it uses the live brand colours and stays
- * crisp at any size. It is a marketing card, deliberately not a photo: the
- * page ships no stock imagery.
+ * crisp at any size: brand red with the round badge, the same pairing the app
+ * opens on, so a shared link already looks like KFD.
  */
 export const alt = "KFD: Pagkaing Kabankalan, hatid sa pinto mo.";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
-export default function OpengraphImage() {
+export default async function OpengraphImage() {
+  const badge = await readFile(join(process.cwd(), "public/images/kabankalan/badge.png"));
+  const badgeSrc = `data:image/png;base64,${badge.toString("base64")}`;
   return new ImageResponse(
     (
       <div
@@ -28,13 +32,8 @@ export default function OpengraphImage() {
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
-          <div
-            style={{
-              width: 28,
-              height: 28,
-              backgroundColor: "#ECC97B",
-            }}
-          />
+          { }
+          <img src={badgeSrc} width={96} height={96} alt="" />
           <div style={{ fontSize: 34, letterSpacing: 2 }}>KFD</div>
         </div>
 
@@ -55,7 +54,7 @@ export default function OpengraphImage() {
             color: "#F6DDD6",
           }}
         >
-          <span>Cash on delivery</span>
+          <span>Cash or GCash on delivery</span>
           <span>·</span>
           <span>Kabankalan only</span>
           <span>·</span>

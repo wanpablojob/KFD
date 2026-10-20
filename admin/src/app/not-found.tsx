@@ -1,35 +1,33 @@
+import Image from "next/image";
 import Link from "next/link";
-import { PixelScooter } from "@/components/pixel/sprites-render";
-import "./pixel.css";
+import { primaryButton, secondaryButton } from "@/components/marketing/styles";
 
 /**
  * The custom 404. A root not-found.tsx handles every unmatched URL, so this is
- * the page a mistyped link lands on. It reuses the marketing pixel language
- * rather than the dashboard shell, because most bad links come from customers.
+ * the page a mistyped link lands on. It uses the landing page's look rather
+ * than the dashboard shell, because most bad links come from customers.
  */
 export default function NotFound() {
   return (
-    <div className="pixel-page pixel-scanlines flex min-h-dvh flex-col items-center justify-center gap-8 px-6 text-center">
-      <div aria-hidden="true" className="pixel-checker pixel-card p-8">
-        <PixelScooter title="" />
-      </div>
+    <main className="flex min-h-dvh flex-col items-center justify-center gap-8 bg-background px-6 text-center text-foreground">
+      <Image src="/images/kabankalan/badge.png" alt="" width={120} height={120} className="h-28 w-28" />
       <div className="flex flex-col gap-3">
-        <p className="pixel-eyebrow">Error 404</p>
-        <h1 className="pixel-title text-3xl font-bold sm:text-4xl">
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">Error 404</p>
+        <h1 className="font-display text-3xl font-bold tracking-tight sm:text-4xl">
           Wala kami mahanap dito.
         </h1>
-        <p className="pixel-body text-sm">
+        <p className="max-w-[44ch] text-base text-muted-foreground">
           The page you were looking for does not exist, or the link was mistyped.
         </p>
       </div>
-      <div className="flex flex-wrap justify-center gap-4">
-        <Link href="/" className="pixel-btn pixel-btn-primary pixel-focus">
+      <div className="flex flex-wrap justify-center gap-3">
+        <Link href="/" className={primaryButton}>
           Back to home
         </Link>
-        <Link href="/track" className="pixel-btn pixel-btn-secondary pixel-focus">
+        <Link href="/track" className={secondaryButton}>
           Track an order
         </Link>
       </div>
-    </div>
+    </main>
   );
 }

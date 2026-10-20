@@ -3,12 +3,9 @@
  *
  * PRICING
  * -------
- * `DELIVERY_FEE` and `SERVICE_FEE` are the *display* mirror of the only
- * authoritative calculator in the system: public.customer_place_order() in
- * admin/supabase/migrations/0023_customer_place_order.sql, where the totals are
- * computed server-side and never accepted from a client. Keep the two in step;
- * the landing page imports these values rather than repeating the numbers, so a
- * price change is a one-line edit here plus the migration.
+ * No fee is shown on the site: delivery fees depend on the barangay (0080) and
+ * are set by staff, so any number here would be wrong for someone. The app
+ * shows the exact total before the customer orders.
  *
  * REAL CONTENT ONLY
  * -----------------
@@ -18,37 +15,12 @@
  * inventing a number, an area or a restaurant. Search for TODO(owner).
  */
 
-/** Fee values in Philippine pesos. Mirror of migration 0023. */
-export const DELIVERY_FEE = 45;
-export const SERVICE_FEE = 5;
-
-/** Minimum order value in pesos, or null when there is no minimum. */
-export const MINIMUM_ORDER: number | null = null;
-
 /** True, verifiable facts only. These are service guarantees, not stats. */
 export const SERVICE_FACTS = [
-  "Cash on delivery",
+  "Cash or GCash on delivery",
   "Kabankalan only",
   "Local restaurants",
   "Follow your rider",
-] as const;
-
-export const CUSTOMER_BENEFITS = [
-  {
-    sprite: "crate",
-    title: "Fresh from local kitchens",
-    body: "Cooked to order by Kabankalan restaurants, not a central commissary.",
-  },
-  {
-    sprite: "scooter",
-    title: "Follow your rider",
-    body: "Every order gets a reference you can open to see the live status.",
-  },
-  {
-    sprite: "bowl",
-    title: "Pay cash at the door",
-    body: "No card, no wallet, no prepayment. Bayad when the food arrives.",
-  },
 ] as const;
 
 export const HOW_IT_WORKS = [
@@ -60,7 +32,7 @@ export const HOW_IT_WORKS = [
   {
     key: "Bayad",
     title: "Bayad",
-    body: "Order and pay cash on delivery. No online payment needed.",
+    body: "Order and pay the rider in cash or by GCash when it arrives.",
   },
   {
     key: "Hintay",
@@ -100,27 +72,18 @@ export const DISH_DETAILS: Record<(typeof LOCAL_SPECIALTIES)[number], string> = 
   Napoleones: "Flaky puff pastry layered with custard under a sugar glaze.",
 };
 
-/**
- * The order stages exactly as the app shows them (mobile/src/lib/order-progress.ts),
- * each with what is happening at that point.
- */
-export const ORDER_STAGES = [
-  { label: "Order placed", detail: "The kitchen gets your order and the total you saw." },
-  { label: "Confirmed", detail: "The restaurant accepts it. Until then you can still cancel." },
-  { label: "Being prepared", detail: "Your food is cooked to order." },
-  { label: "Out for delivery", detail: "A rider picks it up. Call or text them from the app." },
-  { label: "Delivered", detail: "Pay the rider in cash or by GCash, then rate the order." },
-] as const;
-
-/** What an applicant can expect, consistent with PARTNER_TERMS. */
-export const PARTNER_NEXT_STEPS = [
-  "We contact you on the number or email you leave.",
-  "We walk you through the terms before you commit to anything.",
-  "Once you agree, we set up your account and you can start.",
-] as const;
-
 export const HERO_PHOTO = "/images/food/hero-inasal.jpg";
 export const KITCHEN_PHOTO = "/images/food/inasal-plate.jpg";
+
+/**
+ * TODO(owner): where people get the app. Null hides the button; with both null
+ * the landing page offers the waitlist instead. The Android link is the EAS
+ * preview build's download page; the iPhone link is the TestFlight public link.
+ */
+export const APP_DOWNLOADS = {
+  android: null as string | null,
+  iphone: null as string | null,
+} as const;
 
 const BY_SA_4 = "https://creativecommons.org/licenses/by-sa/4.0/";
 
@@ -263,7 +226,7 @@ export const FAQ = [
   },
   {
     q: "How do I reach support?",
-    a: "Use the contact details in the Support section below. They are being finalised and will be posted here before launch.",
+    a: "Open the Support page from the bottom of this page. It lists every way to reach us and answers the common questions.",
   },
 ] as const;
 
