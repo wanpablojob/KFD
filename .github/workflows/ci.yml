@@ -93,7 +93,10 @@ jobs:
         run: npm ci
 
       - name: Audit production dependencies
-        run: npm audit --omit=dev --audit-level=high || true
+        # Blocking, matching scripts/verify.sh. A high or critical advisory in a
+        # production dependency is a finding, not a log line: the Next.js
+        # critical advisory this rule caught is why the local gate has it.
+        run: npm audit --omit=dev --audit-level=high
 
       - name: Lint
         run: npm run lint
@@ -230,6 +233,24 @@ jobs:
       - name: Phase C preflight
         run: scripts/phase-c-preflight.sh
 
+  # ---- Harness ---------------------------------------------------------
+  # The guard is the layer that stops Claude Code from pushing, deploying or
+  # reading credentials. Its self-test is cheap and runs on every change, not
+  # behind the app filters: a change to the guard alone must still exercise it.
+  harness:
+    name: Harness — guard self-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Guard self-test
+        run: node scripts/claude-guard.mjs --self-test
+
   # ---- Aggregate gate --------------------------------------------------
   # Always runs, so branch protection can require just this single check.
   # It fails only if a job that actually ran failed or was cancelled;
@@ -237,7 +258,7 @@ jobs:
   ci-ok:
     name: CI OK
     if: always()
-    needs: [changes, admin, db, mobile, backend, launch]
+    needs: [changes, harness, admin, db, mobile, backend, launch]
     runs-on: ubuntu-latest
     steps:
       - name: Verify required jobs succeeded

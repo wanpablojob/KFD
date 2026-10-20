@@ -103,6 +103,12 @@ scripts/verify.sh mobile
 Every check runs even when an earlier one fails, so one pass tells you everything
 that is broken rather than just the first thing.
 
+CI runs the same blocking checks, plus the guard self-test as its own job. The
+admin audit is deliberately not wrapped in `|| true`: a high or critical
+advisory in a production dependency fails CI exactly as it fails the local
+gate. That matters because a pull request is checked by CI, not by the local
+hook.
+
 Two checks are **advisory**: the mobile `npm audit` and `expo-doctor`. Expo pins
 packages with advisories that have no upstream fix, and `npm audit fix --force`
 would move the app off SDK 57. They report and never block, so a known-unfixable
