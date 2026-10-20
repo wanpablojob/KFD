@@ -77,8 +77,16 @@ jobs:
       run:
         working-directory: admin
     env:
-      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+      # Dependabot-triggered runs receive no repository secrets, so on a
+      # dependency PR these are empty, `createClient("")` throws while Next
+      # prerenders /auth/callback, and the build fails for a reason unrelated
+      # to the dependency being bumped. Every Dependabot PR was permanently
+      # red. NEXT_PUBLIC_* values are inlined at build time and this build is
+      # never deployed -- deploy-admin builds from Vercel's own environment --
+      # so a placeholder is enough to compile the same code. The real secret
+      # still wins wherever one is available (main, human PRs within the repo).
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co' }}
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || 'placeholder-publishable-key' }}
     steps:
       - uses: actions/checkout@v7
 
