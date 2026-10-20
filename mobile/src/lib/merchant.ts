@@ -223,20 +223,19 @@ export const MENU_IMAGE_BUCKET = "menu-images";
  */
 export async function preparePhotoForUpload(uri: string): Promise<string> {
   try {
-    const original = await ImageManipulator.ImageManipulator.manipulate(uri).renderAsync();
+    const original =
+      await ImageManipulator.ImageManipulator.manipulate(uri).renderAsync();
     const width = targetWidthFor(original.width);
     if (width === null) return uri;
 
     const resized = ImageManipulator.ImageManipulator.manipulate(uri);
     resized.resize({ width });
-    const saved = await resized
-      .renderAsync()
-      .then((image) =>
-        image.saveAsync({
-          compress: 0.85,
-          format: ImageManipulator.SaveFormat.JPEG,
-        })
-      );
+    const saved = await resized.renderAsync().then((image) =>
+      image.saveAsync({
+        compress: 0.85,
+        format: ImageManipulator.SaveFormat.JPEG,
+      })
+    );
     return saved.uri;
   } catch {
     return uri;
