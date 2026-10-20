@@ -217,9 +217,12 @@ Two environments are supported:
 
 - **Preview / Staging**: on every pull request, a Vercel Preview is deployed
   to the `staging` GitHub Environment. The preview URL is commented on the PR.
-- **Production**: on every successful `CI` run on `main` that touches `admin/`,
-  the admin is deployed to the `production` GitHub Environment. A
-  required-reviewer approval gate can be configured in the GitHub UI.
+- **Production**: a manual `workflow_dispatch` from `main` with
+  `target=production` and `confirm_production=deploy`. The job refuses to run
+  unless `CI OK` is green for that exact commit. `admin/vercel.json` sets
+  `git.deploymentEnabled.main` to `false`, so a push to `main` never deploys
+  production on its own; only the CLI deploy aliases the domain. Pull-request
+  previews are unaffected.
 
 Required secrets (add in `Settings → Secrets and variables → Actions`):
 
