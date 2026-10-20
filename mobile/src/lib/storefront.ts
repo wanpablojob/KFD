@@ -150,6 +150,38 @@ export interface RiderOrderPageResult {
 }
 
 /**
+ * A `fetch_rider_orders_page` row as the app uses it.
+ *
+ * gen-types cannot infer nullability for a RETURNS TABLE, so it hands back every
+ * column as non-null. customer_phone, delivery_address, rider_payout and
+ * next_cursor are genuinely nullable, so the row is mapped field by field rather
+ * than cast: a cast would be the compiler agreeing with a lie, and the symptom
+ * would be the string "null" on a rider's card.
+ *
+ * Exported so it has a test (storefront-mapping.test.ts).
+ */
+export function mapRiderOrderRow(row: Record<string, unknown>): RiderOrderPageItem {
+  return {
+    id: String(row.id),
+    reference: String(row.reference),
+    customer: String(row.customer),
+    customer_phone: (row.customer_phone as string | null) ?? null,
+    restaurant: String(row.restaurant),
+    delivery_address: (row.delivery_address as string | null) ?? null,
+    items: parseOrderItems(row.items),
+    total: Number(row.total),
+    rider_payout:
+      row.rider_payout === null || row.rider_payout === undefined
+        ? null
+        : Number(row.rider_payout),
+    status: String(row.status),
+    payment: String(row.payment),
+    placed_at: String(row.placed_at),
+    next_cursor: (row.next_cursor as string | null) ?? null,
+  };
+}
+
+/**
  * A live offer: an order the system has put in front of this rider to accept or
  * decline. Not yet theirs, so it carries no rider_payout -- the fee shown is the
  * standard rate, frozen onto the order only if they accept.
@@ -171,20 +203,9 @@ export interface RiderOffer {
   expiresAt: string;
 }
 
-/**
- * Live offers for the calling rider (migration 0045).
- *
- * Polls on a short interval because offers are time-boxed: without a refresh the
- * expiry countdown is a lie and Accept would fail against a row that quietly
- * went stale. refetchInterval is on the hook, not here.
- */
-export async function fetchRiderOffers(): Promise<RiderOffer[]> {
-  const { data, error } = await supabase.rpc("fetch_rider_offers");
-  if (error) throw error;
-
-  // Same reason as fetchRiderOrdersPage: gen-types cannot infer nullability for
-  // a RETURNS TABLE, so nullable columns are mapped rather than cast over.
-  return ((data ?? []) as unknown as Record<string, unknown>[]).map((row) => ({
+/** An `fetch_rider_offers` row, mapped for the same reason as mapRiderOrderRow. */
+export function mapRiderOfferRow(row: Record<string, unknown>): RiderOffer {
+  return {
     offerId: Number(row.offer_id),
     orderId: String(row.order_id),
     reference: String(row.reference),
@@ -201,7 +222,21 @@ export async function fetchRiderOffers(): Promise<RiderOffer[]> {
     city: (row.city as string | null) ?? null,
     offeredAt: String(row.offered_at),
     expiresAt: String(row.expires_at),
-  }));
+  };
+}
+
+/**
+ * Live offers for the calling rider (migration 0045).
+ *
+ * Polls on a short interval because offers are time-boxed: without a refresh the
+ * expiry countdown is a lie and Accept would fail against a row that quietly
+ * went stale. refetchInterval is on the hook, not here.
+ */
+export async function fetchRiderOffers(): Promise<RiderOffer[]> {
+  const { data, error } = await supabase.rpc("fetch_rider_offers");
+  if (error) throw error;
+
+  return ((data ?? []) as unknown as Record<string, unknown>[]).map(mapRiderOfferRow);
 }
 
 /**
@@ -258,25 +293,11 @@ export async function fetchRiderOrdersPage(
   });
   if (error) throw error;
 
-  // gen-types cannot infer nullability for a RETURNS TABLE, so it hands back
-  // every column as non-null. customer_phone, delivery_address, rider_payout and
-  // next_cursor are all genuinely nullable, which is why this maps explicitly
-  // instead of casting the rows into RiderOrderPageItem[] and lying about it.
-  const rows: RiderOrderPageItem[] = (data ?? []).map((row) => ({
-    id: row.id,
-    reference: row.reference,
-    customer: row.customer,
-    customer_phone: row.customer_phone ?? null,
-    restaurant: row.restaurant,
-    delivery_address: row.delivery_address ?? null,
-    items: parseOrderItems(row.items),
-    total: row.total,
-    rider_payout: row.rider_payout ?? null,
-    status: row.status,
-    payment: row.payment,
-    placed_at: row.placed_at,
-    next_cursor: row.next_cursor ?? null,
-  }));
+  // Mapped rather than cast: see mapRiderOrderRow for why gen-types cannot be
+  // trusted about nullability here.
+  const rows: RiderOrderPageItem[] = (
+    (data ?? []) as unknown as Record<string, unknown>[]
+  ).map(mapRiderOrderRow);
 
   // All rows in a page have the same next_cursor (from the window function)
   const nextCursor = rows[0]?.next_cursor ?? null;
@@ -524,6 +545,33 @@ export interface CustomerOrder {
   delivery_address: string | null;
 }
 
+/**
+ * An `orders` row as the customer screens use it.
+ *
+ * The select lists exactly these columns, so a missing one means the query and
+ * this mapping have drifted, not that the data is absent. The three nullable
+ * columns are the ones that actually arrive null (old orders), and they are
+ * mapped rather than cast so their types are checked here, once.
+ */
+export function mapMyOrderRow(row: Record<string, unknown>): CustomerOrder {
+  return {
+    id: String(row.id),
+    reference: String(row.reference),
+    restaurant: String(row.restaurant),
+    restaurant_id: (row.restaurant_id as string | null) ?? null,
+    rider_id: (row.rider_id as string | null) ?? null,
+    items: Array.isArray(row.items) ? (row.items as CustomerOrder["items"]) : [],
+    subtotal: Number(row.subtotal),
+    delivery_fee: Number(row.delivery_fee),
+    service_fee: Number(row.service_fee),
+    total: Number(row.total),
+    status: String(row.status),
+    payment: String(row.payment),
+    placed_at: String(row.placed_at),
+    delivery_address: (row.delivery_address as string | null) ?? null,
+  };
+}
+
 /** This customer's own orders, newest first (RLS: customer_user_id = auth.uid()). */
 export async function fetchMyOrders(): Promise<CustomerOrder[]> {
   const { data, error } = await supabase
@@ -534,7 +582,7 @@ export async function fetchMyOrders(): Promise<CustomerOrder[]> {
     .order("placed_at", { ascending: false })
     .limit(30);
   if (error) throw error;
-  return (data ?? []) as CustomerOrder[];
+  return ((data ?? []) as unknown as Record<string, unknown>[]).map(mapMyOrderRow);
 }
 
 /**
