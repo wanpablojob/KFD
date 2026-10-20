@@ -1062,12 +1062,17 @@ jobs:
               ("public.is_customer()", "is_customer"),
               ("public.register_customer()", "register_customer"),
               # 0076 and 0081 rebuilt customer_place_order with the idempotency
-              # key and the delivery barangay, so the four-argument version no
-              # longer exists. can_execute reports a stale signature here
-              # instead of raising 42883 and ending the run.
+              # key and the delivery barangay, and 0098 added the contact phone
+              # for the delivery, so the older signatures no longer exist.
+              # can_execute reports a stale signature here instead of raising
+              # 42883 and ending the run.
               (
-                  "public.customer_place_order(text, jsonb, text, payment_method, text, text)",
+                  "public.customer_place_order(text, jsonb, text, payment_method, text, text, text)",
                   "customer_place_order",
+              ),
+              (
+                  "public.customer_place_delivery(jsonb, text, payment_method, text, text, text)",
+                  "customer_place_delivery",
               ),
           ]:
               if can_execute("authenticated", sig) is False:
