@@ -55,6 +55,10 @@ yarn-error.log*
 # ---- Playwright MCP ----
 .playwright-mcp/
 
+# ---- OpenCode local state ----
+.opencode/journal/
+.opencode/neo/
+
 # ---- Local verification logs ----
 # Saved output of scripts/verify.sh. Machine-local, never source.
 .verify-*.txt
