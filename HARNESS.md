@@ -109,6 +109,47 @@ would move the app off SDK 57. They report and never block, so a known-unfixable
 upstream issue can't wedge every future push. Admin's audit *is* blocking, which
 is why the Next.js critical advisory didn't survive.
 
+## The MCP servers
+
+`.opencode/opencode.json` starts four MCP servers: `graphify`, `memory`,
+`playwright` and `context7`. The first two are local binaries. The other two
+are npm packages, and they are launched through `scripts/mcp-server.sh`
+rather than through `npx -y <package>@latest`, because `npx` makes every
+session start pay for an npm resolution, a download and a cold install
+before the server answers the handshake. OpenCode gives that handshake a
+fixed number of seconds, so on a cold cache the client gave up first and
+the servers came up as `failed: Request timed out` — the tools were never
+broken, they were late.
+
+The script runs the local copy when there is one and falls back to `npx`
+with a pinned version when there is not. Measured on this machine:
+
+| Server | Local copy | `npx` fallback |
+| --- | --- | --- |
+| `playwright` | 204 ms | 2.1 s |
+| `context7` | 356 ms | 6.3 s |
+
+On a cold npm cache the fallback is far slower than that, which is what the
+timeout was.
+
+To install the local copies (they live in `.opencode/node_modules`, which is
+machine-local by design — see `.opencode/.gitignore`):
+
+```sh
+cd .opencode && npm install --save-exact --save-dev \
+  @playwright/mcp@0.0.83 @upstash/context7-mcp@4.4.4
+cd .opencode && npx playwright install chromium
+```
+
+The browser matters: without one, the Playwright server connects and then
+fails every navigation.
+
+Check the result with:
+
+```sh
+opencode mcp list
+```
+
 ## Working with Claude Code
 
 Claude commits locally and stops. You verify and push:

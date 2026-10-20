@@ -35,12 +35,12 @@
     },
     "playwright": {
       "type": "local",
-      "command": ["npx", "-y", "@playwright/mcp@latest"],
+      "command": ["bash", "scripts/mcp-server.sh", "playwright"],
       "enabled": true
     },
     "context7": {
       "type": "local",
-      "command": ["npx", "-y", "@upstash/context7-mcp"],
+      "command": ["bash", "scripts/mcp-server.sh", "context7"],
       "enabled": true
     }
   }
