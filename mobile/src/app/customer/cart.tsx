@@ -244,7 +244,11 @@ export default function CustomerCartScreen() {
       // The moment alerts start to matter: ask once so "on the way" and
       // "delivered" reach this phone. Never blocks or delays the tracker.
       void autoEnablePushOnce();
-      router.replace({
+      // Land on the Orders tab, then open tracking on top of it. Replacing the
+      // customer group with /track used to drop the tab bar and leave Back with
+      // nowhere to go, so the customer could not get home again.
+      router.navigate("/customer/orders");
+      router.push({
         pathname: "/track",
         params: { ref: result.reference },
       });

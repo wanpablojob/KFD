@@ -1,4 +1,5 @@
 import { router, useLocalSearchParams } from "expo-router";
+import { useSession } from "../lib/session-context";
 import { TrackOrderScreen } from "../screens/track-order-screen";
 
 /**
@@ -7,15 +8,15 @@ import { TrackOrderScreen } from "../screens/track-order-screen";
  */
 export default function TrackRoute() {
   const { ref } = useLocalSearchParams<{ ref?: string }>();
+  const { role } = useSession();
   return (
     <TrackOrderScreen
       onBack={() => {
-        // Deep links can open /track with no history to unwind. Fall back to
-        // the anchor, which the router rewrites to the first available screen
-        // for the current session (landing when signed out, the storefront when
-        // signed in).
+        // Deep links and push taps can open /track with no history to unwind.
+        // A customer then goes to their Home tab; anyone else to the anchor,
+        // which the router rewrites to the first screen their session allows.
         if (router.canGoBack()) router.back();
-        else router.replace("/");
+        else router.replace(role?.role === "customer" ? "/customer" : "/");
       }}
       initialReference={typeof ref === "string" ? ref : undefined}
     />
