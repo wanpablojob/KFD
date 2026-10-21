@@ -1,4 +1,5 @@
 import { supabase } from "./client";
+import { notifyAdminDecision } from "./admin-notify";
 import { anyIlikeFilter } from "./ilike-filter";
 import { riderProfilePatch, type RiderProfileInput } from "@/lib/rider-profile";
 import { describeRpcFailure } from "@/lib/missing-migration";
@@ -1108,7 +1109,9 @@ export async function reviewRiderApplication(
     p_approve: approve,
     p_note: note?.trim() ? note.trim() : undefined,
   });
-  return requireOk(error, String(data ?? ""));
+  const riderId = requireOk(error, String(data ?? ""));
+  void notifyAdminDecision("application", applicationId);
+  return riderId;
 }
 
 // ---------------------------------------------------------------------------
@@ -1285,6 +1288,17 @@ export async function setRiderSuspended(
     p_suspended: suspended,
     p_reason: reason?.trim() ? reason.trim() : undefined,
   });
+  requireOk(error, undefined);
+  void notifyAdminDecision("suspension", id);
+}
+
+/**
+ * Finish a rider's in-app deletion request (0111). The database refuses while
+ * a delivery, cash on hand or a disputed payout is open, then deletes the
+ * login and personal data and keeps the money records.
+ */
+export async function closeRiderAccount(id: string): Promise<void> {
+  const { error } = await supabase.rpc("admin_close_rider_account", { p_rider_id: id });
   requireOk(error, undefined);
 }
 

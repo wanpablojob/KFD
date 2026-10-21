@@ -1,4 +1,5 @@
 import { supabase } from "./client";
+import { notifyAdminDecision } from "./admin-notify";
 
 /**
  * Refunds and ratings (0078). Row Level Security scopes both: admins read all
@@ -30,13 +31,15 @@ export async function recordRefund(
   method: Refund["method"],
   reason: string
 ): Promise<void> {
-  const { error } = await supabase.rpc("admin_record_refund", {
+  const { data, error } = await supabase.rpc("admin_record_refund", {
     p_order_id: orderId,
     p_amount: amount,
     p_method: method,
     p_reason: reason,
   });
   if (error) throw new Error(error.message);
+  const refundId = data?.[0]?.id;
+  if (refundId !== undefined) void notifyAdminDecision("refund", refundId);
 }
 
 export interface Rating {

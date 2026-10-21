@@ -25,6 +25,7 @@ import {
   updateRiderProfile,
   fetchRiderAccess,
   resolveDeliveryIssue,
+  closeRiderAccount,
 } from "@/lib/supabase/queries";
 import { formatCurrency } from "@/lib/format";
 import { PageContainer, PageHeader, Section } from "@/components/layout/page";
@@ -63,6 +64,7 @@ import { buildPayoutColumns } from "@/components/riders/payout-columns";
 import { EntityDialog } from "@/components/ui/entity-dialog";
 import { useRiderAction } from "@/components/rider/use-rider-action";
 import { RevokeRiderDialog } from "@/components/riders/revoke-rider-dialog";
+import { CloseRiderAccountDialog } from "@/components/riders/close-rider-account-dialog";
 import { ResolveDisputeDialog } from "@/components/riders/resolve-dispute-dialog";
 
 /** Chart window. A month is long enough to spot a decline without paging. */
@@ -134,6 +136,7 @@ export default function RiderDetailPage() {
   );
   const [attaching, setAttaching] = useState(false);
   const [revoking, setRevoking] = useState(false);
+  const [closing, setClosing] = useState(false);
   // The payout row whose dispute is being resolved, if any. Holds the row rather
   // than a boolean so the dialog can name the order and show the amount at stake.
   const [resolving, setResolving] = useState<RiderPayout | null>(null);
@@ -306,6 +309,11 @@ export default function RiderDetailPage() {
             >
               {rider.suspendedAt ? "Reinstate" : "Suspend"}
             </Button>
+            {deletionRequests.data?.has(riderId) && !rider.archivedAt ? (
+              <Button variant="destructive" size="sm" onClick={() => setClosing(true)}>
+                Close account
+              </Button>
+            ) : null}
             <ArchiveButton
               name={rider.name}
               archived={Boolean(rider.archivedAt)}
@@ -964,6 +972,25 @@ export default function RiderDetailPage() {
                 setRevoking(false);
               })
               .then(() => undefined)
+          }
+        />
+      ) : null}
+
+      {closing ? (
+        <CloseRiderAccountDialog
+          riderName={rider.name}
+          busy={action.isPending("close")}
+          onClose={() => setClosing(false)}
+          onConfirm={() =>
+            action
+              .run("close", async () => {
+                await closeRiderAccount(riderId);
+                await riderQuery.refetch();
+                await access.refetch();
+                deletionRequests.refetch();
+                activity.refetch();
+              })
+              .then(() => setClosing(false))
           }
         />
       ) : null}

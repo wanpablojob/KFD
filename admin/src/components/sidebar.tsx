@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import {
   BikeIcon,
   LayoutDashboardIcon,
+  MailIcon,
   MapPinIcon,
   ReceiptIcon,
   StoreIcon,
@@ -41,6 +42,7 @@ const navItems = [
   { href: "/dashboard/merchants", label: "Merchant access", icon: UserCogIcon, adminOnly: true },
   // Admin only: once the list has rows, it decides which addresses can order (0077).
   { href: "/dashboard/service-areas", label: "Service areas", icon: MapPinIcon, adminOnly: true },
+  { href: "/dashboard/leads", label: "Website sign-ups", icon: MailIcon, adminOnly: true },
 ] as const;
 
 export function Sidebar({
