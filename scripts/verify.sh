@@ -59,6 +59,13 @@ verify_mobile() {
   run "mobile: audit (production deps)" "$ROOT/mobile" advisory \
     npm audit --omit=dev
   run "mobile: expo-doctor"   "$ROOT/mobile" advisory npx expo-doctor
+  # The app is pinned to Expo SDK 57. `expo install --check` compares the
+  # installed tree against the versions SDK 57 bundles, and exits 1 the moment
+  # one of them has walked onto another SDK. CI=1 keeps it non-interactive:
+  # without it the CLI offers to "Fix dependencies?" and rewrites the
+  # lockfile from inside the gate.
+  run "mobile: expo SDK alignment" "$ROOT/mobile" required \
+    env CI=1 npx expo install --check
   run "mobile: lint"          "$ROOT/mobile" required npm run lint
   run "mobile: typecheck"     "$ROOT/mobile" required npm run typecheck
   run "mobile: test"          "$ROOT/mobile" required npm run test -- --ci

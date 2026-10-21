@@ -62,6 +62,11 @@ Steps apply from the repository root.
    npm start          # scan the QR code with Expo Go
    ```
 
+   The mobile app is pinned to **Expo SDK 57**. `npx expo` resolves to the
+   SDK 57 CLI from any directory in the repo (the root `package.json` pins
+   `expo` for that reason), so avoid running it outside the project tree with an
+   unpinned global install.
+
 5. **Start the backend** — not yet available. The `backend/` NestJS service will be added in a future step.
 
 6. **Run lint**:

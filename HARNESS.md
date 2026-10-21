@@ -115,6 +115,20 @@ would move the app off SDK 57. They report and never block, so a known-unfixable
 upstream issue can't wedge every future push. Admin's audit *is* blocking, which
 is why the Next.js critical advisory didn't survive.
 
+The **Expo SDK alignment** check is blocking, in the local gate and in CI
+alike. The app is pinned to SDK 57, and `expo install --check` compares the
+installed tree against the versions SDK 57 bundles — it fails the moment an
+`expo-*` package has walked onto another SDK. Dependabot's `~57.0.x` ranges
+cannot cause that; a hand-edited version range can. It runs with `CI=1` so it
+stays non-interactive: without that the CLI offers to "Fix dependencies?" and
+rewrites the lockfile from inside the gate.
+
+The root `package.json` pins `expo` to the same SDK 57 line for a related
+reason. `npx expo` from the repository root has no local copy to resolve, so it
+downloads whatever the registry serves as `latest` — currently SDK 58 — and an
+SDK 58 CLI will happily rewrite an SDK 57 project. The root pin makes `npx
+expo` resolve to SDK 57 from any directory in the repo.
+
 ## The MCP servers
 
 `.opencode/opencode.json` starts five project MCP servers: `graphify`,
