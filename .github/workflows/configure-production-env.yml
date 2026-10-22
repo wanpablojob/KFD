@@ -207,6 +207,73 @@ jobs:
           NODE
           cat "$RUNNER_TEMP/vercel-report.json"
 
+      # "The key is present" and "the key works" are different facts, and the
+      # app cannot tell them apart: both a refused key and a retired model come
+      # back to the phone as {"fallback":"model-error"}. This asks Google with
+      # the key production actually holds and prints the answer -- status and
+      # message, never the key -- so the next failure names its own cause.
+      - name: Check the AI key
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require("fs");
+
+          (async () => {
+            const key = process.env.GEMINI_API_KEY;
+            if (!key) {
+              console.log('No Gemini key: the routes answer {"fallback":"no-key"}.');
+              return;
+            }
+            console.error("::add-mask::" + key);
+
+            // The model the deployed app will ask for, read from the same
+            // environment the deploy writes rather than guessed here.
+            let configured = "";
+            try {
+              const envs = JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP + "/vercel-env.json", "utf8"));
+              configured = String(envs.GEMINI_MODEL?.value ?? "").trim();
+            } catch {}
+            const model = configured || "gemini-3.8-flash";
+
+            const list = await fetch(
+              "https://generativelanguage.googleapis.com/v1beta/models?pageSize=200",
+              { headers: { "x-goog-api-key": key } }
+            );
+            if (list.ok) {
+              const payload = await list.json();
+              const names = (payload.models || []).map((m) => String(m.name).replace("models/", ""));
+              console.log(
+                "Models this key can use (" + names.length + "): " +
+                  names.filter((n) => n.includes("flash") || n.includes("pro")).join(", ").slice(0, 700)
+              );
+              console.log("GEMINI_MODEL: " + (configured || "(unset, default " + model + ")"));
+              console.log("Configured model is available: " + names.includes(model));
+            } else {
+              console.log(
+                "Listing models refused (" + list.status + "): " + (await list.text()).slice(0, 300)
+              );
+            }
+
+            const send = await fetch(
+              `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+                body: JSON.stringify({
+                  contents: [{ role: "user", parts: [{ text: "Reply with the single word: ok" }] }],
+                  generationConfig: { maxOutputTokens: 8, temperature: 0 },
+                }),
+              }
+            );
+            console.log(
+              "generateContent " + model + ": " + send.status + " " + (await send.text()).slice(0, 500)
+            );
+          })().catch((e) => {
+            console.error(String(e));
+            process.exit(1);
+          });
+          NODE
+
       - name: Apply the environment
         if: ${{ !inputs.dry_run }}
         run: |
