@@ -64,6 +64,20 @@ describe("chatIntent", () => {
     ["pabakal ko biogesic", "shopping"],
     ["biogesic x2", "shopping"],
     ["dalawang sardinas", "shopping"],
+    // Slang, stretched letters and typos
+    ["mayong gab e", "greeting"],
+    ["maayong gab-i po", "greeting"],
+    ["gud pm bai", "greeting"],
+    ["hellooo!!", "greeting"],
+    ["uy musta na day", "greeting"],
+    ["kumsta", "greeting"],
+    ["salamaaat gid", "thanks"],
+    ["salamt kaayo te", "thanks"],
+    ["tysm", "thanks"],
+    ["sge2 hehe", "other"],
+    ["okie dokie", "other"],
+    ["mayong gab e, duwa ka biogesic sa mercury", "shopping"],
+    ["salamat, tatlo pa ka itlog", "shopping"],
   ])("%s -> %s", (message, intent) => {
     expect(chatIntent(message)).toBe(intent);
   });

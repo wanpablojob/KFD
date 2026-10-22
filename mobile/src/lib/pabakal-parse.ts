@@ -245,78 +245,234 @@ export function parsePabakalMessage(message: string): StopDraft[] {
   return stops;
 }
 
-const GREETING_WORDS = new Set([
-  "hello",
-  "helo",
-  "hellow",
-  "hi",
-  "hii",
-  "hey",
-  "hoy",
-  "good",
-  "morning",
-  "afternoon",
-  "evening",
+/**
+ * Small-talk words, as people actually text them in Kabankalan: Hiligaynon,
+ * Tagalog, English and text-speak. Matching is forgiving (see smallTalkKind),
+ * so this does not need every spelling.
+ */
+const GREETING_WORDS = [
+  // Hiligaynon / Ilonggo
   "maayong",
+  "mayong",
+  "mayung",
+  "maayung",
+  "maayo",
   "aga",
+  "agahon",
   "udto",
   "hapon",
+  "hapun",
   "gabi",
+  "gabe",
+  "gbi",
   "gab",
+  "kamusta",
+  "kumusta",
+  "musta",
+  "kmsta",
+  "kmusta",
+  "uy",
+  "oy",
+  "huy",
+  "hoy",
+  "ayo",
+  // Tagalog
   "magandang",
   "umaga",
   "tanghali",
-  "kumusta",
-  "kamusta",
-  "musta",
-]);
-const THANKS_WORDS = new Set([
+  "hapon",
+  "gabi",
+  // English and text-speak
+  "hello",
+  "helo",
+  "hallo",
+  "hellu",
+  "hai",
+  "hi",
+  "hey",
+  "heya",
+  "yo",
+  "yow",
+  "sup",
+  "wassup",
+  "good",
+  "gud",
+  "morning",
+  "afternoon",
+  "evening",
+  "noon",
+  "gm",
+  "ga",
+  "ge",
+  "gn",
+  "gnyt",
+  "night",
+  "nyt",
+  "am",
+  "pm",
+  "eve",
+  "eb",
+  "aft",
+];
+const THANKS_WORDS = [
   "salamat",
-  "thanks",
-  "thank",
-  "you",
-  "ty",
-  "tnx",
-  "thx",
+  "slmt",
+  "salamuch",
+  "salamt",
   "daghang",
   "damo",
+  "madamo",
   "maraming",
-]);
-/** Small talk that carries no order: "ok po", "sige lang", "salamat sa inyo". */
-const FILLER_WORDS = new Set([
+  "thanks",
+  "thank",
+  "thnx",
+  "thnks",
+  "thx",
+  "tnx",
+  "tnks",
+  "ty",
+  "tysm",
+  "tq",
+  "tenkyu",
+  "tenks",
+];
+/** Words that carry no order on their own: "ok po", "sige bai", "hehe". */
+const FILLER_WORDS = [
   "po",
   "sa",
   "inyo",
   "ninyo",
   "nyo",
+  "kamo",
+  "ikaw",
   "kaayo",
   "lang",
+  "lng",
   "man",
   "ha",
   "ba",
-  "ok",
-  "okay",
-  "oks",
-  "sige",
-  "yes",
-  "no",
-  "oo",
-  "indi",
-  "hindi",
-  "sir",
-  "maam",
-  "ma'am",
-  "kfd",
-  "guys",
-  "there",
-  "din",
-  "rin",
+  "bah",
+  "bala",
+  "gani",
+  "abi",
+  "kay",
+  "ni",
+  "na",
+  "pa",
   "gid",
   "gd",
+  "din",
+  "rin",
+  "man",
   "ta",
   "kita",
+  "mo",
+  "you",
   "i",
-]);
+  "e",
+  "a",
+  "ok",
+  "okay",
+  "okey",
+  "oki",
+  "okie",
+  "oks",
+  "k",
+  "kk",
+  "sige",
+  "sge",
+  "sigi",
+  "yes",
+  "yep",
+  "no",
+  "oo",
+  "huo",
+  "hu",
+  "ow",
+  "ou",
+  "indi",
+  "hindi",
+  "di",
+  "dili",
+  "wala",
+  "ambot",
+  "ay",
+  "ah",
+  "eh",
+  "oh",
+  "hehe",
+  "haha",
+  "hihi",
+  "lol",
+  "sir",
+  "maam",
+  "mam",
+  "madam",
+  "bai",
+  "day",
+  "inday",
+  "dong",
+  "nong",
+  "manong",
+  "manang",
+  "te",
+  "tol",
+  "pre",
+  "pare",
+  "mare",
+  "bro",
+  "brad",
+  "sis",
+  "boss",
+  "idol",
+  "guys",
+  "everyone",
+  "there",
+  "kfd",
+  "admin",
+];
+
+/** "hellooo" -> "helo", "salamaaat" -> "salamat": stretched letters count once. */
+const squeeze = (w: string) => w.replace(/(.)\1+/g, "$1");
+
+const squeezed = (words: string[]) => new Set(words.map(squeeze));
+const GREETING = squeezed(GREETING_WORDS);
+const THANKS = squeezed(THANKS_WORDS);
+const FILLER = squeezed(FILLER_WORDS);
+
+/** One letter added, dropped or changed. */
+function oneEditApart(a: string, b: string): boolean {
+  if (Math.abs(a.length - b.length) > 1) return false;
+  let i = 0;
+  let j = 0;
+  let edits = 0;
+  while (i < a.length && j < b.length) {
+    if (a[i] === b[j]) {
+      i += 1;
+      j += 1;
+      continue;
+    }
+    edits += 1;
+    if (edits > 1) return false;
+    if (a.length > b.length) i += 1;
+    else if (b.length > a.length) j += 1;
+    else {
+      i += 1;
+      j += 1;
+    }
+  }
+  return edits + (a.length - i) + (b.length - j) <= 1;
+}
+
+/** In the set, or (for words of 5+ letters) one typo from a word in it. */
+function inSet(word: string, set: Set<string>): boolean {
+  if (set.has(word)) return true;
+  if (word.length < 5) return false;
+  for (const known of set)
+    if (known.length >= 5 && oneEditApart(word, known)) return true;
+  return false;
+}
+
 const SHOPPING_WORD =
   /\b(?:pabakal|pabili|bakal|bili|buy|order|bakalan|bilhan|palihog)\b/i;
 
@@ -336,13 +492,19 @@ export function chatIntent(message: string): ChatIntent {
     .filter(Boolean);
   if (words.length === 0) return "other";
 
-  if (
-    words.every(
-      (w) => GREETING_WORDS.has(w) || THANKS_WORDS.has(w) || FILLER_WORDS.has(w)
-    )
-  ) {
-    if (words.some((w) => THANKS_WORDS.has(w) && w !== "you")) return "thanks";
-    if (words.some((w) => GREETING_WORDS.has(w))) return "greeting";
+  const plain = words.map(squeeze);
+  const kinds = plain.map((w) =>
+    inSet(w, THANKS)
+      ? "thanks"
+      : inSet(w, GREETING)
+        ? "greeting"
+        : FILLER.has(w)
+          ? "filler"
+          : null
+  );
+  if (kinds.every((k) => k !== null)) {
+    if (kinds.includes("thanks")) return "thanks";
+    if (kinds.includes("greeting")) return "greeting";
     return "other";
   }
 
