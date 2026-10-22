@@ -12,6 +12,8 @@
  * the key and model are server settings, and a fallback is a normal 200.
  */
 
+import { geminiGenerateContent } from "./gemini.ts";
+
 export const MAX_PICKS = 4;
 const MAX_HISTORY = 20;
 const MAX_OPEN = 40;
@@ -153,8 +155,6 @@ export async function picksWithGemini(
 ): Promise<PicksOutcome> {
   const key = options.key?.trim();
   if (!key) return { fallback: "no-key" };
-  const model = options.model?.trim() || "gemini-3.8-flash";
-  const send = options.fetchImpl ?? fetch;
 
   const prompt = JSON.stringify({
     now: { day: DAYS[profile.now.weekday], hour: profile.now.hour },
@@ -163,33 +163,25 @@ export async function picksWithGemini(
     open: profile.open,
   });
 
-  let response: Response;
-  try {
-    response = await send(
-      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-goog-api-key": key },
-        body: JSON.stringify({
-          contents: [{ role: "user", parts: [{ text: prompt }] }],
-          systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
-          generationConfig: {
-            responseMimeType: "application/json",
-            responseSchema: RESPONSE_SCHEMA,
-            temperature: 0.4,
-            maxOutputTokens: 600,
-          },
-        }),
-        signal: AbortSignal.timeout(10_000),
+  const outcome = await geminiGenerateContent({
+    key,
+    model: options.model,
+    fetchImpl: options.fetchImpl,
+    body: {
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+      generationConfig: {
+        responseMimeType: "application/json",
+        responseSchema: RESPONSE_SCHEMA,
+        temperature: 0.4,
+        maxOutputTokens: 600,
       },
-    );
-  } catch {
-    return { fallback: "model-error" };
-  }
-  if (!response.ok) return { fallback: "model-error" };
+    },
+  });
+  if (!outcome.ok) return { fallback: outcome.fallback };
 
   try {
-    const payload = (await response.json()) as {
+    const payload = outcome.payload as {
       candidates?: { content?: { parts?: { text?: string }[] } }[];
     };
     const answer = (payload.candidates?.[0]?.content?.parts ?? [])

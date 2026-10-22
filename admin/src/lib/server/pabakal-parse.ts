@@ -17,6 +17,8 @@
  * requests acceptable here.
  */
 
+import { geminiGenerateContent } from "./gemini.ts";
+
 /** A long Messenger paste, short enough to stay one cheap request. */
 export const MAX_MESSAGE_LENGTH = 500;
 
@@ -161,43 +163,24 @@ export async function parseWithGemini(
   const key = options.key?.trim();
   if (!key) return { fallback: "no-key" };
 
-  const model = options.model?.trim() || "gemini-3.8-flash";
-  const send = options.fetchImpl ?? fetch;
+  const outcome = await geminiGenerateContent({
+    key,
+    model: options.model,
+    fetchImpl: options.fetchImpl,
+    body: {
+      contents: [{ role: "user", parts: [{ text: message }] }],
+      systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+      generationConfig: {
+        responseMimeType: "application/json",
+        responseSchema: RESPONSE_SCHEMA,
+        temperature: 0,
+        maxOutputTokens: 800,
+      },
+    },
+  });
+  if (!outcome.ok) return { fallback: outcome.fallback };
 
-  let response: Response;
-  try {
-    response = await send(
-      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-goog-api-key": key,
-        },
-        body: JSON.stringify({
-          contents: [{ role: "user", parts: [{ text: message }] }],
-          systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
-          generationConfig: {
-            responseMimeType: "application/json",
-            responseSchema: RESPONSE_SCHEMA,
-            temperature: 0,
-            maxOutputTokens: 800,
-          },
-        }),
-      }
-    );
-  } catch {
-    return { fallback: "model-error" };
-  }
-
-  if (!response.ok) return { fallback: "model-error" };
-
-  let payload: unknown;
-  try {
-    payload = await response.json();
-  } catch {
-    return { fallback: "malformed" };
-  }
+  const payload: unknown = outcome.payload;
 
   const parts = isRecord(payload)
     ? (payload.candidates as Array<unknown> | undefined)?.[0]
