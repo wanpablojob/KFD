@@ -200,8 +200,10 @@ begin
   if (select total from deliveries where id = (select delivery_id from ms_placed)) <> 245 then
     raise exception 'FAIL the trip total is wrong: %', (select total from deliveries where id = (select delivery_id from ms_placed));
   end if;
-  if (select status from deliveries where id = (select delivery_id from ms_placed)) <> 'pending' then
-    raise exception 'FAIL a new trip is not pending';
+  -- The shops in this test take orders automatically (0121), so the trip is
+  -- accepted as it is placed and the rider is offered it at once.
+  if (select status from deliveries where id = (select delivery_id from ms_placed)) <> 'confirmed' then
+    raise exception 'FAIL a new trip is not confirmed';
   end if;
 
   -- The shops: each part carries its own food, and its share of the trip's
@@ -264,22 +266,20 @@ reset role;
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000090c2","role":"authenticated"}', true);
 
--- The first shop accepts: not everyone has, so nothing is offered yet.
-update orders set status = 'confirmed'
- where delivery_id = (select delivery_id from ms_placed) and restaurant_id = 'RS-M01';
-
+-- The shops here take orders automatically (0121), so both parts were
+-- accepted as the basket was placed and the trip went to the riders at once.
 -- The offers table is the server's business: no client reads it, so the
 -- check runs with the client's privileges lifted.
 reset role;
 do $$
 begin
-  if exists (select 1 from delivery_offers where delivery_id = (select delivery_id from ms_placed)) then
-    raise exception 'FAIL the trip was offered before every shop accepted';
+  if not exists (select 1 from delivery_offers where delivery_id = (select delivery_id from ms_placed)) then
+    raise exception 'FAIL the trip was not offered to the riders';
   end if;
   if exists (select 1 from order_offers where order_id in (select id from orders where delivery_id = (select delivery_id from ms_placed))) then
     raise exception 'FAIL a part of a trip was offered on its own';
   end if;
-  raise notice 'PASS a trip waits for every shop';
+  raise notice 'PASS a trip is offered as one, to the riders';
 end $$;
 
 set local role authenticated;
