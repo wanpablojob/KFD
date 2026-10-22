@@ -244,3 +244,112 @@ export function parsePabakalMessage(message: string): StopDraft[] {
   if (pending.length > 0) stops.push({ store: "", items: pending });
   return stops;
 }
+
+const GREETING_WORDS = new Set([
+  "hello",
+  "helo",
+  "hellow",
+  "hi",
+  "hii",
+  "hey",
+  "hoy",
+  "good",
+  "morning",
+  "afternoon",
+  "evening",
+  "maayong",
+  "aga",
+  "udto",
+  "hapon",
+  "gabi",
+  "gab",
+  "magandang",
+  "umaga",
+  "tanghali",
+  "kumusta",
+  "kamusta",
+  "musta",
+]);
+const THANKS_WORDS = new Set([
+  "salamat",
+  "thanks",
+  "thank",
+  "you",
+  "ty",
+  "tnx",
+  "thx",
+  "daghang",
+  "damo",
+  "maraming",
+]);
+/** Small talk that carries no order: "ok po", "sige lang", "salamat sa inyo". */
+const FILLER_WORDS = new Set([
+  "po",
+  "sa",
+  "inyo",
+  "ninyo",
+  "nyo",
+  "kaayo",
+  "lang",
+  "man",
+  "ha",
+  "ba",
+  "ok",
+  "okay",
+  "oks",
+  "sige",
+  "yes",
+  "no",
+  "oo",
+  "indi",
+  "hindi",
+  "sir",
+  "maam",
+  "ma'am",
+  "kfd",
+  "guys",
+  "there",
+  "din",
+  "rin",
+  "gid",
+  "gd",
+  "ta",
+  "kita",
+  "i",
+]);
+const SHOPPING_WORD =
+  /\b(?:pabakal|pabili|bakal|bili|buy|order|bakalan|bilhan|palihog)\b/i;
+
+export type ChatIntent = "shopping" | "greeting" | "thanks" | "other";
+
+/**
+ * Whether a chat message is a pabakal at all, before anything reads it into
+ * items -- so "hello" gets a hello back instead of becoming an item called
+ * "hello". Shopping needs a sign of an order: a number, a "sa <store>", or a
+ * word like pabakal / bili / buy.
+ */
+export function chatIntent(message: string): ChatIntent {
+  const words = message
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s']/gu, " ")
+    .split(/\s+/)
+    .filter(Boolean);
+  if (words.length === 0) return "other";
+
+  if (
+    words.every(
+      (w) => GREETING_WORDS.has(w) || THANKS_WORDS.has(w) || FILLER_WORDS.has(w)
+    )
+  ) {
+    if (words.some((w) => THANKS_WORDS.has(w) && w !== "you")) return "thanks";
+    if (words.some((w) => GREETING_WORDS.has(w))) return "greeting";
+    return "other";
+  }
+
+  const numbered = words.some(
+    (w) =>
+      digitsOf(w) !== undefined || w in TENS || DOZEN.has(w) || unitOf(w) !== undefined
+  );
+  const store = /\b(?:sa|from)\s+\S/i.test(message);
+  return numbered || store || SHOPPING_WORD.test(message) ? "shopping" : "other";
+}

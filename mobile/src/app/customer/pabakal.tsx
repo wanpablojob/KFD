@@ -38,6 +38,7 @@ import {
   type StopDraft,
 } from "../../lib/pabakal";
 import { readPabakalMessage } from "../../lib/pabakal-from-message";
+import { chatIntent, type ChatIntent } from "../../lib/pabakal-parse";
 import { colors, radius, shadow, spacing, type } from "../../lib/theme";
 
 const peso = (n: number) => `₱${n.toFixed(2)}`;
@@ -58,6 +59,13 @@ type Stage = "items" | "address" | "confirm";
 const GREETING =
   "Hi! Ano ipabakal mo? Tell me what to buy and where.\n\n" +
   'e.g. "dose ka biogesic sa mercury kag duwa ka bulb sa citi"';
+
+const EXAMPLE = '"duwa ka biogesic sa mercury"';
+const CHAT_REPLY: Record<Exclude<ChatIntent, "shopping">, string> = {
+  greeting: `Hello! Ano ipabakal mo? Tell me what to buy and from which store, e.g. ${EXAMPLE}.`,
+  thanks: "Walay sapayan! Anything else to buy?",
+  other: `I can only take pabakal here. Tell me what to buy and from which store, e.g. ${EXAMPLE}. For other questions, open Account → Help & support.`,
+};
 
 const itemCount = (stops: StopDraft[]) => stops.reduce((n, s) => n + s.items.length, 0);
 const hasBlanks = (stops: StopDraft[]) =>
@@ -146,6 +154,13 @@ export default function PabakalScreen() {
     if (!text || reading) return;
     setDraft("");
     say("me", text);
+
+    // Small talk is answered, never read into items or sent to the AI.
+    const intent = chatIntent(text);
+    if (intent !== "shopping" && !(stage === "confirm" && intent === "other")) {
+      say("kfd", CHAT_REPLY[intent]);
+      return;
+    }
 
     if (stage === "confirm") {
       setNote((n) => (n ? `${n}\n${text}` : text).slice(0, 300));

@@ -1,4 +1,4 @@
-import { parsePabakalMessage } from "./pabakal-parse";
+import { chatIntent, parsePabakalMessage } from "./pabakal-parse";
 
 /** "Store: 2x a, 1x b" per stop, so a failure reads like the spec table. */
 function read(message: string): string {
@@ -47,5 +47,24 @@ describe("parsePabakalMessage", () => {
       "Mercury: 2x biogesic, 1x neozep"
     );
     expect(parsePabakalMessage("   ")).toEqual([]);
+  });
+});
+
+describe("chatIntent", () => {
+  it.each([
+    ["hello", "greeting"],
+    ["Hi po!", "greeting"],
+    ["maayong aga", "greeting"],
+    ["salamat sa inyo", "thanks"],
+    ["thank you", "thanks"],
+    ["ok sige", "other"],
+    ["how are you", "other"],
+    ["dose ka biogesic sa mercury", "shopping"],
+    ["bulb sa citi", "shopping"],
+    ["pabakal ko biogesic", "shopping"],
+    ["biogesic x2", "shopping"],
+    ["dalawang sardinas", "shopping"],
+  ])("%s -> %s", (message, intent) => {
+    expect(chatIntent(message)).toBe(intent);
   });
 });
