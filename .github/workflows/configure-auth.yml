@@ -321,6 +321,54 @@ jobs:
               : "Test mail refused (" + sent.status + "): " + sentBody.slice(0, 400)
           );
 
+          // When that address is refused, the account may still have a verified
+          // domain that simply is not the one configured -- a parent domain, or
+          // a different subdomain. This key cannot list the domains (401 on
+          // /domains is normal for a sending-only key), so the only way to ask
+          // is to send: Resend refuses a from-address whose domain it has not
+          // verified, and accepts one it has.
+          //
+          // Sent to delivered@resend.dev, Resend's sandbox recipient, so a
+          // successful probe tells us the domain is good without putting mail
+          // in anybody's inbox.
+          if (!sent.ok) {
+            const candidates = [
+              "orders@kfd.ph",
+              "noreply@kfd.ph",
+              "no-reply@kfd.ph",
+              "kfd@kfd.ph",
+              "orders@mail.kfd.ph",
+              "orders@notifications.kfd.ph",
+              "onboarding@resend.dev",
+            ].filter((c) => c !== from);
+            console.log("Probing " + candidates.length + " candidate from-addresses...");
+            const accepted = [];
+            for (const candidate of candidates) {
+              const probe = await fetch("https://api.resend.com/emails", {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${key}`,
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  from: `KFD <${candidate}>`,
+                  to: ["delivered@resend.dev"],
+                  subject: "KFD mailer probe",
+                  text: "Probe only.",
+                }),
+              });
+              const detail = probe.ok ? "ok" : (await probe.text()).slice(0, 160);
+              console.log(`  ${probe.ok ? "VERIFIED" : "refused " + probe.status} ${candidate} ${probe.ok ? "" : "-- " + detail}`);
+              if (probe.ok) accepted.push(candidate);
+            }
+            console.log(
+              accepted.length
+                ? "::notice::Verified sending addresses: " + accepted.join(", ") +
+                    ". Set AUTH_EMAIL_FROM and ORDER_EMAIL_FROM to one of them."
+                : "::warning::No candidate from-address is verified. Verify a domain at https://resend.com/domains, then re-run this workflow."
+            );
+          }
+
           // And the whole path the customer walks: a reset code, through
           // Supabase, out through the mailer.
           const pub = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
