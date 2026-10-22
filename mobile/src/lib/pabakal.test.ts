@@ -19,8 +19,8 @@ describe("pabakal money", () => {
   });
 
   it("charges 10 per extra store, like a multi-shop trip", () => {
-    expect(pabakalFee(1)).toBe(20);
-    expect(pabakalFee(3)).toBe(40);
+    expect(pabakalFee(1)).toBe(0);
+    expect(pabakalFee(3)).toBe(20);
   });
 });
 

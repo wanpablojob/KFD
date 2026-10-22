@@ -161,9 +161,12 @@ export default function PabakalScreen() {
         )}
 
         <Text style={ui.muted}>
-          Pay in cash when it arrives: the receipt total, the delivery fee and a{" "}
-          {peso(pabakalFee(stops.length))} pabakal fee. Riders buy up to{" "}
-          {peso(PABAKAL_RULES.maxCost)} per pabakal.
+          Pay in cash when it arrives: the receipt total plus the same delivery fee as a
+          food order
+          {stops.length > 1
+            ? `, with ${peso(pabakalFee(stops.length))} for the extra stores`
+            : ""}
+          . Riders buy up to {peso(PABAKAL_RULES.maxCost)} per pabakal.
         </Text>
         {error ? <Text style={ui.error}>{error}</Text> : null}
         <MerchantButton label="Send pabakal" onPress={submit} busy={send.isPending} />

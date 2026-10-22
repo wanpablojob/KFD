@@ -91,7 +91,7 @@ do $$ begin
   if (select status::text || '|' || item_cost || '|' || pabakal_fee || '|' || cash_collected || '|' || customer_name
              || '|' || store || '|' || (budget is null) || '|' || (stops -> 1 -> 'items' -> 0)::text
         from pabakal_requests where id = (select id from t_id))
-     <> 'delivered|245.50|30.00|305.50|Ana|Mercury Drug, Citi Hardware|true|{"name": "Light bulb", "quantity": 2}' then
+     <> 'delivered|245.50|10.00|305.50|Ana|Mercury Drug, Citi Hardware|true|{"name": "Light bulb", "quantity": 2}' then
     raise exception 'FAIL final row wrong: %',
       (select row_to_json(r) from pabakal_requests r where id = (select id from t_id));
   end if;

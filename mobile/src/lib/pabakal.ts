@@ -2,7 +2,7 @@
  * Pabakal (0120, 0130): a rider buys the customer's list from one or more
  * stores and brings it. Cash only. The customer lists items and quantities per
  * store; the rider fronts the money, records the receipt total, and collects
- * receipt + delivery fee + pabakal fee at the door.
+ * the receipt total plus the fees at the door.
  */
 
 import { supabase } from "./supabase";
@@ -12,9 +12,9 @@ export type Pabakal = Database["public"]["Tables"]["pabakal_requests"]["Row"];
 export type OpenPabakal =
   Database["public"]["Functions"]["rider_open_pabakal"]["Returns"][number];
 
-/** Mirrors pabakal_rules() in 0130; the server enforces it. */
+/** Mirrors pabakal_rules() in 0131; the server enforces it. */
 export const PABAKAL_RULES = {
-  fee: 20,
+  fee: 0,
   perExtraStore: 10,
   maxCost: 2000,
   maxStores: 5,
@@ -25,7 +25,7 @@ export interface PabakalStop {
   items: { name: string; quantity: number }[];
 }
 
-/** The pabakal fee for this many stores, as the server will charge it. */
+/** What a pabakal adds to the delivery fee: 10 per extra store, like a food trip. */
 export function pabakalFee(stores: number): number {
   return PABAKAL_RULES.fee + PABAKAL_RULES.perExtraStore * Math.max(stores - 1, 0);
 }
