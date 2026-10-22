@@ -1137,6 +1137,16 @@ export interface DeliveryStop {
   }[];
   subtotal: number;
   status: string;
+  /** The shop's own prep estimate, in minutes. */
+  prep_minutes: number | null;
+  /** When the shop's food will be ready. */
+  ready_at: string | null;
+  /**
+   * 1, 2, 3... in the order to visit: the stop whose food is ready last is
+   * first, so the rider never waits at a kitchen. Null for a stop that is not
+   * on the route any more -- already collected, or the shop cancelled.
+   */
+  stop_order: number | null;
 }
 
 /**
@@ -1254,6 +1264,9 @@ export async function fetchDeliveryStops(deliveryId: string): Promise<DeliverySt
     restaurant_id: row.restaurant_id ?? "",
     subtotal: Number(row.subtotal),
     status: row.status,
+    prep_minutes: row.prep_minutes ?? null,
+    ready_at: row.ready_at ?? null,
+    stop_order: row.stop_order ?? null,
     items: (parseOrderItems(row.items) ?? []).map((item) => ({
       menu_item_id: item.menu_item_id ?? "",
       name: item.name,

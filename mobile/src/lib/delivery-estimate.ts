@@ -29,7 +29,22 @@ export function deliveryWindow(
 
 /** "12:40–12:55" in the device's locale. */
 export function formatWindow(window: { from: Date; to: Date }): string {
-  const t = (d: Date) =>
-    d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-  return `${t(window.from)}–${t(window.to)}`;
+  return `${formatClock(window.from)}–${formatClock(window.to)}`;
+}
+
+/** "12:40" in the device's locale. */
+export function formatClock(date: Date): string {
+  return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+}
+
+/**
+ * The clock time a trip stop's food will be ready, or null when it is not
+ * known -- an order placed before prep times were recorded has no estimate,
+ * and a broken timestamp is better shown as nothing than as a wrong time.
+ */
+export function readyClock(readyAt: string | null | undefined): string | null {
+  if (!readyAt) return null;
+  const at = new Date(readyAt).getTime();
+  if (Number.isNaN(at)) return null;
+  return formatClock(new Date(at));
 }

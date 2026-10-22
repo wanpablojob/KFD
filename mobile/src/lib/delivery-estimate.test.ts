@@ -2,6 +2,7 @@ import {
   DEFAULT_PREP_MINUTES,
   TRAVEL_MINUTES,
   deliveryWindow,
+  readyClock,
 } from "./delivery-estimate";
 
 const PLACED = "2026-10-14T04:00:00.000Z";
@@ -27,5 +28,25 @@ describe("deliveryWindow", () => {
 
   it("shows nothing for an unreadable placed time", () => {
     expect(deliveryWindow("not a date", 20, "pending")).toBeNull();
+  });
+});
+
+describe("readyClock", () => {
+  it("shows the clock time a stop's food will be ready", () => {
+    const clock = readyClock(at(30));
+    expect(clock).not.toBeNull();
+    expect(clock).toBe(
+      new Date(Date.parse(at(30))).toLocaleTimeString([], {
+        hour: "numeric",
+        minute: "2-digit",
+      })
+    );
+  });
+
+  it("shows nothing when the ready time is missing or unreadable", () => {
+    expect(readyClock(null)).toBeNull();
+    expect(readyClock(undefined)).toBeNull();
+    expect(readyClock("")).toBeNull();
+    expect(readyClock("not a date")).toBeNull();
   });
 });

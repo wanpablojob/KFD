@@ -2,6 +2,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { useMemo } from "react";
 import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
 import { useDeliveryStops } from "../lib/hooks";
+import { readyClock } from "../lib/delivery-estimate";
 import type { DeliveryStop, RiderDelivery } from "../lib/storefront";
 import { colors, radius, shadow, spacing, type } from "../lib/theme";
 
@@ -34,6 +35,13 @@ export function TripCard({
 }) {
   const { data: stops } = useDeliveryStops(trip.delivery_id);
   const list: DeliveryStop[] = useMemo(() => stops ?? [], [stops]);
+  // The route: the stops still to visit. The server numbers them in the order
+  // to walk them -- the shop whose food is ready last comes first, so the
+  // rider is never standing at a kitchen waiting (0117).
+  const routeLength = useMemo(
+    () => list.filter((stop) => stop.stop_order !== null).length,
+    [list]
+  );
 
   const cash = trip.payment === "cash";
   const canDeliver =
@@ -67,6 +75,8 @@ export function TripCard({
       {list.map((stop) => {
         const collected =
           stop.status === "out_for_delivery" || stop.status === "delivered";
+        const cancelled = stop.status === "cancelled";
+        const ready = readyClock(stop.ready_at);
         return (
           <View key={stop.order_id} style={styles.stop}>
             <View style={styles.stopHead}>
@@ -77,6 +87,12 @@ export function TripCard({
                 ₱{Number(stop.subtotal).toFixed(2)}
               </Text>
             </View>
+            {stop.stop_order !== null ? (
+              <Text style={styles.stopMeta}>
+                {`Stop ${stop.stop_order} of ${routeLength}`}
+                {ready ? ` · ready ${ready}` : ""}
+              </Text>
+            ) : null}
             {stop.items.map((item, index) => (
               <View key={`${item.menu_item_id}-${index}`} style={styles.itemRow}>
                 <Text style={styles.itemName} numberOfLines={1}>
@@ -86,6 +102,8 @@ export function TripCard({
             ))}
             {collected ? (
               <Text style={styles.collected}>Picked up</Text>
+            ) : cancelled ? (
+              <Text style={styles.collected}>The shop cancelled this one</Text>
             ) : (
               <Pressable
                 style={({ pressed }) => [
@@ -208,6 +226,7 @@ const styles = StyleSheet.create({
   },
   stopName: { ...type.label, color: colors.text, flex: 1 },
   stopSubtotal: { ...type.label, color: colors.textMuted },
+  stopMeta: { ...type.caption, color: colors.primaryDark },
   itemRow: { flexDirection: "row", justifyContent: "space-between" },
   itemName: { ...type.caption, color: colors.textMuted, flex: 1 },
   collected: { ...type.caption, color: colors.textFaint },
