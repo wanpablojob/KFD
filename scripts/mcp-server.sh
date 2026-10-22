@@ -24,7 +24,7 @@
 # on purpose (.opencode/.gitignore). To install them:
 #
 #   cd .opencode && npm install --save-exact --save-dev \
-#     @playwright/mcp@0.0.83 @upstash/context7-mcp@4.4.4
+#     @playwright/mcp@0.0.83 @upstash/context7-mcp@4.4.4 firebase-tools@15.34.1
 #
 # The Playwright server also needs a browser. Without one it connects and
 # then fails every navigation:
@@ -52,8 +52,16 @@ case "$server" in
     fi
     exec npx -y @upstash/context7-mcp@4.4.4 "$@"
     ;;
+  firebase)
+    # The Firebase MCP server ships inside firebase-tools, not as its own
+    # package, so the bin is `firebase mcp`.
+    if [ -x "$BIN/firebase" ]; then
+      exec "$BIN/firebase" mcp "$@"
+    fi
+    exec npx -y firebase-tools@15.34.1 mcp "$@"
+    ;;
   *)
-    echo "usage: $0 {playwright|context7}" >&2
+    echo "usage: $0 {playwright|context7|firebase}" >&2
     exit 2
     ;;
 esac

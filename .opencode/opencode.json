@@ -43,6 +43,11 @@
       "command": ["bash", "scripts/mcp-server.sh", "context7"],
       "enabled": true
     },
+    "firebase": {
+      "type": "local",
+      "command": ["bash", "scripts/mcp-server.sh", "firebase"],
+      "enabled": true
+    },
     "supabase": {
       "type": "remote",
       "url": "https://mcp.supabase.com/mcp?project_ref=ijeqwbrrgfsmymsektih&read_only=true&features=database,docs,debugging"
