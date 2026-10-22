@@ -64,9 +64,12 @@ const CUSTOMER_STATUS_PUSH: Record<
   string,
   (ref: string) => { title: string; body: string }
 > = {
+  // True either way: a shop that takes orders automatically has the order the
+  // moment it is placed, and a shop that answers it has it a moment later
+  // (0121). What the customer needs to hear is that the kitchen has it.
   confirmed: (r) => ({
     title: "Order confirmed",
-    body: `Order ${r} was accepted by the restaurant.`,
+    body: `Order ${r} is with the restaurant.`,
   }),
   preparing: (r) => ({
     title: "Order being prepared",
@@ -98,8 +101,8 @@ const TRIP_STATUS_PUSH: Record<
   (ref: string) => { title: string; body: string }
 > = {
   confirmed: (r) => ({
-    title: "All restaurants accepted",
-    body: `Every restaurant accepted your order ${r}.`,
+    title: "All restaurants have your order",
+    body: `Every restaurant in your order ${r} has it now.`,
   }),
   preparing: (r) => ({
     title: "Your order is being prepared",

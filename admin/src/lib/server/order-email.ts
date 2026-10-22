@@ -145,13 +145,13 @@ export function orderPlacedEmail(order: OrderEmailData): {
     subject: `Order ${order.reference} received`,
     html: layout(
       "Order received",
-      `<p>Thanks — ${escapeHtml(order.restaurant)} has your order. We will email you again when it is accepted.</p>${summary(order)}`
+      `<p>Thanks — ${escapeHtml(order.restaurant)} has your order. We will email you again when it is on its way.</p>${summary(order)}`
     ),
   };
 }
 
 const STATUS_COPY: Record<string, string> = {
-  confirmed: "Your order was accepted and is heading to the kitchen.",
+  confirmed: "Your order is with the restaurant and heading to the kitchen.",
   preparing: "Your order is being prepared now.",
   out_for_delivery: "Your order is on the way.",
   delivered: "Your order was delivered. Enjoy your meal.",

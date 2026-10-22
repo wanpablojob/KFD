@@ -72,8 +72,12 @@ function OrderActions({
   const cancelled = order.status === "cancelled";
   const delivered = order.status === "delivered";
   const canReorder = delivered || cancelled;
-  // Once the restaurant accepts, it may be cooking: cancel_order refuses (0076).
-  const canCancel = order.status === "pending";
+  // Once the kitchen has started, it is too late for either of them
+  // (cancel_order refuses). Before that the customer may still call it off --
+  // including at a shop that accepts orders automatically, where the order is
+  // confirmed the moment it is placed but the kitchen has not touched it yet
+  // (0121).
+  const canCancel = order.status === "pending" || order.status === "confirmed";
 
   return (
     <>
