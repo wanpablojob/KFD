@@ -53,6 +53,7 @@ export default function PabakalScreen() {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const [reading, setReading] = useState(false);
+  const [pasting, setPasting] = useState(false);
   // Once a message has filled the form, a box the reader could not work out is
   // highlighted until the customer fills it in. Nothing is guessed for them.
   const [filledFromMessage, setFilledFromMessage] = useState(false);
@@ -125,6 +126,7 @@ export default function PabakalScreen() {
       setStops(parsed);
       setFilledFromMessage(true);
       setMessage("");
+      setPasting(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not read that.");
     } finally {
@@ -172,45 +174,60 @@ export default function PabakalScreen() {
 
       {view === "new" ? (
         <>
-          {/* Messenger-style shortcut */}
-          <View style={[styles.card, styles.messageCard]}>
-            <View style={styles.row}>
-              <Ionicons name="chatbubble-ellipses" size={18} color={colors.primary} />
-              <Text style={type.heading}>Type it like on Messenger</Text>
-            </View>
-            <TextInput
-              style={styles.messageBox}
-              multiline
-              textAlignVertical="top"
-              placeholder={
-                "pabakal ko dose ka biogesic sa mercury kag duwa ka bulb sa citi"
-              }
-              placeholderTextColor={colors.textFaint}
-              value={message}
-              onChangeText={setMessage}
-              maxLength={500}
-              accessibilityLabel="Describe your pabakal"
-            />
-            <View style={styles.rowBetween}>
-              <Text style={[type.caption, styles.flex]}>
-                We fill in the list. You check it before sending.
+          {/* 1. What to buy. The list is the page; reading a pasted message
+              is an optional shortcut that fills it. */}
+          <View style={styles.rowBetween}>
+            <Text style={styles.eyebrow}>WHAT TO BUY</Text>
+            <Pressable
+              onPress={() => setPasting((v) => !v)}
+              accessibilityRole="button"
+              accessibilityState={{ expanded: pasting }}
+              hitSlop={8}
+              style={[styles.row, styles.eyebrowAction]}
+            >
+              <Ionicons
+                name={pasting ? "close" : "clipboard-outline"}
+                size={15}
+                color={colors.primary}
+              />
+              <Text style={styles.linkSmall}>
+                {pasting ? "Close" : "Paste a Messenger message"}
               </Text>
-              <Pressable
-                onPress={() => void fillFromMessage()}
-                disabled={!message.trim() || reading}
-                accessibilityRole="button"
-                style={[styles.fillBtn, (!message.trim() || reading) && styles.dim]}
-              >
-                <Ionicons name="sparkles" size={14} color={colors.textInverse} />
-                <Text style={styles.fillLabel}>
-                  {reading ? "Reading…" : "Fill list"}
-                </Text>
-              </Pressable>
-            </View>
+            </Pressable>
           </View>
-
-          {/* 1. What to buy */}
-          <Text style={styles.eyebrow}>WHAT TO BUY</Text>
+          {pasting ? (
+            <View style={styles.pastePanel}>
+              <TextInput
+                style={styles.messageBox}
+                multiline
+                textAlignVertical="top"
+                placeholder={
+                  "pabakal ko dose ka biogesic sa mercury kag duwa ka bulb sa citi"
+                }
+                placeholderTextColor={colors.textFaint}
+                value={message}
+                onChangeText={setMessage}
+                maxLength={500}
+                autoFocus
+                accessibilityLabel="Paste or type your pabakal message"
+              />
+              <View style={styles.rowBetween}>
+                <Text style={[type.caption, styles.flex]}>
+                  Fills in the list below for you to check.
+                </Text>
+                <Pressable
+                  onPress={() => void fillFromMessage()}
+                  disabled={!message.trim() || reading}
+                  accessibilityRole="button"
+                  style={[styles.fillBtn, (!message.trim() || reading) && styles.dim]}
+                >
+                  <Text style={styles.fillLabel}>
+                    {reading ? "Reading…" : "Fill the list"}
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+          ) : null}
           {stops.map((stop, s) => (
             <StopEditor
               key={s}
@@ -649,7 +666,17 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
     ...shadow.card,
   },
-  messageCard: { borderWidth: 1, borderColor: colors.primarySoft },
+  eyebrowAction: { marginTop: spacing.md, gap: 4 },
+  linkSmall: { ...type.label, color: colors.primary },
+  pastePanel: {
+    gap: spacing.sm,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderColor: colors.borderStrong,
+  },
   messageBox: {
     minHeight: 84,
     backgroundColor: colors.surface,
