@@ -1368,15 +1368,22 @@ export async function fetchDisputedPayouts(): Promise<DisputedPayout[]> {
 /**
  * Close every elapsed review window. Returns how many payouts settled.
  *
- * Called when the dispute queue loads rather than on a schedule: there is no
- * scheduler in this database, and settlement is only needed before somebody looks
- * at the ledger. Idempotent, so calling it on every load is fine.
+ * Called when the dispute queue loads, and no longer the only thing that
+ * closes them: a job settles them every minute (0122), so a rider whose
+ * delivery was never disputed is paid without anybody opening the ledger.
+ * This call is the belt to that job's braces, and it is idempotent.
  */
 export async function settleExpiredPayouts(): Promise<number> {
   const { data, error } = await supabase.rpc("rider_settle_expired_payouts");
   requireMigration(error, null, DISPUTE_WINDOW_MIGRATION);
-  const row = ((data ?? []) as unknown as Record<string, unknown>[])[0];
-  return row ? Number(row.rider_settle_expired_payouts) : 0;
+  // The function returns a count, so PostgREST answers with the number
+  // itself. Reading it as a one-row table found nothing and reported zero
+  // settled for every call.
+  const raw = data as unknown;
+  const count = Array.isArray(raw)
+    ? Number((raw[0] as Record<string, unknown> | undefined)?.rider_settle_expired_payouts ?? 0)
+    : Number(raw ?? 0);
+  return Number.isFinite(count) ? count : 0;
 }
 
 /**

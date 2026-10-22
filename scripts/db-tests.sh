@@ -56,7 +56,9 @@ for test in "$TESTS"/*.sql; do
     echo "ok   $(basename "$test")"
   else
     echo "FAIL $(basename "$test")"
-    grep -E "ERROR" "$WORK/err" | head -3
+    # A test can fail without an ERROR line, and a grep that finds nothing
+    # would abort the whole run under `set -e`, hiding every test after it.
+    grep -E "ERROR" "$WORK/err" | head -3 || true
     failed=1
   fi
 done

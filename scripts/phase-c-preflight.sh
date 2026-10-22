@@ -173,6 +173,24 @@ fi
 section "database"
 migrations="$(ls "$ROOT/admin/supabase/migrations" 2>/dev/null | grep -E '^[0-9]+_.*\.sql$' | wc -l | tr -d ' ')"
 newest="$(ls "$ROOT/admin/supabase/migrations" 2>/dev/null | grep -E '^[0-9]+_.*\.sql$' | LC_ALL=C sort | tail -1)"
+
+# Two files with the same version. The Supabase CLI applies one file per
+# version, so the second one is skipped -- and the reset fails with an error
+# about a migration that has nothing to do with the two that share a number.
+# Two agents adding migrations at the same time is how this happens, so it is
+# checked here, where the message can say what is actually wrong.
+duplicates="$(ls "$ROOT/admin/supabase/migrations" 2>/dev/null \
+  | grep -E '^[0-9]+_.*\.sql$' \
+  | sed -E 's/^([0-9]+)_.*/\1/' \
+  | sort | uniq -d)"
+if [ -n "$duplicates" ]; then
+  fail "two migrations share a version: $(echo "$duplicates" | tr '\n' ' ')" \
+    "Renumber the newer file, above every version already on disk." \
+    "The Supabase CLI applies one file per version and skips the second."
+else
+  pass "every migration has its own version"
+fi
+
 if [ -n "$newest" ]; then
   pass "$migrations migrations on disk, newest $newest" \
     "scripts/verify.sh all proves the generated types match them."
