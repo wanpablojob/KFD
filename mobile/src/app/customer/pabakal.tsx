@@ -19,6 +19,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { MerchantButton } from "../../components/MerchantUi";
 import { NotificationBell } from "../../components/NotificationBell";
+import { useKeyboardVisible } from "../../components/GlassSurface";
 import { useScrollBottomPadding, useTabBarInset } from "../../components/TabBarInset";
 import { loadAddresses, type SavedAddress } from "../../lib/addresses";
 import { useSession } from "../../lib/session-context";
@@ -82,6 +83,7 @@ export default function PabakalScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const tabInset = useTabBarInset();
+  const keyboardUp = useKeyboardVisible();
   const bottomPadding = useScrollBottomPadding();
   const queryClient = useQueryClient();
   const scroll = useRef<ScrollView>(null);
@@ -479,7 +481,14 @@ export default function PabakalScreen() {
             ) : null}
           </ScrollView>
 
-          <View style={[styles.inputBar, { marginBottom: tabInset || insets.bottom }]}>
+          <View
+            style={[
+              styles.inputBar,
+              // The tab bar hides while the keyboard is up, and the keyboard
+              // covers the home indicator, so the bar sits right on it.
+              { marginBottom: keyboardUp ? 0 : tabInset || insets.bottom },
+            ]}
+          >
             <TextInput
               style={styles.chatInput}
               value={draft}
