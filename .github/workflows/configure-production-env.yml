@@ -15,6 +15,12 @@
 #                              to the Vercel preview URL, and every canonical
 #                              link, the sitemap and the store listing URLs
 #                              point at a preview host.
+#   GEMINI_API_KEY             the Pabakal message parser. Without it the route
+#                              answers { fallback: "no-key" } and the phone
+#                              reads every message itself, so the box still
+#                              works but without the model. Server-side only:
+#                              never NEXT_PUBLIC_, which is inlined into the
+#                              browser and the mobile bundle.
 #
 # The service role key is read from the Supabase Management API with the
 # project's access token and written straight into Vercel. It is never printed,
@@ -63,6 +69,8 @@ jobs:
       RESEND_KEY: ${{ secrets.RESEND_KEY }}
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+      # The Pabakal message parser's key, from the production environment.
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 
     steps:
       - name: Set up Node
@@ -182,6 +190,11 @@ jobs:
                 resend_api_key_present: !!byKey.RESEND_API_KEY,
                 resend_key_present: !!byKey.RESEND_KEY,
                 service_role_key_present: !!byKey.SUPABASE_SERVICE_ROLE_KEY,
+                gemini_api_key_present: !!byKey.GEMINI_API_KEY,
+                // Whether the production environment secret reached this
+                // runner. Distinguishes "the key is missing" from "the key is
+                // in the wrong place", which a dry run should be able to say.
+                gemini_api_key_secret_present: !!process.env.GEMINI_API_KEY,
               },
               null,
               2
@@ -225,6 +238,14 @@ jobs:
                 process.env.RESEND_KEY ||
                 current.RESEND_API_KEY?.value ||
                 current.RESEND_KEY?.value,
+              type: "sensitive",
+            },
+            {
+              key: "GEMINI_API_KEY",
+              // The Pabakal message parser's key. Kept from Vercel when the
+              // secret is absent, so a run without the secret cannot wipe a
+              // working key and leave the route on the fallback.
+              value: process.env.GEMINI_API_KEY || current.GEMINI_API_KEY?.value,
               type: "sensitive",
             },
             {
