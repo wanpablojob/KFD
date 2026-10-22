@@ -158,9 +158,6 @@ export function LandingScreen({
               <Text style={styles.linkLabel}>Ride with KFD</Text>
             </Pressable>
           </View>
-          <Text style={styles.riderHint}>
-            Riders: create an account, then tap Apply to deliver in Account.
-          </Text>
 
           {/* CC BY-SA 4.0 asks for the author and licence beside the photo. */}
           <Text style={styles.credit}>Photo: Ralff Nestor Nacor, CC BY-SA 4.0</Text>
@@ -251,7 +248,6 @@ const styles = StyleSheet.create({
   },
   link: { flexDirection: "row", alignItems: "center", gap: 6 },
   linkLabel: { ...type.label, color: colors.secondary },
-  riderHint: { ...type.caption, color: colors.textFaint, textAlign: "center" },
   credit: {
     fontSize: 10,
     color: colors.textFaint,
