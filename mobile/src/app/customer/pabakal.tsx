@@ -56,7 +56,7 @@ interface Bubble {
 type Stage = "items" | "address" | "confirm";
 
 const GREETING =
-  "Hi! Ano ipabakal mo? Tell me what to buy and where, like on Messenger.\n\n" +
+  "Hi! Ano ipabakal mo? Tell me what to buy and where.\n\n" +
   'e.g. "dose ka biogesic sa mercury kag duwa ka bulb sa citi"';
 
 const itemCount = (stops: StopDraft[]) => stops.reduce((n, s) => n + s.items.length, 0);
