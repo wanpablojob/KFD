@@ -16,8 +16,7 @@ import { colors } from "../../lib/theme";
  * per-user remount of SessionProvider, and persisted per user so the OS killing
  * the app does not empty it.
  *
- * Five tabs, foodpanda-style: Home, Shops, Orders, Cart (with the item count)
- * and Account. The chrome lives here so the screens stay about their content.
+ * Five tabs: Home, Shops, Pabakal, Cart (with the item count) and Account. The chrome lives here so the screens stay about their content.
  */
 export default function CustomerLayout() {
   const { user } = useSession();
@@ -34,7 +33,12 @@ export default function CustomerLayout() {
 const TABS: (FloatingTab & { route: string })[] = [
   { key: "home", route: "/customer", label: "Home", ...TAB_ICONS.home },
   { key: "shops", route: "/customer/shops", label: "Shops", ...TAB_ICONS.shops },
-  { key: "orders", route: "/customer/orders", label: "Orders", ...TAB_ICONS.orders },
+  {
+    key: "pabakal",
+    route: "/customer/pabakal",
+    label: "Pabakal",
+    ...TAB_ICONS.pabakal,
+  },
   { key: "cart", route: "/customer/cart", label: "Cart", ...TAB_ICONS.cart },
   {
     key: "account",
@@ -52,6 +56,8 @@ const ROUTES = TABS.map((tab) => tab.route);
 const PARENT_TAB: Record<string, number> = {
   "/customer/restaurant": 1,
   "/customer/addresses": 4,
+  // Orders is no longer a tab; it opens from Account and after checkout.
+  "/customer/orders": 4,
 };
 
 function CustomerShell() {
@@ -79,6 +85,7 @@ function CustomerShell() {
           <Stack.Screen name="restaurant" />
           <Stack.Screen name="cart" />
           <Stack.Screen name="orders" />
+          <Stack.Screen name="pabakal" />
           <Stack.Screen name="account" />
           <Stack.Screen name="addresses" />
         </Stack>

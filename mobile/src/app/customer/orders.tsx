@@ -397,6 +397,19 @@ export default function CustomerOrdersScreen() {
         ]}
         ListHeaderComponent={
           <View style={styles.header}>
+            {/* No longer a tab: opened from Account or after checkout. */}
+            <Pressable
+              onPress={() =>
+                router.canGoBack()
+                  ? router.back()
+                  : router.navigate("/customer/account")
+              }
+              accessibilityRole="button"
+              accessibilityLabel="Back"
+              hitSlop={8}
+            >
+              <Ionicons name="chevron-back" size={28} color={colors.text} />
+            </Pressable>
             <Text style={type.display}>Your orders</Text>
             <Text style={type.caption}>Tap an order to track it</Text>
           </View>

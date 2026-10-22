@@ -32,6 +32,7 @@ import { colors, radius, spacing, type } from "../lib/theme";
 import type { RiderOffer } from "../lib/hooks";
 import type { RiderProfile } from "../lib/storefront";
 import { NotificationBell } from "../components/NotificationBell";
+import { PabakalRiderSection } from "../components/PabakalRiderSection";
 
 const STATUS_LABEL: Record<string, string> = {
   pending: "Pending",
@@ -375,6 +376,7 @@ export function RiderOffersScreen({ userId }: { userId: string }) {
                 </View>
               );
             })}
+            <PabakalRiderSection disabled={offline} />
           </View>
         }
         ListEmptyComponent={

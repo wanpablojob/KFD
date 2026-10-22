@@ -15,6 +15,7 @@ export const TAB_ICONS = {
   shops: { icon: "storefront-outline", activeIcon: "storefront" },
   cart: { icon: "cart-outline", activeIcon: "cart" },
   orders: { icon: "receipt-outline", activeIcon: "receipt" },
+  pabakal: { icon: "basket-outline", activeIcon: "basket" },
   account: { icon: "person-outline", activeIcon: "person" },
   available: { icon: "flash-outline", activeIcon: "flash" },
   deliveries: { icon: "bicycle-outline", activeIcon: "bicycle" },

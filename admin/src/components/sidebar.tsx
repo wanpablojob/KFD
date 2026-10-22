@@ -31,6 +31,7 @@ const navItems = [
     icon: BikeIcon,
     adminOnly: true,
   },
+  { href: "/dashboard/pabakal", label: "Pabakal", icon: ReceiptIcon, adminOnly: true },
   { href: "/dashboard/restaurants", label: "Restaurants", icon: StoreIcon },
   { href: "/dashboard/riders", label: "Riders", icon: BikeIcon },
   { href: "/dashboard/customers", label: "Customers", icon: UsersIcon },
