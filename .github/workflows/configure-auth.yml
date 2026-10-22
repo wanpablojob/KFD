@@ -48,6 +48,11 @@ on:
         type: boolean
         required: false
         default: true
+      autoconfirm:
+        description: "Create accounts without a confirmation email (only while no sending domain is verified)"
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: read
@@ -149,7 +154,17 @@ jobs:
             // A reset link is a way to take an account over, so it needs the
             // old password as well as the mail.
             mailer_secure_email_change_enabled: true,
-            mailer_autoconfirm: false,
+            // Sign-up needs a confirmation email, and a confirmation email
+            // needs a verified sending domain. With none verified, every
+            // sign-up fails at Supabase with 500 "Error sending confirmation
+            // email" before the account exists -- so the app cannot onboard
+            // anybody at all. The input above is the stopgap: it makes the
+            // account live immediately, and the address is then unverified.
+            //
+            // Turn it back off (the default) the moment a domain is verified,
+            // because confirmation is what keeps somebody else's address from
+            // being registered.
+            mailer_autoconfirm: ${{ inputs.autoconfirm }},
           };
 
           // The Resend key: the repository secret, or the one the admin app
