@@ -116,6 +116,18 @@ const DICTIONARY = [
   "Eleven",
 ];
 
+/** Short names people text, expanded the way the chat reports a spelling fix. */
+const SHORT_NAMES: Record<string, string> = {
+  bio: "Biogesic",
+  ibu: "Ibuprofen",
+  para: "Paracetamol",
+  mef: "Mefenamic",
+  mefe: "Mefenamic",
+  amox: "Amoxicillin",
+  cetri: "Cetirizine",
+  lope: "Loperamide",
+};
+
 const KNOWN = new Map(DICTIONARY.map((w) => [w.toLowerCase(), w]));
 
 /** Letters added, dropped, changed or swapped to turn a into b, up to max+1. */
@@ -142,6 +154,7 @@ function distance(a: string, b: string, max: number): number {
 /** The corrected word, or null when it is fine or not clearly one known word. */
 function correctWord(word: string): string | null {
   const lower = word.toLowerCase();
+  if (lower in SHORT_NAMES) return SHORT_NAMES[lower];
   if (lower.length < 4 || KNOWN.has(lower) || !/^[a-z-]+$/.test(lower)) return null;
   // Short words allow one slip; longer words two.
   const max = lower.length <= 6 ? 1 : 2;

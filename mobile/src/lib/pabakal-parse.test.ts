@@ -32,6 +32,11 @@ describe("parsePabakalMessage", () => {
     ],
     ["kag palihog tatlo ka itlog sa palengke", "Palengke: 3x itlog"],
     ["sana dalawang sardinas po", "(no store): 2x sardinas"],
+    ["mabakal ko tani biogesic kag ibu tig duwa", "(no store): 2x biogesic, 2x ibu"],
+    ["biogesic kag neozep tigduwa sa mercury", "Mercury: 2x biogesic, 2x neozep"],
+    ["sardinas kag tatlo ka itlog tag-dalawa", "(no store): 2x sardinas, 3x itlog"],
+    ["biogesic, ibu, 3 each sa mercury", "Mercury: 3x biogesic, 3x ibu"],
+    ["bulb sa citi kag sabon tig duwa", "Citi: 1x bulb · (no store): 2x sabon"],
   ])("%s", (message, expected) => {
     expect(read(message)).toBe(expected);
   });
@@ -86,6 +91,7 @@ describe("chatIntent", () => {
     ["salamat, tatlo pa ka itlog", "shopping"],
     ["pabakl ko biogesic", "shopping"],
     ["pbili biogesic", "shopping"],
+    ["mabakal ko tani biogesic kag ibu tig duwa", "shopping"],
   ])("%s -> %s", (message, intent) => {
     expect(chatIntent(message)).toBe(intent);
   });

@@ -9,6 +9,9 @@ describe("correctName", () => {
     ["mercuri drug", "Mercury drug"],
     ["watsns", "Watsons"],
     ["safegaurd", "Safeguard"],
+    ["ibu", "Ibuprofen"],
+    ["bio", "Biogesic"],
+    ["para", "Paracetamol"],
   ])("%s -> %s", (typed, fixed) => {
     expect(correctName(typed).text).toBe(fixed);
   });

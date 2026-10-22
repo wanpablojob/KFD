@@ -112,6 +112,10 @@ const DOZEN = new Set(["dosena", "dozen"]);
 const LINKERS = new Set(["ka", "buok", "na", "piraso", "pcs", "pc"]);
 const OPENERS = new Set([
   "pabakal",
+  "mabakal",
+  "magpabakal",
+  "mapabakal",
+  "mapabili",
   "pabili",
   "palihog",
   "please",
@@ -199,7 +203,9 @@ function leadingQuantity(words: string[]): { qty: number; used: number } | null 
 }
 
 /** "dose ka biogesic", "biogesic x2", "neozep 3 pcs", "bulb". */
-function parseItem(text: string): { name: string; quantity: string } | null {
+function parseItem(
+  text: string
+): { item: { name: string; quantity: string }; implicit: boolean } | null {
   let original = text.trim().split(/\s+/).filter(Boolean);
   // Skip "tani", "palihog" and the like, so the quantity after them is read.
   let skip = 0;
@@ -246,9 +252,35 @@ function parseItem(text: string): { name: string; quantity: string } | null {
   const name = original.slice(start, end).join(" ");
   if (!name) return null;
   return {
-    name,
-    quantity: qty === null ? "1" : Number.isNaN(qty) ? "" : String(qty),
+    item: { name, quantity: qty === null ? "1" : Number.isNaN(qty) ? "" : String(qty) },
+    implicit: qty === null,
   };
+}
+
+/** A quantity written on its own: "duwa", "dalawa", "2". */
+function numberWord(word: string): number | null {
+  const lower = word.toLowerCase();
+  const n =
+    digitsOf(lower) ?? unitOf(lower) ?? (lower in TENS ? TENS[lower] : undefined);
+  return n !== undefined && n >= 1 && n <= 99 ? n : null;
+}
+
+/**
+ * "tig duwa", "tigduwa", "tag-dalawa", "2 each", "kada isa" at the end of a
+ * clause: that many of EACH item, so "biogesic kag ibu tig duwa" is two of both.
+ */
+function takeEach(text: string): { rest: string; each: number | null } {
+  const patterns = [
+    /(?:^|\s)(?:tig|tag)-?\s*(\S+)\s*$/i,
+    /(?:^|\s)(\S+)\s+each\s*$/i,
+    /(?:^|\s)kada\s+(\S+)\s*$/i,
+  ];
+  for (const pattern of patterns) {
+    const m = pattern.exec(text);
+    const each = m ? numberWord(m[1]) : null;
+    if (m && each !== null) return { rest: text.slice(0, m.index), each };
+  }
+  return { rest: text, each: null };
 }
 
 const titleCase = (s: string) =>
@@ -269,12 +301,26 @@ export function parsePabakalMessage(message: string): StopDraft[] {
 
   const stops: StopDraft[] = [];
   let pending: StopDraft["items"] = [];
+  // Items that got no number of their own, so a later "tig duwa" applies.
+  const implicit = new Set<StopDraft["items"][number]>();
 
   for (const clause of text.split(SEPARATOR)) {
     if (!clause || !clause.trim()) continue;
     const [itemPart, ...storeParts] = clause.split(STORE);
-    const item = parseItem(itemPart ?? "");
-    if (item) pending.push(item);
+    const { rest, each } = takeEach(itemPart ?? "");
+    const parsed = parseItem(rest);
+    if (parsed) {
+      pending.push(parsed.item);
+      if (parsed.implicit) implicit.add(parsed.item);
+    }
+    if (each !== null) {
+      for (const item of pending) {
+        if (implicit.has(item)) {
+          item.quantity = String(each);
+          implicit.delete(item);
+        }
+      }
+    }
     const store = storeParts.join(" ").trim();
     if (store) {
       if (pending.length > 0) stops.push({ store: titleCase(store), items: pending });
@@ -514,6 +560,9 @@ function inSet(word: string, set: Set<string>): boolean {
 }
 
 const SHOPPING = squeezed([
+  "mabakal",
+  "magpabakal",
+  "mapabili",
   "pabakal",
   "pabili",
   "bakal",

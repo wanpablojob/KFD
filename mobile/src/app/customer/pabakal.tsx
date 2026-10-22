@@ -186,7 +186,7 @@ export default function PabakalScreen() {
       const fixed = correctStops(parsed);
       const next = mergeStops(stops, fixed.stops).slice(0, PABAKAL_RULES.maxStores);
       const spelling = fixed.corrections.length
-        ? `\n\nI fixed the spelling: ${describeCorrections(fixed.corrections)}.`
+        ? `\n\nI corrected: ${describeCorrections(fixed.corrections)}.`
         : "";
       setStops(next);
       setStage("items");
