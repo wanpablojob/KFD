@@ -473,6 +473,16 @@ function inSet(word: string, set: Set<string>): boolean {
   return false;
 }
 
+const SHOPPING = squeezed([
+  "pabakal",
+  "pabili",
+  "bakal",
+  "bili",
+  "order",
+  "bakalan",
+  "bilhan",
+  "palihog",
+]);
 const SHOPPING_WORD =
   /\b(?:pabakal|pabili|bakal|bili|buy|order|bakalan|bilhan|palihog)\b/i;
 
@@ -513,5 +523,7 @@ export function chatIntent(message: string): ChatIntent {
       digitsOf(w) !== undefined || w in TENS || DOZEN.has(w) || unitOf(w) !== undefined
   );
   const store = /\b(?:sa|from)\s+\S/i.test(message);
-  return numbered || store || SHOPPING_WORD.test(message) ? "shopping" : "other";
+  // "pabakl", "pbili": a misspelled order word is still an order word.
+  const asked = SHOPPING_WORD.test(message) || plain.some((w) => inSet(w, SHOPPING));
+  return numbered || store || asked ? "shopping" : "other";
 }

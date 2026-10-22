@@ -78,6 +78,8 @@ describe("chatIntent", () => {
     ["okie dokie", "other"],
     ["mayong gab e, duwa ka biogesic sa mercury", "shopping"],
     ["salamat, tatlo pa ka itlog", "shopping"],
+    ["pabakl ko biogesic", "shopping"],
+    ["pbili biogesic", "shopping"],
   ])("%s -> %s", (message, intent) => {
     expect(chatIntent(message)).toBe(intent);
   });

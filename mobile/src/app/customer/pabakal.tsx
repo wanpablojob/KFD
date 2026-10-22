@@ -40,6 +40,7 @@ import {
 } from "../../lib/pabakal";
 import { readPabakalMessage } from "../../lib/pabakal-from-message";
 import { chatIntent, type ChatIntent } from "../../lib/pabakal-parse";
+import { correctStops, describeCorrections } from "../../lib/spelling";
 import { colors, radius, shadow, spacing, type } from "../../lib/theme";
 
 const peso = (n: number) => `₱${n.toFixed(2)}`;
@@ -180,16 +181,23 @@ export default function PabakalScreen() {
         );
         return;
       }
-      const next = mergeStops(stops, parsed).slice(0, PABAKAL_RULES.maxStores);
+      // Close misspellings of common products and stores are fixed, and the
+      // reply says so, so a wrong fix is one tap away from being undone.
+      const fixed = correctStops(parsed);
+      const next = mergeStops(stops, fixed.stops).slice(0, PABAKAL_RULES.maxStores);
+      const spelling = fixed.corrections.length
+        ? `\n\nI fixed the spelling: ${describeCorrections(fixed.corrections)}.`
+        : "";
       setStops(next);
       setStage("items");
       setEditing(hasBlanks(next));
       const added = itemCount(parsed);
       say(
         "kfd",
-        hasBlanks(next)
+        (hasBlanks(next)
           ? `Got ${added} item${added === 1 ? "" : "s"}, but I couldn't tell everything. Fill in the red boxes below.`
-          : `Got it: ${next.length} store${next.length === 1 ? "" : "s"}, ${itemCount(next)} item${itemCount(next) === 1 ? "" : "s"}. Check the list below, or tell me more.`
+          : `Got it: ${next.length} store${next.length === 1 ? "" : "s"}, ${itemCount(next)} item${itemCount(next) === 1 ? "" : "s"}. Check the list below, or tell me more.`) +
+          spelling
       );
     } catch (e) {
       say("kfd", e instanceof Error ? e.message : "Sorry, I couldn't read that.");

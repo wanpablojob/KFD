@@ -113,6 +113,7 @@ Return ONLY a JSON array. Each element is one store:
 Rules:
 - "store" is the shop as the customer wrote it, or "" when they named none.
 - "name" is the product alone, without the quantity word.
+- Fix obvious misspellings of well-known products and stores to their usual spelling ("biogisic" -> "Biogesic", "mercuri" -> "Mercury Drug"). Keep any name you do not recognise exactly as written: a local product is not a typo.
 - "quantity" is a whole number from 1 to 99. No number means 1. Never invent a number.
 - A store applies to the items named before it.
 - Keep every item the customer asked for; add nothing that was not asked for.
