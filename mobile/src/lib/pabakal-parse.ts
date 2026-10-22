@@ -120,6 +120,33 @@ const OPENERS = new Set([
   "bakal",
   "pa",
 ]);
+/**
+ * Polite and filler words that come before an item, not part of it:
+ * "pabakal ko TANI duwa ka biogesic", "kag PALIHOG isa ka neozep".
+ */
+const SOFT_WORDS = new Set([
+  ...OPENERS,
+  "tani",
+  "sana",
+  "naman",
+  "po",
+  "lang",
+  "lng",
+  "gid",
+  "gd",
+  "man",
+  "daw",
+  "bi",
+  "abi",
+  "ako",
+  "ug",
+  "bili",
+  "buy",
+  "order",
+  "also",
+  "din",
+  "rin",
+]);
 const SEPARATOR = /\s*(?:,|;|\n|\b(?:kag|at|and|tapos|saka)\b)\s*/i;
 const STORE = /\s*\b(?:sa may|sa|from)\s+/i;
 
@@ -173,7 +200,20 @@ function leadingQuantity(words: string[]): { qty: number; used: number } | null 
 
 /** "dose ka biogesic", "biogesic x2", "neozep 3 pcs", "bulb". */
 function parseItem(text: string): { name: string; quantity: string } | null {
-  const original = text.trim().split(/\s+/).filter(Boolean);
+  let original = text.trim().split(/\s+/).filter(Boolean);
+  // Skip "tani", "palihog" and the like, so the quantity after them is read.
+  let skip = 0;
+  while (skip < original.length - 1 && SOFT_WORDS.has(original[skip].toLowerCase())) {
+    skip += 1;
+  }
+  original = original.slice(skip);
+  // ...and "po", "lang", "tani" after it: "duwa ka sardinas po".
+  while (
+    original.length > 1 &&
+    SOFT_WORDS.has(original[original.length - 1].toLowerCase())
+  ) {
+    original = original.slice(0, -1);
+  }
   const words = original.map((w) => w.toLowerCase());
   if (words.length === 0) return null;
 

@@ -26,6 +26,12 @@ describe("parsePabakalMessage", () => {
     ["biogesic x2, neozep 3pcs sa mercury", "Mercury: 2x biogesic, 3x neozep"],
     ["dos ka coke kag dose ka pandesal sa bakery", "Bakery: 2x coke, 12x pandesal"],
     ["bulb sa citi", "Citi: 1x bulb"],
+    [
+      "pabakal ko tani duwa ka biogesic kag isa ka ibuprofen sa mercury",
+      "Mercury: 2x biogesic, 1x ibuprofen",
+    ],
+    ["kag palihog tatlo ka itlog sa palengke", "Palengke: 3x itlog"],
+    ["sana dalawang sardinas po", "(no store): 2x sardinas"],
   ])("%s", (message, expected) => {
     expect(read(message)).toBe(expected);
   });
