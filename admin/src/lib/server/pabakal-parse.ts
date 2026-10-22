@@ -123,26 +123,38 @@ Rules:
 - Greetings, thanks, questions and small talk ("hello", "salamat", "how much is delivery?") are not shopping: return [].
 - If it names no items, return [].`;
 
+/**
+ * Gemini rejects a schema whose top level is an ARRAY ("Invalid value ...
+ * response_schema"). The array of stops therefore rides inside an object, and
+ * the reply is unwrapped below. A top-level array is what every other part of
+ * this file and the phone's parser speak, so only the wire shape changes.
+ */
 const RESPONSE_SCHEMA = {
-  type: "ARRAY",
-  items: {
-    type: "OBJECT",
-    properties: {
-      store: { type: "STRING" },
+  type: "OBJECT",
+  properties: {
+    stops: {
+      type: "ARRAY",
       items: {
-        type: "ARRAY",
-        items: {
-          type: "OBJECT",
-          properties: {
-            name: { type: "STRING" },
-            quantity: { type: "INTEGER" },
+        type: "OBJECT",
+        properties: {
+          store: { type: "STRING" },
+          items: {
+            type: "ARRAY",
+            items: {
+              type: "OBJECT",
+              properties: {
+                name: { type: "STRING" },
+                quantity: { type: "INTEGER" },
+              },
+              required: ["name", "quantity"],
+            },
           },
-          required: ["name", "quantity"],
         },
+        required: ["store", "items"],
       },
     },
-    required: ["store", "items"],
   },
+  required: ["stops"],
 };
 
 export interface GeminiOptions {
@@ -205,7 +217,7 @@ export async function parseWithGemini(
     return { fallback: "malformed" };
   }
 
-  const stops = sanitizeStops(raw);
+  const stops = sanitizeStops(isRecord(raw) && "stops" in raw ? raw.stops : raw);
   return stops ? { stops } : { fallback: "malformed" };
 }
 

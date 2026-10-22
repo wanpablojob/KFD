@@ -202,6 +202,39 @@ test("sends the message text only, with the key in a header", async () => {
   assert.equal(body.contents[0].parts[0].text, "2 biogesic sa mercury");
   assert.equal(body.generationConfig.responseMimeType, "application/json");
   assert.ok(body.generationConfig.responseSchema);
+  // Gemini rejects an ARRAY at the top level of a response schema, which is
+  // why the stops ride inside an object. An array here fails every call with
+  // 400, and 400 is not retried -- the phone silently gets no parse at all.
+  assert.equal(body.generationConfig.responseSchema.type, "OBJECT");
+});
+
+test("unwraps the stops object the schema asks for", async () => {
+  const outcome = await parseWithGemini("2 biogesic sa mercury", {
+    key: "k",
+    model: "gemini-3.8-flash",
+    fetchImpl: (async () =>
+      new Response(
+        JSON.stringify({
+          candidates: [
+            {
+              content: {
+                parts: [
+                  {
+                    text: JSON.stringify({
+                      stops: [{ store: "Mercury Drug", items: [{ name: "Biogesic", quantity: 2 }] }],
+                    }),
+                  },
+                ],
+              },
+            },
+          ],
+        }),
+        { status: 200 },
+      )) as unknown as typeof fetch,
+  });
+  assert.deepEqual(outcome, {
+    stops: [{ store: "Mercury Drug", items: [{ name: "Biogesic", quantity: 2 }] }],
+  });
 });
 
 // ---------------------------------------------------------------------------
