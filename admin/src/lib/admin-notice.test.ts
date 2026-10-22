@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { applicationNotice, refundNotice, suspensionNotice } from "./admin-notice";
+import { applicationNotice, refundNotice, suspensionNotice } from "./admin-notice.ts";
 
 test("an applicant hears the outcome, and nothing while pending", () => {
   assert.equal(applicationNotice({ status: "approved", decision_note: null })?.title, "You're a KFD rider");

@@ -1,5 +1,5 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useMemo } from "react";
+import { useMemo, type ComponentProps } from "react";
 import {
   Image,
   Pressable,
@@ -10,12 +10,14 @@ import {
   View,
 } from "react-native";
 import { useRouter } from "expo-router";
+import { useQuery } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { NotificationBell } from "../../components/NotificationBell";
 import { useScrollBottomPadding } from "../../components/TabBarInset";
 import { useSession } from "../../lib/session-context";
 import { useActiveRestaurants, useFavorites, useMyOrders } from "../../lib/hooks";
 import { homeSections } from "../../lib/customer-home";
+import { buildTasteProfile, fetchHomePicks, greetingFor } from "../../lib/home-picks";
 import type { RestaurantRow } from "../../lib/storefront";
 import { colors, radius, shadow, spacing, type } from "../../lib/theme";
 
@@ -48,6 +50,34 @@ export default function CustomerHomeScreen() {
     () => homeSections(orders.data ?? [], restaurants.data ?? [], favorites.data ?? []),
     [orders.data, restaurants.data, favorites.data]
   );
+  // Personal picks (AI, with rules on the phone as the fallback). Asked once
+  // per three-hour meal window, so the greeting and picks follow the day.
+  const now = new Date();
+  const mealWindow = Math.floor(now.getHours() / 3);
+  const loaded = restaurants.isSuccess && orders.isSuccess;
+  const picks = useQuery({
+    queryKey: ["homePicks", user?.id, now.toDateString(), mealWindow],
+    queryFn: () =>
+      fetchHomePicks(
+        buildTasteProfile(
+          orders.data ?? [],
+          restaurants.data ?? [],
+          favorites.data ?? [],
+          new Date()
+        )
+      ),
+    enabled: loaded,
+    staleTime: 3 * 60 * 60 * 1000,
+  });
+  const byId = new Map((restaurants.data ?? []).map((r) => [r.id, r]));
+  const picked = (picks.data?.picks ?? []).flatMap((p) => {
+    const r = byId.get(p.restaurant_id);
+    return r ? [r] : [];
+  });
+  const reasons = new Map(
+    (picks.data?.picks ?? []).map((p) => [p.restaurant_id, p.reason])
+  );
+
   const openRestaurant = (id: string) =>
     router.push({ pathname: "/customer/restaurant", params: { id } });
 
@@ -65,6 +95,7 @@ export default function CustomerHomeScreen() {
               void restaurants.refetch();
               void orders.refetch();
               void favorites.refetch();
+              void picks.refetch();
             }}
           />
         }
@@ -73,6 +104,9 @@ export default function CustomerHomeScreen() {
           <View style={styles.headerText}>
             <Text style={styles.brand}>KABANKALAN FOOD DELIVERY</Text>
             <Text style={type.display}>{name ? `Hi, ${name}!` : "Hi there!"}</Text>
+            <Text style={styles.greeting}>
+              {picks.data?.greeting ?? greetingFor(now.getHours())}
+            </Text>
           </View>
           <NotificationBell />
         </View>
@@ -111,6 +145,13 @@ export default function CustomerHomeScreen() {
           </Pressable>
         ) : null}
 
+        <Row
+          title="Picked for you"
+          icon="sparkles"
+          items={picked}
+          reasons={reasons}
+          onOpen={openRestaurant}
+        />
         <Row title="Order again" items={sections.orderAgain} onOpen={openRestaurant} />
         <Row
           title="Your favourites"
@@ -146,17 +187,25 @@ export default function CustomerHomeScreen() {
 /** A titled horizontal row of restaurant cards; renders nothing when empty. */
 function Row({
   title,
+  icon,
   items,
+  reasons,
   onOpen,
 }: {
   title: string;
+  icon?: ComponentProps<typeof Ionicons>["name"];
   items: RestaurantRow[];
+  /** Why each card is there, for "Picked for you". */
+  reasons?: Map<string, string>;
   onOpen: (id: string) => void;
 }) {
   if (items.length === 0) return null;
   return (
     <View style={styles.row}>
-      <Text style={styles.rowTitle}>{title}</Text>
+      <View style={styles.rowHead}>
+        {icon ? <Ionicons name={icon} size={18} color={colors.accent} /> : null}
+        <Text style={styles.rowTitle}>{title}</Text>
+      </View>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -208,6 +257,11 @@ function Row({
                 <Text style={styles.closed}>Closed</Text>
               )}
             </View>
+            {reasons?.get(r.id) ? (
+              <Text style={styles.reason} numberOfLines={2}>
+                {reasons.get(r.id)}
+              </Text>
+            ) : null}
           </Pressable>
         ))}
       </ScrollView>
@@ -243,6 +297,17 @@ const styles = StyleSheet.create({
   activeTitle: { ...type.heading, color: colors.textInverse },
   activeSub: { ...type.caption, color: colors.primarySoft },
   row: { gap: spacing.sm },
+  rowHead: { flexDirection: "row", alignItems: "center", gap: 6 },
+  greeting: { ...type.body, color: colors.textMuted },
+  reason: {
+    ...type.caption,
+    color: colors.primary,
+    backgroundColor: colors.primarySoft,
+    borderRadius: radius.sm,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    marginTop: 2,
+  },
   rowTitle: { ...type.title },
   rowList: { gap: spacing.md, paddingRight: spacing.lg, paddingVertical: 4 },
   card: {
