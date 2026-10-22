@@ -18,20 +18,23 @@ select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000
 
 do $$ begin
   begin
-    perform customer_request_pabakal('Mercury Drug', 'Biogesic x10', 999999, 'Purok 1, Brgy Example');
-    raise exception 'FAIL a budget over the cap was accepted';
+    perform customer_request_pabakal('[{"store":"Mercury Drug","items":[{"name":"Biogesic","quantity":0}]}]', 'Purok 1, Brgy Example', null, '0917 123 4567');
+    raise exception 'FAIL a zero quantity was accepted';
   exception when sqlstate '22023' then null;
   end;
   begin
-    perform customer_request_pabakal('Mercury Drug', 'Biogesic x10', 300, 'Purok 1, Brgy Example', null, 'abc');
+    perform customer_request_pabakal('[{"store":"Mercury Drug","items":[{"name":"Biogesic","quantity":10}]}]', 'Purok 1, Brgy Example', null, 'abc');
     raise exception 'FAIL a bad phone was accepted';
   exception when sqlstate '22023' then null;
   end;
-  raise notice 'PASS budget cap and phone checked';
+  raise notice 'PASS quantity and phone checked';
 end $$;
 
 insert into t_id
-  select id from customer_request_pabakal('Mercury Drug', 'Biogesic x10', 300, 'Purok 1, Brgy Example', null, '0917 123 4567');
+  select id from customer_request_pabakal(
+    '[{"store":"Mercury Drug","items":[{"name":"Biogesic 500mg","quantity":10}]},
+      {"store":"Citi Hardware","items":[{"name":"Light bulb","quantity":2,"price":1}]}]',
+    'Purok 1, Brgy Example', null, '0917 123 4567');
 
 -- Rider sees the job without the customer's details, takes it, buys, delivers.
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000f2","role":"authenticated"}', true);
@@ -74,11 +77,11 @@ end $$;
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000f2","role":"authenticated"}', true);
 do $$ begin
   begin
-    perform rider_pabakal_bought((select id from t_id), 300.01);
-    raise exception 'FAIL a cost over the budget was accepted';
+    perform rider_pabakal_bought((select id from t_id), 2000.01);
+    raise exception 'FAIL a cost over the rider cap was accepted';
   exception when sqlstate '22023' then null;
   end;
-  raise notice 'PASS cost capped at the budget';
+  raise notice 'PASS cost capped at what a rider can front';
 end $$;
 select rider_pabakal_bought((select id from t_id), 245.50);
 select rider_pabakal_delivered((select id from t_id), 305.50);
@@ -86,8 +89,9 @@ select rider_pabakal_delivered((select id from t_id), 305.50);
 reset role;
 do $$ begin
   if (select status::text || '|' || item_cost || '|' || pabakal_fee || '|' || cash_collected || '|' || customer_name
+             || '|' || store || '|' || (budget is null) || '|' || (stops -> 1 -> 'items' -> 0)::text
         from pabakal_requests where id = (select id from t_id))
-     <> 'delivered|245.50|20.00|305.50|Ana' then
+     <> 'delivered|245.50|30.00|305.50|Ana|Mercury Drug, Citi Hardware|true|{"name": "Light bulb", "quantity": 2}' then
     raise exception 'FAIL final row wrong: %',
       (select row_to_json(r) from pabakal_requests r where id = (select id from t_id));
   end if;

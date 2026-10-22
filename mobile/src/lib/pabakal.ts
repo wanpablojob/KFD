@@ -1,19 +1,34 @@
 /**
- * Pabakal (0120): a rider buys the customer's list from any store and brings
- * it. Cash only. The customer sets a budget; the rider fronts the money up to
- * it, records the receipt total, and collects receipt + delivery fee + pabakal
- * fee at the door.
+ * Pabakal (0120, 0130): a rider buys the customer's list from one or more
+ * stores and brings it. Cash only. The customer lists items and quantities per
+ * store; the rider fronts the money, records the receipt total, and collects
+ * receipt + delivery fee + pabakal fee at the door.
  */
 
 import { supabase } from "./supabase";
-import type { Database } from "./database.generated";
+import type { Database, Json } from "./database.generated";
 
 export type Pabakal = Database["public"]["Tables"]["pabakal_requests"]["Row"];
 export type OpenPabakal =
   Database["public"]["Functions"]["rider_open_pabakal"]["Returns"][number];
 
-/** Mirrors pabakal_rules() in 0120; the server enforces it. */
-export const PABAKAL_MAX_BUDGET = 2000;
+/** Mirrors pabakal_rules() in 0130; the server enforces it. */
+export const PABAKAL_RULES = {
+  fee: 20,
+  perExtraStore: 10,
+  maxCost: 2000,
+  maxStores: 5,
+} as const;
+
+export interface PabakalStop {
+  store: string;
+  items: { name: string; quantity: number }[];
+}
+
+/** The pabakal fee for this many stores, as the server will charge it. */
+export function pabakalFee(stores: number): number {
+  return PABAKAL_RULES.fee + PABAKAL_RULES.perExtraStore * Math.max(stores - 1, 0);
+}
 
 export const PABAKAL_STATUS_LABEL: Record<Pabakal["status"], string> = {
   open: "Looking for a rider",
@@ -31,16 +46,57 @@ export function pabakalAmountDue(
   return Math.round((p.item_cost + p.delivery_fee + p.pabakal_fee) * 100) / 100;
 }
 
-/** A budget as typed: whole or centavo pesos within the cap, or an error. */
-export function parseBudget(text: string): { value: number } | { error: string } {
-  const value = Number(text.trim());
-  if (text.trim() === "" || !Number.isFinite(value) || value <= 0) {
-    return { error: "Enter a budget in pesos." };
+/** The form as typed: stores with item rows, quantities as text. */
+export interface StopDraft {
+  store: string;
+  items: { name: string; quantity: string }[];
+}
+
+/**
+ * The stops to send, or the first thing to fix. Blank item rows are dropped,
+ * so the empty row the form keeps at the end never has to be deleted.
+ */
+export function cleanStops(
+  drafts: StopDraft[]
+): { stops: PabakalStop[] } | { error: string } {
+  const stops: PabakalStop[] = [];
+  for (const draft of drafts) {
+    const store = draft.store.trim();
+    const items = draft.items.filter((i) => i.name.trim() || i.quantity.trim());
+    if (!store && items.length === 0) continue;
+    if (store.length < 2) return { error: "Name each store." };
+    if (items.length === 0) return { error: `Add what to buy at ${store}.` };
+    const lines: PabakalStop["items"] = [];
+    for (const item of items) {
+      const name = item.name.trim();
+      const quantity = Number(item.quantity.trim());
+      if (!name) return { error: `Name each item at ${store}.` };
+      if (!Number.isInteger(quantity) || quantity < 1 || quantity > 99) {
+        return { error: `Give a quantity from 1 to 99 for ${name}.` };
+      }
+      lines.push({ name, quantity });
+    }
+    stops.push({ store, items: lines });
   }
-  if (value > PABAKAL_MAX_BUDGET) {
-    return { error: `The most a rider can front is ₱${PABAKAL_MAX_BUDGET}.` };
+  if (stops.length === 0) return { error: "Add a store and what to buy there." };
+  if (stops.length > PABAKAL_RULES.maxStores) {
+    return { error: `A pabakal can visit up to ${PABAKAL_RULES.maxStores} stores.` };
   }
-  return { value: Math.round(value * 100) / 100 };
+  return { stops };
+}
+
+/**
+ * A row's stops. A 0120 row has none: its free-text list comes back as one
+ * line with quantity 0, which formatLine shows without a count.
+ */
+export function stopsOf(p: Pick<Pabakal, "stops" | "store" | "items">): PabakalStop[] {
+  return Array.isArray(p.stops) && p.stops.length > 0
+    ? (p.stops as unknown as PabakalStop[])
+    : [{ store: p.store, items: [{ name: p.items, quantity: 0 }] }];
+}
+
+export function formatLine(item: { name: string; quantity: number }): string {
+  return item.quantity > 0 ? `${item.quantity}× ${item.name}` : item.name;
 }
 
 function check<T>(result: { data: T; error: { message: string } | null }): T {
@@ -63,9 +119,7 @@ export async function fetchMyPabakal(): Promise<Pabakal[]> {
 }
 
 export async function requestPabakal(input: {
-  store: string;
-  items: string;
-  budget: number;
+  stops: PabakalStop[];
   note: string;
   address: string;
   barangay?: string;
@@ -73,9 +127,7 @@ export async function requestPabakal(input: {
 }): Promise<void> {
   check(
     await supabase.rpc("customer_request_pabakal", {
-      p_store: input.store,
-      p_items: input.items,
-      p_budget: input.budget,
+      p_stops: input.stops as unknown as Json,
       p_delivery_address: input.address,
       p_barangay: input.barangay,
       p_contact_phone: input.phone,

@@ -8,7 +8,10 @@ import {
   fetchOpenPabakal,
   markPabakalBought,
   markPabakalDelivered,
+  formatLine,
+  PABAKAL_RULES,
   pabakalAmountDue,
+  stopsOf,
   type Pabakal,
 } from "../lib/pabakal";
 import { colors, radius, spacing, type } from "../lib/theme";
@@ -18,7 +21,7 @@ const peso = (n: number) => `₱${n.toFixed(2)}`;
 /**
  * Pabakal on the rider's Available tab (0120): the job they are doing, then
  * the open requests. The rider fronts the cash, so it is one job at a time and
- * never more than the customer's budget.
+ * never more than PABAKAL_RULES.maxCost, which the server enforces.
  */
 export function PabakalRiderSection({ disabled }: { disabled: boolean }) {
   const queryClient = useQueryClient();
@@ -62,12 +65,10 @@ export function PabakalRiderSection({ disabled }: { disabled: boolean }) {
       ) : (
         (open.data ?? []).map((p) => (
           <View key={p.id} style={styles.card}>
-            <Text style={styles.title}>{p.store}</Text>
-            <Text style={type.body}>{p.items}</Text>
+            <Stops p={p} />
             {p.note ? <Text style={ui.muted}>Note: {p.note}</Text> : null}
             <Text style={ui.muted}>
-              Front up to {peso(p.budget)}
-              {p.barangay ? ` · ${p.barangay}` : ""} · you earn{" "}
+              {p.barangay ? `${p.barangay} · ` : ""}you earn{" "}
               {peso(p.delivery_fee + p.pabakal_fee)}
             </Text>
             <MerchantButton
@@ -114,10 +115,8 @@ function ActiveJob({
 
   return (
     <View style={styles.card}>
-      <Text style={styles.title}>
-        {job.store} · {job.reference}
-      </Text>
-      <Text style={type.body}>{job.items}</Text>
+      <Text style={styles.title}>{job.reference}</Text>
+      <Stops p={job} />
       {job.note ? <Text style={ui.muted}>Note: {job.note}</Text> : null}
       <Text style={ui.muted}>
         {job.customer_name} · {job.delivery_address}
@@ -134,7 +133,9 @@ function ActiveJob({
       {job.status === "accepted" ? (
         <>
           <Text style={ui.muted}>
-            Spend no more than {peso(job.budget)}. Keep the receipt.
+            Buy everything on the list, up to{" "}
+            {peso(Math.min(job.budget ?? PABAKAL_RULES.maxCost, PABAKAL_RULES.maxCost))}
+            . Enter the total of all receipts.
           </Text>
           <TextInput
             style={styles.input}
@@ -175,6 +176,24 @@ function ActiveJob({
         </>
       )}
     </View>
+  );
+}
+
+/** Each store with what to buy there, in the order the customer listed them. */
+function Stops({ p }: { p: Pick<Pabakal, "stops" | "store" | "items"> }) {
+  return (
+    <>
+      {stopsOf(p).map((stop, i) => (
+        <View key={i}>
+          <Text style={styles.title}>{stop.store}</Text>
+          {stop.items.map((item, j) => (
+            <Text key={j} style={type.body}>
+              {formatLine(item)}
+            </Text>
+          ))}
+        </View>
+      ))}
+    </>
   );
 }
 

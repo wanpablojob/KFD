@@ -43,7 +43,7 @@ export default function PabakalPage() {
     <PageContainer>
       <PageHeader
         title="Pabakal"
-        description="Buy-for-me requests from any store. The rider fronts the cash up to the budget and collects receipt + fees at the door."
+        description="Buy-for-me requests from one or more stores. The rider fronts the cash (up to ₱2,000) and collects receipt + fees at the door."
       />
       <Section>
         {error ? (
@@ -79,9 +79,8 @@ export default function PabakalPage() {
                         {p.barangay ? `, ${p.barangay}` : ""}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        Budget {formatCurrency(p.budget)}
+                        Fees {formatCurrency(p.delivery_fee + p.pabakal_fee)}
                         {p.item_cost !== null ? ` · receipt ${formatCurrency(p.item_cost)}` : ""}
-                        {` · fees ${formatCurrency(p.delivery_fee + p.pabakal_fee)}`}
                         {p.cash_collected !== null ? ` · collected ${formatCurrency(p.cash_collected)}` : ""}
                         {p.rider_id ? ` · rider ${p.rider_id}` : ""}
                       </p>
