@@ -159,3 +159,22 @@ export async function markPabakalDelivered(id: string, cash: number): Promise<vo
     await supabase.rpc("rider_pabakal_delivered", { p_id: id, p_cash_collected: cash })
   );
 }
+
+/**
+ * Add a follow-up message's stops to the list so far. Items for a store
+ * already on the list join it (store names compared without case); a store
+ * the reader could not name always starts its own stop, for the customer to
+ * name.
+ */
+export function mergeStops(list: StopDraft[], more: StopDraft[]): StopDraft[] {
+  const merged = list.map((s) => ({ ...s, items: [...s.items] }));
+  for (const stop of more) {
+    const key = stop.store.trim().toLowerCase();
+    const same = key
+      ? merged.find((s) => s.store.trim().toLowerCase() === key)
+      : undefined;
+    if (same) same.items.push(...stop.items);
+    else merged.push({ ...stop, items: [...stop.items] });
+  }
+  return merged;
+}

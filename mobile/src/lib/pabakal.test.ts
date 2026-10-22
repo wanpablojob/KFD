@@ -1,6 +1,7 @@
 import {
   cleanStops,
   formatLine,
+  mergeStops,
   pabakalAmountDue,
   pabakalFee,
   stopsOf,
@@ -67,5 +68,29 @@ describe("stopsOf", () => {
     expect(stop.store).toBe("Mercury");
     expect(formatLine(stop.items[0])).toBe("Biogesic x10");
     expect(formatLine({ name: "Bulb", quantity: 2 })).toBe("2× Bulb");
+  });
+});
+
+describe("mergeStops", () => {
+  const stop = (store: string, ...names: string[]) => ({
+    store,
+    items: names.map((name) => ({ name, quantity: "1" })),
+  });
+
+  it("adds to a store already on the list, and starts new ones", () => {
+    expect(
+      mergeStops(
+        [stop("Mercury", "Biogesic")],
+        [stop("mercury ", "Neozep"), stop("Citi", "Bulb"), stop("", "Itlog")]
+      )
+    ).toEqual([
+      stop("Mercury", "Biogesic", "Neozep"),
+      stop("Citi", "Bulb"),
+      stop("", "Itlog"),
+    ]);
+  });
+
+  it("never merges two stores it could not name", () => {
+    expect(mergeStops([stop("", "A")], [stop("", "B")])).toHaveLength(2);
   });
 });
