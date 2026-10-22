@@ -26,6 +26,7 @@ import {
   type Pabakal,
   type StopDraft,
 } from "../../lib/pabakal";
+import { readPabakalMessage } from "../../lib/pabakal-from-message";
 import { colors, radius, spacing, type } from "../../lib/theme";
 
 const peso = (n: number) => `₱${n.toFixed(2)}`;
@@ -51,6 +52,11 @@ export default function PabakalScreen() {
   const [addresses, setAddresses] = useState<SavedAddress[]>([]);
   const [addressId, setAddressId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState("");
+  const [reading, setReading] = useState(false);
+  // Once a message has filled the form, a box the reader could not work out is
+  // highlighted until the customer fills it in. Nothing is guessed for them.
+  const [filledFromMessage, setFilledFromMessage] = useState(false);
 
   // Addresses live on the device and are edited in Delivery addresses, so
   // reload whenever this tab comes back into view.
@@ -97,6 +103,33 @@ export default function PabakalScreen() {
     });
   }
 
+  /**
+   * Read the message into the form. Fill only: nothing is sent here, and the
+   * customer still reviews it and taps Send pabakal themselves.
+   */
+  async function fillFromMessage() {
+    const text = message.trim();
+    if (!text || reading) return;
+    setReading(true);
+    setError(null);
+    try {
+      const parsed = await readPabakalMessage(text);
+      if (parsed.length === 0) {
+        setError(
+          "Could not read that. Fill the form below, or try a simpler sentence."
+        );
+        return;
+      }
+      setStops(parsed);
+      setFilledFromMessage(true);
+      setMessage("");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not read that.");
+    } finally {
+      setReading(false);
+    }
+  }
+
   return (
     <MerchantScreen
       title="Pabakal"
@@ -104,12 +137,39 @@ export default function PabakalScreen() {
       refreshing={mine.isRefetching}
       onRefresh={() => void mine.refetch()}
     >
+      <MerchantSection label="Type it like on Messenger">
+        <TextInput
+          style={[styles.input, styles.messageBox]}
+          multiline
+          textAlignVertical="top"
+          placeholder={
+            'e.g. "pabakal ko 2 biogesic sa mercury kag isa ka bulb sa citi"'
+          }
+          placeholderTextColor={colors.textFaint}
+          value={message}
+          onChangeText={setMessage}
+          maxLength={500}
+          accessibilityLabel="Describe your pabakal"
+        />
+        <MerchantButton
+          label="Fill the form"
+          tone="outline"
+          onPress={() => void fillFromMessage()}
+          busy={reading}
+          disabled={!message.trim()}
+        />
+        <Text style={ui.muted}>
+          Nothing is sent until you check it and tap Send pabakal.
+        </Text>
+      </MerchantSection>
+
       <MerchantSection label="What do you need?">
         {stops.map((stop, s) => (
           <StopEditor
             key={s}
             index={s}
             stop={stop}
+            highlightBlanks={filledFromMessage}
             removable={stops.length > 1}
             onChange={(next) =>
               setStops((all) => all.map((x, i) => (i === s ? next : x)))
@@ -249,12 +309,14 @@ function PabakalCard({
 function StopEditor({
   index,
   stop,
+  highlightBlanks,
   removable,
   onChange,
   onRemove,
 }: {
   index: number;
   stop: StopDraft;
+  highlightBlanks: boolean;
   removable: boolean;
   onChange: (next: StopDraft) => void;
   onRemove: () => void;
@@ -275,13 +337,20 @@ function StopEditor({
           </Pressable>
         ) : null}
       </View>
-      <AuthField
-        label="Store name"
-        placeholder="e.g. Mercury Drug, any hardware"
-        value={stop.store}
-        onChangeText={(store) => onChange({ ...stop, store })}
-        maxLength={80}
-      />
+      <View
+        style={highlightBlanks && !stop.store.trim() ? styles.needsCheck : undefined}
+      >
+        <AuthField
+          label="Store name"
+          placeholder="e.g. Mercury Drug, any hardware"
+          value={stop.store}
+          onChangeText={(store) => onChange({ ...stop, store })}
+          maxLength={80}
+        />
+      </View>
+      {highlightBlanks && !stop.store.trim() ? (
+        <Text style={styles.needs}>Which store? Type it here.</Text>
+      ) : null}
       <Text style={styles.label}>Items and quantity</Text>
       {stop.items.map((item, i) => (
         <View key={i} style={styles.itemRow}>
@@ -295,12 +364,19 @@ function StopEditor({
             accessibilityLabel={`Item ${i + 1} at store ${index + 1}`}
           />
           <TextInput
-            style={[styles.input, styles.qty]}
+            style={[
+              styles.input,
+              styles.qty,
+              highlightBlanks && !item.quantity.trim() && styles.inputNeeds,
+            ]}
             keyboardType="number-pad"
             value={item.quantity}
             onChangeText={(quantity) => setItem(i, { quantity })}
             maxLength={2}
             accessibilityLabel={`Quantity of item ${i + 1}`}
+            accessibilityHint={
+              highlightBlanks && !item.quantity.trim() ? "Quantity needed" : undefined
+            }
           />
           {stop.items.length > 1 ? (
             <Pressable
@@ -350,6 +426,14 @@ const styles = StyleSheet.create({
   },
   itemName: { flex: 1 },
   qty: { width: 52, textAlign: "center" },
+  messageBox: { minHeight: 96, textAlignVertical: "top" },
+  needsCheck: {
+    borderLeftWidth: 3,
+    borderLeftColor: colors.danger,
+    paddingLeft: spacing.sm,
+  },
+  needs: { ...type.caption, color: colors.danger },
+  inputNeeds: { borderColor: colors.danger, backgroundColor: colors.dangerSoft },
   addItem: {
     flexDirection: "row",
     alignItems: "center",

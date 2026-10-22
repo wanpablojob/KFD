@@ -40,3 +40,36 @@ export async function postApi(
     return false;
   }
 }
+
+/**
+ * POST to the admin app's API and read a JSON reply.
+ *
+ * `null` is the caller's signal to fall back to something local: not
+ * configured, signed out, refused, or a body we cannot read. It never throws,
+ * for the same reason postApi does not. Used where the fallback is a real
+ * answer rather than an error -- Pabakal's message parser, for instance,
+ * reads the text on the phone when the server cannot.
+ */
+export async function postApiJson<T>(
+  path: string,
+  body: Record<string, unknown>
+): Promise<T | null> {
+  try {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (!apiUrl || !session?.access_token) return null;
+    const res = await fetch(`${apiUrl.replace(/\/+$/, "")}${path}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as T;
+  } catch {
+    return null;
+  }
+}
