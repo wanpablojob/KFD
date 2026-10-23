@@ -80,13 +80,17 @@ export const KITCHEN_PHOTO = "/images/food/inasal-plate.jpg";
  * page offers the waitlist instead.
  *
  * The Android link is the EAS preview build (an APK, built on the "preview"
- * channel, so it receives over-the-air updates on that channel). The iPhone
- * link is the TestFlight public link, which needs the Apple Developer account
- * and an App Store Connect app: TODO(owner), until then it stays null.
+ * channel, so it receives over-the-air updates on that channel). Keep it on a
+ * build whose runtime version is the current app version: this used to point
+ * at build 06c5cf8a, whose fingerprint runtime (adb0400a) no longer matches the
+ * preview channel and which predates the Firebase config, so a phone that
+ * installed it could never receive a push. The iPhone link is the TestFlight
+ * public link, which needs the Apple Developer account and an App Store
+ * Connect app: TODO(owner), until then it stays null.
  */
 export const APP_DOWNLOADS = {
   android:
-    "https://expo.dev/artifacts/eas/ztQudJV_NfC0Mp723mibfJSDpSg7RunddRyZXmtWoGw.apk" as string | null,
+    "https://expo.dev/artifacts/eas/YiBg7U0Wq3NI-R1DY7INKsx80Kvximo-h6pnfxUpgtg.apk" as string | null,
   iphone: null as string | null,
 } as const;
 
