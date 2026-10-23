@@ -60,8 +60,17 @@ export function stopsFromReply(reply: unknown, message: string): StopDraft[] {
     .filter((stop) => stop.items.length > 0);
 }
 
+/** How long the chat waits for the AI before reading the message itself. */
+export const AI_WAIT_MS = 3500;
+
 /** Ask the server, then fall back to reading the message on the phone. */
 export async function readPabakalMessage(message: string): Promise<StopDraft[]> {
-  const reply = await postApiJson<ServerReply>("/api/pabakal/parse", { message });
+  // The customer is waiting in a chat: past this, the phone's own reader
+  // answers instead of the AI, which can take much longer when it is busy.
+  const reply = await postApiJson<ServerReply>(
+    "/api/pabakal/parse",
+    { message },
+    AI_WAIT_MS
+  );
   return stopsFromReply(reply, message);
 }

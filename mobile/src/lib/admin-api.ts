@@ -52,8 +52,12 @@ export async function postApi(
  */
 export async function postApiJson<T>(
   path: string,
-  body: Record<string, unknown>
+  body: Record<string, unknown>,
+  /** Give up after this long and return null, so the caller's fallback answers. */
+  timeoutMs?: number
 ): Promise<T | null> {
+  const abort = new AbortController();
+  const timer = timeoutMs ? setTimeout(() => abort.abort(), timeoutMs) : undefined;
   try {
     const {
       data: { session },
@@ -66,10 +70,13 @@ export async function postApiJson<T>(
         "Content-Type": "application/json",
       },
       body: JSON.stringify(body),
+      signal: abort.signal,
     });
     if (!res.ok) return null;
     return (await res.json()) as T;
   } catch {
     return null;
+  } finally {
+    clearTimeout(timer);
   }
 }

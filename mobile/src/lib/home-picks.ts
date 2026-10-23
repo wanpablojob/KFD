@@ -182,6 +182,7 @@ export function picksFromReply(reply: unknown, profile: TasteProfile): HomePicks
 /** Ask the server, then fall back to the rules on the phone. */
 export async function fetchHomePicks(profile: TasteProfile): Promise<HomePicks> {
   if (profile.open.length === 0) return rulePicks(profile);
-  const reply = await postApiJson<unknown>("/api/home/picks", { profile });
+  // Home shows the rule picks rather than wait long on a busy model.
+  const reply = await postApiJson<unknown>("/api/home/picks", { profile }, 6000);
   return picksFromReply(reply, profile);
 }
