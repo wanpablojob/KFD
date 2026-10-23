@@ -3,6 +3,7 @@ import * as ImageManipulator from "expo-image-manipulator";
 import { supabase } from "./supabase";
 import { postApi } from "./admin-api";
 import { uploadLocalImage } from "./image-upload";
+import { removeReplacedImage } from "./storage-cleanup";
 import { targetWidthFor } from "./image-sizing";
 import type { OrderStatus } from "./merchant-logic";
 
@@ -193,17 +194,28 @@ export async function saveMenuItem(
     available: input.available,
     image_url: input.imageUrl,
   };
+  // The photo being replaced, so it can be removed once the new one is saved.
+  const previous = id
+    ? ((
+        await supabase.from("menu_items").select("image_url").eq("id", id).maybeSingle()
+      ).data?.image_url ?? null)
+    : null;
   const { error } = id
     ? await supabase.from("menu_items").update(payload).eq("id", id)
     : await supabase
         .from("menu_items")
         .insert({ ...payload, id: `mnu_${Math.random().toString(36).slice(2, 10)}` });
   if (error) throw error;
+  void removeReplacedImage(MENU_IMAGE_BUCKET, previous, input.imageUrl);
 }
 
 export async function deleteMenuItem(id: string): Promise<void> {
+  const previous =
+    (await supabase.from("menu_items").select("image_url").eq("id", id).maybeSingle())
+      .data?.image_url ?? null;
   const { error } = await supabase.from("menu_items").delete().eq("id", id);
   if (error) throw error;
+  void removeReplacedImage(MENU_IMAGE_BUCKET, previous, null);
 }
 
 export const MENU_IMAGE_BUCKET = "menu-images";
@@ -475,9 +487,18 @@ export function useDeleteMenuItem(restaurantId: string | null) {
  * server accepts only a URL inside that folder.
  */
 export async function setShopImage(restaurantId: string, uri: string): Promise<void> {
+  const previous =
+    (
+      await supabase
+        .from("restaurants")
+        .select("image_url")
+        .eq("id", restaurantId)
+        .maybeSingle()
+    ).data?.image_url ?? null;
   const url = await uploadMenuImage(restaurantId, uri);
   const { error } = await supabase.rpc("merchant_set_shop_image", { p_url: url });
   if (error) throw error;
+  void removeReplacedImage(MENU_IMAGE_BUCKET, previous, url);
 }
 
 export function useSetShopImage(restaurantId: string | null) {

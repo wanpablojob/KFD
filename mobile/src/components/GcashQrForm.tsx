@@ -10,6 +10,8 @@ import {
 } from "react-native";
 import { pickPhoto } from "../lib/pick-photo";
 import { uploadGcashQr } from "../lib/gcash-qr-upload";
+import { GCASH_QR_BUCKET } from "../lib/gcash-qr";
+import { removeReplacedImage } from "../lib/storage-cleanup";
 import { useSetRiderGcash } from "../lib/hooks";
 import { colors, radius, shadow, spacing, type } from "../lib/theme";
 import { GcashQrModal } from "./GcashQrModal";
@@ -89,6 +91,8 @@ export function GcashQrForm({
       const nextName = name.trim() || null;
 
       await setGcash.mutateAsync({ qrUrl: nextUrl, name: nextName });
+      // The QR it replaced is no longer anyone's (G9).
+      void removeReplacedImage(GCASH_QR_BUCKET, savedUrl || null, nextUrl);
 
       setUrl(nextUrl ?? "");
       setSavedUrl(nextUrl ?? "");
