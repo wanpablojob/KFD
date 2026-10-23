@@ -1,4 +1,4 @@
-import { cashOnHandLabel } from "./rider-cash";
+import { cashOnHandLabel, payoutLine } from "./rider-cash";
 
 // rider-cash imports the Supabase client at module scope; the label itself is
 // pure, so the client is stubbed rather than configured.
@@ -32,5 +32,20 @@ describe("cashOnHandLabel", () => {
       text: "₱1234.57",
       tone: "warning",
     });
+  });
+});
+
+describe("payoutLine", () => {
+  const peso = (n: number) => `₱${n.toFixed(2)}`;
+  it("says what is owed, in review, and when the rider was last paid", () => {
+    expect(
+      payoutLine(
+        { owed: 75, inReview: 50, paid: 120, lastPaidAt: "2026-10-20T08:00:00Z" },
+        peso
+      )
+    ).toMatch(/^To be paid ₱75\.00 · ₱50\.00 in review · Last paid /);
+    expect(
+      payoutLine({ owed: 0, inReview: 0, paid: 0, lastPaidAt: null }, peso)
+    ).toBeNull();
   });
 });

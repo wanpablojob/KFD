@@ -16,7 +16,11 @@ import {
   useRiderEarningsSummary,
   useRiderPayoutHistory,
 } from "../../lib/hooks";
-import { cashOnHandLabel } from "../../lib/rider-cash";
+import {
+  cashOnHandLabel,
+  fetchRiderPayoutPosition,
+  payoutLine,
+} from "../../lib/rider-cash";
 import { fetchMyDeliveredPabakal, pabakalEarnings } from "../../lib/pabakal";
 import {
   BUCKET_LABEL,
@@ -80,6 +84,10 @@ export default function RiderEarningsRoute() {
     queryFn: fetchMyDeliveredPabakal,
   });
   const pabakalTotals = pabakalEarnings(pabakal.data ?? [], new Date());
+  const payout = useQuery({
+    queryKey: ["riderPayoutPosition"],
+    queryFn: fetchRiderPayoutPosition,
+  });
   const cashLabel = cash.data ? cashOnHandLabel(cash.data.on_hand) : null;
 
   const loading = summary.isLoading;
@@ -140,6 +148,10 @@ export default function RiderEarningsRoute() {
       </View>
 
       {firstEarned ? <Text style={styles.since}>{firstEarned}</Text> : null}
+      {/* Earnings are what the rider earned; this is whether KFD has sent it (0134). */}
+      {payout.data && payoutLine(payout.data, peso) ? (
+        <Text style={styles.since}>{payoutLine(payout.data, peso)}</Text>
+      ) : null}
 
       {/* Cash on hand, not earnings. This is the number that decides whether
           the rider needs to bank today, and it is the mirror of the payout

@@ -1191,7 +1191,9 @@ export async function fetchRiderOverview(): Promise<RiderOverview[]> {
  * has already suffered, for a column a plain select can supply. Empty when the
  * migration is not applied yet, so the roster still renders.
  */
-export async function fetchRiderDeletionRequests(): Promise<Map<string, string>> {
+export async function fetchRiderDeletionRequests(): Promise<
+  Map<string, string>
+> {
   const { data, error } = await supabase
     .from("riders")
     .select("id, deletion_requested_at")
@@ -1253,6 +1255,52 @@ export async function recordCashHandover(
   return requireMigration(error, Number(data ?? 0), RIDER_CASH_MIGRATION);
 }
 
+/** What a rider is owed, what is still in review, and what was paid (0134). */
+export interface PayoutPosition {
+  owed: number;
+  owedCount: number;
+  inReview: number;
+  paid: number;
+  lastPaidAt: string | null;
+}
+
+export async function fetchPayoutPosition(
+  riderId: string,
+): Promise<PayoutPosition> {
+  const { data, error } = await supabase.rpc("admin_rider_payout_position", {
+    p_rider_id: riderId,
+  });
+  const row = requireOk(error, data?.[0]);
+  return {
+    owed: Number(row?.owed ?? 0),
+    owedCount: Number(row?.owed_count ?? 0),
+    inReview: Number(row?.in_review ?? 0),
+    paid: Number(row?.paid ?? 0),
+    lastPaidAt: row?.last_paid_at ?? null,
+  };
+}
+
+/**
+ * Record everything the rider is owed as paid, by GCash (with its reference)
+ * or cash. The money itself moves outside the system; this is the record.
+ */
+export async function markPayoutsPaid(
+  riderId: string,
+  method: "gcash" | "cash",
+  reference?: string,
+): Promise<{ count: number; total: number }> {
+  const { data, error } = await supabase.rpc("admin_mark_payouts_paid", {
+    p_rider_id: riderId,
+    p_method: method,
+    p_reference: reference?.trim() ? reference.trim() : undefined,
+  });
+  const row = requireOk(error, data?.[0]);
+  return {
+    count: Number(row?.paid_count ?? 0),
+    total: Number(row?.paid_total ?? 0),
+  };
+}
+
 /**
  * Short-lived signed URL for a delivery proof (0079).
  *
@@ -1298,7 +1346,9 @@ export async function setRiderSuspended(
  * login and personal data and keeps the money records.
  */
 export async function closeRiderAccount(id: string): Promise<void> {
-  const { error } = await supabase.rpc("admin_close_rider_account", { p_rider_id: id });
+  const { error } = await supabase.rpc("admin_close_rider_account", {
+    p_rider_id: id,
+  });
   requireOk(error, undefined);
 }
 
@@ -1381,7 +1431,10 @@ export async function settleExpiredPayouts(): Promise<number> {
   // settled for every call.
   const raw = data as unknown;
   const count = Array.isArray(raw)
-    ? Number((raw[0] as Record<string, unknown> | undefined)?.rider_settle_expired_payouts ?? 0)
+    ? Number(
+        (raw[0] as Record<string, unknown> | undefined)
+          ?.rider_settle_expired_payouts ?? 0,
+      )
     : Number(raw ?? 0);
   return Number.isFinite(count) ? count : 0;
 }

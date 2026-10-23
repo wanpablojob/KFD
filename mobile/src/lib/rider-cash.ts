@@ -57,3 +57,39 @@ export function cashOnHandLabel(onHand: number): {
     tone: rounded > 0.005 ? "warning" : "clear",
   };
 }
+
+/** What KFD still owes the rider, what is in review, and the last payment (0134). */
+export interface RiderPayoutPosition {
+  owed: number;
+  inReview: number;
+  paid: number;
+  lastPaidAt: string | null;
+}
+
+export async function fetchRiderPayoutPosition(): Promise<RiderPayoutPosition> {
+  const { data, error } = await supabase.rpc("rider_payout_position");
+  if (error) throw error;
+  const row = data?.[0];
+  return {
+    owed: Number(row?.owed ?? 0),
+    inReview: Number(row?.in_review ?? 0),
+    paid: Number(row?.paid ?? 0),
+    lastPaidAt: row?.last_paid_at ?? null,
+  };
+}
+
+/** "To be paid ₱75.00 · ₱50.00 in review · Last paid 20 Oct", or null when there is nothing yet. */
+export function payoutLine(
+  p: RiderPayoutPosition,
+  peso: (n: number) => string
+): string | null {
+  if (p.owed <= 0 && p.inReview <= 0 && p.paid <= 0) return null;
+  const parts = [`To be paid ${peso(p.owed)}`];
+  if (p.inReview > 0) parts.push(`${peso(p.inReview)} in review`);
+  if (p.lastPaidAt) {
+    parts.push(
+      `Last paid ${new Date(p.lastPaidAt).toLocaleDateString(undefined, { day: "numeric", month: "short" })}`
+    );
+  }
+  return parts.join(" · ");
+}

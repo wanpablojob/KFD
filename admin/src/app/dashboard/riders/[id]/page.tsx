@@ -26,6 +26,8 @@ import {
   fetchRiderAccess,
   resolveDeliveryIssue,
   closeRiderAccount,
+  fetchPayoutPosition,
+  markPayoutsPaid,
 } from "@/lib/supabase/queries";
 import { formatCurrency } from "@/lib/format";
 import { PageContainer, PageHeader, Section } from "@/components/layout/page";
@@ -118,7 +120,15 @@ export default function RiderDetailPage() {
   // whose arithmetic could disagree.
   const cash = useAsyncData(() => fetchRiderCashPositions(), riderId);
   const cashPosition = (cash.data ?? []).find((row) => row.riderId === riderId);
-  const deletionRequests = useAsyncData(() => fetchRiderDeletionRequests(), riderId);
+  const deletionRequests = useAsyncData(
+    () => fetchRiderDeletionRequests(),
+    riderId,
+  );
+  // Owed, in review and paid (0134): the payout itself goes out by GCash or cash.
+  const payoutPosition = useAsyncData(
+    () => fetchPayoutPosition(riderId),
+    riderId,
+  );
 
   const earnings = useAsyncData(
     () =>
@@ -141,6 +151,7 @@ export default function RiderDetailPage() {
   // than a boolean so the dialog can name the order and show the amount at stake.
   const [resolving, setResolving] = useState<RiderPayout | null>(null);
   const [handingOver, setHandingOver] = useState(false);
+  const [payingOut, setPayingOut] = useState(false);
   const [noteBody, setNoteBody] = useState("");
   const [noteBusy, setNoteBusy] = useState(false);
   const [noteError, setNoteError] = useState<string | null>(null);
@@ -265,10 +276,7 @@ export default function RiderDetailPage() {
    * payout table. Releasing changes no total, but refetching both is one branch
    * fewer and the read is cheap.
    */
-  async function resolveDispute(
-    decision: "release" | "reverse",
-    note: string,
-  ) {
+  async function resolveDispute(decision: "release" | "reverse", note: string) {
     if (!resolving) return;
     await action.run("resolve", async () => {
       await resolveDeliveryIssue(resolving.orderId, decision, note);
@@ -310,7 +318,11 @@ export default function RiderDetailPage() {
               {rider.suspendedAt ? "Reinstate" : "Suspend"}
             </Button>
             {deletionRequests.data?.has(riderId) && !rider.archivedAt ? (
-              <Button variant="destructive" size="sm" onClick={() => setClosing(true)}>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => setClosing(true)}
+              >
                 Close account
               </Button>
             ) : null}
@@ -490,6 +502,51 @@ export default function RiderDetailPage() {
               onClick={() => setHandingOver(true)}
             >
               Record handover
+            </Button>
+          </div>
+        </Card>
+
+        {/* What KFD owes the rider: settled payouts not yet sent. The money
+            goes out by GCash or cash; "Mark as paid" is the record of it. */}
+        <Card className="mt-4 p-5">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
+              <h2 className="text-sm font-semibold text-card-foreground">
+                Payouts owed
+              </h2>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Deliveries past their 24-hour review and not yet paid to the
+                rider.
+              </p>
+              {payoutPosition.data ? (
+                <div className="mt-3 flex flex-wrap items-baseline gap-x-4 gap-y-1">
+                  <span className="text-2xl font-semibold text-card-foreground">
+                    {formatCurrency(payoutPosition.data.owed)}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {payoutPosition.data.owedCount} deliveries ·{" "}
+                    {formatCurrency(payoutPosition.data.inReview)} still in
+                    review · {formatCurrency(payoutPosition.data.paid)} paid
+                    {payoutPosition.data.lastPaidAt
+                      ? `, last on ${new Date(payoutPosition.data.lastPaidAt).toLocaleDateString()}`
+                      : ""}
+                  </span>
+                </div>
+              ) : (
+                <p className="mt-3 text-sm text-muted-foreground">
+                  {payoutPosition.loading
+                    ? "Loading payouts…"
+                    : (payoutPosition.error ?? "No payouts yet.")}
+                </p>
+              )}
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={!payoutPosition.data || payoutPosition.data.owed <= 0}
+              onClick={() => setPayingOut(true)}
+            >
+              Mark as paid
             </Button>
           </div>
         </Card>
@@ -1002,6 +1059,51 @@ export default function RiderDetailPage() {
           busy={action.isPending("suspend")}
           onClose={() => setSuspending(null)}
           onConfirm={suspend}
+        />
+      ) : null}
+
+      {payingOut && payoutPosition.data ? (
+        <EntityDialog
+          open
+          key={`payout-${riderId}`}
+          title={`Pay ${rider.name} ${formatCurrency(payoutPosition.data.owed)}`}
+          description={`Send the money first, then record it here. This marks ${payoutPosition.data.owedCount} deliveries as paid.`}
+          onClose={() => setPayingOut(false)}
+          initial={{ method: "gcash" }}
+          fields={[
+            {
+              key: "method",
+              label: "Paid by",
+              required: true,
+              options: [
+                { value: "gcash", label: "GCash" },
+                { value: "cash", label: "Cash" },
+              ],
+            },
+            {
+              key: "reference",
+              label: "GCash reference number (required for GCash)",
+              type: "text",
+              placeholder: "e.g. 1234 567 890",
+            },
+          ]}
+          onSave={async (values) => {
+            await action.run(
+              "payout",
+              async () => {
+                await markPayoutsPaid(
+                  riderId,
+                  values.method === "cash" ? "cash" : "gcash",
+                  values.reference,
+                );
+                await payoutPosition.refetch();
+                await payouts.refetch();
+                await activity.refetch();
+                setPayingOut(false);
+              },
+              { rethrow: true },
+            );
+          }}
         />
       ) : null}
 
