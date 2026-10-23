@@ -114,4 +114,28 @@ do $$ begin
   end if;
   raise notice 'PASS open -> accepted -> delivering -> delivered';
 end $$;
+-- 0136: an open pabakal nobody took for 30 minutes is cancelled and the
+-- customer told in their inbox; a newer one is left alone.
+insert into pabakal_requests (reference, customer_user_id, customer_name, delivery_address,
+  store, items, status, created_at)
+values
+  ('#PBK-OLD', '00000000-0000-0000-0000-0000000000f1', 'Ana', 'Purok 1, Brgy Example',
+   'Mercury', 'Biogesic', 'open', now() - interval '31 minutes'),
+  ('#PBK-NEW', '00000000-0000-0000-0000-0000000000f1', 'Ana', 'Purok 1, Brgy Example',
+   'Mercury', 'Neozep', 'open', now() - interval '5 minutes');
+do $$ begin
+  if expire_open_pabakal() <> 1 then
+    raise exception 'FAIL expired the wrong number of pabakal';
+  end if;
+  if (select status from pabakal_requests where reference = '#PBK-OLD') <> 'cancelled'
+     or (select status from pabakal_requests where reference = '#PBK-NEW') <> 'open' then
+    raise exception 'FAIL expired the wrong pabakal';
+  end if;
+  if not exists (select 1 from notifications
+                  where user_id = '00000000-0000-0000-0000-0000000000f1'
+                    and body like '#PBK-OLD:%') then
+    raise exception 'FAIL the customer was not told';
+  end if;
+  raise notice 'PASS untaken pabakal expire after 30 minutes, customer told';
+end $$;
 rollback;
