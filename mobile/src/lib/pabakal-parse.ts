@@ -109,7 +109,16 @@ const SPANISH_UNITS = new Set([
 ]);
 
 const DOZEN = new Set(["dosena", "dozen"]);
-const LINKERS = new Set(["ka", "buok", "na", "piraso", "pcs", "pc"]);
+const LINKERS = new Set([
+  "ka",
+  "buok",
+  "kabilog",
+  "bilog",
+  "na",
+  "piraso",
+  "pcs",
+  "pc",
+]);
 const OPENERS = new Set([
   "pabakal",
   "mabakal",
@@ -266,14 +275,16 @@ function numberWord(word: string): number | null {
 }
 
 /**
- * "tig duwa", "tigduwa", "tag-dalawa", "2 each", "kada isa" at the end of a
+ * "tig duwa", "tigduwa", "tag-dalawa", "tag duwa kabilog", "2 each", "kada isa" at the end of a
  * clause: that many of EACH item, so "biogesic kag ibu tig duwa" is two of both.
  */
 function takeEach(text: string): { rest: string; each: number | null } {
+  // "tag duwa kabilog", "tig tatlo ka buok": a counting word may follow.
+  const unit = "(?:\\s+(?:ka\\s+)?(?:kabilog|bilog|buok|piraso|pcs|pieces|each))?";
   const patterns = [
-    /(?:^|\s)(?:tig|tag)-?\s*(\S+)\s*$/i,
+    new RegExp(`(?:^|\\s)(?:tig|tag)-?\\s*(\\S+)${unit}\\s*$`, "i"),
     /(?:^|\s)(\S+)\s+each\s*$/i,
-    /(?:^|\s)kada\s+(\S+)\s*$/i,
+    new RegExp(`(?:^|\\s)kada\\s+(\\S+)${unit}\\s*$`, "i"),
   ];
   for (const pattern of patterns) {
     const m = pattern.exec(text);

@@ -162,17 +162,15 @@ export async function markPabakalDelivered(id: string, cash: number): Promise<vo
 
 /**
  * Add a follow-up message's stops to the list so far. Items for a store
- * already on the list join it (store names compared without case); a store
- * the reader could not name always starts its own stop, for the customer to
- * name.
+ * already on the list join it (store names compared without case), and items
+ * with no store join the list's unnamed store, so a customer who adds more
+ * before naming the store still has one store box to fill.
  */
 export function mergeStops(list: StopDraft[], more: StopDraft[]): StopDraft[] {
   const merged = list.map((s) => ({ ...s, items: [...s.items] }));
   for (const stop of more) {
     const key = stop.store.trim().toLowerCase();
-    const same = key
-      ? merged.find((s) => s.store.trim().toLowerCase() === key)
-      : undefined;
+    const same = merged.find((s) => s.store.trim().toLowerCase() === key);
     if (same) same.items.push(...stop.items);
     else merged.push({ ...stop, items: [...stop.items] });
   }

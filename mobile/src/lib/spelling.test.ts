@@ -10,6 +10,8 @@ describe("correctName", () => {
     ["watsns", "Watsons"],
     ["safegaurd", "Safeguard"],
     ["ibu", "Ibuprofen"],
+    ["acetylcestein", "Acetylcysteine"],
+    ["amlodipin", "Amlodipine"],
     ["bio", "Biogesic"],
     ["para", "Paracetamol"],
   ])("%s -> %s", (typed, fixed) => {

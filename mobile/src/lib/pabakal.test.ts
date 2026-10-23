@@ -90,7 +90,7 @@ describe("mergeStops", () => {
     ]);
   });
 
-  it("never merges two stores it could not name", () => {
-    expect(mergeStops([stop("", "A")], [stop("", "B")])).toHaveLength(2);
+  it("keeps items with no store together, for one store box to fill", () => {
+    expect(mergeStops([stop("", "A")], [stop("", "B")])).toEqual([stop("", "A", "B")]);
   });
 });
