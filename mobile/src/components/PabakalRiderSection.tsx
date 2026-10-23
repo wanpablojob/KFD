@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Alert, Linking, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, Image, Linking, StyleSheet, Text, TextInput, View } from "react-native";
+import { pickPhoto } from "../lib/pick-photo";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { MerchantButton, ui } from "./MerchantUi";
 import {
@@ -99,10 +100,14 @@ function ActiveJob({
   const [amount, setAmount] = useState("");
   const value = Number(amount.trim());
   const valid = amount.trim() !== "" && Number.isFinite(value) && value >= 0;
+  // The receipt photo is required to mark it bought (0140).
+  const [receipt, setReceipt] = useState<string | null>(null);
   const bought = useMutation({
-    mutationFn: () => markPabakalBought(job.id, value),
+    mutationFn: () =>
+      markPabakalBought(job.id, value, job.rider_id ?? "", receipt as string),
     onSuccess: () => {
       setAmount("");
+      setReceipt(null);
       onDone();
     },
     onError,
@@ -152,10 +157,32 @@ function ActiveJob({
             onChangeText={setAmount}
             accessibilityLabel="Receipt total"
           />
+          {receipt ? (
+            <Image
+              source={{ uri: receipt }}
+              style={styles.receipt}
+              accessibilityLabel="Receipt photo"
+            />
+          ) : null}
+          <MerchantButton
+            label={receipt ? "Retake receipt photo" : "Take receipt photo"}
+            tone="outline"
+            disabled={disabled || bought.isPending}
+            onPress={() =>
+              void pickPhoto(
+                "Receipt photo",
+                "Photograph every receipt so the customer can see what they pay for.",
+                [3, 4]
+              ).then((r) => {
+                if (r.error) onError(new Error(r.error));
+                else if (r.uri) setReceipt(r.uri);
+              })
+            }
+          />
           <MerchantButton
             label="Bought it"
             busy={bought.isPending}
-            disabled={disabled || !valid || value <= 0}
+            disabled={disabled || !valid || value <= 0 || !receipt}
             onPress={() => bought.mutate()}
           />
           {/* Only before buying: after that the rider's own money is spent. */}
@@ -225,6 +252,7 @@ function Stops({ p }: { p: Pick<Pabakal, "stops" | "store" | "items"> }) {
 }
 
 const styles = StyleSheet.create({
+  receipt: { width: "100%", height: 180, borderRadius: radius.md, resizeMode: "cover" },
   section: { gap: spacing.sm, marginBottom: spacing.md },
   heading: { ...type.caption, color: colors.textMuted, textTransform: "uppercase" },
   card: {

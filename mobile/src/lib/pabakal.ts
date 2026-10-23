@@ -7,6 +7,8 @@
 
 import { supabase } from "./supabase";
 import { postApi } from "./admin-api";
+import { uploadLocalImage } from "./image-upload";
+import { PROOF_BUCKET } from "./delivery-proof";
 import type { Database, Json } from "./database.generated";
 
 export type Pabakal = Database["public"]["Tables"]["pabakal_requests"]["Row"];
@@ -160,9 +162,48 @@ export async function claimPabakal(id: string): Promise<void> {
   void postApi("/api/pabakal/notify", { id });
 }
 
-export async function markPabakalBought(id: string, itemCost: number): Promise<void> {
+/** Where a pabakal's receipt photo goes: the rider's own folder (0140). */
+export function receiptPath(riderId: string, id: string, uri: string): string {
+  const lower = uri.toLowerCase();
+  const ext = lower.endsWith(".png") ? "png" : lower.endsWith(".webp") ? "webp" : "jpg";
+  return `${riderId}/pbk-${id}-receipt.${ext}`;
+}
+
+/**
+ * Upload the receipt photo, then record the total (0140). Upload first: the
+ * server refuses "bought" without the photo in the bucket. A photo an earlier
+ * attempt already uploaded is reused, so a retry at the counter goes through.
+ */
+export async function markPabakalBought(
+  id: string,
+  itemCost: number,
+  riderId: string,
+  photoUri: string
+): Promise<void> {
+  const path = receiptPath(riderId, id, photoUri);
+  const ext = path.split(".").pop();
+  const upload = await uploadLocalImage({
+    bucket: PROOF_BUCKET,
+    path,
+    uri: photoUri,
+    contentType:
+      ext === "png" ? "image/png" : ext === "webp" ? "image/webp" : "image/jpeg",
+  });
+  const already =
+    !upload.ok &&
+    (upload.failure.error?.statusCode === "409" ||
+      upload.failure.error?.code === "ResourceAlreadyExists");
+  if (!upload.ok && !already) {
+    throw new Error(
+      "Could not upload the receipt photo. Check your connection and try again."
+    );
+  }
   check(
-    await supabase.rpc("rider_pabakal_bought", { p_id: id, p_item_cost: itemCost })
+    await supabase.rpc("rider_pabakal_bought", {
+      p_id: id,
+      p_item_cost: itemCost,
+      p_receipt_path: path,
+    })
   );
   // The customer hears each step (P2). Best-effort, never blocks.
   void postApi("/api/pabakal/notify", { id });
@@ -285,4 +326,12 @@ export async function fetchPabakalRider(
   if (error) throw error;
   const row = data?.[0];
   return row ? { name: row.rider_name, phone: row.rider_phone ?? null } : null;
+}
+
+/** A short-lived link to a pabakal's receipt photo, for its customer (0140). */
+export async function receiptUrl(path: string): Promise<string | null> {
+  const { data, error } = await supabase.storage
+    .from(PROOF_BUCKET)
+    .createSignedUrl(path, 600);
+  return error ? null : data.signedUrl;
 }

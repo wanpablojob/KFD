@@ -36,6 +36,7 @@ import {
   fetchPabakalRider,
   pabakalFee,
   prescriptionItems,
+  receiptUrl,
   requestPabakal,
   stopsOf,
   type Pabakal,
@@ -741,6 +742,23 @@ function PabakalCard({
           </Text>
         )}
       </View>
+
+      {/* The receipt the rider photographed (0140): what the customer pays. */}
+      {p.receipt_path ? (
+        <Pressable
+          onPress={() =>
+            void receiptUrl(p.receipt_path as string).then((url) => {
+              if (url) void Linking.openURL(url);
+              else Alert.alert("Could not open the receipt", "Try again in a moment.");
+            })
+          }
+          accessibilityRole="link"
+          style={styles.row}
+        >
+          <Ionicons name="receipt-outline" size={16} color={colors.primary} />
+          <Text style={styles.linkSmall}>View receipt</Text>
+        </Pressable>
+      ) : null}
 
       {p.status === "cancelled" && p.cancel_reason ? (
         <Text style={type.caption}>{p.cancel_reason}</Text>

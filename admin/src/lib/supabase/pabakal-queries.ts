@@ -39,3 +39,11 @@ export async function cancelPabakal(id: string, reason: string): Promise<void> {
     }
   })();
 }
+
+/** A short-lived link to a pabakal's receipt photo (0140); admins read the bucket. */
+export async function receiptUrl(path: string): Promise<string | null> {
+  const { data, error } = await supabase.storage
+    .from("delivery-proofs")
+    .createSignedUrl(path, 600);
+  return error ? null : data.signedUrl;
+}

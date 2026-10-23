@@ -8,7 +8,12 @@ import { Button } from "@/components/ui/button";
 import { TableBoundary } from "@/components/ui/table-boundary";
 import { formatCurrency, formatDateTime } from "@/lib/format";
 import { useAsyncData } from "@/lib/use-async-data";
-import { cancelPabakal, fetchPabakal, type Pabakal } from "@/lib/supabase/pabakal-queries";
+import {
+  cancelPabakal,
+  fetchPabakal,
+  receiptUrl,
+  type Pabakal,
+} from "@/lib/supabase/pabakal-queries";
 
 const STATUS_LABEL: Record<Pabakal["status"], string> = {
   open: "Waiting for a rider",
@@ -25,7 +30,9 @@ export default function PabakalPage() {
   const [error, setError] = useState<string | null>(null);
 
   async function cancel(p: Pabakal) {
-    const reason = window.prompt(`Why cancel ${p.reference}? The customer sees this.`);
+    const reason = window.prompt(
+      `Why cancel ${p.reference}? The customer sees this.`,
+    );
     if (!reason?.trim()) return;
     setBusy(p.id);
     setError(null);
@@ -65,7 +72,10 @@ export default function PabakalPage() {
             <Card>
               <ul className="divide-y divide-border">
                 {(rows.data ?? []).map((p) => (
-                  <li key={p.id} className="flex flex-wrap items-start justify-between gap-3 px-5 py-3 text-sm">
+                  <li
+                    key={p.id}
+                    className="flex flex-wrap items-start justify-between gap-3 px-5 py-3 text-sm"
+                  >
                     <div className="min-w-0 space-y-1">
                       <p className="flex flex-wrap items-center gap-2 font-medium text-card-foreground">
                         {p.reference} · {p.store}
@@ -73,24 +83,52 @@ export default function PabakalPage() {
                           {STATUS_LABEL[p.status]}
                         </Badge>
                       </p>
-                      <p className="whitespace-pre-line text-muted-foreground">{p.items}</p>
+                      <p className="whitespace-pre-line text-muted-foreground">
+                        {p.items}
+                      </p>
                       <p className="text-xs text-muted-foreground">
-                        {p.customer_name} · {p.contact_phone} · {p.delivery_address}
+                        {p.customer_name} · {p.contact_phone} ·{" "}
+                        {p.delivery_address}
                         {p.barangay ? `, ${p.barangay}` : ""}
                       </p>
                       <p className="text-xs text-muted-foreground">
                         Fees {formatCurrency(p.delivery_fee + p.pabakal_fee)}
-                        {p.item_cost !== null ? ` · receipt ${formatCurrency(p.item_cost)}` : ""}
-                        {p.cash_collected !== null ? ` · collected ${formatCurrency(p.cash_collected)}` : ""}
+                        {p.item_cost !== null
+                          ? ` · receipt ${formatCurrency(p.item_cost)}`
+                          : ""}
+                        {p.cash_collected !== null
+                          ? ` · collected ${formatCurrency(p.cash_collected)}`
+                          : ""}
                         {p.rider_id ? ` · rider ${p.rider_id}` : ""}
                       </p>
+                      {p.receipt_path ? (
+                        <button
+                          type="button"
+                          className="text-xs font-medium text-primary underline-offset-2 hover:underline"
+                          onClick={() =>
+                            void receiptUrl(p.receipt_path as string).then(
+                              (url) => {
+                                if (url) window.open(url, "_blank", "noopener");
+                              },
+                            )
+                          }
+                        >
+                          View receipt
+                        </button>
+                      ) : null}
                       {p.cancel_reason ? (
-                        <p className="text-xs text-muted-foreground">{p.cancel_reason}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {p.cancel_reason}
+                        </p>
                       ) : null}
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground">{formatDateTime(p.created_at)}</span>
-                      {p.status === "open" || p.status === "accepted" || p.status === "delivering" ? (
+                      <span className="text-xs text-muted-foreground">
+                        {formatDateTime(p.created_at)}
+                      </span>
+                      {p.status === "open" ||
+                      p.status === "accepted" ||
+                      p.status === "delivering" ? (
                         <Button
                           variant="outline"
                           size="sm"

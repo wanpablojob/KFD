@@ -66,7 +66,7 @@ do $$ begin
   exception when sqlstate 'P0001' then null;
   end;
   begin
-    perform rider_pabakal_bought((select id from t_id), 100);
+    perform rider_pabakal_bought((select id from t_id), 100, null);
     raise exception 'FAIL another rider updated the job';
   exception when insufficient_privilege then null;
   end;
@@ -86,13 +86,49 @@ end $$;
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000f2","role":"authenticated"}', true);
 do $$ begin
   begin
-    perform rider_pabakal_bought((select id from t_id), 2000.01);
+    perform rider_pabakal_bought((select id from t_id), 2000.01, null);
     raise exception 'FAIL a cost over the rider cap was accepted';
   exception when sqlstate '22023' then null;
   end;
   raise notice 'PASS cost capped at what a rider can front';
 end $$;
-select rider_pabakal_bought((select id from t_id), 245.50);
+-- 0140: buying needs this rider's receipt photo, actually uploaded.
+do $$ begin
+  begin
+    perform rider_pabakal_bought((select id from t_id), 245.50, null);
+    raise exception 'FAIL bought without a receipt photo';
+  exception when sqlstate '22023' then null;
+  end;
+  begin
+    perform rider_pabakal_bought((select id from t_id), 245.50, 'R-PBK2/pbk-x-receipt.jpg');
+    raise exception 'FAIL bought with somebody else''s photo';
+  exception when sqlstate '22023' then null;
+  end;
+  begin
+    perform rider_pabakal_bought((select id from t_id), 245.50,
+      'R-PBK1/pbk-' || (select id from t_id) || '-receipt.jpg');
+    raise exception 'FAIL bought with a photo that was never uploaded';
+  exception when sqlstate 'P0001' then null;
+  end;
+  raise notice 'PASS a real receipt photo is required';
+end $$;
+reset role;
+insert into storage.objects (bucket_id, name)
+  select 'delivery-proofs', 'R-PBK1/pbk-' || id || '-receipt.jpg' from t_id;
+set local role authenticated;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000f2","role":"authenticated"}', true);
+select rider_pabakal_bought((select id from t_id), 245.50,
+  'R-PBK1/pbk-' || (select id from t_id) || '-receipt.jpg');
+
+-- The customer can open their receipt; nothing else in the bucket.
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000f1","role":"authenticated"}', true);
+do $$ begin
+  if (select count(*) from storage.objects where bucket_id = 'delivery-proofs') <> 1 then
+    raise exception 'FAIL the customer cannot see exactly their own receipt';
+  end if;
+  raise notice 'PASS the customer sees their receipt';
+end $$;
+select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000f2","role":"authenticated"}', true);
 do $$ begin
   begin
     perform rider_release_pabakal((select id from t_id));
