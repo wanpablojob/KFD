@@ -31,6 +31,7 @@ import type {
   RiderContact,
 } from "../lib/storefront";
 import { colors, radius, shadow, spacing, type } from "../lib/theme";
+import { RiderOnTheWay } from "../components/RiderOnTheWay";
 
 const STATUS_LABEL: Record<string, string> = {
   pending: "Order placed",
@@ -224,6 +225,12 @@ export function TrackOrderScreen({
             }}
           />
         ) : null}
+
+        {/* Where the rider is, once it is on the way (0135). Own customer only. */}
+        <RiderOnTheWay
+          reference={submitted}
+          enabled={enabled && status === "out_for_delivery"}
+        />
 
         {!delivery && order ? (
           <OrderCard

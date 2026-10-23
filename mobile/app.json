@@ -55,6 +55,12 @@
           "color": "#A3130A",
           "defaultChannel": "orders"
         }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "KFD shares your location with the customer while you deliver their order, so they can see you are on the way."
+        }
       ]
     ]
   }

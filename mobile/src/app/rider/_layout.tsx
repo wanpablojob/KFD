@@ -10,6 +10,7 @@ import { ensureNotificationChannels } from "../../lib/push";
 import { useRiderOffers } from "../../lib/hooks";
 import { countClaimableOffers } from "../../lib/offer-claimable";
 import { resolveTabIndex } from "../../lib/tab-bar";
+import { useShareRiderLocation } from "../../lib/rider-location";
 
 /**
  * Rider surface (deliveries -> earnings -> profile), guarded as a group in the
@@ -29,6 +30,9 @@ export default function RiderLayout() {
   useEffect(() => {
     void ensureNotificationChannels();
   }, []);
+  // The customer sees the rider on the way (0135). The server keeps a position
+  // only while the rider has a job, so this is harmless between jobs.
+  useShareRiderLocation(true);
 
   return (
     <View style={styles.root}>
