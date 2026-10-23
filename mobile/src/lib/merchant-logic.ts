@@ -134,3 +134,30 @@ export function allTimeTotals(
   }
   return { orders: delivered.length, sales };
 }
+
+/**
+ * A time as a merchant types it -- "8", "8:00", "20:00", "8am", "8:30 pm" --
+ * as "HH:MM" (24-hour), or null when it is not a time.
+ */
+export function parseClock(text: string): string | null {
+  const m = /^\s*(\d{1,2})(?::(\d{2}))?\s*([ap])?\.?\s*m?\.?\s*$/i.exec(text);
+  if (!m) return null;
+  let hour = Number(m[1]);
+  const minute = Number(m[2] ?? "0");
+  const half = m[3]?.toLowerCase();
+  if (minute > 59) return null;
+  if (half) {
+    if (hour < 1 || hour > 12) return null;
+    hour = (hour % 12) + (half === "p" ? 12 : 0);
+  } else if (hour > 23) {
+    return null;
+  }
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
+/** "20:00" or "20:00:00" -> "8:00 PM". */
+export function formatClock(time: string): string {
+  const [h, m] = time.split(":").map(Number);
+  const half = h >= 12 ? "PM" : "AM";
+  return `${h % 12 === 0 ? 12 : h % 12}:${String(m).padStart(2, "0")} ${half}`;
+}

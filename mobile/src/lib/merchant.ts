@@ -292,6 +292,9 @@ export interface StoreStatus {
   prepMinutes: number;
   /** Shop photo (0090), or null. */
   imageUrl?: string | null;
+  /** Daily opening and closing time, "HH:MM:SS" (0137); both null: no set hours. */
+  opensAt?: string | null;
+  closesAt?: string | null;
 }
 
 export async function fetchStoreStatus(
@@ -299,7 +302,7 @@ export async function fetchStoreStatus(
 ): Promise<StoreStatus | null> {
   const { data, error } = await supabase
     .from("restaurants")
-    .select("is_open, prep_minutes, image_url")
+    .select("is_open, prep_minutes, image_url, opens_at, closes_at")
     .eq("id", restaurantId)
     .maybeSingle();
   if (error) throw error;
@@ -308,6 +311,8 @@ export async function fetchStoreStatus(
         isOpen: Boolean(data.is_open),
         prepMinutes: Number(data.prep_minutes),
         imageUrl: data.image_url ?? null,
+        opensAt: data.opens_at ?? null,
+        closesAt: data.closes_at ?? null,
       }
     : null;
 }
@@ -319,6 +324,21 @@ export async function saveStoreStatus(
   const { error } = await supabase.rpc("merchant_set_store_status", {
     p_is_open: isOpen,
     p_prep_minutes: prepMinutes,
+  });
+  if (error) throw error;
+}
+
+/**
+ * The shop's daily hours (0137), "HH:MM" each, or both null for none. The shop
+ * opens and closes itself at these times; the switch still works in between.
+ */
+export async function saveHours(
+  opens: string | null,
+  closes: string | null
+): Promise<void> {
+  const { error } = await supabase.rpc("merchant_set_hours", {
+    p_opens: opens ?? undefined,
+    p_closes: closes ?? undefined,
   });
   if (error) throw error;
 }
@@ -373,6 +393,16 @@ export function useStoreStatus(restaurantId: string | null) {
     queryKey: ["storeStatus", restaurantId],
     queryFn: () => fetchStoreStatus(restaurantId as string),
     enabled: !!restaurantId,
+  });
+}
+
+export function useSaveHours(restaurantId: string | null) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (args: { opens: string | null; closes: string | null }) =>
+      saveHours(args.opens, args.closes),
+    onSettled: () =>
+      queryClient.invalidateQueries({ queryKey: ["storeStatus", restaurantId] }),
   });
 }
 

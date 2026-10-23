@@ -1,5 +1,13 @@
 import { useEffect, useState } from "react";
-import { Image, Pressable, StyleSheet, Switch, Text, View } from "react-native";
+import {
+  Image,
+  Pressable,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import {
   MerchantButton,
   MerchantScreen,
@@ -10,11 +18,13 @@ import { useSession } from "../../lib/session-context";
 import { supabase } from "../../lib/supabase";
 import { openLegal } from "../../lib/legal";
 import {
+  useSaveHours,
   useSaveStoreStatus,
   useSetShopImage,
   useStoreStatus,
 } from "../../lib/merchant";
 import { pickPhoto } from "../../lib/pick-photo";
+import { formatClock, parseClock } from "../../lib/merchant-logic";
 import {
   disablePush,
   enablePush,
@@ -195,6 +205,11 @@ export default function MerchantAccountScreen() {
                 accessibilityLabel="Store open"
               />
             </View>
+            <OpeningHours
+              restaurantId={restaurantId}
+              opensAt={current.opensAt ?? null}
+              closesAt={current.closesAt ?? null}
+            />
             <View style={styles.row}>
               <View style={styles.copy}>
                 <Text style={type.heading}>Prep time</Text>
@@ -268,7 +283,95 @@ export default function MerchantAccountScreen() {
   );
 }
 
+/**
+ * Daily opening and closing time (0137). The shop opens and closes itself at
+ * these times; the open switch above still works in between.
+ */
+function OpeningHours({
+  restaurantId,
+  opensAt,
+  closesAt,
+}: {
+  restaurantId: string | null;
+  opensAt: string | null;
+  closesAt: string | null;
+}) {
+  const save = useSaveHours(restaurantId);
+  const [opens, setOpens] = useState(opensAt ? formatClock(opensAt) : "");
+  const [closes, setCloses] = useState(closesAt ? formatClock(closesAt) : "");
+  const [error, setError] = useState<string | null>(null);
+
+  function submit() {
+    const o = parseClock(opens);
+    const c = parseClock(closes);
+    if (!o || !c) return setError('Type times like "8:00 AM" and "8:00 PM".');
+    if (o === c) return setError("Opening and closing time cannot be the same.");
+    setError(null);
+    save.mutate(
+      { opens: o, closes: c },
+      { onError: (e) => setError(e instanceof Error ? e.message : "Could not save.") }
+    );
+  }
+
+  return (
+    <View style={styles.hours}>
+      <Text style={type.heading}>Opening hours</Text>
+      <Text style={ui.muted}>
+        {opensAt && closesAt
+          ? `Opens ${formatClock(opensAt)}, closes ${formatClock(closesAt)}, every day. The switch above still works in between.`
+          : "No set hours: open and close with the switch above."}
+      </Text>
+      <View style={styles.row}>
+        <TextInput
+          style={styles.timeInput}
+          value={opens}
+          onChangeText={setOpens}
+          placeholder="8:00 AM"
+          placeholderTextColor={colors.textFaint}
+          accessibilityLabel="Opening time"
+        />
+        <Text style={ui.muted}>to</Text>
+        <TextInput
+          style={styles.timeInput}
+          value={closes}
+          onChangeText={setCloses}
+          placeholder="8:00 PM"
+          placeholderTextColor={colors.textFaint}
+          accessibilityLabel="Closing time"
+        />
+      </View>
+      {error ? <Text style={ui.error}>{error}</Text> : null}
+      <View style={styles.row}>
+        <MerchantButton label="Save hours" onPress={submit} busy={save.isPending} />
+        {opensAt ? (
+          <MerchantButton
+            label="No set hours"
+            tone="outline"
+            onPress={() => {
+              setOpens("");
+              setCloses("");
+              save.mutate({ opens: null, closes: null });
+            }}
+          />
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  hours: { gap: spacing.sm, paddingVertical: spacing.xs },
+  timeInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    fontSize: 16,
+    color: colors.text,
+    textAlign: "center",
+  },
   photo: {
     height: 150,
     borderRadius: radius.md,

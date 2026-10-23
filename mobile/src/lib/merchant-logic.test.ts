@@ -1,5 +1,7 @@
 import {
   allTimeTotals,
+  formatClock,
+  parseClock,
   itemSummary,
   ordersInWindow,
   parsePrice,
@@ -122,5 +124,26 @@ describe("allTimeTotals", () => {
         ])
       )
     ).toEqual({ orders: 2, sales: 80 });
+  });
+});
+
+describe("parseClock and formatClock", () => {
+  it("reads the ways a merchant types a time", () => {
+    expect(parseClock("8")).toBe("08:00");
+    expect(parseClock("8:30")).toBe("08:30");
+    expect(parseClock("20:00")).toBe("20:00");
+    expect(parseClock("8am")).toBe("08:00");
+    expect(parseClock("8:30 pm")).toBe("20:30");
+    expect(parseClock("12 am")).toBe("00:00");
+    expect(parseClock("12pm")).toBe("12:00");
+    expect(parseClock("25:00")).toBeNull();
+    expect(parseClock("8:75")).toBeNull();
+    expect(parseClock("noon")).toBeNull();
+  });
+
+  it("shows a time the way people say it", () => {
+    expect(formatClock("20:00:00")).toBe("8:00 PM");
+    expect(formatClock("00:30")).toBe("12:30 AM");
+    expect(formatClock("12:00")).toBe("12:00 PM");
   });
 });
