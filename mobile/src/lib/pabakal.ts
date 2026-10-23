@@ -276,3 +276,13 @@ export function prescriptionItems(stops: StopDraft[]): string[] {
   }
   return [...found.values()];
 }
+
+/** The rider on the customer's own pabakal, while a rider has it (0139). */
+export async function fetchPabakalRider(
+  id: string
+): Promise<{ name: string; phone: string | null } | null> {
+  const { data, error } = await supabase.rpc("pabakal_rider_contact", { p_id: id });
+  if (error) throw error;
+  const row = data?.[0];
+  return row ? { name: row.rider_name, phone: row.rider_phone ?? null } : null;
+}

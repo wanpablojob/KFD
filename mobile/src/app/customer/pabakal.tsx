@@ -4,6 +4,7 @@ import {
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   Pressable,
   RefreshControl,
@@ -32,6 +33,7 @@ import {
   PABAKAL_RULES,
   PABAKAL_STATUS_LABEL,
   pabakalAmountDue,
+  fetchPabakalRider,
   pabakalFee,
   prescriptionItems,
   requestPabakal,
@@ -40,6 +42,7 @@ import {
   type StopDraft,
 } from "../../lib/pabakal";
 import { readPabakalMessage } from "../../lib/pabakal-from-message";
+import { RiderOnTheWay } from "../../components/RiderOnTheWay";
 import { chatIntent, type ChatIntent } from "../../lib/pabakal-parse";
 import { correctStops, describeCorrections } from "../../lib/spelling";
 import { colors, radius, shadow, spacing, type } from "../../lib/theme";
@@ -634,6 +637,40 @@ const STATUS_TONE: Record<Pabakal["status"], { fg: string; bg: string }> = {
   cancelled: { fg: colors.textMuted, bg: colors.surface },
 };
 
+/** Who has the pabakal, a call button, and where they are once it is bought. */
+function PabakalRider({ p }: { p: Pabakal }) {
+  const rider = useQuery({
+    queryKey: ["pabakalRider", p.id],
+    queryFn: () => fetchPabakalRider(p.id),
+    refetchInterval: 30_000,
+  });
+  return (
+    <>
+      {rider.data ? (
+        <View style={styles.rowBetween}>
+          <View style={styles.row}>
+            <Ionicons name="bicycle-outline" size={16} color={colors.secondary} />
+            <Text style={type.body}>Rider {rider.data.name}</Text>
+          </View>
+          {rider.data.phone ? (
+            <Pressable
+              onPress={() => void Linking.openURL(`tel:${rider.data?.phone}`)}
+              accessibilityRole="button"
+              accessibilityLabel={`Call rider ${rider.data.name}`}
+              hitSlop={8}
+              style={styles.row}
+            >
+              <Ionicons name="call-outline" size={16} color={colors.primary} />
+              <Text style={styles.linkSmall}>Call</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
+      <RiderOnTheWay reference={p.reference} enabled={p.status === "delivering"} />
+    </>
+  );
+}
+
 function PabakalCard({
   p,
   cancelling,
@@ -656,6 +693,10 @@ function PabakalCard({
           </Text>
         </View>
       </View>
+
+      {p.status === "accepted" || p.status === "delivering" ? (
+        <PabakalRider p={p} />
+      ) : null}
 
       {step >= 0 ? (
         <View

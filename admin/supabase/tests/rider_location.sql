@@ -40,11 +40,22 @@ do $$ begin
   raise notice 'PASS the customer sees their rider';
 end $$;
 
+-- 0139: the customer also gets the rider's name, and a stranger does not.
+do $$ begin
+  if (select rider_name from pabakal_rider_contact('00000000-0000-0000-0000-00000000c0de')) <> 'Loc Rider' then
+    raise exception 'FAIL the customer cannot see their pabakal rider';
+  end if;
+  raise notice 'PASS the customer sees their pabakal rider';
+end $$;
+
 -- Somebody else, with the same reference, does not.
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000c5","role":"authenticated"}', true);
 do $$ begin
   if exists (select 1 from customer_rider_location('#PBK-LOC1')) then
     raise exception 'FAIL a stranger saw the rider';
+  end if;
+  if exists (select 1 from pabakal_rider_contact('00000000-0000-0000-0000-00000000c0de')) then
+    raise exception 'FAIL a stranger saw the pabakal rider';
   end if;
   begin
     perform 1 from rider_locations;
