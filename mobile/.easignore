@@ -1,0 +1,51 @@
+# What EAS Build uploads.
+#
+# `.gitignore` is not enough here. `mobile/` is a subdirectory of the KFD
+# repository, and the build archive still swept up `ios/` (1.2 GB) and
+# `node_modules/` (657 MB) even though both are ignored -- only 5.4 MB of this
+# directory is tracked. The result was a 74.5 MB tarball whose upload kept
+# dying near the end (`write EPIPE` at 72.9 MB and 70.0 MB) on a normal home
+# connection, which reads as a build failure but never reached the builder.
+#
+# EAS prebuilds the native projects and installs dependencies itself, so none
+# of the generated output belongs in the archive. Keep this list in step with
+# `.gitignore`; this file replaces it for archiving, it does not add to it.
+
+# dependencies (installed on the builder from package-lock.json)
+node_modules/
+
+# generated native projects (EAS runs prebuild)
+/ios
+/android
+.kotlin/
+
+# build and tool output
+dist/
+web-build/
+.expo/
+expo-env.d.ts
+.metro-health-check*
+*.tsbuildinfo
+
+# local environment: never upload a developer's .env.local
+.env*.local
+
+# credentials and store config
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.pem
+
+# Firebase config is supplied to the build as the GOOGLE_SERVICES_JSON file
+# variable, never as part of the project.
+google-services.json
+GoogleService-Info.plist
+
+# noise
+.DS_Store
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+*.orig.*
