@@ -3,6 +3,7 @@ import {
   formatLine,
   mergeStops,
   pabakalAmountDue,
+  pabakalEarnings,
   pabakalFee,
   stopsOf,
 } from "./pabakal";
@@ -93,5 +94,23 @@ describe("mergeStops", () => {
 
   it("keeps items with no store together, for one store box to fill", () => {
     expect(mergeStops([stop("", "A")], [stop("", "B")])).toEqual([stop("", "A", "B")]);
+  });
+});
+
+describe("pabakalEarnings", () => {
+  it("adds both fees per delivered pabakal, by today, this week and in all", () => {
+    const now = new Date(2026, 9, 23, 15);
+    const at = (daysAgo: number) => new Date(2026, 9, 23 - daysAgo, 10).toISOString();
+    expect(
+      pabakalEarnings(
+        [
+          { delivery_fee: 40, pabakal_fee: 10, delivered_at: at(0) },
+          { delivery_fee: 40, pabakal_fee: 0, delivered_at: at(3) },
+          { delivery_fee: 45, pabakal_fee: 0, delivered_at: at(20) },
+          { delivery_fee: 40, pabakal_fee: 0, delivered_at: null },
+        ],
+        now
+      )
+    ).toEqual({ today: 50, week: 90, total: 135, count: 3 });
   });
 });

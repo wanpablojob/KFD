@@ -186,3 +186,41 @@ export function mergeStops(list: StopDraft[], more: StopDraft[]): StopDraft[] {
   }
   return merged;
 }
+
+/** What a rider's delivered pabakal earned them: both fees, kept in full (0120). */
+export function pabakalEarnings(
+  rows: { delivery_fee: number; pabakal_fee: number; delivered_at: string | null }[],
+  now: Date
+) {
+  const dayStart = (back: number) =>
+    new Date(now.getFullYear(), now.getMonth(), now.getDate() - back).getTime();
+  const totals = { today: 0, week: 0, total: 0, count: 0 };
+  for (const r of rows) {
+    if (!r.delivered_at) continue;
+    const at = new Date(r.delivered_at).getTime();
+    const fee = r.delivery_fee + r.pabakal_fee;
+    totals.total += fee;
+    totals.count += 1;
+    if (at >= dayStart(6)) totals.week += fee;
+    if (at >= dayStart(0)) totals.today += fee;
+  }
+  const round = (n: number) => Math.round(n * 100) / 100;
+  return {
+    today: round(totals.today),
+    week: round(totals.week),
+    total: round(totals.total),
+    count: totals.count,
+  };
+}
+
+/** The rider's own delivered pabakal (RLS returns only theirs). */
+export async function fetchMyDeliveredPabakal() {
+  return (
+    check(
+      await supabase
+        .from("pabakal_requests")
+        .select("delivery_fee, pabakal_fee, delivered_at")
+        .eq("status", "delivered")
+    ) ?? []
+  );
+}

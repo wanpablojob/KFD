@@ -8,6 +8,7 @@ import {
   View,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
+import { useQuery } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useScrollBottomPadding } from "../../components/TabBarInset";
 import {
@@ -16,6 +17,7 @@ import {
   useRiderPayoutHistory,
 } from "../../lib/hooks";
 import { cashOnHandLabel } from "../../lib/rider-cash";
+import { fetchMyDeliveredPabakal, pabakalEarnings } from "../../lib/pabakal";
 import {
   BUCKET_LABEL,
   bucketTotal,
@@ -71,6 +73,13 @@ export default function RiderEarningsRoute() {
   const summary = useRiderEarningsSummary();
   const history = useRiderPayoutHistory(limit);
   const cash = useRiderCashPosition();
+  // Pabakal is paid by the customer in cash and the rider keeps both fees, so
+  // it is neither ledger earnings nor cash owed to KFD: it gets its own card.
+  const pabakal = useQuery({
+    queryKey: ["pabakal", "earnings"],
+    queryFn: fetchMyDeliveredPabakal,
+  });
+  const pabakalTotals = pabakalEarnings(pabakal.data ?? [], new Date());
   const cashLabel = cash.data ? cashOnHandLabel(cash.data.on_hand) : null;
 
   const loading = summary.isLoading;
@@ -165,6 +174,25 @@ export default function RiderEarningsRoute() {
                 {peso(cash.data.flagged)} in differences is under review
               </Text>
             ) : null}
+          </View>
+        </View>
+      ) : null}
+      {pabakalTotals.count > 0 ? (
+        <View style={styles.section}>
+          <View style={[styles.cashCard, shadow.card]}>
+            <View style={styles.cashHeader}>
+              <View style={styles.cashText}>
+                <Text style={type.eyebrow}>Pabakal</Text>
+                <Text style={styles.cashCaption}>
+                  Fees from {pabakalTotals.count} pabakal, yours to keep
+                </Text>
+              </View>
+              <Text style={styles.cashValue}>{peso(pabakalTotals.total)}</Text>
+            </View>
+            <View style={styles.cashMeta}>
+              <Text style={type.caption}>Today {peso(pabakalTotals.today)}</Text>
+              <Text style={type.caption}>This week {peso(pabakalTotals.week)}</Text>
+            </View>
           </View>
         </View>
       ) : null}
