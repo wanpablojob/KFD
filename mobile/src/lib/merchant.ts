@@ -292,15 +292,6 @@ export interface StoreStatus {
   prepMinutes: number;
   /** Shop photo (0090), or null. */
   imageUrl?: string | null;
-  /**
-   * Whether an order is accepted the moment it is placed (0121).
-   *
-   * True is the busy-kitchen setting: the order prints, the rider is offered
-   * it, and the shop can still cancel. False puts each order in front of the
-   * shop to accept -- and it is accepted anyway after five minutes, so it can
-   * never strand a customer.
-   */
-  autoAccept: boolean;
 }
 
 export async function fetchStoreStatus(
@@ -308,7 +299,7 @@ export async function fetchStoreStatus(
 ): Promise<StoreStatus | null> {
   const { data, error } = await supabase
     .from("restaurants")
-    .select("is_open, prep_minutes, image_url, auto_accept")
+    .select("is_open, prep_minutes, image_url")
     .eq("id", restaurantId)
     .maybeSingle();
   if (error) throw error;
@@ -317,22 +308,8 @@ export async function fetchStoreStatus(
         isOpen: Boolean(data.is_open),
         prepMinutes: Number(data.prep_minutes),
         imageUrl: data.image_url ?? null,
-        autoAccept: data.auto_accept !== false,
       }
     : null;
-}
-
-/**
- * The shop's own switch on automatic acceptance (0121).
- *
- * Scoped to the merchant's own restaurant by the server, so this cannot be
- * pointed at somebody else's shop.
- */
-export async function setAutoAccept(autoAccept: boolean): Promise<void> {
-  const { error } = await supabase.rpc("merchant_set_auto_accept", {
-    p_auto_accept: autoAccept,
-  });
-  if (error) throw error;
 }
 
 export async function saveStoreStatus(
@@ -403,16 +380,6 @@ export function useSaveStoreStatus(restaurantId: string | null) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (args: StoreStatus) => saveStoreStatus(args.isOpen, args.prepMinutes),
-    onSettled: () =>
-      queryClient.invalidateQueries({ queryKey: ["storeStatus", restaurantId] }),
-  });
-}
-
-/** The switch on automatic acceptance (0121). */
-export function useSaveAutoAccept(restaurantId: string | null) {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (autoAccept: boolean) => setAutoAccept(autoAccept),
     onSettled: () =>
       queryClient.invalidateQueries({ queryKey: ["storeStatus", restaurantId] }),
   });

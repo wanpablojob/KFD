@@ -76,7 +76,7 @@ export async function sendMerchantOrderPush(
     supabase,
     userIds,
     `New order ${orderReference}`,
-    "A new KFD order needs your attention.",
+    "It is accepted. Start preparing it.",
     { reference: orderReference },
   );
 
@@ -102,7 +102,7 @@ export async function sendMerchantOrderPush(
     sound: "default",
     channelId: "orders",
     title: `New order ${orderReference}`,
-    body: "A new KFD order needs your attention.",
+    body: "It is accepted. Start preparing it.",
     data: { reference: orderReference },
   }));
 

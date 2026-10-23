@@ -249,24 +249,13 @@ begin
   raise notice 'PASS the whole trip is offered to the riders';
 end $$;
 
--- 8. The shop's own switch.
-set local role authenticated;
-select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-00000000ac02","role":"authenticated"}', true);
+-- 8. There is no switch any more (0132): no shop can bring back accept/reject.
 do $$
-declare v_now boolean;
 begin
-  select public.merchant_set_auto_accept(false) into v_now;
-  if v_now is not false then
-    raise exception 'FAIL the switch did not turn auto-accept off';
+  if exists (select 1 from pg_proc where proname = 'merchant_set_auto_accept') then
+    raise exception 'FAIL a shop can still turn automatic acceptance off';
   end if;
-  if (select auto_accept from restaurants where id = 'RS-AUTO') is not false then
-    raise exception 'FAIL the switch did not change the shop';
-  end if;
-  select public.merchant_set_auto_accept(true) into v_now;
-  if (select auto_accept from restaurants where id = 'RS-AUTO') is not true then
-    raise exception 'FAIL the switch did not turn auto-accept back on';
-  end if;
-  raise notice 'PASS a shop can turn automatic acceptance on and off';
+  raise notice 'PASS every order is accepted when placed, with no switch';
 end $$;
 
 rollback;

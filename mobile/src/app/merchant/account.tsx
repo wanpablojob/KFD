@@ -10,7 +10,6 @@ import { useSession } from "../../lib/session-context";
 import { supabase } from "../../lib/supabase";
 import { openLegal } from "../../lib/legal";
 import {
-  useSaveAutoAccept,
   useSaveStoreStatus,
   useSetShopImage,
   useStoreStatus,
@@ -36,7 +35,6 @@ export default function MerchantAccountScreen() {
   const restaurantId = role?.restaurantId ?? null;
   const store = useStoreStatus(restaurantId);
   const saveStore = useSaveStoreStatus(restaurantId);
-  const saveAutoAccept = useSaveAutoAccept(restaurantId);
   const [push, setPush] = useState<PushStatus>({ granted: false, registered: false });
   const [pushBusy, setPushBusy] = useState(false);
 
@@ -132,7 +130,6 @@ export default function MerchantAccountScreen() {
     saveStore.mutate({
       isOpen: current.isOpen,
       prepMinutes: Math.min(PREP_MAX, Math.max(PREP_MIN, next)),
-      autoAccept: current.autoAccept,
     });
 
   return (
@@ -192,28 +189,10 @@ export default function MerchantAccountScreen() {
                   saveStore.mutate({
                     isOpen,
                     prepMinutes: prep,
-                    autoAccept: current.autoAccept,
                   })
                 }
                 trackColor={{ true: colors.primary, false: colors.border }}
                 accessibilityLabel="Store open"
-              />
-            </View>
-            <View style={styles.row}>
-              <View style={styles.copy}>
-                <Text style={type.heading}>Accept orders automatically</Text>
-                <Text style={ui.muted}>
-                  {current.autoAccept
-                    ? "An order is accepted the moment it comes in: it prints, the rider is sent for it, and you can still cancel it if you cannot make it."
-                    : "Every order waits for you to accept it. If you are too busy to answer, it is accepted for you after five minutes so the customer is never left waiting."}
-                </Text>
-              </View>
-              <Switch
-                value={current.autoAccept}
-                disabled={saveAutoAccept.isPending}
-                onValueChange={(autoAccept) => saveAutoAccept.mutate(autoAccept)}
-                trackColor={{ true: colors.primary, false: colors.border }}
-                accessibilityLabel="Accept orders automatically"
               />
             </View>
             <View style={styles.row}>
