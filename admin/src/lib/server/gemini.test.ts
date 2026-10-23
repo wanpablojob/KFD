@@ -1,14 +1,24 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { DEFAULT_MODEL, FALLBACK_MODELS, geminiGenerateContent, modelChain } from "./gemini.ts";
+import {
+  DEFAULT_MODEL,
+  FALLBACK_MODELS,
+  geminiGenerateContent,
+  modelChain,
+  withLowThinking,
+} from "./gemini.ts";
 
 const ok = (text: string) => async () =>
-  new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text }] } }] }), {
-    status: 200,
-    headers: { "Content-Type": "application/json" },
-  });
+  new Response(
+    JSON.stringify({ candidates: [{ content: { parts: [{ text }] } }] }),
+    {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    },
+  );
 
-const status = (code: number) => async () => new Response("{}", { status: code });
+const status = (code: number) => async () =>
+  new Response("{}", { status: code });
 
 /** Records the model each attempt asked for, so the chain is visible. */
 const chainRecorder = (replies: (() => Promise<Response>)[]) => {
@@ -38,7 +48,11 @@ test("no key is no-key, and no request is made", async () => {
 
 test("a busy model moves to the next one instead of giving up", async () => {
   const { asked, fetchImpl } = chainRecorder([status(503), ok("hello")]);
-  const outcome = await geminiGenerateContent({ key: "k", body: {}, fetchImpl });
+  const outcome = await geminiGenerateContent({
+    key: "k",
+    body: {},
+    fetchImpl,
+  });
   assert.equal(outcome.ok, true);
   assert.equal(asked.length, 2);
   assert.deepEqual(asked, [DEFAULT_MODEL, FALLBACK_MODELS[0]]);
@@ -46,21 +60,37 @@ test("a busy model moves to the next one instead of giving up", async () => {
 
 test("a retired model (404) is retried the same way", async () => {
   const { asked, fetchImpl } = chainRecorder([status(404), ok("hello")]);
-  const outcome = await geminiGenerateContent({ key: "k", body: {}, fetchImpl });
+  const outcome = await geminiGenerateContent({
+    key: "k",
+    body: {},
+    fetchImpl,
+  });
   assert.equal(outcome.ok, true);
   assert.equal(asked.length, 2);
 });
 
 test("a refused key stops on the first answer", async () => {
   const { asked, fetchImpl } = chainRecorder([status(403), ok("never")]);
-  const outcome = await geminiGenerateContent({ key: "k", body: {}, fetchImpl });
+  const outcome = await geminiGenerateContent({
+    key: "k",
+    body: {},
+    fetchImpl,
+  });
   assert.deepEqual(outcome, { ok: false, fallback: "model-error" });
   assert.equal(asked.length, 1);
 });
 
 test("every model busy is still a fallback, not a throw", async () => {
-  const { asked, fetchImpl } = chainRecorder([status(503), status(503), status(503)]);
-  const outcome = await geminiGenerateContent({ key: "k", body: {}, fetchImpl });
+  const { asked, fetchImpl } = chainRecorder([
+    status(503),
+    status(503),
+    status(503),
+  ]);
+  const outcome = await geminiGenerateContent({
+    key: "k",
+    body: {},
+    fetchImpl,
+  });
   assert.deepEqual(outcome, { ok: false, fallback: "model-error" });
   assert.equal(asked.length, modelChain().length);
 });
@@ -72,7 +102,11 @@ test("a network failure is treated like a busy model", async () => {
     },
     ok("hello"),
   ]);
-  const outcome = await geminiGenerateContent({ key: "k", body: {}, fetchImpl });
+  const outcome = await geminiGenerateContent({
+    key: "k",
+    body: {},
+    fetchImpl,
+  });
   assert.equal(outcome.ok, true);
   assert.equal(asked.length, 2);
 });
@@ -81,12 +115,45 @@ test("a 200 whose body is not JSON is malformed, not ok", async () => {
   const outcome = await geminiGenerateContent({
     key: "k",
     body: {},
-    fetchImpl: (async () => new Response("not json", { status: 200 })) as unknown as typeof fetch,
+    fetchImpl: (async () =>
+      new Response("not json", { status: 200 })) as unknown as typeof fetch,
   });
   assert.deepEqual(outcome, { ok: false, fallback: "malformed" });
 });
 
 test("the configured model leads the chain, and is not repeated", () => {
-  assert.deepEqual(modelChain("gemini-3.5-flash"), ["gemini-3.5-flash", "gemini-2.5-flash"]);
+  assert.deepEqual(modelChain("gemini-3.5-flash"), [
+    "gemini-3.5-flash",
+    "gemini-2.5-flash",
+  ]);
   assert.deepEqual(modelChain(), [DEFAULT_MODEL, ...FALLBACK_MODELS]);
+});
+
+test("asks for low thinking, and retries the same model without it on a 400", async () => {
+  const bodies: unknown[] = [];
+  const models: string[] = [];
+  const replies = [status(400), ok("[]")];
+  const fetchImpl = (async (url: string, init: { body: string }) => {
+    models.push(decodeURIComponent(url.split("/models/")[1].split(":")[0]));
+    bodies.push(JSON.parse(init.body));
+    return (replies.shift() ?? status(503))();
+  }) as unknown as typeof fetch;
+  const body = { generationConfig: { temperature: 0 } };
+  const outcome = await geminiGenerateContent({ key: "k", body, fetchImpl });
+  assert.equal(outcome.ok, true);
+  assert.deepEqual(models, [DEFAULT_MODEL, DEFAULT_MODEL]);
+  assert.deepEqual(bodies[0], {
+    generationConfig: {
+      temperature: 0,
+      thinkingConfig: { thinkingLevel: "low" },
+    },
+  });
+  assert.deepEqual(bodies[1], body);
+});
+
+test("a caller's own thinking setting is kept", () => {
+  const body = {
+    generationConfig: { thinkingConfig: { thinkingLevel: "high" } },
+  };
+  assert.equal(withLowThinking(body), body);
 });

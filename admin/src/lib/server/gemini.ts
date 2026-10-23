@@ -20,7 +20,10 @@
 export const DEFAULT_MODEL = "gemini-3.8-flash";
 
 /** Tried in order when the preferred model does not answer. */
-export const FALLBACK_MODELS = ["gemini-3.5-flash", "gemini-2.5-flash"] as const;
+export const FALLBACK_MODELS = [
+  "gemini-3.5-flash",
+  "gemini-2.5-flash",
+] as const;
 
 /** Statuses that are about the model, not the request. */
 const RETRY_STATUS = new Set([404, 429, 500, 502, 503, 504]);
@@ -46,6 +49,25 @@ export interface GeminiRequest {
   fetchImpl?: typeof fetch;
 }
 
+/**
+ * Both routes do small jobs (read a shopping list, pick four restaurants), and
+ * Flash models think by default, which costs seconds the chat cannot spare.
+ * "low" is accepted by every Flash model Google lists; a model that refuses it
+ * anyway (400) is asked again without it, so this can only make replies
+ * faster, never stop them.
+ */
+export function withLowThinking(body: unknown): unknown {
+  if (typeof body !== "object" || body === null) return body;
+  const config =
+    (body as { generationConfig?: Record<string, unknown> }).generationConfig ??
+    {};
+  if ("thinkingConfig" in config) return body;
+  return {
+    ...body,
+    generationConfig: { ...config, thinkingConfig: { thinkingLevel: "low" } },
+  };
+}
+
 /** The models to try, in order, with no duplicates. */
 export function modelChain(preferred?: string): string[] {
   const first = preferred?.trim() || DEFAULT_MODEL;
@@ -60,18 +82,26 @@ export async function geminiGenerateContent(
 
   const send = request.fetchImpl ?? fetch;
 
+  const call = (model: string, body: unknown) =>
+    send(
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      },
+    );
+  const fast = withLowThinking(request.body);
+
   for (const model of modelChain(request.model)) {
     let response: Response;
     try {
-      response = await send(
-        `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "x-goog-api-key": key },
-          body: JSON.stringify(request.body),
-          signal: AbortSignal.timeout(TIMEOUT_MS),
-        },
-      );
+      response = await call(model, fast);
+      // A model that does not take the thinking setting: same model, without it.
+      if (response.status === 400 && fast !== request.body) {
+        response = await call(model, request.body);
+      }
     } catch {
       continue;
     }
