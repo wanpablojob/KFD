@@ -230,3 +230,49 @@ export async function fetchMyDeliveredPabakal() {
     ) ?? []
   );
 }
+
+/**
+ * Medicines a Philippine pharmacy sells only with a prescription. Not every
+ * one: the common ones a pabakal list will name, so the customer is warned
+ * before the rider is turned away at the counter.
+ */
+const PRESCRIPTION_ONLY = new Set([
+  "amoxicillin",
+  "co-amoxiclav",
+  "azithromycin",
+  "clarithromycin",
+  "cefalexin",
+  "cephalexin",
+  "cefuroxime",
+  "ciprofloxacin",
+  "doxycycline",
+  "cotrimoxazole",
+  "metronidazole",
+  "losartan",
+  "amlodipine",
+  "metoprolol",
+  "atenolol",
+  "metformin",
+  "glimepiride",
+  "simvastatin",
+  "atorvastatin",
+  "rosuvastatin",
+  "prednisone",
+  "tramadol",
+  "celecoxib",
+]);
+
+/** The prescription-only medicines on a list, each named once. */
+export function prescriptionItems(stops: StopDraft[]): string[] {
+  const found = new Map<string, string>();
+  for (const stop of stops) {
+    for (const item of stop.items) {
+      for (const word of item.name.toLowerCase().split(/[^a-z-]+/)) {
+        if (PRESCRIPTION_ONLY.has(word) && !found.has(word)) {
+          found.set(word, word.charAt(0).toUpperCase() + word.slice(1));
+        }
+      }
+    }
+  }
+  return [...found.values()];
+}

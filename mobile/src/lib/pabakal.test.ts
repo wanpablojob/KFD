@@ -5,6 +5,7 @@ import {
   pabakalAmountDue,
   pabakalEarnings,
   pabakalFee,
+  prescriptionItems,
   stopsOf,
 } from "./pabakal";
 
@@ -112,5 +113,26 @@ describe("pabakalEarnings", () => {
         now
       )
     ).toEqual({ today: 50, week: 90, total: 135, count: 3 });
+  });
+});
+
+describe("prescriptionItems", () => {
+  it("names each prescription-only medicine once, and nothing else", () => {
+    expect(
+      prescriptionItems([
+        {
+          store: "Mercury",
+          items: [
+            { name: "Amoxicillin 500mg", quantity: "21" },
+            { name: "Biogesic", quantity: "2" },
+            { name: "amoxicillin", quantity: "1" },
+            { name: "Losartan 50", quantity: "30" },
+          ],
+        },
+      ])
+    ).toEqual(["Amoxicillin", "Losartan"]);
+    expect(
+      prescriptionItems([{ store: "", items: [{ name: "Neozep", quantity: "1" }] }])
+    ).toEqual([]);
   });
 });

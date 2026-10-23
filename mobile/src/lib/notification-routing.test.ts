@@ -46,6 +46,13 @@ describe("routeForNotification", () => {
     ).toEqual({ kind: "rider-home" });
   });
 
+  it("routes a pabakal update to the customer's Pabakal tab", () => {
+    expect(routeForNotification({ type: "pabakal_status" }, "customer")).toEqual({
+      kind: "customer-pabakal",
+    });
+    expect(pathForRoute({ kind: "customer-pabakal" })).toBe("/customer/pabakal");
+  });
+
   it("routes a new pabakal to the rider's Available tab", () => {
     expect(routeForNotification({ type: "pabakal_offer" }, "rider")).toEqual({
       kind: "rider-offers",

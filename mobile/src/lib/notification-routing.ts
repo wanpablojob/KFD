@@ -20,6 +20,8 @@ export type NotificationRoute =
   | { kind: "rider-home" }
   /** A new or updated order at the merchant's restaurant: open their Orders tab. */
   | { kind: "merchant-orders" }
+  /** A pabakal update: open the customer's Pabakal tab. */
+  | { kind: "customer-pabakal" }
   /** Public order tracking, by reference. Works signed out. */
   | { kind: "track"; reference: string };
 
@@ -70,6 +72,9 @@ export function routeForNotification(
   if (type === "dispatch_offer" || type === "pabakal_offer") {
     return role === "rider" ? { kind: "rider-offers" } : null;
   }
+  if (type === "pabakal_status") {
+    return role === "customer" ? { kind: "customer-pabakal" } : null;
+  }
   if (type === "delivery_completed" || type === "order_cancelled") {
     return role === "rider" ? { kind: "rider-home" } : null;
   }
@@ -98,6 +103,8 @@ export function pathForRoute(route: NotificationRoute): string {
       return "/rider";
     case "merchant-orders":
       return "/merchant";
+    case "customer-pabakal":
+      return "/customer/pabakal";
     case "track":
       return `/track?ref=${encodeURIComponent(route.reference)}`;
   }

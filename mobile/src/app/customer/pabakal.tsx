@@ -33,6 +33,7 @@ import {
   PABAKAL_STATUS_LABEL,
   pabakalAmountDue,
   pabakalFee,
+  prescriptionItems,
   requestPabakal,
   stopsOf,
   type Pabakal,
@@ -185,9 +186,14 @@ export default function PabakalScreen() {
       // reply says so, so a wrong fix is one tap away from being undone.
       const fixed = correctStops(parsed);
       const next = mergeStops(stops, fixed.stops).slice(0, PABAKAL_RULES.maxStores);
-      const spelling = fixed.corrections.length
-        ? `\n\nI corrected: ${describeCorrections(fixed.corrections)}.`
-        : "";
+      const rx = prescriptionItems(fixed.stops);
+      const spelling =
+        (fixed.corrections.length
+          ? `\n\nI corrected: ${describeCorrections(fixed.corrections)}.`
+          : "") +
+        (rx.length
+          ? `\n\n${rx.join(", ")} ${rx.length === 1 ? "needs" : "need"} a prescription. Have it ready to show the rider, or send them a photo of it.`
+          : "");
       setStops(next);
       setStage("items");
       setEditing(hasBlanks(next));
