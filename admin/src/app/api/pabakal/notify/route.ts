@@ -1,16 +1,26 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { sendRiderPush, OFFERS_CHANNEL_ID } from "@/lib/server/push-notify";
+import {
+  sendCustomerPush,
+  sendRiderPush,
+  OFFERS_CHANNEL_ID,
+} from "@/lib/server/push-notify";
 import { reportServerError } from "@/lib/server/report-error";
 import { checkRateLimit } from "@/lib/server/rate-limit";
-import { mayAnnouncePabakal, pabakalAlertBody } from "@/lib/pabakal-alert";
+import {
+  mayAnnouncePabakal,
+  mayAnnouncePabakalStatus,
+  pabakalAlertBody,
+  pabakalStatusNotice,
+} from "@/lib/pabakal-alert";
 
 /**
  * POST /api/pabakal/notify
  *
- * Tells online riders that a pabakal is waiting. Called by the customer app
- * right after customer_request_pabakal succeeds, because a Postgres function
- * cannot call this route.
+ * Two jobs, by the pabakal's status (a Postgres function cannot call this route):
+ *   open  -> online riders hear a pabakal is waiting. Sent by its customer.
+ *   later -> the customer hears it was taken, bought, delivered or cancelled.
+ *            Sent by the assigned rider, or an admin for a cancellation.
  *
  * Requires a signed-in caller: `Authorization: Bearer <supabase access token>`.
  * Body: { id: string }  -- the pabakal the caller just placed.
@@ -67,10 +77,56 @@ export async function POST(req: Request) {
   try {
     const { data: row } = await supabase
       .from("pabakal_requests")
-      .select("customer_user_id, status, store, stops")
+      .select(
+        "customer_user_id, status, store, stops, reference, item_cost, delivery_fee, pabakal_fee, cancel_reason, rider_id",
+      )
       .eq("id", id)
       .maybeSingle();
-    if (!row || !mayAnnouncePabakal(user.id, row)) {
+    if (!row) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+
+    // Past "open", the news is for the customer: taken, bought, delivered or
+    // cancelled. Only the assigned rider or an admin may announce it.
+    if (row.status !== "open") {
+      const { data: caller } = await supabase
+        .from("app_users")
+        .select("role")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      const { data: rider } = row.rider_id
+        ? await supabase
+            .from("riders")
+            .select("user_id")
+            .eq("id", row.rider_id)
+            .maybeSingle()
+        : { data: null };
+      if (
+        !mayAnnouncePabakalStatus(
+          { userId: user.id, role: (caller?.role as string | null) ?? null },
+          (rider?.user_id as string | null) ?? null,
+        )
+      ) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+      const notice = pabakalStatusNotice(row);
+      if (!notice || !row.customer_user_id) {
+        return NextResponse.json({ skipped: "nobody to tell" });
+      }
+      return NextResponse.json(
+        await sendCustomerPush(
+          supabase,
+          row.customer_user_id,
+          notice.title,
+          notice.body,
+          {
+            type: "pabakal_status",
+          },
+        ),
+      );
+    }
+
+    if (!mayAnnouncePabakal(user.id, row)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

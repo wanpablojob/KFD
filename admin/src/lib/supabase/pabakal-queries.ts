@@ -15,6 +15,27 @@ export async function fetchPabakal(): Promise<Pabakal[]> {
 }
 
 export async function cancelPabakal(id: string, reason: string): Promise<void> {
-  const { error } = await supabase.rpc("admin_cancel_pabakal", { p_id: id, p_reason: reason });
+  const { error } = await supabase.rpc("admin_cancel_pabakal", {
+    p_id: id,
+    p_reason: reason,
+  });
   if (error) throw new Error(error.message);
+  // The customer hears it was cancelled, with the reason. Best-effort.
+  void (async () => {
+    try {
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+      if (!token) return;
+      await fetch("/api/pabakal/notify", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ id }),
+      });
+    } catch {
+      // courtesy only
+    }
+  })();
 }

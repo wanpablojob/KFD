@@ -156,18 +156,24 @@ export async function fetchOpenPabakal(): Promise<OpenPabakal[]> {
 
 export async function claimPabakal(id: string): Promise<void> {
   check(await supabase.rpc("rider_claim_pabakal", { p_id: id }));
+  // The customer hears each step (P2). Best-effort, never blocks.
+  void postApi("/api/pabakal/notify", { id });
 }
 
 export async function markPabakalBought(id: string, itemCost: number): Promise<void> {
   check(
     await supabase.rpc("rider_pabakal_bought", { p_id: id, p_item_cost: itemCost })
   );
+  // The customer hears each step (P2). Best-effort, never blocks.
+  void postApi("/api/pabakal/notify", { id });
 }
 
 export async function markPabakalDelivered(id: string, cash: number): Promise<void> {
   check(
     await supabase.rpc("rider_pabakal_delivered", { p_id: id, p_cash_collected: cash })
   );
+  // The customer hears each step (P2). Best-effort, never blocks.
+  void postApi("/api/pabakal/notify", { id });
 }
 
 /**
