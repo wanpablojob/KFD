@@ -172,7 +172,7 @@ export const CONTACT = {
 } as const;
 
 /** Shown on the Privacy Policy and Terms. Update whenever either changes. */
-export const LEGAL_UPDATED = "20 October 2026";
+export const LEGAL_UPDATED = "23 October 2026";
 
 export const BUSINESS = {
   name: "Kabankalan Food Delivery",
