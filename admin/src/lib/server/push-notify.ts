@@ -52,7 +52,12 @@ async function recordInbox(
 export async function sendMerchantOrderPush(
   supabase: ServiceClient,
   restaurantId: string,
-  orderReference: string
+  orderReference: string,
+  /** Defaults to the new-order notice; a cancellation passes its own. */
+  message: { title: string; body: string } = {
+    title: `New order ${orderReference}`,
+    body: "It is accepted. Start preparing it.",
+  },
 ): Promise<PushResult> {
   // Tokens belong to merchant accounts of the restaurant. app_users keys the
   // role/restaurant link; push_tokens keys the device. A flat read avoids a
@@ -69,16 +74,16 @@ export async function sendMerchantOrderPush(
 
   const userIds = (appUsers ?? []).map((u) => u.user_id as string);
   if (userIds.length === 0) {
-    return { ok: false, sent: 0, skipped: "no merchant account for this restaurant" };
+    return {
+      ok: false,
+      sent: 0,
+      skipped: "no merchant account for this restaurant",
+    };
   }
 
-  await recordInbox(
-    supabase,
-    userIds,
-    `New order ${orderReference}`,
-    "It is accepted. Start preparing it.",
-    { reference: orderReference },
-  );
+  await recordInbox(supabase, userIds, message.title, message.body, {
+    reference: orderReference,
+  });
 
   const { data: tokens, error: tokensError } = await supabase
     .from("push_tokens")
@@ -94,15 +99,19 @@ export async function sendMerchantOrderPush(
     .filter((token) => Expo.isExpoPushToken(token));
 
   if (validTokens.length === 0) {
-    return { ok: false, sent: 0, skipped: "no push tokens for this restaurant" };
+    return {
+      ok: false,
+      sent: 0,
+      skipped: "no push tokens for this restaurant",
+    };
   }
 
   const messages: ExpoPushMessage[] = validTokens.map((to) => ({
     to,
     sound: "default",
     channelId: "orders",
-    title: `New order ${orderReference}`,
-    body: "It is accepted. Start preparing it.",
+    title: message.title,
+    body: message.body,
     data: { reference: orderReference },
   }));
 
@@ -125,14 +134,19 @@ export async function sendMerchantOrderPush(
     }
 
     const receiptIds = receiptTokenPairs.map((p) => p.id);
-    const tokensByReceiptId = new Map(receiptTokenPairs.map((p) => [p.id, p.token]));
+    const tokensByReceiptId = new Map(
+      receiptTokenPairs.map((p) => [p.id, p.token]),
+    );
 
     const toPrune: string[] = [];
     for (const chunk of expo.chunkPushNotificationReceiptIds(receiptIds)) {
       const receipts = await expo.getPushNotificationReceiptsAsync(chunk);
       for (const key in receipts) {
         const receipt = receipts[key];
-        if (receipt.status === "error" && receipt.details?.error === "DeviceNotRegistered") {
+        if (
+          receipt.status === "error" &&
+          receipt.details?.error === "DeviceNotRegistered"
+        ) {
           const token = tokensByReceiptId.get(key);
           if (token) toPrune.push(token);
         }
@@ -244,12 +258,17 @@ export async function sendUserPush(
 
     const toPrune: string[] = [];
     const receiptIds = receiptTokenPairs.map((p) => p.id);
-    const tokensByReceiptId = new Map(receiptTokenPairs.map((p) => [p.id, p.token]));
+    const tokensByReceiptId = new Map(
+      receiptTokenPairs.map((p) => [p.id, p.token]),
+    );
     for (const chunk of expo.chunkPushNotificationReceiptIds(receiptIds)) {
       const receipts = await expo.getPushNotificationReceiptsAsync(chunk);
       for (const key in receipts) {
         const receipt = receipts[key];
-        if (receipt.status === "error" && receipt.details?.error === "DeviceNotRegistered") {
+        if (
+          receipt.status === "error" &&
+          receipt.details?.error === "DeviceNotRegistered"
+        ) {
           const token = tokensByReceiptId.get(key);
           if (token) toPrune.push(token);
         }
@@ -299,7 +318,7 @@ export async function sendCustomerPush(
   customerUserId: string,
   title: string,
   body: string,
-  data?: Record<string, unknown>
+  data?: Record<string, unknown>,
 ): Promise<PushResult> {
   return sendUserPush(supabase, customerUserId, title, body, data);
 }

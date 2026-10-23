@@ -500,6 +500,20 @@ export async function POST(req: Request) {
         )
       : await pushCustomerStatus(supabase, order, reason);
 
+  // The shop cooks every order as soon as it is placed (0132), so a customer's
+  // cancellation has to reach the kitchen or the food is made for nobody.
+  if (cancelledByCustomer && order?.restaurant_id) {
+    await sendMerchantOrderPush(
+      supabase,
+      order.restaurant_id,
+      order.reference,
+      {
+        title: `Order ${order.reference} cancelled`,
+        body: "The customer cancelled it. Don't prepare it.",
+      },
+    );
+  }
+
   // The rider already sent for the food has to hear it was called off, or they
   // ride to the shop for nothing. Best-effort, like every push here.
   if (order?.status === "cancelled") {
