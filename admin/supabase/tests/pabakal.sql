@@ -48,6 +48,15 @@ do $$ begin
   raise notice 'PASS open job listed, personal details hidden';
 end $$;
 select rider_claim_pabakal((select id from t_id));
+-- Handing it back before buying (0133) reopens it; taking it again works.
+select rider_release_pabakal((select id from t_id));
+do $$ begin
+  if (select count(*) from rider_open_pabakal() where id = (select id from t_id)) <> 1 then
+    raise exception 'FAIL a handed-back pabakal is not open again';
+  end if;
+  raise notice 'PASS handed back before buying, open again';
+end $$;
+select rider_claim_pabakal((select id from t_id));
 
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000f3","role":"authenticated"}', true);
 do $$ begin
@@ -84,6 +93,14 @@ do $$ begin
   raise notice 'PASS cost capped at what a rider can front';
 end $$;
 select rider_pabakal_bought((select id from t_id), 245.50);
+do $$ begin
+  begin
+    perform rider_release_pabakal((select id from t_id));
+    raise exception 'FAIL handed back after buying';
+  exception when sqlstate 'P0001' then null;
+  end;
+  raise notice 'PASS cannot hand back once bought';
+end $$;
 select rider_pabakal_delivered((select id from t_id), 305.50);
 
 reset role;

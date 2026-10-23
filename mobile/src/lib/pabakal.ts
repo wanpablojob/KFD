@@ -6,6 +6,7 @@
  */
 
 import { supabase } from "./supabase";
+import { postApi } from "./admin-api";
 import type { Database, Json } from "./database.generated";
 
 export type Pabakal = Database["public"]["Tables"]["pabakal_requests"]["Row"];
@@ -125,7 +126,7 @@ export async function requestPabakal(input: {
   barangay?: string;
   phone?: string;
 }): Promise<void> {
-  check(
+  const placed = check(
     await supabase.rpc("customer_request_pabakal", {
       p_stops: input.stops as unknown as Json,
       p_delivery_address: input.address,
@@ -134,6 +135,15 @@ export async function requestPabakal(input: {
       p_note: input.note.trim() || undefined,
     })
   );
+  // Ring the online riders' phones. Best-effort: the request is already on
+  // every rider's Available tab either way.
+  const id = placed?.[0]?.id;
+  if (id) void postApi("/api/pabakal/notify", { id });
+}
+
+/** The rider hands a pabakal back before buying (0133); it reopens for others. */
+export async function releasePabakal(id: string): Promise<void> {
+  check(await supabase.rpc("rider_release_pabakal", { p_id: id }));
 }
 
 export async function cancelPabakal(id: string): Promise<void> {

@@ -67,7 +67,7 @@ export function routeForNotification(
   // Stack.Protected guard. The guard already rejects them, but it rejects by
   // redirecting somewhere else, so a merchant tapping an offer alert would be
   // bounced rather than left where they were.
-  if (type === "dispatch_offer") {
+  if (type === "dispatch_offer" || type === "pabakal_offer") {
     return role === "rider" ? { kind: "rider-offers" } : null;
   }
   if (type === "delivery_completed" || type === "order_cancelled") {

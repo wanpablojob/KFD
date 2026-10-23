@@ -46,6 +46,12 @@ describe("routeForNotification", () => {
     ).toEqual({ kind: "rider-home" });
   });
 
+  it("routes a new pabakal to the rider's Available tab", () => {
+    expect(routeForNotification({ type: "pabakal_offer" }, "rider")).toEqual({
+      kind: "rider-offers",
+    });
+  });
+
   it("routes a cancellation to the rider's home tab, not the public tracker", () => {
     expect(
       routeForNotification({ type: "order_cancelled", reference: "#KFD-1" }, "rider")

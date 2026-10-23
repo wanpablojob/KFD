@@ -8,6 +8,7 @@ import {
 } from "./pabakal";
 
 jest.mock("./supabase", () => ({ supabase: {} }));
+jest.mock("./admin-api", () => ({ postApi: jest.fn() }));
 
 describe("pabakal money", () => {
   it("is due only once the rider has bought, receipt plus both fees", () => {

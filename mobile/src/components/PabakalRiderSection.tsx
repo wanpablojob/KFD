@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Linking, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, Linking, StyleSheet, Text, TextInput, View } from "react-native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { MerchantButton, ui } from "./MerchantUi";
 import {
@@ -8,6 +8,7 @@ import {
   fetchOpenPabakal,
   markPabakalBought,
   markPabakalDelivered,
+  releasePabakal,
   formatLine,
   PABAKAL_RULES,
   pabakalAmountDue,
@@ -111,6 +112,11 @@ function ActiveJob({
     onSuccess: onDone,
     onError,
   });
+  const release = useMutation({
+    mutationFn: () => releasePabakal(job.id),
+    onSuccess: onDone,
+    onError,
+  });
   const due = pabakalAmountDue(job);
 
   return (
@@ -151,6 +157,27 @@ function ActiveJob({
             busy={bought.isPending}
             disabled={disabled || !valid || value <= 0}
             onPress={() => bought.mutate()}
+          />
+          {/* Only before buying: after that the rider's own money is spent. */}
+          <MerchantButton
+            label="Can't do it, give it back"
+            tone="danger"
+            busy={release.isPending}
+            disabled={disabled}
+            onPress={() =>
+              Alert.alert(
+                "Give this pabakal back?",
+                "It goes back to the list for another rider.",
+                [
+                  { text: "Keep it", style: "cancel" },
+                  {
+                    text: "Give it back",
+                    style: "destructive",
+                    onPress: () => release.mutate(),
+                  },
+                ]
+              )
+            }
           />
         </>
       ) : (
