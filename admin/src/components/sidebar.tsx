@@ -8,6 +8,7 @@ import {
   LayoutDashboardIcon,
   MailIcon,
   MapPinIcon,
+  ShieldIcon,
   ReceiptIcon,
   StoreIcon,
   UsersIcon,
@@ -31,7 +32,12 @@ const navItems = [
     icon: BikeIcon,
     adminOnly: true,
   },
-  { href: "/dashboard/pabakal", label: "Pabakal", icon: ReceiptIcon, adminOnly: true },
+  {
+    href: "/dashboard/pabakal",
+    label: "Pabakal",
+    icon: ReceiptIcon,
+    adminOnly: true,
+  },
   { href: "/dashboard/restaurants", label: "Restaurants", icon: StoreIcon },
   { href: "/dashboard/riders", label: "Riders", icon: BikeIcon },
   { href: "/dashboard/customers", label: "Customers", icon: UsersIcon },
@@ -40,10 +46,31 @@ const navItems = [
   // item that grants access to anything. The link is hidden for merchants, and
   // 0011_merchant_provisioning.sql refuses the write for them regardless --
   // the page existing is not the permission.
-  { href: "/dashboard/merchants", label: "Merchant access", icon: UserCogIcon, adminOnly: true },
+  {
+    href: "/dashboard/merchants",
+    label: "Merchant access",
+    icon: UserCogIcon,
+    adminOnly: true,
+  },
   // Admin only: once the list has rows, it decides which addresses can order (0077).
-  { href: "/dashboard/service-areas", label: "Service areas", icon: MapPinIcon, adminOnly: true },
-  { href: "/dashboard/leads", label: "Website sign-ups", icon: MailIcon, adminOnly: true },
+  {
+    href: "/dashboard/service-areas",
+    label: "Service areas",
+    icon: MapPinIcon,
+    adminOnly: true,
+  },
+  {
+    href: "/dashboard/leads",
+    label: "Website sign-ups",
+    icon: MailIcon,
+    adminOnly: true,
+  },
+  {
+    href: "/dashboard/audit",
+    label: "Activity log",
+    icon: ShieldIcon,
+    adminOnly: true,
+  },
 ] as const;
 
 export function Sidebar({
@@ -59,8 +86,7 @@ export function Sidebar({
   const pathname = usePathname();
   const { user } = useSessionUser();
   const { isAdmin } = useUserRole();
-  const displayName =
-    user?.user_metadata?.name ?? user?.email ?? "Admin";
+  const displayName = user?.user_metadata?.name ?? user?.email ?? "Admin";
 
   return (
     <>
@@ -81,7 +107,11 @@ export function Sidebar({
         )}
       >
         <div className="flex h-16 items-center justify-between border-b border-border px-5">
-          <Link href="/dashboard" onClick={onClose} className="flex items-center gap-2.5">
+          <Link
+            href="/dashboard"
+            onClick={onClose}
+            className="flex items-center gap-2.5"
+          >
             <Image
               src="/images/kabankalan/logo.jpg"
               alt="Kabankalan Food Delivery"
@@ -103,7 +133,10 @@ export function Sidebar({
           </button>
         </div>
 
-        <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4" aria-label="Admin">
+        <nav
+          className="flex-1 space-y-1 overflow-y-auto px-3 py-4"
+          aria-label="Admin"
+        >
           {navItems.map((item) => {
             if ("adminOnly" in item && item.adminOnly && !isAdmin) return null;
             // "/dashboard" is a prefix of every other item, so a plain
