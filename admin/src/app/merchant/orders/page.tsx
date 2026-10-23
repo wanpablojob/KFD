@@ -34,7 +34,7 @@ const FILTERS: { value: OrderStatus | "all"; label: string }[] = [
   { value: "preparing", label: "Preparing" },
   { value: "out_for_delivery", label: "Out for delivery" },
   { value: "delivered", label: "Delivered" },
-  { value: "cancelled", label: "Rejected" },
+  { value: "cancelled", label: "Cancelled" },
 ];
 
 export default function MerchantOrdersPage() {
@@ -47,7 +47,7 @@ export default function MerchantOrdersPage() {
 
   const { newOrder, dismissNewOrder } = useOrderNotifications(
     isMerchant,
-    orders.refetch
+    orders.refetch,
   );
 
   const resolvedRange = useMemo((): DateRangeBounds | null => {
@@ -57,7 +57,9 @@ export default function MerchantOrdersPage() {
       const to = dateRange.to ? endOfLocalDay(dateRange.to) : null;
       return from || to ? { from, to } : null;
     }
-    return presets[datePreset as "today" | "yesterday" | "week" | "month"] ?? null;
+    return (
+      presets[datePreset as "today" | "yesterday" | "week" | "month"] ?? null
+    );
   }, [datePreset, dateRange]);
 
   const rows = useMemo(() => {
@@ -78,7 +80,7 @@ export default function MerchantOrdersPage() {
     <PageContainer>
       <PageHeader
         title="Orders"
-        description="Accept or reject new orders, and keep the kitchen in sync."
+        description="New orders are accepted automatically. Start preparing them, and keep the kitchen in sync."
       />
 
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -98,9 +100,18 @@ export default function MerchantOrdersPage() {
       </div>
 
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
-        <div className="flex flex-wrap items-center gap-2" aria-label="Date range">
-          <div className="flex gap-1" role="group" aria-label="Quick date filters">
-            {(["today", "yesterday", "week", "month", "all"] as DatePreset[]).map((preset) => (
+        <div
+          className="flex flex-wrap items-center gap-2"
+          aria-label="Date range"
+        >
+          <div
+            className="flex gap-1"
+            role="group"
+            aria-label="Quick date filters"
+          >
+            {(
+              ["today", "yesterday", "week", "month", "all"] as DatePreset[]
+            ).map((preset) => (
               <button
                 key={preset}
                 type="button"
@@ -122,20 +133,34 @@ export default function MerchantOrdersPage() {
           </div>
           {datePreset === "custom" && (
             <div className="flex items-center gap-1">
-              <label htmlFor="merch-date-from" className="sr-only">From</label>
+              <label htmlFor="merch-date-from" className="sr-only">
+                From
+              </label>
               <input
                 id="merch-date-from"
                 type="date"
                 value={dateRange.from ?? ""}
-                onChange={(e) => setDateRange((d) => ({ ...d, from: e.target.value || undefined }))}
+                onChange={(e) =>
+                  setDateRange((d) => ({
+                    ...d,
+                    from: e.target.value || undefined,
+                  }))
+                }
                 className="h-9 px-3 text-sm border border-input bg-background rounded-md"
               />
-              <label htmlFor="merch-date-to" className="sr-only">To</label>
+              <label htmlFor="merch-date-to" className="sr-only">
+                To
+              </label>
               <input
                 id="merch-date-to"
                 type="date"
                 value={dateRange.to ?? ""}
-                onChange={(e) => setDateRange((d) => ({ ...d, to: e.target.value || undefined }))}
+                onChange={(e) =>
+                  setDateRange((d) => ({
+                    ...d,
+                    to: e.target.value || undefined,
+                  }))
+                }
                 className="h-9 px-3 text-sm border border-input bg-background rounded-md"
               />
               {(dateRange.from || dateRange.to) && (
@@ -209,8 +234,8 @@ export default function MerchantOrdersPage() {
                             {order.reference}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            {order.customer} · {formatDateTime(order.placedAt)} ·{" "}
-                            {order.payment.replace("_", " ")}
+                            {order.customer} · {formatDateTime(order.placedAt)}{" "}
+                            · {order.payment.replace("_", " ")}
                           </p>
                         </div>
                         <div className="flex shrink-0 items-center gap-2">

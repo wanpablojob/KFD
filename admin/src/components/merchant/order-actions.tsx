@@ -20,10 +20,14 @@ const LABELS: Record<MerchantOrderStatus, string> = {
   preparing: "Start preparing",
   out_for_delivery: "Out for delivery",
   delivered: "Delivered",
-  cancelled: "Reject",
+  // Orders are accepted when placed (0132); a shop that cannot make one cancels it.
+  cancelled: "Can't make it",
 };
 
-const VARIANTS: Record<MerchantOrderStatus, "primary" | "outline" | "destructive"> = {
+const VARIANTS: Record<
+  MerchantOrderStatus,
+  "primary" | "outline" | "destructive"
+> = {
   pending: "outline",
   confirmed: "primary",
   preparing: "primary",
@@ -33,12 +37,12 @@ const VARIANTS: Record<MerchantOrderStatus, "primary" | "outline" | "destructive
 };
 
 const HELP: Record<MerchantOrderStatus, string> = {
-  pending: "Awaiting your decision",
-  confirmed: "You accepted this order",
+  pending: "Being accepted",
+  confirmed: "New: accepted automatically",
   preparing: "Kitchen is working on it",
   out_for_delivery: "Courier has it",
   delivered: "Completed",
-  cancelled: "You rejected this order",
+  cancelled: "Cancelled",
 };
 
 /** Matches the server-side cap in /api/orders/notify so UI and API agree. */
@@ -176,7 +180,11 @@ export function OrderActions({
         {error ? <p className="text-xs text-destructive">{error}</p> : null}
       </div>
 
-      <Dialog open={confirmReject} onClose={closeReject} title="Reject this order?">
+      <Dialog
+        open={confirmReject}
+        onClose={closeReject}
+        title="Reject this order?"
+      >
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">
             The customer is emailed right away. Give a reason so the rejection

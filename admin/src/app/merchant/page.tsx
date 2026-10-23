@@ -45,7 +45,7 @@ export default function MerchantTodayPage() {
   // directly does not re-subscribe on every render.
   const { newOrder, dismissNewOrder } = useOrderNotifications(
     isMerchant,
-    orders.refetch
+    orders.refetch,
   );
 
   // Re-render every 30s so "waiting N min" keeps counting without a refetch.
@@ -64,19 +64,18 @@ export default function MerchantTodayPage() {
   const stats = todayStats(rows, now);
   const menuLive = menuRows.filter((m) => m.available).length;
 
-  // Oldest first: the order that has waited longest is the one to answer next.
+  // Orders are accepted when placed (0132), so "new" means accepted and not
+  // yet started: the next thing for the kitchen. Oldest first.
   const needsAction = rows
-    .filter((o) => o.status === "pending")
+    .filter((o) => o.status === "pending" || o.status === "confirmed")
     .sort((a, b) => a.placedAt.localeCompare(b.placedAt));
-  const inFlight = rows.filter(
-    (o) => o.status === "confirmed" || o.status === "preparing"
-  );
+  const inFlight = rows.filter((o) => o.status === "preparing");
 
   return (
     <PageContainer>
       <PageHeader
         title={restaurantName ? `${restaurantName} today` : "Today"}
-        description="Orders that need you, and what is in the kitchen."
+        description="New orders to start, and what is in the kitchen."
         actions={
           <Button variant="outline" size="sm" asChild>
             <Link href="/merchant/orders">All orders</Link>
@@ -99,36 +98,56 @@ export default function MerchantTodayPage() {
       >
         <StatGrid className="mb-6">
           <StatCard
-            kpi={{ label: "Needs your decision", value: String(stats.pending), hint: "Waiting for you to accept" }}
+            kpi={{
+              label: "New orders",
+              value: String(needsAction.length),
+              hint: "Accepted, not started yet",
+            }}
           />
           <StatCard
-            kpi={{ label: "Orders today", value: String(stats.orders), hint: "Excludes cancelled" }}
+            kpi={{
+              label: "Orders today",
+              value: String(stats.orders),
+              hint: "Excludes cancelled",
+            }}
           />
           <StatCard
-            kpi={{ label: "Sales today", value: formatCurrency(stats.sales), hint: "Food only, before delivery fees" }}
+            kpi={{
+              label: "Sales today",
+              value: formatCurrency(stats.sales),
+              hint: "Food only, before delivery fees",
+            }}
           />
           <StatCard
-            kpi={{ label: "Menu live", value: `${menuLive}/${menuRows.length}`, hint: "Items customers can order" }}
+            kpi={{
+              label: "Menu live",
+              value: `${menuLive}/${menuRows.length}`,
+              hint: "Items customers can order",
+            }}
           />
         </StatGrid>
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <Card>
             <CardHeader
-              title="Needs your decision"
+              title="New orders"
               subtitle={needsAction.length > 0 ? "Oldest first" : undefined}
             />
             <div className="px-5 pb-5">
               {needsAction.length === 0 ? (
                 <EmptyState
-                  title="Nothing waiting"
-                  description="New orders appear here the moment they are placed."
+                  title="No new orders"
+                  description="New orders appear here the moment they are placed, already accepted."
                 />
               ) : (
                 <ul className="divide-y divide-border">
                   {needsAction.map((order) => (
                     <li key={order.id} className="py-3 first:pt-0 last:pb-0">
-                      <OrderRow order={order} now={now} onChanged={orders.refetch} />
+                      <OrderRow
+                        order={order}
+                        now={now}
+                        onChanged={orders.refetch}
+                      />
                     </li>
                   ))}
                 </ul>
@@ -145,7 +164,11 @@ export default function MerchantTodayPage() {
                 <ul className="divide-y divide-border">
                   {inFlight.map((order) => (
                     <li key={order.id} className="py-3 first:pt-0 last:pb-0">
-                      <OrderRow order={order} now={now} onChanged={orders.refetch} />
+                      <OrderRow
+                        order={order}
+                        now={now}
+                        onChanged={orders.refetch}
+                      />
                     </li>
                   ))}
                 </ul>
@@ -186,7 +209,9 @@ function OrderRow({
             </Badge>
           </p>
           {/* What to cook, not just how many lines: the kitchen acts on this. */}
-          <p className="mt-1 text-sm text-card-foreground">{itemSummary(order.items)}</p>
+          <p className="mt-1 text-sm text-card-foreground">
+            {itemSummary(order.items)}
+          </p>
           <p className="truncate text-xs text-muted-foreground">
             {order.customer}
             {/* Riders are offered the order when it is accepted (0085), so the
@@ -200,11 +225,17 @@ function OrderRow({
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {/* Food subtotal: the delivery and service fees are not the kitchen's. */}
-          <span className="text-sm font-semibold">{formatCurrency(order.subtotal)}</span>
+          <span className="text-sm font-semibold">
+            {formatCurrency(order.subtotal)}
+          </span>
           <StatusBadge status={order.status} />
         </div>
       </div>
-      <OrderActions orderId={order.id} status={order.status} onChanged={onChanged} />
+      <OrderActions
+        orderId={order.id}
+        status={order.status}
+        onChanged={onChanged}
+      />
     </div>
   );
 }
