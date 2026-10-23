@@ -70,7 +70,7 @@ export function routeForNotification(
   if (type === "dispatch_offer") {
     return role === "rider" ? { kind: "rider-offers" } : null;
   }
-  if (type === "delivery_completed") {
+  if (type === "delivery_completed" || type === "order_cancelled") {
     return role === "rider" ? { kind: "rider-home" } : null;
   }
 

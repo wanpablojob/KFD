@@ -46,6 +46,12 @@ describe("routeForNotification", () => {
     ).toEqual({ kind: "rider-home" });
   });
 
+  it("routes a cancellation to the rider's home tab, not the public tracker", () => {
+    expect(
+      routeForNotification({ type: "order_cancelled", reference: "#KFD-1" }, "rider")
+    ).toEqual({ kind: "rider-home" });
+  });
+
   it("ignores a dispatch offer for a signed-in customer", () => {
     expect(routeForNotification({ type: "dispatch_offer" }, "customer")).toBeNull();
   });

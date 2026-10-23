@@ -2,7 +2,11 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mayNotifyOrder, type CallerScope } from "./notify-authz.ts";
 
-const admin: CallerScope = { userId: "u-admin", role: "admin", restaurantId: null };
+const admin: CallerScope = {
+  userId: "u-admin",
+  role: "admin",
+  restaurantId: null,
+};
 const merchant: CallerScope = {
   userId: "u-merchant",
   role: "merchant",
@@ -75,25 +79,77 @@ test("a customer may not request status mail", () => {
 });
 
 test("a caller with no app_users row gets nothing", () => {
-  const stranger: CallerScope = { userId: "u-stranger", role: null, restaurantId: null };
+  const stranger: CallerScope = {
+    userId: "u-stranger",
+    role: null,
+    restaurantId: null,
+  };
   assert.equal(mayNotifyOrder("placed", stranger, ownOrder), false);
   assert.equal(mayNotifyOrder("status_changed", stranger, ownOrder), false);
 });
 
-const rider: CallerScope = { userId: "u-rider", role: "rider", restaurantId: null };
-const assigned = (status: string) => ({ ...ownOrder, riderUserId: "u-rider", status });
+const rider: CallerScope = {
+  userId: "u-rider",
+  role: "rider",
+  restaurantId: null,
+};
+const assigned = (status: string) => ({
+  ...ownOrder,
+  riderUserId: "u-rider",
+  status,
+});
 
 test("the assigned rider may announce pickup and delivery", () => {
-  assert.equal(mayNotifyOrder("status_changed", rider, assigned("out_for_delivery")), true);
-  assert.equal(mayNotifyOrder("status_changed", rider, assigned("delivered")), true);
+  assert.equal(
+    mayNotifyOrder("status_changed", rider, assigned("out_for_delivery")),
+    true,
+  );
+  assert.equal(
+    mayNotifyOrder("status_changed", rider, assigned("delivered")),
+    true,
+  );
 });
 
 test("a rider may not announce kitchen statuses, other riders' orders, or new orders", () => {
-  assert.equal(mayNotifyOrder("status_changed", rider, assigned("confirmed")), false);
-  assert.equal(mayNotifyOrder("status_changed", rider, assigned("cancelled")), false);
   assert.equal(
-    mayNotifyOrder("status_changed", rider, { ...assigned("delivered"), riderUserId: "u-other" }),
+    mayNotifyOrder("status_changed", rider, assigned("confirmed")),
+    false,
+  );
+  assert.equal(
+    mayNotifyOrder("status_changed", rider, assigned("cancelled")),
+    false,
+  );
+  assert.equal(
+    mayNotifyOrder("status_changed", rider, {
+      ...assigned("delivered"),
+      riderUserId: "u-other",
+    }),
     false,
   );
   assert.equal(mayNotifyOrder("placed", rider, assigned("delivered")), false);
+});
+
+test("a customer may announce only their own order's cancellation", () => {
+  assert.equal(
+    mayNotifyOrder("status_changed", customer, {
+      ...ownOrder,
+      status: "cancelled",
+    }),
+    true,
+  );
+  assert.equal(
+    mayNotifyOrder("status_changed", customer, {
+      ...ownOrder,
+      status: "preparing",
+    }),
+    false,
+  );
+  assert.equal(
+    mayNotifyOrder("status_changed", customer, {
+      restaurantId: "rst_1",
+      customerUserId: "u-other",
+      status: "cancelled",
+    }),
+    false,
+  );
 });

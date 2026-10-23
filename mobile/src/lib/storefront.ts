@@ -1301,6 +1301,9 @@ export async function reportFailedDeliveryTrip(
 export async function cancelOrder(orderId: string): Promise<void> {
   const { error } = await supabase.rpc("cancel_order", { p_order_id: orderId });
   if (error) throw error;
+  // Orders are accepted when placed, so a rider may already be on the way:
+  // the server tells them. Best-effort, never blocks.
+  void postApi("/api/orders/notify", { orderId, event: "status_changed" });
 }
 
 export interface OrderRating {

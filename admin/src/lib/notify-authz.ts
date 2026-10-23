@@ -39,7 +39,7 @@ const RIDER_STATUSES = ["out_for_delivery", "delivered"];
 export function mayNotifyOrder(
   event: NotifyEvent,
   caller: CallerScope,
-  order: OrderScope
+  order: OrderScope,
 ): boolean {
   if (caller.role === "admin") return true;
 
@@ -57,6 +57,17 @@ export function mayNotifyOrder(
     !!order.riderUserId &&
     order.riderUserId === caller.userId &&
     RIDER_STATUSES.includes(order.status ?? "")
+  ) {
+    return true;
+  }
+
+  // A customer may announce one thing: that they cancelled their own order,
+  // so the rider already sent for it is told (the route reads the status from
+  // the database, never from the request).
+  if (
+    !!order.customerUserId &&
+    order.customerUserId === caller.userId &&
+    order.status === "cancelled"
   ) {
     return true;
   }

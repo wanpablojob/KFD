@@ -13,6 +13,7 @@ import { mayNotifyOrder } from "@/lib/notify-authz";
 import {
   sendMerchantOrderPush,
   sendCustomerPush,
+  sendRiderPush,
 } from "@/lib/server/push-notify";
 import { reportServerError } from "@/lib/server/report-error";
 import { checkRateLimit } from "@/lib/server/rate-limit";
@@ -162,7 +163,10 @@ export async function POST(req: Request) {
   const supabase = serviceClient();
 
   if (!url || !anonKey || !supabase) {
-    reportServerError(new Error("Server is missing Supabase configuration"), "orders/notify");
+    reportServerError(
+      new Error("Server is missing Supabase configuration"),
+      "orders/notify",
+    );
     return NextResponse.json(
       { error: "Server is missing Supabase configuration" },
       { status: 500 },
@@ -192,7 +196,10 @@ export async function POST(req: Request) {
   if (!limited.allowed) {
     return NextResponse.json(
       { error: "Too many notifications requested. Try again shortly." },
-      { status: 429, headers: { "Retry-After": String(limited.retryAfterSeconds) } },
+      {
+        status: 429,
+        headers: { "Retry-After": String(limited.retryAfterSeconds) },
+      },
     );
   }
 
@@ -226,7 +233,10 @@ export async function POST(req: Request) {
       .maybeSingle();
 
     if (!tripRow) {
-      return NextResponse.json({ error: "Delivery not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Delivery not found" },
+        { status: 404 },
+      );
     }
     trip = tripRow as TripRow;
     tripParts = await readTripParts(supabase, trip.id);
@@ -330,14 +340,16 @@ export async function POST(req: Request) {
 
     // A trip: every shop in it gets its own mail about ITS own part, and the
     // customer gets one receipt for the basket.
-    const shopsToTell: { restaurant_id: string | null; part: TripPart | null }[] =
-      trip
-        ? tripParts
-            .filter((part) => part.restaurant_id)
-            .map((part) => ({ restaurant_id: part.restaurant_id, part }))
-        : order?.restaurant_id
-          ? [{ restaurant_id: order.restaurant_id, part: null }]
-          : [];
+    const shopsToTell: {
+      restaurant_id: string | null;
+      part: TripPart | null;
+    }[] = trip
+      ? tripParts
+          .filter((part) => part.restaurant_id)
+          .map((part) => ({ restaurant_id: part.restaurant_id, part }))
+      : order?.restaurant_id
+        ? [{ restaurant_id: order.restaurant_id, part: null }]
+        : [];
 
     for (const shop of shopsToTell) {
       if (!shop.restaurant_id) continue;
@@ -388,13 +400,30 @@ export async function POST(req: Request) {
     // food on it -- the customer paid one bill.
     const customerEmail = await resolveCustomerEmail(
       supabase,
-      order ?? { customer_user_id: trip?.customer_user_id ?? null, customer: trip?.customer ?? "", restaurant: "", reference: trip?.reference ?? "", items: [], subtotal: 0, delivery_fee: 0, service_fee: 0, total: trip?.total ?? 0, status: trip?.status ?? "pending", payment: "cash", placed_at: new Date().toISOString() },
+      order ?? {
+        customer_user_id: trip?.customer_user_id ?? null,
+        customer: trip?.customer ?? "",
+        restaurant: "",
+        reference: trip?.reference ?? "",
+        items: [],
+        subtotal: 0,
+        delivery_fee: 0,
+        service_fee: 0,
+        total: trip?.total ?? 0,
+        status: trip?.status ?? "pending",
+        payment: "cash",
+        placed_at: new Date().toISOString(),
+      },
     );
     const tripMail = trip ? tripEmailData(trip, tripParts) : emailData;
     const customerMail = customerEmail ? orderPlacedEmail(tripMail) : null;
     const confirmation =
       customerEmail && customerMail
-        ? await sendOrderEmail(customerEmail, customerMail.subject, customerMail.html)
+        ? await sendOrderEmail(
+            customerEmail,
+            customerMail.subject,
+            customerMail.html,
+          )
         : {
             ok: false,
             detail: "no email address for this customer",
@@ -460,30 +489,60 @@ export async function POST(req: Request) {
     order?.status === "cancelled" &&
     order?.rejection_reason === "Cancelled by customer";
 
-  const push = trip
-    ? cancelledByCustomer
-      ? { ok: true, sent: 0, skipped: "the customer cancelled it" }
-      : await pushCustomerTripStatus(
+  const push = cancelledByCustomer
+    ? { ok: true, sent: 0, skipped: "the customer cancelled it" }
+    : trip
+      ? await pushCustomerTripStatus(
           supabase,
           trip,
           order?.status ?? trip.status,
           reason,
         )
-    : await pushCustomerStatus(supabase, order, reason);
+      : await pushCustomerStatus(supabase, order, reason);
 
-  const mail = trip && cancelledByCustomer
+  // The rider already sent for the food has to hear it was called off, or they
+  // ride to the shop for nothing. Best-effort, like every push here.
+  if (order?.status === "cancelled") {
+    const tripRiderUserId =
+      !riderUserId && trip?.rider_id
+        ? (((
+            await supabase
+              .from("riders")
+              .select("user_id")
+              .eq("id", trip.rider_id)
+              .maybeSingle()
+          ).data?.user_id as string | null) ?? null)
+        : null;
+    const notifyRider = riderUserId ?? tripRiderUserId;
+    if (notifyRider) {
+      await sendRiderPush(
+        supabase,
+        notifyRider,
+        trip ? "A stop was cancelled" : "Order cancelled",
+        trip
+          ? `${order.restaurant} dropped out of ${trip.reference}. Skip that stop.`
+          : `${order.reference} from ${order.restaurant} was cancelled. Don't pick it up.`,
+        {
+          type: "order_cancelled",
+          reference: trip?.reference ?? order.reference,
+        },
+      );
+    }
+  }
+
+  const mail = cancelledByCustomer
     ? null
     : trip
-    ? tripStatusEmail(
-        {
-          reference: trip.reference,
-          items: tripEmailData(trip, tripParts).items,
-          total: Number(trip.total),
-        },
-        order?.status === "cancelled" ? "cancelled" : trip.status,
-        reason,
-      )
-    : orderStatusEmail(emailData, order?.status ?? "", reason);
+      ? tripStatusEmail(
+          {
+            reference: trip.reference,
+            items: tripEmailData(trip, tripParts).items,
+            total: Number(trip.total),
+          },
+          order?.status === "cancelled" ? "cancelled" : trip.status,
+          reason,
+        )
+      : orderStatusEmail(emailData, order?.status ?? "", reason);
   if (!mail) {
     return NextResponse.json(
       { skipped: `no email for status ${order?.status ?? trip?.status}`, push },
@@ -493,7 +552,20 @@ export async function POST(req: Request) {
 
   const email = await resolveCustomerEmail(
     supabase,
-    order ?? { customer_user_id: trip?.customer_user_id ?? null, customer: trip?.customer ?? "", restaurant: "", reference: trip?.reference ?? "", items: [], subtotal: 0, delivery_fee: 0, service_fee: 0, total: trip?.total ?? 0, status: trip?.status ?? "pending", payment: "cash", placed_at: new Date().toISOString() },
+    order ?? {
+      customer_user_id: trip?.customer_user_id ?? null,
+      customer: trip?.customer ?? "",
+      restaurant: "",
+      reference: trip?.reference ?? "",
+      items: [],
+      subtotal: 0,
+      delivery_fee: 0,
+      service_fee: 0,
+      total: trip?.total ?? 0,
+      status: trip?.status ?? "pending",
+      payment: "cash",
+      placed_at: new Date().toISOString(),
+    },
   );
 
   if (!email) {
@@ -625,18 +697,12 @@ async function pushCustomerTripStatus(
   const withReason =
     milestone === "cancelled" && reason ? `${body} Reason: ${reason}` : body;
 
-  return sendCustomerPush(
-    supabase,
-    trip.customer_user_id,
-    title,
-    withReason,
-    {
-      type: "order_status",
-      reference: trip.reference,
-      delivery_id: trip.id,
-      milestone,
-    },
-  );
+  return sendCustomerPush(supabase, trip.customer_user_id, title, withReason, {
+    type: "order_status",
+    reference: trip.reference,
+    delivery_id: trip.id,
+    milestone,
+  });
 }
 
 /** Send the customer a push for this status, if the order and status allow it. */
@@ -692,7 +758,10 @@ async function resolveMerchantEmails(
   // pages should degrade to "some merchants were not emailed", never to a
   // request that crawls the whole user table before it can answer.
   for (let page = 1; page <= 20 && emails.size < wanted.size; page++) {
-    const { data, error } = await supabase.auth.admin.listUsers({ page, perPage });
+    const { data, error } = await supabase.auth.admin.listUsers({
+      page,
+      perPage,
+    });
     if (error || !data?.users?.length) break;
 
     for (const user of data.users) {
