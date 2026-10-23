@@ -343,6 +343,27 @@ export async function saveHours(
   if (error) throw error;
 }
 
+/**
+ * What KFD owes the shop for its delivered orders (0138): food, less refunds
+ * and KFD's commission, and when it was last paid.
+ */
+export async function fetchMerchantOwed(): Promise<{
+  orderCount: number;
+  commissionPct: number;
+  net: number;
+  lastPaidAt: string | null;
+}> {
+  const { data, error } = await supabase.rpc("merchant_owed");
+  if (error) throw error;
+  const row = data?.[0];
+  return {
+    orderCount: Number(row?.order_count ?? 0),
+    commissionPct: Number(row?.commission_pct ?? 0),
+    net: Number(row?.net ?? 0),
+    lastPaidAt: row?.last_paid_at ?? null,
+  };
+}
+
 /* ------------------------------------------------------------------ *
  * Hooks
  * ------------------------------------------------------------------ */
@@ -413,6 +434,10 @@ export function useSaveStoreStatus(restaurantId: string | null) {
     onSettled: () =>
       queryClient.invalidateQueries({ queryKey: ["storeStatus", restaurantId] }),
   });
+}
+
+export function useMerchantOwed() {
+  return useQuery({ queryKey: ["merchantOwed"], queryFn: fetchMerchantOwed });
 }
 
 export function useDeliveredAllTime() {

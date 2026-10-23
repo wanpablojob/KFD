@@ -9,6 +9,7 @@ import {
 import {
   useDeliveredAllTime,
   useMerchantOrders,
+  useMerchantOwed,
   useMerchantRefunds,
 } from "../../lib/merchant";
 import {
@@ -50,6 +51,7 @@ export default function MerchantSalesScreen() {
   const orders = useMerchantOrders();
   const refunds = useMerchantRefunds();
   const allTime = useDeliveredAllTime();
+  const owed = useMerchantOwed();
   const [open, setOpen] = useState<SalesWindow | null>("today");
 
   if (orders.isPending || refunds.isPending)
@@ -101,6 +103,26 @@ export default function MerchantSalesScreen() {
           </MerchantSection>
         </Pressable>
       ))}
+
+      {/* What KFD still has to pay the shop (0138). */}
+      <MerchantSection label="To be paid by KFD">
+        <View style={styles.row}>
+          <Text style={styles.amount}>{owed.data ? peso(owed.data.net) : "—"}</Text>
+          <Text style={ui.muted}>
+            {owed.data
+              ? `${owed.data.orderCount} ${owed.data.orderCount === 1 ? "order" : "orders"}` +
+                (owed.data.commissionPct > 0
+                  ? `, after ${owed.data.commissionPct}% commission`
+                  : "") +
+                (owed.data.lastPaidAt
+                  ? ` · last paid ${new Date(owed.data.lastPaidAt).toLocaleDateString()}`
+                  : "")
+              : owed.isError
+                ? "Could not load"
+                : "Loading…"}
+          </Text>
+        </View>
+      </MerchantSection>
 
       <MerchantSection label="All time">
         <View style={styles.row}>

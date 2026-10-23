@@ -2,7 +2,11 @@
 
 import { useParams } from "next/navigation";
 import { useState } from "react";
-import { fetchRestaurants, fetchOrdersByRestaurant, fetchMenuItemsByRestaurant } from "@/lib/supabase/queries";
+import {
+  fetchRestaurants,
+  fetchOrdersByRestaurant,
+  fetchMenuItemsByRestaurant,
+} from "@/lib/supabase/queries";
 import { formatCurrency } from "@/lib/format";
 import { PageContainer, PageHeader, Section } from "@/components/layout/page";
 import { Card } from "@/components/ui/card";
@@ -11,10 +15,15 @@ import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { ArrowLeftIcon, UtensilsIcon, ReceiptIcon } from "@/components/ui/icons";
+import {
+  ArrowLeftIcon,
+  UtensilsIcon,
+  ReceiptIcon,
+} from "@/components/ui/icons";
 import Link from "next/link";
 import { useAsyncData } from "@/lib/use-async-data";
 import { RecentRatings } from "@/components/recent-ratings";
+import { RestaurantSettlement } from "@/components/restaurant-settlement";
 import { TableBoundary } from "@/components/ui/table-boundary";
 import type { Column } from "@/components/ui/data-table";
 import type { Order, MenuItem } from "@/lib/types";
@@ -24,7 +33,9 @@ const orderColumns: Column<Order>[] = [
   {
     key: "reference",
     header: "Reference",
-    cell: (row) => <span className="font-medium text-card-foreground">{row.reference}</span>,
+    cell: (row) => (
+      <span className="font-medium text-card-foreground">{row.reference}</span>
+    ),
   },
   {
     key: "customer",
@@ -40,7 +51,11 @@ const orderColumns: Column<Order>[] = [
     key: "total",
     header: "Total",
     align: "right",
-    cell: (row) => <span className="font-medium text-card-foreground">{formatCurrency(row.total)}</span>,
+    cell: (row) => (
+      <span className="font-medium text-card-foreground">
+        {formatCurrency(row.total)}
+      </span>
+    ),
   },
   {
     key: "status",
@@ -52,7 +67,9 @@ const orderColumns: Column<Order>[] = [
     header: "Rider",
     cell: (row) =>
       row.rider === "Unassigned" ? (
-        <Badge variant="warning" size="sm">Unassigned</Badge>
+        <Badge variant="warning" size="sm">
+          Unassigned
+        </Badge>
       ) : (
         <span className="text-card-foreground">{row.rider}</span>
       ),
@@ -61,13 +78,19 @@ const orderColumns: Column<Order>[] = [
     key: "payment",
     header: "Payment",
     cell: (row) => (
-      <Badge variant="secondary" size="sm">{row.payment.replace(/_/g, " ")}</Badge>
+      <Badge variant="secondary" size="sm">
+        {row.payment.replace(/_/g, " ")}
+      </Badge>
     ),
   },
   {
     key: "placedAt",
     header: "Placed",
-    cell: (row) => <span className="whitespace-nowrap text-muted-foreground">{row.placedAt}</span>,
+    cell: (row) => (
+      <span className="whitespace-nowrap text-muted-foreground">
+        {row.placedAt}
+      </span>
+    ),
   },
 ];
 
@@ -75,27 +98,41 @@ const menuColumns: Column<MenuItem>[] = [
   {
     key: "name",
     header: "Item",
-    cell: (row) => <span className="font-medium text-card-foreground">{row.name}</span>,
+    cell: (row) => (
+      <span className="font-medium text-card-foreground">{row.name}</span>
+    ),
   },
   {
     key: "category",
     header: "Category",
-    cell: (row) => <Badge variant="secondary" size="sm">{row.category}</Badge>,
+    cell: (row) => (
+      <Badge variant="secondary" size="sm">
+        {row.category}
+      </Badge>
+    ),
   },
   {
     key: "price",
     header: "Price",
     align: "right",
-    cell: (row) => <span className="font-medium text-card-foreground">{formatCurrency(row.price)}</span>,
+    cell: (row) => (
+      <span className="font-medium text-card-foreground">
+        {formatCurrency(row.price)}
+      </span>
+    ),
   },
   {
     key: "available",
     header: "Status",
     cell: (row) =>
       row.available ? (
-        <Badge variant="success" size="sm">Available</Badge>
+        <Badge variant="success" size="sm">
+          Available
+        </Badge>
       ) : (
-        <Badge variant="destructive" size="sm">Sold out</Badge>
+        <Badge variant="destructive" size="sm">
+          Sold out
+        </Badge>
       ),
   },
 ];
@@ -105,15 +142,25 @@ export default function RestaurantDetailPage() {
   const restaurantId = params.id as string;
   const [activeTab, setActiveTab] = useState("/dashboard/menu");
 
-  const { data: restaurants, loading: restaurantsLoading, error: restaurantsError } = useAsyncData(() =>
-    fetchRestaurants(),
-  );
-  const { data: orders, loading: ordersLoading, error: ordersError } = useAsyncData(() =>
+  const {
+    data: restaurants,
+    loading: restaurantsLoading,
+    error: restaurantsError,
+  } = useAsyncData(() => fetchRestaurants());
+  const {
+    data: orders,
+    loading: ordersLoading,
+    error: ordersError,
+  } = useAsyncData(() =>
     fetchOrdersByRestaurant(
       restaurants?.find((r) => r.id === restaurantId)?.name ?? "",
     ),
   );
-  const { data: menuItems, loading: menuLoading, error: menuError } = useAsyncData(() =>
+  const {
+    data: menuItems,
+    loading: menuLoading,
+    error: menuError,
+  } = useAsyncData(() =>
     fetchMenuItemsByRestaurant(
       restaurants?.find((r) => r.id === restaurantId)?.name ?? "",
     ),
@@ -147,7 +194,10 @@ export default function RestaurantDetailPage() {
   if (!restaurant) {
     return (
       <PageContainer>
-        <PageHeader title="Restaurant not found" description="The requested restaurant does not exist." />
+        <PageHeader
+          title="Restaurant not found"
+          description="The requested restaurant does not exist."
+        />
       </PageContainer>
     );
   }
@@ -171,24 +221,40 @@ export default function RestaurantDetailPage() {
       />
 
       <Section aria-label="Restaurant details">
+        <RestaurantSettlement
+          restaurantId={restaurantId}
+          name={restaurant.name}
+        />
         <Card className="mb-6">
           <div className="flex flex-col sm:flex-row sm:items-center gap-4 p-5">
             <Avatar name={restaurant.name} size="lg" />
             <div className="space-y-1">
-              <p className="text-lg font-semibold text-card-foreground">{restaurant.name}</p>
-              <p className="text-muted-foreground">{restaurant.cuisine} · {restaurant.city}</p>
+              <p className="text-lg font-semibold text-card-foreground">
+                {restaurant.name}
+              </p>
+              <p className="text-muted-foreground">
+                {restaurant.cuisine} · {restaurant.city}
+              </p>
               <p className="text-sm text-muted-foreground">
-                Rating: {restaurant.rating} ★ · {restaurant.ordersCount} orders · {formatCurrency(restaurant.revenue)} revenue
+                Rating: {restaurant.rating} ★ · {restaurant.ordersCount} orders
+                · {formatCurrency(restaurant.revenue)} revenue
               </p>
               <p className="text-xs text-muted-foreground">
                 Status: {restaurant.status} · Joined {restaurant.joinedAt}
               </p>
             </div>
             <div className="flex flex-wrap gap-2 ml-auto">
-              <Badge variant={restaurant.status === "active" ? "success" : "secondary"} size="sm">
+              <Badge
+                variant={
+                  restaurant.status === "active" ? "success" : "secondary"
+                }
+                size="sm"
+              >
                 {restaurant.status}
               </Badge>
-              <Badge variant="secondary" size="sm">{availableCount}/{totalMenuItems} items available</Badge>
+              <Badge variant="secondary" size="sm">
+                {availableCount}/{totalMenuItems} items available
+              </Badge>
             </div>
           </div>
         </Card>
@@ -196,7 +262,11 @@ export default function RestaurantDetailPage() {
 
       <RecentRatings restaurantId={restaurant.id} />
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+      <Tabs
+        value={activeTab}
+        onValueChange={setActiveTab}
+        className="space-y-4"
+      >
         <TabsList aria-label="Restaurant details">
           <TabsTrigger value="/dashboard/menu">
             <UtensilsIcon className="h-4 w-4" />
@@ -229,7 +299,11 @@ export default function RestaurantDetailPage() {
                   exportColumns={[
                     { key: "name", header: "Item" },
                     { key: "category", header: "Category" },
-                    { key: "price", header: "Price", format: (row) => formatCurrency(row.price) },
+                    {
+                      key: "price",
+                      header: "Price",
+                      format: (row) => formatCurrency(row.price),
+                    },
                     { key: "available", header: "Status" },
                   ]}
                 />
@@ -256,14 +330,24 @@ export default function RestaurantDetailPage() {
                 <PaginatedDataTable<Order>
                   columns={orderColumns}
                   rows={orders}
-                  searchFields={["reference", "customer", "status", "rider", "payment"]}
+                  searchFields={[
+                    "reference",
+                    "customer",
+                    "status",
+                    "rider",
+                    "payment",
+                  ]}
                   emptyTitle="No orders found"
                   emptyDescription="This restaurant has not received any orders yet."
                   exportName={`restaurant-${restaurant.name}-orders`}
                   exportColumns={[
                     { key: "reference", header: "Reference" },
                     { key: "customer", header: "Customer" },
-                    { key: "total", header: "Total", format: (row) => formatCurrency(row.total) },
+                    {
+                      key: "total",
+                      header: "Total",
+                      format: (row) => formatCurrency(row.total),
+                    },
                     { key: "status", header: "Status" },
                     { key: "rider", header: "Rider" },
                     { key: "payment", header: "Payment" },
