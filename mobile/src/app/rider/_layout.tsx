@@ -6,7 +6,7 @@ import { FloatingTabBar, type FloatingTab } from "../../components/FloatingTabBa
 import { TabBarInsetProvider } from "../../components/TabBarInset";
 import { TAB_ICONS } from "../../components/tab-icons";
 import { colors } from "../../lib/theme";
-import { ensureNotificationChannels } from "../../lib/push";
+import { autoEnablePushOnce, ensureNotificationChannels } from "../../lib/push";
 import { useRiderOffers } from "../../lib/hooks";
 import { countClaimableOffers } from "../../lib/offer-claimable";
 import { resolveTabIndex } from "../../lib/tab-bar";
@@ -27,8 +27,11 @@ export default function RiderLayout() {
   // The dispatch offer channel has to exist before an offer can arrive, and a
   // rider who registered before it shipped still has no such channel. Created on
   // mount rather than on the push toggle, which they may never revisit.
+  // Offers last five minutes and a rider is told about them by push, so the
+  // rider is asked once, on first open, like a merchant -- not left to find
+  // the switch in Profile. Nobody had, so no rider phone was ever registered.
   useEffect(() => {
-    void ensureNotificationChannels();
+    void ensureNotificationChannels().then(autoEnablePushOnce);
   }, []);
   // The customer sees the rider on the way (0135). The server keeps a position
   // only while the rider has a job, so this is harmless between jobs.
