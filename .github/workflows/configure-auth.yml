@@ -144,6 +144,12 @@ jobs:
           ).json();
 
           const body = {
+            // Where every email link lands: the recovery link, the confirmation
+            // link, the invite link. This was found pointing at localhost, so a
+            // reset link opened nothing. The workflow now owns the field: every
+            // run sets it, and the apply step refuses to finish if the project
+            // does not come back with exactly this value.
+            site_url: "https://kfd-one.vercel.app",
             // The code the app types, and how long it lives.
             mailer_otp_length: 6,
             mailer_otp_exp: 3600,
@@ -225,6 +231,8 @@ jobs:
           console.log("");
           console.log("The project currently reports:");
           const now = {
+            site_url: current.site_url,
+            redirect_urls: current.redirect_urls,
             mailer_otp_length: current.mailer_otp_length,
             mailer_otp_exp: current.mailer_otp_exp,
             rate_limit_email_sent: current.rate_limit_email_sent,
@@ -266,6 +274,8 @@ jobs:
               process.stdin.on("data", (d) => (s += d)).on("end", () => {
                 const c = JSON.parse(s);
                 console.log(JSON.stringify({
+                  site_url: c.site_url,
+                  redirect_urls: c.redirect_urls,
                   mailer_otp_length: c.mailer_otp_length,
                   mailer_otp_exp: c.mailer_otp_exp,
                   rate_limit_email_sent: c.rate_limit_email_sent,
@@ -279,6 +289,13 @@ jobs:
                   recovery_template_has_token:
                     (c.mailer_templates_recovery_content || "").includes("{{ .Token }}"),
                 }, null, 2));
+                // The field this workflow exists to pin. A link that opens
+                // localhost is a reset that cannot be used, so a wrong value
+                // here fails the run rather than shipping quietly.
+                if (c.site_url !== "https://kfd-one.vercel.app") {
+                  console.error(`::error::site_url is ${JSON.stringify(c.site_url)}, expected "https://kfd-one.vercel.app"`);
+                  process.exit(1);
+                }
               });
             '
 
@@ -425,6 +442,8 @@ jobs:
                 const c = JSON.parse(s);
                 console.log("The project currently reports:");
                 console.log(JSON.stringify({
+                  site_url: c.site_url,
+                  redirect_urls: c.redirect_urls,
                   mailer_otp_length: c.mailer_otp_length,
                   mailer_otp_exp: c.mailer_otp_exp,
                   rate_limit_email_sent: c.rate_limit_email_sent,
