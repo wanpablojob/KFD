@@ -136,16 +136,32 @@ back as form fields. If the policy changes, these change with it.
 | What the app holds | Apple privacy label | Google data safety |
 |--------------------|---------------------|--------------------|
 | Name, email, phone | Contact Info: Name, Email Address, Phone Number | Personal info: Name, Email address, Phone number |
-| User id, push token | Identifiers: User ID, Device ID | App activity / device identifiers |
-| Order items, total, address, ratings | User Content: Customer Support, Other User Content; Purchases: Purchase History | App activity, App interactions, Other user-generated content |
-| Delivery photo, cash collected, GCash reference | User Content: Photos or Videos; Purchases: Purchase History | Photos and videos, Other financial info |
-| Crash reports (id, email, role, device) | Usage Data: Crash Data | Diagnostics: Crash logs |
-| Location | **Not collected.** There is no location permission in the app | Not collected |
-| Tracking | **No.** No advertising ID, no tracking across apps | No, the app does not share data with third parties for tracking |
+| Delivery address, barangay | Contact Info: Physical Address | Personal info: Address |
+| User id, push token | Identifiers: User ID, Device ID | App activity / Device or other IDs |
+| Order items, total, ratings | Purchases: Purchase History; User Content: Other User Content | App activity: Purchase history, App interactions; Other user-generated content |
+| Pabakal lists, notes and the chat messages that fill them | User Content: Other User Content | Other user-generated content |
+| Photos: delivery proof, Pabakal receipt, menu and shop photos, rider GCash QR | User Content: Photos or Videos | Photos and videos: Photos |
+| Cash collected, GCash reference, payouts, shop payments | Financial Info: Other Financial Info | Financial info: Other financial info |
+| **Rider location** (only while on a job, app open, latest position only) | **Location: Precise Location**, linked to the user, App Functionality | **Location: Precise location**, collected, not shared, optional (the rider can deny it), App functionality |
+| Crash reports (id, email, role, device), **only if `EXPO_PUBLIC_SENTRY_DSN` is set** | Usage Data / Diagnostics: Crash Data | App info and performance: Crash logs, Diagnostics |
+| Tracking | **No.** No advertising ID, no tracking across apps | No data shared for advertising or tracking |
 
-Processors to name on both forms: Supabase (database and sign-in), Vercel
-(website host), Expo (push notifications), Sentry (crash reports), Resend
-(order email).
+Rider location: the app asks for "while using the app" only; there is no
+background location (no `FOREGROUND_SERVICE_LOCATION`). The customer sees
+their own rider's position while the order is on its way.
+
+AI (Pabakal reading, Home "Picked for you"): the message text, or a summary of
+past orders without name, phone or address, is sent to Google Gemini.
+- **Billing on for the Gemini key:** Google is a service provider. Declare
+  nothing extra beyond the rows above.
+- **Free tier:** Google may use that data to improve its products, which is
+  "sharing" on Google's form: mark Other user-generated content and Purchase
+  history as **shared** with a third party. Turning billing on avoids this.
+
+Processors to name on both forms: Supabase (database, sign-in, storage),
+Vercel (website host), Expo (push notifications and app updates), Google
+(Firebase Cloud Messaging for push; Gemini for the AI features), Sentry (crash
+reports, if on), Resend (email).
 
 Also answered on both forms: data is encrypted in transit (HTTPS), and a
 user can request deletion — in the app, or through the support contact.
