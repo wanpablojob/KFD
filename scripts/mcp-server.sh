@@ -4,6 +4,8 @@
 #
 #   scripts/mcp-server.sh playwright
 #   scripts/mcp-server.sh context7
+#   scripts/mcp-server.sh firebase
+#   scripts/mcp-server.sh resend
 #
 # Why this exists: both servers were configured as `npx -y <package>@latest`.
 # That makes every session start pay for an npm resolution, a download and a
@@ -60,8 +62,31 @@ case "$server" in
     fi
     exec npx -y firebase-tools@15.34.1 mcp "$@"
     ;;
+  resend)
+    # The API key stays out of the repository. It lives in a machine-local
+    # file, so a shared checkout never carries a live key. `npx -y resend-mcp`
+    # was the original config and it timed out: a cold install on every
+    # session start cost minutes, which the handshake does not wait for.
+    # OpenCode spawns this script with an empty HOME, so `~` is expanded from
+    # the passwd entry instead of $HOME -- otherwise the key file is invisible
+    # and the server starts without credentials.
+    home="${HOME:-}"
+    if [ -z "$home" ]; then
+      home=$(cd ~ 2>/dev/null && pwd) || home=""
+    fi
+    if [ -n "$home" ] && [ -f "$home/.config/opencode/resend.env" ]; then
+      set -a
+      # shellcheck disable=SC1091
+      . "$home/.config/opencode/resend.env"
+      set +a
+    fi
+    if [ -x "$BIN/resend-mcp" ]; then
+      exec "$BIN/resend-mcp" "$@"
+    fi
+    exec npx -y resend-mcp@2.27.1 "$@"
+    ;;
   *)
-    echo "usage: $0 {playwright|context7|firebase}" >&2
+    echo "usage: $0 {playwright|context7|firebase|resend}" >&2
     exit 2
     ;;
 esac

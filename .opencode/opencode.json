@@ -25,36 +25,46 @@
     "directory": "~/KFD-worktrees"
   },
   "mcp": {
-    "graphify": {
-      "type": "local",
-      "command": [
-        "/Users/alexagracegeogangco/.local/bin/graphify-mcp",
-        "/Users/alexagracegeogangco/KFD/graphify-out/graph.json"
-      ],
-      "enabled": true
+    "timeout": {
+      "startup": 60000,
+      "catalog": 60000
     },
-    "playwright": {
-      "type": "local",
-      "command": ["bash", "scripts/mcp-server.sh", "playwright"],
-      "enabled": true
-    },
-    "context7": {
-      "type": "local",
-      "command": ["bash", "scripts/mcp-server.sh", "context7"],
-      "enabled": true
-    },
-    "firebase": {
-      "type": "local",
-      "command": ["bash", "scripts/mcp-server.sh", "firebase"],
-      "enabled": true
-    },
-    "supabase": {
-      "type": "remote",
-      "url": "https://mcp.supabase.com/mcp?project_ref=ijeqwbrrgfsmymsektih&read_only=true&features=database,docs,debugging"
-    },
-    "vercel": {
-      "type": "remote",
-      "url": "https://mcp.vercel.com"
+    "servers": {
+      "graphify": {
+        "type": "local",
+        "command": [
+          "/Users/alexagracegeogangco/.local/bin/graphify-mcp",
+          "/Users/alexagracegeogangco/KFD/graphify-out/graph.json"
+        ]
+      },
+      "playwright": {
+        "type": "local",
+        "command": ["bash", "scripts/mcp-server.sh", "playwright"]
+      },
+      "context7": {
+        "type": "local",
+        "command": ["bash", "scripts/mcp-server.sh", "context7"]
+      },
+      "firebase": {
+        "type": "local",
+        "command": ["bash", "scripts/mcp-server.sh", "firebase"],
+        "timeout": {
+          "startup": 120000,
+          "catalog": 120000
+        }
+      },
+      "supabase": {
+        "type": "remote",
+        "url": "https://mcp.supabase.com/mcp?project_ref=ijeqwbrrgfsmymsektih&read_only=true&features=database,docs,debugging"
+      },
+      "vercel": {
+        "type": "remote",
+        "url": "https://mcp.vercel.com"
+      },
+      "resend": {
+        "type": "local",
+        "command": ["bash", "scripts/mcp-server.sh", "resend"]
+      }
     }
   }
 }
