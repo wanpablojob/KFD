@@ -17,6 +17,7 @@ import { useScrollBottomPadding } from "../../components/TabBarInset";
 import {
   useActiveRestaurants,
   useRestaurants,
+  useMenuSearch,
   RestaurantRow,
   useFavorites,
 } from "../../lib/hooks";
@@ -26,6 +27,7 @@ import {
   type StorefrontEmptyKind,
 } from "../../lib/storefront-empty";
 import { TRAVEL_MINUTES } from "../../lib/delivery-estimate";
+import type { MenuItemSearchRow } from "../../lib/storefront";
 import { colors, radius, shadow, spacing, type } from "../../lib/theme";
 import { NotificationBell } from "../../components/NotificationBell";
 import { CartButton } from "../../components/CartButton";
@@ -52,6 +54,11 @@ export default function CustomerShopsScreen() {
   // selected, so a cuisine could never be un-chosen from the row.
   const { data: catalogue } = useActiveRestaurants();
 
+  // Dishes matching the same term. Restaurant search cannot see a menu item, so
+  // without this "baboy" -- a real dish at Habhab -- reported no match at all.
+  const { data: dishes } = useMenuSearch(debouncedQuery, cuisine);
+  const dishRows = debouncedQuery.trim() ? (dishes ?? []) : [];
+
   const cuisines = useMemo(() => {
     const set = new Set((catalogue ?? []).map((r) => r.cuisine).filter(Boolean));
     return [...set].sort();
@@ -75,6 +82,7 @@ export default function CustomerShopsScreen() {
     catalogueCount: (catalogue ?? []).length,
     resultCount: visible.length,
     filtersActive,
+    dishCount: dishRows.length,
   });
 
   function clearFilters() {
@@ -111,11 +119,11 @@ export default function CustomerShopsScreen() {
                 style={styles.searchInput}
                 value={query}
                 onChangeText={setQuery}
-                placeholder="Search restaurants or cuisine"
+                placeholder="Search dishes, restaurants or cuisine"
                 placeholderTextColor={colors.textFaint}
                 autoCorrect={false}
                 returnKeyType="search"
-                accessibilityLabel="Search restaurants"
+                accessibilityLabel="Search dishes, restaurants or cuisine"
               />
               {query ? (
                 <Pressable
@@ -148,6 +156,15 @@ export default function CustomerShopsScreen() {
                   );
                 }}
               />
+            ) : null}
+
+            {dishRows.length > 0 ? (
+              <View style={styles.dishes}>
+                <Text style={styles.dishesTitle}>Dishes</Text>
+                {dishRows.map((dish) => (
+                  <DishRow key={dish.id} row={dish} />
+                ))}
+              </View>
             ) : null}
 
             <View style={styles.promo}>
@@ -228,6 +245,45 @@ function StorefrontEmpty({
     <View style={styles.empty}>
       <Text style={styles.emptyTitle}>No places are open for orders right now.</Text>
     </View>
+  );
+}
+
+/**
+ * A dish that matched the search (0142). It opens the shop rather than adding
+ * to the cart: the menu screen is where the price, options and Add button live,
+ * and a one-tap add from a search row would skip the place a customer confirms
+ * what they are buying.
+ *
+ * A closed kitchen still shows its dish -- the customer can browse -- but says
+ * so, the same way the shop card does.
+ */
+function DishRow({ row }: { row: MenuItemSearchRow }) {
+  const router = useRouter();
+  return (
+    <Pressable
+      style={({ pressed }) => [styles.dish, pressed && styles.cardPressed]}
+      accessibilityRole="button"
+      accessibilityLabel={`${row.name} at ${row.restaurant}, ₱${Number(row.price).toFixed(2)}`}
+      accessibilityHint={row.is_open ? undefined : "Closed right now"}
+      onPress={() =>
+        router.push({
+          pathname: "/customer/restaurant",
+          params: { id: row.restaurant_id },
+        })
+      }
+    >
+      <View style={styles.dishBody}>
+        <Text style={styles.dishName} numberOfLines={1}>
+          {row.name}
+        </Text>
+        <Text style={type.caption} numberOfLines={1}>
+          {row.restaurant}
+          {row.is_open ? "" : " · Closed"}
+        </Text>
+      </View>
+      <Text style={type.price}>₱{Number(row.price).toFixed(2)}</Text>
+      <Ionicons name="chevron-forward" size={18} color={colors.textFaint} />
+    </Pressable>
   );
 }
 
@@ -332,6 +388,27 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   chips: { gap: spacing.sm, paddingVertical: spacing.xs },
+  dishes: {
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    paddingVertical: spacing.xs,
+    gap: 2,
+  },
+  dishesTitle: {
+    ...type.eyebrow,
+    color: colors.textFaint,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
+  },
+  dish: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+  },
+  dishBody: { flex: 1, gap: 1 },
+  dishName: { ...type.body, fontWeight: "600", color: colors.text },
   chip: {
     backgroundColor: colors.card,
     borderRadius: radius.pill,

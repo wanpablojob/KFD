@@ -3,6 +3,7 @@ import {
   fetchActiveRestaurants,
   fetchOrderFees,
   searchRestaurants,
+  searchMenuItems,
   fetchMenu,
   fetchMyDeliveries,
   fetchMyOrders,
@@ -51,6 +52,8 @@ export const queryKeys = {
   restaurants: (query: string, cuisine: string | null) =>
     ["restaurants", query, cuisine] as const,
   menu: (restaurantId: string) => ["menu", restaurantId] as const,
+  menuSearch: (query: string, cuisine: string | null) =>
+    ["menu-search", query, cuisine] as const,
   orders: () => ["orders"] as const,
   orderFees: () => ["order-fees"] as const,
 };
@@ -86,6 +89,25 @@ export function useActiveRestaurants() {
     queryKey: ["restaurants", "catalogue"],
     queryFn: fetchActiveRestaurants,
     staleTime: 5 * 60 * 1000,
+  });
+}
+
+/**
+ * Dishes matching the typed query, listed above the shops (0142).
+ *
+ * Disabled on an empty query instead of fetching and discarding: the RPC
+ * returns nothing for a blank term by design, and the shop list already owns
+ * the unfiltered view. `placeholderData` keeps the previous matches on screen
+ * while the next keystroke's request is in flight, so the section does not
+ * blink between words.
+ */
+export function useMenuSearch(query: string, cuisine: string | null = null) {
+  const q = query.trim();
+  return useQuery({
+    queryKey: queryKeys.menuSearch(q, cuisine),
+    queryFn: () => searchMenuItems(q, cuisine),
+    enabled: q.length > 0,
+    placeholderData: (prev) => prev,
   });
 }
 

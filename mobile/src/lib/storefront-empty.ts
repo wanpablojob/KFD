@@ -24,6 +24,12 @@ export interface StorefrontEmptyArgs {
   resultCount: number;
   /** True when a search term or cuisine chip is narrowing the list. */
   filtersActive: boolean;
+  /**
+   * Dishes the same query matched (0142). A search that finds no shop can still
+   * have found the dish the customer typed, and then "No match for that search"
+   * would be a lie printed under the dish it did match.
+   */
+  dishCount?: number;
 }
 
 export function storefrontEmptyState(
@@ -34,6 +40,9 @@ export function storefrontEmptyState(
 
   // A non-empty result is a result: nothing to say.
   if (args.resultCount > 0) return null;
+
+  // Same for dishes. They are rendered in the header, above this component.
+  if ((args.dishCount ?? 0) > 0) return null;
 
   // No restaurants in the unfiltered catalogue is the only honest "none open".
   if (args.catalogueCount === 0) return "no_places";

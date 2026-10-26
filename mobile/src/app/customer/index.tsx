@@ -115,10 +115,10 @@ export default function CustomerHomeScreen() {
           style={[styles.search, shadow.card]}
           onPress={() => router.navigate("/customer/shops")}
           accessibilityRole="search"
-          accessibilityLabel="Search restaurants"
+          accessibilityLabel="Search dishes, restaurants or cuisine"
         >
           <Ionicons name="search" size={18} color={colors.secondary} />
-          <Text style={styles.searchText}>Search restaurants or cuisine</Text>
+          <Text style={styles.searchText}>Search dishes, restaurants or cuisine</Text>
         </Pressable>
 
         {sections.activeOrder ? (

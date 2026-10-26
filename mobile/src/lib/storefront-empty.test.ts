@@ -47,4 +47,19 @@ describe("storefrontEmptyState", () => {
       "no_places"
     );
   });
+
+  it("stays quiet when the query only matched dishes", () => {
+    // "baboy" is a menu item at Habhab, not a shop name or a cuisine: the shop
+    // list is empty, the dish list is not, and the screen must not claim there
+    // was no match while the match sits above it.
+    expect(
+      state({ catalogueCount: 5, resultCount: 0, filtersActive: true, dishCount: 2 })
+    ).toBeNull();
+  });
+
+  it("still reports a miss when neither shops nor dishes matched", () => {
+    expect(
+      state({ catalogueCount: 5, resultCount: 0, filtersActive: true, dishCount: 0 })
+    ).toBe("no_match");
+  });
 });

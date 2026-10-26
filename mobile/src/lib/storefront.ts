@@ -81,6 +81,38 @@ export async function searchRestaurants(
   return (data ?? []) as RestaurantRow[];
 }
 
+/** A dish that matched a search, carrying the shop that sells it (0142). */
+export interface MenuItemSearchRow {
+  id: string;
+  name: string;
+  category: string;
+  price: number;
+  image_url: string;
+  restaurant_id: string;
+  restaurant: string;
+  is_open: boolean;
+}
+
+/**
+ * Server-side dish search (0142).
+ *
+ * Restaurant search alone cannot find a dish: "baboy" is a menu item at Habhab
+ * and neither a shop name nor a cuisine, so before this the screen said there
+ * was no match while the dish sat one tap away. An empty query returns nothing
+ * on purpose -- the shop list already covers that case.
+ */
+export async function searchMenuItems(
+  query: string,
+  cuisine: string | null
+): Promise<MenuItemSearchRow[]> {
+  const { data, error } = await supabase.rpc("search_menu_items", {
+    p_query: query,
+    p_cuisine: cuisine ?? undefined,
+  });
+  if (error) throw error;
+  return (data ?? []) as MenuItemSearchRow[];
+}
+
 /** Menu for one restaurant: available items only (RLS enforces). */
 export async function fetchMenu(restaurantId: string): Promise<MenuItemRow[]> {
   const { data, error } = await supabase
