@@ -54,18 +54,18 @@ export const OFFERS_CHANNEL_ID = "offers";
 export async function ensureNotificationChannels(): Promise<void> {
   if (Platform.OS !== "android") return;
   try {
-    // Status alerts get the same treatment as offers. A rider or customer who
-    // cannot see "out for delivery" on a locked phone is a silent failure, and
-    // HIGH importance alone is not enough: sound and lock-screen visibility are
-    // separate channel settings, and the platform default for both is not what
-    // this app wants. (Android freezes these after first creation, so this only
-    // takes effect on a fresh install -- see the note on the offers channel.)
+    // Deliberately HIGH only. A HIGH channel already gets the default sound,
+    // vibration and a lock-screen alert from the platform, and Android freezes
+    // a channel's remaining settings after first creation -- so naming sound or
+    // visibility here would change fresh installs only and leave every existing
+    // phone on the old behaviour. Changing it for everyone needs a new channel
+    // id, and a message addressed to a channel the installed app has not
+    // created yet is dropped silently: a worse failure than masked lock-screen
+    // text. The offers channel is the one that has to be explicit, and it has
+    // carried these settings since it was introduced.
     await Notifications.setNotificationChannelAsync(ORDERS_CHANNEL_ID, {
       name: "Order alerts",
       importance: Notifications.AndroidImportance.HIGH,
-      sound: "default",
-      enableVibrate: true,
-      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
     });
     // Offers live 5 minutes and are worth real money, so this channel is HIGH
     // with sound and vibration. MAX would head-up every offer; that is too
