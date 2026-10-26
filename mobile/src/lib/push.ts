@@ -54,9 +54,18 @@ export const OFFERS_CHANNEL_ID = "offers";
 export async function ensureNotificationChannels(): Promise<void> {
   if (Platform.OS !== "android") return;
   try {
+    // Status alerts get the same treatment as offers. A rider or customer who
+    // cannot see "out for delivery" on a locked phone is a silent failure, and
+    // HIGH importance alone is not enough: sound and lock-screen visibility are
+    // separate channel settings, and the platform default for both is not what
+    // this app wants. (Android freezes these after first creation, so this only
+    // takes effect on a fresh install -- see the note on the offers channel.)
     await Notifications.setNotificationChannelAsync(ORDERS_CHANNEL_ID, {
       name: "Order alerts",
       importance: Notifications.AndroidImportance.HIGH,
+      sound: "default",
+      enableVibrate: true,
+      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
     });
     // Offers live 5 minutes and are worth real money, so this channel is HIGH
     // with sound and vibration. MAX would head-up every offer; that is too
@@ -115,6 +124,18 @@ export interface PushStatus {
   granted: boolean;
   /** true when this install successfully registered a device id. */
   registered: boolean;
+  /**
+   * Android only: the "Delivery offers" channel is switched off in system
+   * settings. Permission can be granted while this is true, and offers then
+   * arrive silently -- the one failure a rider cannot see from the app.
+   */
+  alertsMuted?: boolean;
+  /**
+   * Raw permission state, so callers can tell "not asked yet" from "denied".
+   * `granted` collapses both to false, which is right for a toggle but wrong
+   * for a warning that should not flash before the first prompt.
+   */
+  permission?: "granted" | "denied" | "undetermined";
   /** Set when something genuinely failed and the user needs to act. */
   error?: string;
 }
@@ -183,7 +204,37 @@ export async function getPushStatus(): Promise<PushStatus> {
   const { status } = await Notifications.getPermissionsAsync();
   const granted = status === "granted";
   const registered = (await SecureStore.getItemAsync(REGISTERED_KEY)) === "1";
-  return { granted, registered };
+
+  // A granted permission is not the whole story on Android: the user can also
+  // mute the offers channel itself, which silences new jobs while the app-level
+  // permission still reads as granted. Nothing in the app could see that state
+  // before, so a rider whose channel was muted looked exactly like a rider who
+  // simply had no deliveries.
+  let alertsMuted = false;
+  if (Platform.OS === "android") {
+    try {
+      const channel =
+        await Notifications.getNotificationChannelAsync(OFFERS_CHANNEL_ID);
+      // Null means the channel does not exist yet (created on launch), which is
+      // not muted -- it is just not there to read.
+      alertsMuted = channel?.importance === Notifications.AndroidImportance.NONE;
+    } catch {
+      // Channel state is a hint. An unreadable channel must not break the
+      // screen that asks for push status.
+    }
+  }
+
+  return {
+    granted,
+    registered,
+    alertsMuted,
+    permission:
+      status === "granted"
+        ? "granted"
+        : status === "denied"
+          ? "denied"
+          : "undetermined",
+  };
 }
 
 /**

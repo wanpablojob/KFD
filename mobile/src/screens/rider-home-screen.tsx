@@ -15,13 +15,13 @@ import {
   View,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { GcashQrModal } from "../components/GcashQrModal";
 import { useScrollBottomPadding } from "../components/TabBarInset";
 import { supabase } from "../lib/supabase";
 import { signOut } from "../lib/auth";
-import { notifyRiderDelivered } from "../lib/push";
+import { getPushStatus, notifyRiderDelivered, type PushStatus } from "../lib/push";
 import { mergeOrderPages, shouldSyncPage1 } from "../lib/delivery-sync";
 import { riderProfileGate } from "../lib/rider-profile-gate";
 import { deviceMapsUrl, openInMaps } from "../lib/maps";
@@ -109,6 +109,19 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
   const queryClient = useQueryClient();
   const offline =
     connectivity.isConnected === false || connectivity.isInternetReachable === false;
+
+  // Whether this phone can actually receive a new-delivery alert. Read on focus,
+  // not only on mount: the rider fixes it in system settings or on the profile
+  // tab and comes straight back, and the banner has to disappear when they do.
+  const [push, setPush] = useState<PushStatus | null>(null);
+  const refreshPushStatus = useCallback(() => {
+    void getPushStatus()
+      .then(setPush)
+      .catch(() => {
+        // Advisory only; a failed read must not break the delivery list.
+      });
+  }, []);
+  useFocusEffect(refreshPushStatus);
 
   // Page 1: initial load
   const {
@@ -459,6 +472,26 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
                   connection.
                 </Text>
               </View>
+            ) : null}
+            {/* A rider is paid per job, so an alert that cannot arrive is lost
+                money. Both causes live outside the app -- the OS permission and
+                the Android channel -- and neither is visible from the delivery
+                list, which is why this banner exists here rather than only on
+                the profile tab the rider has no reason to open. */}
+            {push && (push.permission === "denied" || push.alertsMuted) ? (
+              <Pressable
+                onPress={() => router.navigate("/rider/profile")}
+                style={styles.pushBanner}
+                accessibilityRole="button"
+                accessibilityLabel="Alerts are off. Open your profile to turn them on."
+              >
+                <Text style={styles.pushBannerTitle}>Alerts are off</Text>
+                <Text style={styles.pushBannerText}>
+                  {push.alertsMuted
+                    ? "The Delivery offers channel is switched off in Android settings, so new jobs will not ring. Turn it back on to keep receiving offers."
+                    : "Notifications are blocked, so new delivery offers will not reach this phone. Turn them on in your profile."}
+                </Text>
+              </Pressable>
             ) : null}
             {/* Confirms what was just recorded. A flagged cash amount has to be
                 visibly acknowledged: the rider was told it would be saved and
@@ -899,6 +932,16 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   offlineText: { ...type.caption, color: colors.warning, fontWeight: "600" },
+  pushBanner: {
+    backgroundColor: colors.goldSoft,
+    borderWidth: 1,
+    borderColor: colors.warning,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  pushBannerTitle: { ...type.caption, color: colors.warning, fontWeight: "700" },
+  pushBannerText: { ...type.caption, color: colors.warning },
   flashBanner: {
     backgroundColor: colors.goldSoft,
     borderWidth: 1,
