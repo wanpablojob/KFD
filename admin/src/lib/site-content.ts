@@ -90,7 +90,7 @@ export const KITCHEN_PHOTO = "/images/food/inasal-plate.jpg";
  */
 export const APP_DOWNLOADS = {
   android:
-    "https://expo.dev/artifacts/eas/vcRqjEW-sMobvexpPRSae87jZvbtZN_ZJWKoqPOB7-Y.apk" as string | null,
+    "https://expo.dev/artifacts/eas/Jp212R7IQICm4v_ZB2GjU1FXbyawzntO3AuG_WKxzGU.apk" as string | null,
   iphone: null as string | null,
 } as const;
 
