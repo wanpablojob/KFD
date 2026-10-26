@@ -63,22 +63,29 @@ case "$server" in
     exec npx -y firebase-tools@15.34.1 mcp "$@"
     ;;
   resend)
-    # The API key stays out of the repository. It lives in a machine-local
-    # file, so a shared checkout never carries a live key. `npx -y resend-mcp`
+    # The key never lives in the repository. It is in the login Keychain,
+    # which `security` reads without a prompt for this item. `npx -y resend-mcp`
     # was the original config and it timed out: a cold install on every
     # session start cost minutes, which the handshake does not wait for.
-    # OpenCode spawns this script with an empty HOME, so `~` is expanded from
-    # the passwd entry instead of $HOME -- otherwise the key file is invisible
-    # and the server starts without credentials.
-    home="${HOME:-}"
-    if [ -z "$home" ]; then
-      home=$(cd ~ 2>/dev/null && pwd) || home=""
-    fi
-    if [ -n "$home" ] && [ -f "$home/.config/opencode/resend.env" ]; then
-      set -a
-      # shellcheck disable=SC1091
-      . "$home/.config/opencode/resend.env"
-      set +a
+    #
+    # Two fallbacks, in order: a machine-local file for checkouts on a machine
+    # where the Keychain item has not been created, and a pinned npx when the
+    # local package is missing. OpenCode spawns this script with an empty HOME,
+    # so `~` comes from the passwd entry, not $HOME.
+    key=$(/usr/bin/security find-generic-password -s kfd-resend-mcp -a "$(id -un)" -w 2>/dev/null || true)
+    if [ -n "$key" ]; then
+      export RESEND_API_KEY="$key"
+    else
+      home="${HOME:-}"
+      if [ -z "$home" ]; then
+        home=$(cd ~ 2>/dev/null && pwd) || home=""
+      fi
+      if [ -n "$home" ] && [ -f "$home/.config/opencode/resend.env" ]; then
+        set -a
+        # shellcheck disable=SC1091
+        . "$home/.config/opencode/resend.env"
+        set +a
+      fi
     fi
     if [ -x "$BIN/resend-mcp" ]; then
       exec "$BIN/resend-mcp" "$@"
