@@ -37,6 +37,16 @@ describe("parsePabakalMessage", () => {
     ["sardinas kag tatlo ka itlog tag-dalawa", "(no store): 2x sardinas, 3x itlog"],
     ["biogesic, ibu, 3 each sa mercury", "Mercury: 3x biogesic, 3x ibu"],
     ["bulb sa citi kag sabon tig duwa", "Citi: 1x bulb · (no store): 2x sabon"],
+    // Greetings first, the quantity after the item or after the store.
+    ["hello mapabakal ko tani biogesic sa earth duwa kabilog", "Earth: 2x biogesic"],
+    ["mayong gab e mapabakal ko tani biogesic duwa kabilog", "(no store): 2x biogesic"],
+    [
+      "maayong aga po, pabakal ko tani tatlo ka itlog kag neozep duha ka buok sa mercury",
+      "Mercury: 3x itlog, 2x neozep",
+    ],
+    ["hello po pwede pabakal biogesic 2", "(no store): 2x biogesic"],
+    ["biogesic sa mercury tig duwa", "Mercury: 2x biogesic"],
+    ["Biogesic 500 sa mercury", "Mercury: 1x Biogesic 500"],
     [
       "biogesic kag acetylcestein tag duwa kabilog",
       "(no store): 2x biogesic, 2x acetylcestein",
@@ -121,7 +131,8 @@ describe("cleanItemName", () => {
     expect(cleanItemName(raw)).toBe(clean);
   });
 
-  it("keeps the original words when cleaning would leave nothing", () => {
-    expect(cleanItemName("isa")).toBe("isa");
+  it("leaves nothing when there was never a product", () => {
+    expect(cleanItemName("hello po")).toBe("");
+    expect(cleanItemName("mayong gab e")).toBe("");
   });
 });

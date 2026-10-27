@@ -218,15 +218,12 @@ function parseItem(
   let original = text.trim().split(/\s+/).filter(Boolean);
   // Skip "tani", "palihog" and the like, so the quantity after them is read.
   let skip = 0;
-  while (skip < original.length - 1 && SOFT_WORDS.has(original[skip].toLowerCase())) {
+  while (skip < original.length - 1 && isChatter(original[skip])) {
     skip += 1;
   }
   original = original.slice(skip);
   // ...and "po", "lang", "tani" after it: "duwa ka sardinas po".
-  while (
-    original.length > 1 &&
-    SOFT_WORDS.has(original[original.length - 1].toLowerCase())
-  ) {
+  while (original.length > 1 && isChatter(original[original.length - 1])) {
     original = original.slice(0, -1);
   }
   const words = original.map((w) => w.toLowerCase());
@@ -241,20 +238,16 @@ function parseItem(
     qty = lead.qty;
     start = lead.used;
   } else {
-    // Quantity at the end: "biogesic x2", "neozep 3pcs", "neozep 3 pcs".
-    const last = words[end - 1];
-    if (
-      end >= 2 &&
-      (last === "pcs" || last === "pc") &&
-      digitsOf(words[end - 2]) !== undefined
-    ) {
-      qty = digitsOf(words[end - 2]) as number;
-      end -= 2;
-    } else if (end >= 2 && digitsOf(last) !== undefined) {
-      qty = digitsOf(last) as number;
-      end -= 1;
+    // Quantity after the item: "biogesic x2", "neozep 3 pcs", "biogesic duwa
+    // kabilog", "neozep duha ka buok". A number over 99 there is a size
+    // ("Biogesic 500"), so it stays in the name.
+    let tail = end;
+    while (tail > 2 && COUNT_TAIL.has(words[tail - 1])) tail -= 1;
+    const n = tail >= 2 ? numberWord(words[tail - 1]) : null;
+    if (n !== null) {
+      qty = n;
+      end = tail - 1;
     }
-    if (qty !== null && !(qty >= 1 && qty <= 99)) qty = NaN;
   }
 
   while (start < end && LINKERS.has(words[start])) start += 1;
@@ -298,6 +291,31 @@ const titleCase = (s: string) =>
   s.replace(/(^|\s)(\S)/g, (_, sp, c) => sp + c.toUpperCase());
 
 /** The message as form rows. A store applies to the items before it. */
+/** "pwede po", "pls": asking words that come before an order. */
+const ASKING = new Set(["pwede", "puede", "pwde", "pede", "pwd", "puwede"]);
+
+/**
+ * Greetings, thanks, small talk, polite and order words: never a product or
+ * a quantity. "mayong gab e mapabakal ko tani biogesic" starts with five.
+ */
+function isChatter(word: string): boolean {
+  const w = squeeze(
+    word.toLowerCase().replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "")
+  );
+  if (!w) return true;
+  return (
+    inSet(w, GREETING) ||
+    inSet(w, THANKS) ||
+    FILLER.has(w) ||
+    SOFT_WORDS.has(w) ||
+    OPENERS.has(w) ||
+    ASKING.has(w)
+  );
+}
+
+/** Counting words that may follow a quantity: "duwa kabilog", "duha ka buok". */
+const COUNT_TAIL = new Set(["kabilog", "bilog", "buok", "piraso", "pcs", "pc", "ka"]);
+
 /** The most words an item name keeps: the product, with a brand or size. */
 export const MAX_ITEM_WORDS = 3;
 
@@ -328,8 +346,7 @@ export function cleanItemName(name: string): string {
   const kept = words.filter((word, i) => {
     const w = word.toLowerCase().replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "");
     if (!w) return false;
-    if (SOFT_WORDS.has(w) || LINKERS.has(w) || OPENERS.has(w) || NAME_NOISE.has(w))
-      return false;
+    if (isChatter(w) || LINKERS.has(w) || NAME_NOISE.has(w)) return false;
     if (unitOf(w) !== undefined || w in TENS || DOZEN.has(w)) return false;
     const each = /^(?:tig|tag)-?(.+)$/.exec(w);
     if (each && (unitOf(each[1]) !== undefined || digitsOf(each[1]) !== undefined))
@@ -338,7 +355,8 @@ export function cleanItemName(name: string): string {
     if (i === 0 && /^\d+$/.test(w)) return false;
     return true;
   });
-  const result = (kept.length > 0 ? kept : words).slice(0, MAX_ITEM_WORDS).join(" ");
+  // Nothing left means it was never a product ("hello po"): no item, not the words as typed.
+  const result = kept.slice(0, MAX_ITEM_WORDS).join(" ");
   return result.trim();
 }
 
@@ -349,7 +367,9 @@ export function parsePabakalMessage(message: string): StopDraft[] {
   let opener: RegExpExecArray | null;
   while (
     (opener = /^(\S+)[^\S\n]*/.exec(text)) &&
-    OPENERS.has(opener[1].toLowerCase())
+    isChatter(opener[1]) &&
+    // Never eat the quantity: "a dozen" and "isa ka" start real orders.
+    leadingQuantity([opener[1].toLowerCase()]) === null
   ) {
     text = text.slice(opener[0].length);
   }
@@ -376,7 +396,35 @@ export function parsePabakalMessage(message: string): StopDraft[] {
         }
       }
     }
-    const store = storeParts.join(" ").trim();
+    // "sa earth duwa kabilog": a quantity after the store belongs to the item
+    // before it, and the store's name is only the store.
+    let storeText = storeParts.join(" ").trim();
+    const storeEach = takeEach(storeText);
+    const lastItem = pending[pending.length - 1];
+    if (storeEach.each !== null) {
+      for (const item of pending) {
+        if (implicit.has(item)) {
+          item.quantity = String(storeEach.each);
+          implicit.delete(item);
+        }
+      }
+      storeText = storeEach.rest.trim();
+    } else if (storeText) {
+      const sw = storeText.split(/\s+/);
+      while (sw.length > 1 && isChatter(sw[sw.length - 1])) sw.pop();
+      let t = sw.length;
+      while (t > 1 && COUNT_TAIL.has(sw[t - 1].toLowerCase())) t -= 1;
+      const n = t >= 2 ? numberWord(sw[t - 1]) : null;
+      if (n !== null) {
+        if (lastItem && implicit.has(lastItem)) {
+          lastItem.quantity = String(n);
+          implicit.delete(lastItem);
+        }
+        sw.length = t - 1;
+      }
+      storeText = sw.join(" ");
+    }
+    const store = storeText;
     if (store) {
       if (pending.length > 0) stops.push({ store: titleCase(store), items: pending });
       pending = [];
