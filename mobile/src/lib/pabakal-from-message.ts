@@ -13,7 +13,7 @@
 
 import { postApiJson } from "./admin-api";
 import { PABAKAL_RULES, type StopDraft } from "./pabakal";
-import { parsePabakalMessage } from "./pabakal-parse";
+import { cleanItemName, parsePabakalMessage } from "./pabakal-parse";
 
 interface ServerStop {
   store: string;
@@ -52,10 +52,12 @@ export function stopsFromReply(reply: unknown, message: string): StopDraft[] {
       store: typeof stop.store === "string" ? stop.store : "",
       items: (Array.isArray(stop.items) ? stop.items : [])
         .filter((item) => item && typeof item.name === "string" && item.name.trim())
+        // The product only, never part of a sentence, whichever reader it came from.
         .map((item) => ({
-          name: item.name,
+          name: cleanItemName(item.name),
           quantity: String(item.quantity),
-        })),
+        }))
+        .filter((item) => item.name),
     }))
     .filter((stop) => stop.items.length > 0);
 }

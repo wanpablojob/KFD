@@ -298,6 +298,50 @@ const titleCase = (s: string) =>
   s.replace(/(^|\s)(\S)/g, (_, sp, c) => sp + c.toUpperCase());
 
 /** The message as form rows. A store applies to the items before it. */
+/** The most words an item name keeps: the product, with a brand or size. */
+export const MAX_ITEM_WORDS = 3;
+
+/** Grammar that is never part of a product name: "sang itlog", "mga sardinas". */
+const NAME_NOISE = new Set([
+  "sang",
+  "sing",
+  "ng",
+  "nga",
+  "mga",
+  "tig",
+  "tag",
+  "kada",
+  "each",
+]);
+
+/**
+ * An item name as a product, not a sentence: "tani duwa ka biogesic" ->
+ * "biogesic", "acetylcystein tag duwa kabilog" -> "acetylcystein". Drops polite
+ * and order words, number and counting words, a store phrase that slipped in,
+ * and keeps at most MAX_ITEM_WORDS. Digits stay ("Biogesic 500mg") unless they
+ * lead the name or are a count ("x2", "3pcs"). Every reading, the AI's or the
+ * phone's, passes through this before the customer sees it.
+ */
+export function cleanItemName(name: string): string {
+  const beforeStore = name.split(STORE)[0] ?? name;
+  const words = beforeStore.trim().split(/\s+/).filter(Boolean);
+  const kept = words.filter((word, i) => {
+    const w = word.toLowerCase().replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "");
+    if (!w) return false;
+    if (SOFT_WORDS.has(w) || LINKERS.has(w) || OPENERS.has(w) || NAME_NOISE.has(w))
+      return false;
+    if (unitOf(w) !== undefined || w in TENS || DOZEN.has(w)) return false;
+    const each = /^(?:tig|tag)-?(.+)$/.exec(w);
+    if (each && (unitOf(each[1]) !== undefined || digitsOf(each[1]) !== undefined))
+      return false;
+    if (/^x\d+$|^\d+(?:x|pcs?)$/.test(w)) return false;
+    if (i === 0 && /^\d+$/.test(w)) return false;
+    return true;
+  });
+  const result = (kept.length > 0 ? kept : words).slice(0, MAX_ITEM_WORDS).join(" ");
+  return result.trim();
+}
+
 export function parsePabakalMessage(message: string): StopDraft[] {
   let text = message.trim();
   // Drop "pabakal ko", "palihog pabili" and the like from the start, keeping

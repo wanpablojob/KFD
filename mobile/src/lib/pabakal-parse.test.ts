@@ -1,4 +1,4 @@
-import { chatIntent, parsePabakalMessage } from "./pabakal-parse";
+import { chatIntent, cleanItemName, parsePabakalMessage } from "./pabakal-parse";
 
 /** "Store: 2x a, 1x b" per stop, so a failure reads like the spec table. */
 function read(message: string): string {
@@ -100,5 +100,28 @@ describe("chatIntent", () => {
     ["mabakal ko tani biogesic kag ibu tig duwa", "shopping"],
   ])("%s -> %s", (message, intent) => {
     expect(chatIntent(message)).toBe(intent);
+  });
+});
+
+describe("cleanItemName", () => {
+  it.each([
+    ["tani duwa ka biogesic", "biogesic"],
+    ["acetylcystein tag duwa kabilog", "acetylcystein"],
+    ["palihog bakal ko sang lima ka itlog sa palengke", "itlog"],
+    ["mga sardinas po", "sardinas"],
+    ["biogesic x2", "biogesic"],
+    ["neozep 3pcs", "neozep"],
+    ["2 biogesic", "biogesic"],
+    // Real product names keep their brand and size.
+    ["Biogesic 500mg", "Biogesic 500mg"],
+    ["Bear Brand 300g", "Bear Brand 300g"],
+    ["Biogesic 500", "Biogesic 500"],
+    ["Lucky Me Pancit Canton Chilimansi", "Lucky Me Pancit"],
+  ])("%s -> %s", (raw, clean) => {
+    expect(cleanItemName(raw)).toBe(clean);
+  });
+
+  it("keeps the original words when cleaning would leave nothing", () => {
+    expect(cleanItemName("isa")).toBe("isa");
   });
 });

@@ -114,7 +114,7 @@ Return ONLY a JSON array. Each element is one store:
 
 Rules:
 - "store" is the shop as the customer wrote it, or "" when they named none.
-- "name" is the product alone, without the quantity word.
+- "name" is the product only, 1 to 3 words: the product with its brand or size ("Biogesic", "Bear Brand 300g"). Never a sentence: no quantity or counting words, no "pabakal", "palihog", "tani", "po", and no store.
 - Fix obvious misspellings of well-known products and stores to their usual spelling ("biogisic" -> "Biogesic", "mercuri" -> "Mercury Drug"). Keep any name you do not recognise exactly as written: a local product is not a typo.
 - "quantity" is a whole number from 1 to 99. No number means 1. Never invent a number.
 - "tig", "tag" and "kada" before a number mean "each": that quantity applies to every item the phrase opens, not only the first ("tag duwa kabilog nga biogesic kag acetylcysteine" is 2 Biogesic and 2 Acetylcysteine).
