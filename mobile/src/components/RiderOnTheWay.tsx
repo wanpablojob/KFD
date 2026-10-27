@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useQuery } from "@tanstack/react-query";
 import { fetchRiderLocation, updatedAgo } from "../lib/rider-location";
 import { openInMaps } from "../lib/maps";
+import { backoffFor } from "../lib/poll";
 import { colors, radius, shadow, spacing, type } from "../lib/theme";
 
 /**
@@ -21,7 +22,7 @@ export function RiderOnTheWay({
     queryKey: ["riderLocation", reference],
     queryFn: () => fetchRiderLocation(reference),
     enabled: enabled && !!reference,
-    refetchInterval: 30_000,
+    refetchInterval: (query) => backoffFor(30_000, query.state.fetchFailureCount),
   });
   const at = location.data;
   if (!enabled || !at) return null;

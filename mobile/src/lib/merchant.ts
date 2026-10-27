@@ -6,6 +6,7 @@ import { uploadLocalImage } from "./image-upload";
 import { removeReplacedImage } from "./storage-cleanup";
 import { targetWidthFor } from "./image-sizing";
 import type { OrderStatus } from "./merchant-logic";
+import { backoffFor } from "./poll";
 
 /**
  * Data for the merchant surface (restaurant owners and staff).
@@ -385,7 +386,7 @@ export function useMerchantOrders() {
   return useQuery({
     queryKey: ["merchantOrders"],
     queryFn: fetchMerchantOrders,
-    refetchInterval: 15_000,
+    refetchInterval: (query) => backoffFor(15_000, query.state.fetchFailureCount),
     refetchOnWindowFocus: true,
   });
 }

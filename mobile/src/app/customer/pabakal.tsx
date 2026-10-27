@@ -23,6 +23,7 @@ import { NotificationBell } from "../../components/NotificationBell";
 import { useKeyboardVisible } from "../../components/GlassSurface";
 import { useScrollBottomPadding, useTabBarInset } from "../../components/TabBarInset";
 import { loadAddresses, type SavedAddress } from "../../lib/addresses";
+import { backoffFor } from "../../lib/poll";
 import { useSession } from "../../lib/session-context";
 import {
   cancelPabakal,
@@ -98,7 +99,7 @@ export default function PabakalScreen() {
   const mine = useQuery({
     queryKey: ["pabakal"],
     queryFn: fetchMyPabakal,
-    refetchInterval: 15_000,
+    refetchInterval: (query) => backoffFor(15_000, query.state.fetchFailureCount),
   });
   const activeCount = (mine.data ?? []).filter((p) => ACTIVE.includes(p.status)).length;
 
@@ -643,7 +644,7 @@ function PabakalRider({ p }: { p: Pabakal }) {
   const rider = useQuery({
     queryKey: ["pabakalRider", p.id],
     queryFn: () => fetchPabakalRider(p.id),
-    refetchInterval: 30_000,
+    refetchInterval: (query) => backoffFor(30_000, query.state.fetchFailureCount),
   });
   return (
     <>

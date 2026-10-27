@@ -16,6 +16,7 @@ import {
   stopsOf,
   type Pabakal,
 } from "../lib/pabakal";
+import { backoffFor } from "../lib/poll";
 import { colors, radius, spacing, type } from "../lib/theme";
 
 const peso = (n: number) => `₱${n.toFixed(2)}`;
@@ -30,12 +31,12 @@ export function PabakalRiderSection({ disabled }: { disabled: boolean }) {
   const open = useQuery({
     queryKey: ["pabakal-open"],
     queryFn: fetchOpenPabakal,
-    refetchInterval: 15_000,
+    refetchInterval: (query) => backoffFor(15_000, query.state.fetchFailureCount),
   });
   const mine = useQuery({
     queryKey: ["pabakal"],
     queryFn: fetchMyPabakal,
-    refetchInterval: 15_000,
+    refetchInterval: (query) => backoffFor(15_000, query.state.fetchFailureCount),
   });
   const active = (mine.data ?? []).find(
     (p) => p.status === "accepted" || p.status === "delivering"

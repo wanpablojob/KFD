@@ -47,6 +47,7 @@ import {
 } from "./storefront";
 import { fetchRiderCashPosition } from "./rider-cash";
 import { isTerminalStatus } from "./order-progress";
+import { backoffFor } from "./poll";
 
 export const queryKeys = {
   restaurants: (query: string, cuisine: string | null) =>
@@ -158,7 +159,9 @@ export function useTrackOrder(reference: string, enabled: boolean) {
       const status = query.state.data?.status;
       // undefined while the first fetch is in flight, which is not terminal.
       if (status && isTerminalStatus(status)) return false;
-      return 15_000;
+      // Jittered, and slower after each consecutive failure, so an outage is
+      // not answered by every client retrying on the same beat.
+      return backoffFor(15_000, query.state.fetchFailureCount);
     },
   });
 }
@@ -180,7 +183,7 @@ export function useTrackDelivery(reference: string, enabled: boolean) {
       if (status && (status === "delivered" || status === "cancelled")) {
         return false;
       }
-      return 15_000;
+      return backoffFor(15_000, query.state.fetchFailureCount);
     },
   });
 }
@@ -196,7 +199,7 @@ export function useRiderDeliveryOffers() {
     queryKey: ["riderDeliveryOffers"],
     queryFn: fetchRiderDeliveryOffers,
     refetchOnWindowFocus: true,
-    refetchInterval: 10_000,
+    refetchInterval: (query) => backoffFor(10_000, query.state.fetchFailureCount),
   });
 }
 
@@ -211,7 +214,7 @@ export function useRiderDeliveries() {
     queryKey: ["riderDeliveries"],
     queryFn: fetchRiderDeliveries,
     refetchOnWindowFocus: true,
-    refetchInterval: 20_000,
+    refetchInterval: (query) => backoffFor(20_000, query.state.fetchFailureCount),
   });
 }
 
@@ -349,7 +352,7 @@ export function useRiderOffers() {
   return useQuery({
     queryKey: ["riderOffers"],
     queryFn: fetchRiderOffers,
-    refetchInterval: 10_000,
+    refetchInterval: (query) => backoffFor(10_000, query.state.fetchFailureCount),
     refetchOnWindowFocus: true,
   });
 }
@@ -481,7 +484,7 @@ export function useRiderContact(reference: string, enabled: boolean) {
     queryFn: () => fetchRiderContact(reference),
     enabled: enabled && reference.trim().length > 0,
     // A rider is assigned some time after ordering; check again now and then.
-    refetchInterval: 30_000,
+    refetchInterval: (query) => backoffFor(30_000, query.state.fetchFailureCount),
   });
 }
 

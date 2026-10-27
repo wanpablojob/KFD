@@ -13,6 +13,12 @@ import "server-only";
 
 const RESEND_ENDPOINT = "https://api.resend.com/emails";
 
+/**
+ * Per attempt. The route budget is the platform's, and a send that has not
+ * answered in eight seconds is not going to improve the order confirmation.
+ */
+const TIMEOUT_MS = 8_000;
+
 export interface OrderEmailItem {
   name: string;
   quantity: number;
@@ -105,11 +111,20 @@ export async function sendOrderEmail(
         subject,
         html,
       }),
+      // Every other external call in this app is bounded (the Gemini client
+      // uses the same 9s idea). Without this one, a stalled Resend keeps the
+      // invocation alive until the platform kills it, and a downstream
+      // slowdown becomes our own concurrency exhaustion. The caller already
+      // treats a throw as "email not sent", so a timeout degrades correctly.
+      signal: AbortSignal.timeout(TIMEOUT_MS),
     });
 
     const body = await res.text();
     return { ok: res.ok, detail: res.ok ? body : `${res.status} ${body}` };
   } catch (err) {
+    if (err instanceof Error && err.name === "TimeoutError") {
+      return { ok: false, detail: `Resend did not answer within ${TIMEOUT_MS}ms` };
+    }
     return {
       ok: false,
       detail: err instanceof Error ? err.message : "Request failed",
