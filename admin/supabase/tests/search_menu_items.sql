@@ -165,5 +165,28 @@ do $$ begin
   raise notice 'PASS customers only';
 end $$;
 
+-- 0143: every word, any order, across dish, category and shop name.
+set local role authenticated;
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-0000-0000-0000000000f1","role":"authenticated","iss":"https://x.supabase.co/auth/v1"}',
+  true
+);
+do $$ begin
+  if not exists (select 1 from search_menu_items('langka kadios') t where t.id = 'MNU-DISH-KBL') then
+    raise exception 'FAIL words in another order did not match';
+  end if;
+  if not exists (select 1 from search_menu_items('isda dish search') t where t.id = 'MNU-DISH-FISH') then
+    raise exception 'FAIL a dish with its shop name did not match';
+  end if;
+  if exists (select 1 from search_menu_items('isda baboy') t) then
+    raise exception 'FAIL matched a dish missing one of the words';
+  end if;
+  if exists (select 1 from search_menu_items('%') t) or exists (select 1 from search_menu_items('ba_oy') t) then
+    raise exception 'FAIL %% or _ was treated as a wildcard';
+  end if;
+  raise notice 'PASS every word, any order, shop name included, no wildcards';
+end $$;
+
 reset role;
 rollback;
