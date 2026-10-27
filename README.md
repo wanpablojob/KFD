@@ -1,6 +1,11 @@
 # KFD — Food Delivery Platform
 
-KFD is a food-delivery platform modeled after Foodpanda, consisting of an admin web dashboard, a customer mobile app, and (planned) a backend API.
+KFD is a food-delivery platform modeled after Foodpanda, built for Kabankalan City. It is one product with four surfaces sharing a single Postgres backend:
+
+- **Customer app** (Expo) — browse restaurants, multi-shop baskets, checkout, live order tracking, Pabakal (a shopping-by-message assistant), saved addresses, order history and reordering.
+- **Rider app** (Expo) — job offers, live trip list, delivery proof, GCash collection, earnings.
+- **Merchant console** (Next.js) — incoming orders, menu and availability, payouts, settlement.
+- **Admin portal** (Next.js) — dispatch, riders, customers, restaurants, service areas, disputes, audit log.
 
 [![CI](https://github.com/wanpablojob/KFD/actions/workflows/ci.yml/badge.svg)](https://github.com/wanpablojob/KFD/actions/workflows/ci.yml)
 [![Deploy Admin](https://github.com/wanpablojob/KFD/actions/workflows/deploy-admin.yml/badge.svg)](https://github.com/wanpablojob/KFD/actions/workflows/deploy-admin.yml)
@@ -10,14 +15,20 @@ KFD is a food-delivery platform modeled after Foodpanda, consisting of an admin 
 
 ```
 KFD/
-├── admin/       # Next.js admin web application (dashboard)
-├── mobile/      # React Native / Expo customer app
-├── backend/     # NestJS backend API (not yet created)
-├── .github/
-│   ├── workflows/ci.yml
-│   └── pull_request_template.md
+├── admin/                     # Next.js: admin portal, merchant console, public site
+│   └── supabase/migrations/   # 117 SQL migrations — the schema's source of truth
+├── mobile/                    # Expo SDK 57: customer app, rider app, merchant app
+│   └── src/app/{customer,rider,merchant,auth}/
+├── scripts/                   # verify.sh (the gate), preflight, restore rehearsal
+├── docs/                      # launch runbook
+├── .github/workflows/         # CI, deploy, migrate, release
+├── HARNESS.md                 # the two-agent build/verify split
 └── README.md
 ```
+
+There is no separate backend service. The backend is Postgres plus SQL:
+row-level security, RPCs and triggers in Supabase do the work a REST tier
+would otherwise do, and the clients call it directly.
 
 ## Requirements
 
@@ -67,30 +78,33 @@ Steps apply from the repository root.
    `expo` for that reason), so avoid running it outside the project tree with an
    unpinned global install.
 
-5. **Start the backend** — not yet available. The `backend/` NestJS service will be added in a future step.
-
-6. **Run lint**:
-
-   ```sh
-   cd admin && npm run lint
-   ```
-
-7. **Run type checking**:
+5. **Run tests and the full gate**. One command runs everything CI runs —
+   lint, typecheck, tests, both builds, the Android bundle, migrations and the
+   launch preflight:
 
    ```sh
-   cd admin && npm run typecheck
-   cd mobile && npm run typecheck
+   scripts/verify.sh            # everything
+   scripts/verify.sh admin      # one app
+   scripts/verify.sh mobile
    ```
 
-8. **Run tests** — no test runner/suite is configured yet. Add `test` scripts to each app
-   when test suites are introduced; the CI pipeline will pick them up.
+   Per-app, for a faster loop:
 
-9. **Run production builds**:
+   ```sh
+   cd admin  && npm run lint && npm run typecheck && npm run test   # 308 tests
+   cd mobile && npm run lint && npm run typecheck && npm run test   # 472 tests
+   ```
+
+6. **Run production builds**:
 
    ```sh
    cd admin && npm run build
-   cd mobile && npm run build   # or `npx expo export` for a web bundle
+   cd mobile && npx expo export --platform android
    ```
+
+   A clean `tsc --noEmit` is not proof the app bundles: the bundle is checked
+   separately in the gate because a dependency can type fine and still fail to
+   resolve at build time.
 
 ## CI/CD
 
@@ -120,11 +134,16 @@ Pull request ──► CI (lint / typecheck / audit / test / build)
 | --- | --- | --- |
 | `ci.yml` | PRs to `main`, pushes to `main` | Monorepo-aware lint, typecheck, `npm audit`, test, build. `CI OK` is the aggregate gate. |
 | `deploy-admin.yml` | PRs to `main`; manual | Deploy admin to Vercel (preview for PRs; production only by manual dispatch from `main`, after `CI OK`). |
-| `deploy-backend.yml` | pushes touching `backend/**`; manual | Deploy the backend to Render (dormant until `backend/` exists). |
+| `deploy-backend.yml` | manual | Dormant. Kept for a future service; there is no `backend/` directory today. |
 | `migrate-db.yml` | manual | Apply Supabase migrations. Dry run by default; `max_pending` caps a batch. |
 | `build-mobile.yml` | `v*` tags; manual | EAS store build. Dormant until `EXPO_TOKEN` is set. |
+| `provision-review-accounts.yml` | manual | Create the customer and rider accounts a store reviewer signs into. |
 | `commitlint.yml` | PRs to `main` | Enforce conventional commit messages. |
 | `release-please.yml` | pushes to `main` | Version bumps, changelogs, and GitHub Releases per app. |
+| `configure-auth.yml` | manual (dry run by default) | Apply Supabase Auth settings — providers, redirect URLs, templates. |
+| `configure-production-env.yml` | manual (dry run by default) | Report or apply the Vercel production environment variables. |
+| `verify-admin-ui.yml` | manual | Smoke-test the deployed admin UI against a base URL. |
+| `vercel-status.yml` | manual | Read Vercel deployment status for a commit. |
 
 - **Branch strategy**: `main` with short-lived `feature/*` branches.
 - **Monorepo-aware**: only the apps whose files changed (plus shared config) run their checks.
@@ -258,11 +277,24 @@ Each profile reads its variables from the matching EAS environment (`preview`,
 `EXPO_PUBLIC_API_URL`, `EXPO_PUBLIC_EAS_PROJECT_ID`. Submitting needs the Apple
 and Google developer accounts linked in EAS.
 
-### Backend → Render (planned)
+### Backend → Supabase
 
-When the `backend/` NestJS service is created, it will be deployed from
-`backend/` as the root directory via a deploy hook. Until then, the
-`deploy-backend.yml` workflow remains dormant.
+There is no separate backend service to deploy. The backend is the Supabase
+project: Postgres with row-level security, RPCs and triggers.
+
+```sh
+# schema changes: dry run first, then apply
+#   Workflow: Migrate Database (workflow_dispatch, dry_run: true)
+#   Workflow: Migrate Database (workflow_dispatch, dry_run: false)
+```
+
+Migrations live in `admin/supabase/migrations/` and are the source of truth.
+The deploy workflow is gated behind the `production` GitHub environment and
+attaches a pre-apply dump to each run. Rehearse a restore with
+`scripts/restore-rehearsal.sh` before you need one.
+
+`deploy-backend.yml` is dormant and stays that way unless a real service is
+added.
 
 ### Release Please
 
@@ -274,10 +306,38 @@ files at the repo root.
 
 ## Security
 
+**Access control is in the database, not the client.** Row-level security is
+enabled on every table in `public` (28 of them). The patterns:
+
+- A customer reads their own orders, a rider their assigned ones, a merchant
+  only their own restaurant's rows, an admin everything.
+- Policies call `(select auth.uid())` rather than `auth.uid()` so Postgres
+  computes the value once per query instead of once per row (`0113`).
+- Storage buckets are scoped the same way: delivery proofs are readable by the
+  assigned rider and admins — deliberately **not** customers — and a Pabakal
+  receipt only by the customer it belongs to.
+- The service-role key is server-side only and is never a `NEXT_PUBLIC_`
+  variable. `scripts/phase-c-preflight.sh` fails if that changes.
+
+**Writes are guarded server-side**, so a modified client cannot talk its way
+past them: checkout is idempotent via a cart-fingerprint request id, cancel and
+rider-claim take row locks so they cannot race, and status transitions are
+enforced by a trigger rather than trusted from the app.
+
+**Post-login redirects** go through `admin/src/lib/safe-next.ts`, which rejects
+protocol-relative URLs, backslashes and control characters, then re-resolves
+the path against a fixed base to confirm the origin survives.
+
+**External calls are bounded.** Gemini gets a 9s timeout with a three-model
+fallback chain; Resend gets 8s. Notification routes are rate-limited per
+verified user id.
+
 - Never commit secrets or `.env` files.
 - Server-side secrets stay out of the browser/client bundles.
 - Required GitHub Secrets for CI/CD are added in the repository settings when
   a job needs them.
+- **Build/verify split**: `HARNESS.md` describes why the agent that writes code
+  is not the agent that pushes it, and the three layers that enforce it.
 - **Branch rules**: native branch protection is unavailable on the free
   private plan; see "Branch protection" above for the free equivalents and the
   command to apply once the plan supports it.
