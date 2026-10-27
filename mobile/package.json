@@ -52,6 +52,7 @@
     "typescript": "~6.0.3"
   },
   "overrides": {
+    "node-forge": "^1.4.1",
     "react-native-worklets": "0.13.0",
     "shell-quote": "^1.12.0"
   },
