@@ -374,10 +374,6 @@ function DeliveryCard({
           report reaches every stop's payout (0097). */}
       <ReportProblem status={delivery.status} reporting={reporting} />
 
-      {/* A problem with the delivery is a problem with the whole trip: the
-          report reaches every stop's payout (0097). */}
-      <ReportProblem status={delivery.status} reporting={reporting} />
-
       <Text style={styles.meta}>
         Updated {new Date(updatedAt).toLocaleTimeString()}
       </Text>
@@ -425,20 +421,21 @@ function ReportProblem({
   }
 
   if (!reporting.open) {
+    // Nothing to offer before the delivery lands. Returning an empty bordered
+    // block instead drew a divider and ~32px of dead space under every order
+    // still in progress, which read as a broken section rather than a neutral
+    // one. The other components here take the same `return null` exit.
+    if (status !== "delivered") return null;
     return (
       <View style={styles.reportBlock}>
-        <Text style={styles.reportIntro}>
-          {status === "delivered" ? "Wrong order, or it never arrived?" : null}
+        <Text style={styles.reportIntro}>Wrong order, or it never arrived?</Text>
+        <Text
+          style={styles.reportLink}
+          onPress={reporting.onOpen}
+          accessibilityRole="button"
+        >
+          Report a problem with this delivery
         </Text>
-        {status === "delivered" ? (
-          <Text
-            style={styles.reportLink}
-            onPress={reporting.onOpen}
-            accessibilityRole="button"
-          >
-            Report a problem with this delivery
-          </Text>
-        ) : null}
       </View>
     );
   }
