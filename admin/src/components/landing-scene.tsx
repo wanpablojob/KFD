@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, type CSSProperties } from "react";
+import { useRef, type CSSProperties } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { SignInDropdown } from "@/components/sign-in-dropdown";
@@ -8,6 +8,7 @@ import { LeadForm } from "@/components/lead-form";
 import { TrackReferenceForm } from "@/components/track/track-reference-form";
 import { BikeIcon, MapPinIcon, ReceiptIcon, StoreIcon } from "@/components/ui/icons";
 import { primaryButton, secondaryButton } from "@/components/marketing/styles";
+import { useLandingMotion } from "@/components/landing-motion";
 import {
   APP_DOWNLOADS,
   BUSINESS,
@@ -20,6 +21,7 @@ import {
   HOW_IT_WORKS,
   KITCHEN_PHOTO,
   LOCAL_SPECIALTIES,
+  PABAKAL,
   PARTNER_RESTAURANTS,
   PARTNER_TERMS,
   PHOTO_CREDITS,
@@ -30,6 +32,7 @@ import {
 
 const NAV = [
   { href: "#how", label: "How it works" },
+  { href: "#pabakal", label: "Pabakal" },
   { href: "#restaurants", label: "Food" },
   { href: "#app", label: "Get the app" },
   { href: "#faq", label: "FAQ" },
@@ -54,46 +57,9 @@ const whiteButton =
 /** Position in a sequence, read by the entrance and stagger CSS. */
 const turn = (i: number) => ({ "--i": i }) as CSSProperties;
 
-/**
- * Reveal-on-scroll without a dependency.
- *
- * It sets `data-reveal-ready` only after mount, so the server HTML and the no-JS
- * page show everything; the hidden start state never exists until the browser
- * can also un-hide it. Reduced motion marks everything visible and steps out.
- */
-function useReveal(scope: React.RefObject<HTMLDivElement | null>) {
-  useEffect(() => {
-    const root = scope.current;
-    if (!root) return;
-
-    const targets = Array.from(root.querySelectorAll<HTMLElement>("[data-reveal]"));
-    if (targets.length === 0) return;
-
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      targets.forEach((el) => el.classList.add("is-visible"));
-      return;
-    }
-
-    root.setAttribute("data-reveal-ready", "");
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (!entry.isIntersecting) continue;
-          entry.target.classList.add("is-visible");
-          observer.unobserve(entry.target);
-        }
-      },
-      { rootMargin: "0px 0px -10% 0px", threshold: 0.12 },
-    );
-
-    targets.forEach((el) => observer.observe(el));
-    return () => observer.disconnect();
-  }, [scope]);
-}
-
 export function LandingScene() {
   const scope = useRef<HTMLDivElement>(null);
-  useReveal(scope);
+  useLandingMotion(scope);
 
   return (
     <div ref={scope} className="landing min-h-dvh overflow-x-clip bg-background text-foreground">
@@ -118,7 +84,7 @@ export function LandingScene() {
             <span className="font-display text-xl font-bold tracking-tight text-foreground">KFD</span>
           </a>
 
-          <nav aria-label="Sections" className="hidden items-center gap-7 md:flex">
+          <nav aria-label="Sections" className="hidden items-center gap-7 lg:flex">
             {NAV.map((item) => (
               <a
                 key={item.href}
@@ -180,7 +146,7 @@ export function LandingScene() {
             </div>
 
             {/* A real photo of the region's signature dish, with the badge as a seal. */}
-            <div className="relative mx-auto w-full max-w-120 min-w-0 md:mr-0">
+            <div data-tilt className="relative mx-auto w-full max-w-120 min-w-0 md:mr-0">
               <div className="enter-photo relative aspect-4/3 overflow-hidden md:aspect-4/5 rounded-4xl shadow-[0_40px_80px_-40px_color-mix(in_srgb,var(--primary)_55%,transparent)] ring-1 ring-border">
                 <div className="landing-parallax absolute inset-x-0 -top-[8%] h-[116%]">
                   <Image
@@ -200,13 +166,16 @@ export function LandingScene() {
                   Chicken inasal, the taste of Negros
                 </p>
               </div>
-              <Image
-                src="/images/kabankalan/badge.png"
-                alt=""
-                width={160}
-                height={160}
-                className="enter-seal absolute -top-6 -left-4 h-28 w-28 drop-shadow-xl sm:-left-8 sm:h-36 sm:w-36"
-              />
+              {/* The wrapper turns with the scroll; the seal's own entrance is CSS. */}
+              <span data-spin className="absolute -top-6 -left-4 sm:-left-8">
+                <Image
+                  src="/images/kabankalan/badge.png"
+                  alt=""
+                  width={160}
+                  height={160}
+                  className="enter-seal h-28 w-28 drop-shadow-xl sm:h-36 sm:w-36"
+                />
+              </span>
             </div>
           </div>
         </section>
@@ -243,9 +212,14 @@ export function LandingScene() {
                 ) : null}
               </div>
               <ol className="relative ml-5 flex flex-col gap-9 border-l-2 border-dashed border-border pl-8 md:ml-0">
+                <span
+                  aria-hidden="true"
+                  data-line
+                  className="absolute top-0 -left-0.5 h-full w-0.5 origin-top scale-y-0 rounded-full bg-primary"
+                />
                 {HOW_IT_WORKS.map((step, i) => (
-                  <li key={step.key} data-stagger style={turn(i)} className="relative">
-                    <span className="absolute -left-12.5 grid h-9 w-9 place-items-center rounded-full bg-primary text-sm font-bold text-primary-foreground ring-4 ring-background">
+                  <li key={step.key} data-stagger className="relative">
+                    <span data-step className="absolute -left-12.5 grid h-9 w-9 place-items-center rounded-full bg-primary text-sm font-bold text-primary-foreground ring-4 ring-background">
                       {i + 1}
                     </span>
                     <h3 className="font-display text-2xl font-bold text-foreground">{step.title}</h3>
@@ -293,11 +267,10 @@ export function LandingScene() {
 
           {PARTNER_RESTAURANTS.length > 0 ? (
             <ul className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {PARTNER_RESTAURANTS.map((r, i) => (
+              {PARTNER_RESTAURANTS.map((r) => (
                 <li
                   key={r.name}
                   data-stagger
-                  style={turn(i)}
                   className={`rounded-2xl border border-border bg-card p-6 ${LIFT}`}
                 >
                   <h3 className="text-lg font-bold">{r.name}</h3>
@@ -310,8 +283,7 @@ export function LandingScene() {
               {GALLERY_ORDER.filter((dish) => LOCAL_SPECIALTIES.includes(dish)).map((dish, i) => (
                 <li
                   key={dish}
-                  data-stagger
-                  style={turn(i)}
+                  data-tile
                   className={`group relative isolate overflow-hidden rounded-3xl ${
                     i === 0 ? "col-span-2 row-span-2" : i === 1 ? "col-span-2" : ""
                   }`}
@@ -347,6 +319,86 @@ export function LandingScene() {
           )}
         </section>
 
+        {/* ---------- pabakal: the chat, played as a conversation ---------- */}
+        <section id="pabakal" data-reveal className={SECTION}>
+          <div className="grid items-center gap-12 md:grid-cols-[0.95fr_1.05fr]">
+            <div>
+              <h2 className={H2}>Pabakal. Just say what you need.</h2>
+              <p className={LEAD}>
+                Message what to buy and where. A rider shops for you and brings it
+                to your door.
+              </p>
+              <ul className="mt-8 flex flex-col gap-4">
+                {PABAKAL.points.map((point, i) => (
+                  <li key={point} data-stagger className="flex items-start gap-3 text-base">
+                    <span className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-primary/10 text-sm font-bold text-primary">
+                      {i + 1}
+                    </span>
+                    {point}
+                  </li>
+                ))}
+              </ul>
+              <a href="#app" data-stagger className={`${secondaryButton} mt-8`}>
+                Get the app
+              </a>
+            </div>
+
+            {/* The real example: pabakal-sentences.test.ts reads it into these stops. */}
+            <figure
+              data-chat
+              className="relative rounded-4xl border border-border bg-card p-5 shadow-[0_40px_80px_-50px_color-mix(in_srgb,var(--primary)_55%,transparent)] sm:p-7"
+            >
+              <figcaption className="sr-only">An example Pabakal chat</figcaption>
+              <div className="flex flex-col gap-4">
+                <p
+                  data-chat-part="ask"
+                  className="ml-auto max-w-[85%] rounded-3xl rounded-br-md bg-primary px-4 py-3 text-sm leading-relaxed text-primary-foreground"
+                >
+                  {PABAKAL.example}
+                </p>
+                <div className="relative">
+                <div
+                  data-chat-part="typing"
+                  aria-hidden="true"
+                  className="invisible absolute top-0 left-0 flex w-16 gap-1.5 rounded-3xl rounded-bl-md bg-muted px-4 py-3 opacity-0"
+                >
+                  {[0, 1, 2].map((d) => (
+                    <span key={d} data-dot className="h-2 w-2 rounded-full bg-muted-foreground/60" />
+                  ))}
+                </div>
+                <div
+                  data-chat-part="reply"
+                  className="mr-auto w-full max-w-[85%] rounded-3xl rounded-bl-md bg-muted p-4 text-sm"
+                >
+                  <p className="font-semibold text-foreground">Got it. Your list:</p>
+                  <ul className="mt-3 flex flex-col gap-2">
+                    {PABAKAL.stops.flatMap((stop) =>
+                      stop.items.map((item) => (
+                        <li
+                          key={`${stop.store}-${item.name}`}
+                          data-chat-part="row"
+                          className="flex items-center justify-between gap-3 rounded-2xl bg-card px-3 py-2"
+                        >
+                          <span className="flex items-center gap-2">
+                            <StoreIcon className="h-4 w-4 text-primary" aria-hidden="true" />
+                            <span className="font-semibold">{item.name}</span>
+                            <span className="text-muted-foreground">at {stop.store}</span>
+                          </span>
+                          <span className="font-mono font-semibold">×{item.quantity}</span>
+                        </li>
+                      )),
+                    )}
+                  </ul>
+                  <p data-chat-part="fee" className="mt-3 text-xs text-muted-foreground">
+                    {PABAKAL.fee}
+                  </p>
+                </div>
+                </div>
+              </div>
+            </figure>
+          </div>
+        </section>
+
         {/* ---------- get the app: the brand red, as the app's own splash ---------- */}
         <section id="app" data-reveal className="mx-auto w-full max-w-6xl scroll-mt-24 px-4 py-10 sm:px-6">
           <div className="landing-band grid overflow-hidden rounded-4xl bg-primary text-primary-foreground shadow-[0_30px_70px_-35px_color-mix(in_srgb,var(--primary)_70%,transparent)] md:grid-cols-[1.15fr_0.85fr]">
@@ -356,6 +408,7 @@ export function LandingScene() {
                 alt=""
                 width={96}
                 height={96}
+                data-pop
                 className="h-20 w-20 drop-shadow-lg sm:h-24 sm:w-24"
               />
               <h2 className="font-display text-3xl font-bold tracking-tight sm:text-4xl">
@@ -395,6 +448,7 @@ export function LandingScene() {
               <Image
                 src={KITCHEN_PHOTO}
                 alt="A plate of chicken inasal with rice"
+                data-zoom
                 fill
                 sizes="(min-width: 768px) 420px, 0px"
                 className="object-cover"
@@ -410,7 +464,6 @@ export function LandingScene() {
             <article
               id="sell"
               data-stagger
-              style={turn(0)}
               className="scroll-mt-24 rounded-3xl bg-muted p-7 sm:p-8"
             >
               <span className="grid h-11 w-11 place-items-center rounded-full bg-card text-primary">
@@ -433,7 +486,6 @@ export function LandingScene() {
             <article
               id="drive"
               data-stagger
-              style={turn(1)}
               className="scroll-mt-24 rounded-3xl border border-border bg-card p-7 sm:p-8"
             >
               <span className="grid h-11 w-11 place-items-center rounded-full bg-primary/10 text-primary">
@@ -460,8 +512,8 @@ export function LandingScene() {
           <div className="mx-auto max-w-3xl">
             <h2 className={H2}>Questions</h2>
             <div className="mt-8 divide-y divide-border border-y border-border">
-              {FAQ.map((item, i) => (
-                <details key={item.q} data-stagger style={turn(i)} className="group py-5">
+              {FAQ.map((item) => (
+                <details key={item.q} data-stagger className="group py-5">
                   <summary className="flex cursor-pointer list-none items-center justify-between gap-4 rounded-lg text-base font-semibold text-foreground transition-colors hover:text-primary [&::-webkit-details-marker]:hidden">
                     {item.q}
                     <span

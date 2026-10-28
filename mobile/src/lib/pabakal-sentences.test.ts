@@ -131,6 +131,17 @@ describe("pabakal sentences", () => {
     expect(failures(cases)).toEqual([]);
   });
 
+  // The example on the web landing page (admin site-content PABAKAL).
+  it("reads the landing page example", () => {
+    const msg =
+      "Maayong aga! Mapabakal ko tani duwa ka Biogesic sa Mercury kag isa ka Bear Brand sa 7-Eleven";
+    expect(chatIntent(msg)).toBe("shopping");
+    expect(read(msg)).toEqual([
+      { store: "mercury", items: [["biogesic", 2]] },
+      { store: "7-eleven", items: [["bear brand", 1]] },
+    ]);
+  });
+
   it("never treats small talk as an order", () => {
     const talk = [
       "hello po",

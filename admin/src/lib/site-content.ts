@@ -42,6 +42,26 @@ export const HOW_IT_WORKS = [
 ] as const;
 
 /**
+ * Pabakal on the landing page. The example is a sentence the phone's reader
+ * parses into exactly these stops (pabakal-sentences.test.ts covers the
+ * shape); the fee is pabakal_rules() in 0131: the barangay's delivery fee,
+ * plus 10 per extra store, at most 5 stores.
+ */
+export const PABAKAL = {
+  example: "Maayong aga! Mapabakal ko tani duwa ka Biogesic sa Mercury kag isa ka Bear Brand sa 7-Eleven",
+  stops: [
+    { store: "Mercury", items: [{ name: "Biogesic", quantity: 2 }] },
+    { store: "7-Eleven", items: [{ name: "Bear Brand", quantity: 1 }] },
+  ],
+  fee: "Delivery fee + ₱10 for the second store",
+  points: [
+    "Type it the way you text, in Hiligaynon, Tagalog or English.",
+    "Up to five stores on one trip.",
+    "Your rider shares a photo of the receipt, and you pay at the door.",
+  ],
+} as const;
+
+/**
  * Local dishes worth featuring once partner restaurants are confirmed.
  * Presented as "coming from our kitchens", never as an on-menu promise.
  */
