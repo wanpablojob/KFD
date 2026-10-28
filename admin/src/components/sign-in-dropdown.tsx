@@ -13,6 +13,7 @@ import { signOut, useSessionUser } from "@/lib/auth";
 import { useUserRole } from "@/lib/use-user-role";
 import { portalMenu, type PortalKey } from "@/lib/portal-menu";
 import { LoginForm } from "@/components/login-form";
+import { Dialog } from "@/components/ui/dialog";
 
 const ITEM =
   "flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-foreground no-underline transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
@@ -101,15 +102,15 @@ export function SignInDropdown() {
         </span>
       </button>
 
-      {open && !signedIn ? (
-        <div
-          role="dialog"
-          aria-label="Sign in"
-          className="absolute right-0 z-50 mt-3 w-[min(24rem,calc(100vw-2rem))] rounded-2xl border border-border bg-card p-5 shadow-lg"
-        >
-          <p className="mb-4 text-base font-semibold text-foreground">
-            Sign in
-          </p>
+      {/* Signed out, Sign in drops down a modal with the form itself. */}
+      <Dialog
+        open={open && !signedIn}
+        onClose={() => setOpen(false)}
+        title="Sign in"
+        placement="drop"
+        className="sm:max-w-md"
+      >
+        <div className="py-1">
           <LoginForm next={null} message={null} />
           {track ? (
             <Link
@@ -121,7 +122,7 @@ export function SignInDropdown() {
             </Link>
           ) : null}
         </div>
-      ) : null}
+      </Dialog>
 
       {open && signedIn ? (
         <div

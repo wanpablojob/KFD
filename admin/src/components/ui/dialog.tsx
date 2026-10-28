@@ -10,12 +10,15 @@ export function Dialog({
   title,
   children,
   className,
+  placement = "sheet",
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
   children: React.ReactNode;
   className?: string;
+  /** "sheet": up from the bottom on phones, centred on desktop. "drop": down from the top everywhere. */
+  placement?: "sheet" | "drop";
 }) {
   useEffect(() => {
     if (!open) return;
@@ -37,7 +40,12 @@ export function Dialog({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center sm:items-center"
+      className={cn(
+        "fixed inset-0 z-50 flex justify-center",
+        placement === "drop"
+          ? "items-start px-4 pt-[8vh]"
+          : "items-end sm:items-center",
+      )}
       role="dialog"
       aria-modal="true"
       aria-label={title}
@@ -50,12 +58,17 @@ export function Dialog({
       />
       <div
         className={cn(
-          "relative flex max-h-[88vh] w-full flex-col overflow-hidden rounded-t-2xl border border-border bg-card shadow-2xl sm:max-w-lg sm:rounded-2xl",
+          "relative flex max-h-[88vh] w-full flex-col overflow-hidden border border-border bg-card shadow-2xl sm:max-w-lg",
+          placement === "drop"
+            ? "animate-modal-drop rounded-2xl"
+            : "rounded-t-2xl sm:rounded-2xl",
           className,
         )}
       >
         <div className="flex items-center justify-between gap-4 border-b border-border px-5 py-4">
-          <h2 className="text-base font-semibold text-card-foreground">{title}</h2>
+          <h2 className="text-base font-semibold text-card-foreground">
+            {title}
+          </h2>
           <button
             type="button"
             onClick={onClose}
