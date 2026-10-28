@@ -65,6 +65,18 @@ const nextConfig: NextConfig = {
             : header
         ),
       },
+      {
+        // The signed-in areas are prerendered, so their shell is reachable by
+        // anyone who knows the URL: the role gate is client-side and only runs
+        // after hydration. No data leaks — every query is scoped by RLS on the
+        // user's own token — but the shell should not be indexed. robots.txt
+        // already disallows these trees; this makes the instruction travel with
+        // the response, so a crawler that ignores robots.txt is still told.
+        source: "/:area(dashboard|merchant)/:path*",
+        headers: [
+          { key: "X-Robots-Tag", value: "noindex, nofollow" },
+        ],
+      },
     ];
   },
 };
