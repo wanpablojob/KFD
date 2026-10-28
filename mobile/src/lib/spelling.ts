@@ -196,6 +196,12 @@ export interface Correction {
 }
 
 /** A name with each misspelled word fixed, and what was changed. */
+/** Whether a word is (or is one slip from) a product or store we know. */
+export function isKnownProduct(word: string): boolean {
+  const lower = word.toLowerCase();
+  return KNOWN.has(lower) || lower in SHORT_NAMES || correctWord(word) !== null;
+}
+
 export function correctName(name: string): { text: string; corrections: Correction[] } {
   const corrections: Correction[] = [];
   const text = name.replace(/[\p{L}-]+/gu, (word) => {

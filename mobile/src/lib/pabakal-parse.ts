@@ -13,6 +13,7 @@
  */
 
 import type { StopDraft } from "./pabakal";
+import { isKnownProduct } from "./spelling";
 
 const UNITS: Record<string, number> = {
   // Hiligaynon
@@ -243,10 +244,10 @@ function parseItem(
     // ("Biogesic 500"), so it stays in the name.
     let tail = end;
     while (tail > 2 && COUNT_TAIL.has(words[tail - 1])) tail -= 1;
-    const n = tail >= 2 ? numberWord(words[tail - 1]) : null;
-    if (n !== null) {
-      qty = n;
-      end = tail - 1;
+    const found = quantityAtEnd(words, tail, 1);
+    if (found) {
+      qty = found.qty;
+      end = found.start;
     }
   }
 
@@ -271,18 +272,48 @@ function numberWord(word: string): number | null {
  * "tig duwa", "tigduwa", "tag-dalawa", "tag duwa kabilog", "2 each", "kada isa" at the end of a
  * clause: that many of EACH item, so "biogesic kag ibu tig duwa" is two of both.
  */
+/**
+ * A quantity of one to three words ending at `end` ("singko", "beinte
+ * singko", "trenta y dos", "2", "x2"), never reaching below `min` so a name is
+ * left in front of it. Over 99 is a size, not a quantity ("Biogesic 500").
+ */
+function quantityAtEnd(
+  words: string[],
+  end: number,
+  min: number
+): { qty: number; start: number } | null {
+  for (const len of [3, 2, 1]) {
+    const start = end - len;
+    if (start < min) continue;
+    const lead = leadingQuantity(words.slice(start, end).map((w) => w.toLowerCase()));
+    if (lead && lead.used === len && !Number.isNaN(lead.qty))
+      return { qty: lead.qty, start };
+  }
+  return null;
+}
+
+/**
+ * "tig duwa", "tag-dalawa", "tig beinte singko", "kada tatlo ka buok", "2
+ * each" at the end of a clause: that many of EACH item before it.
+ */
 function takeEach(text: string): { rest: string; each: number | null } {
-  // "tag duwa kabilog", "tig tatlo ka buok": a counting word may follow.
-  const unit = "(?:\\s+(?:ka\\s+)?(?:kabilog|bilog|buok|piraso|pcs|pieces|each))?";
-  const patterns = [
-    new RegExp(`(?:^|\\s)(?:tig|tag)-?\\s*(\\S+)${unit}\\s*$`, "i"),
-    /(?:^|\s)(\S+)\s+each\s*$/i,
-    new RegExp(`(?:^|\\s)kada\\s+(\\S+)${unit}\\s*$`, "i"),
-  ];
-  for (const pattern of patterns) {
-    const m = pattern.exec(text);
-    const each = m ? numberWord(m[1]) : null;
-    if (m && each !== null) return { rest: text.slice(0, m.index), each };
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  let end = words.length;
+  while (end > 0 && COUNT_TAIL.has(words[end - 1].toLowerCase())) end -= 1;
+  const eachWord = end > 0 && words[end - 1].toLowerCase() === "each";
+  if (eachWord) end -= 1;
+  // "tigduwa", "tig-duwa": the marker joined to the number.
+  const joined = end > 0 ? /^(tig|tag)-?(.+)$/i.exec(words[end - 1]) : null;
+  if (joined && !eachWord) {
+    const n = numberWord(joined[2]);
+    if (n !== null) return { rest: words.slice(0, end - 1).join(" "), each: n };
+  }
+  const found = quantityAtEnd(words, end, eachWord ? 0 : 1);
+  if (!found) return { rest: text, each: null };
+  if (eachWord) return { rest: words.slice(0, found.start).join(" "), each: found.qty };
+  const marker = words[found.start - 1].toLowerCase();
+  if (marker === "tig" || marker === "tag" || marker === "kada") {
+    return { rest: words.slice(0, found.start - 1).join(" "), each: found.qty };
   }
   return { rest: text, each: null };
 }
@@ -291,8 +322,35 @@ const titleCase = (s: string) =>
   s.replace(/(^|\s)(\S)/g, (_, sp, c) => sp + c.toUpperCase());
 
 /** The message as form rows. A store applies to the items before it. */
+/** "sang duwa ka itlog", "mga sardinas": grammar, never a product. */
+const GRAMMAR = new Set(["sang", "sing", "ng", "nga", "mga"]);
+
 /** "pwede po", "pls": asking words that come before an order. */
-const ASKING = new Set(["pwede", "puede", "pwde", "pede", "pwd", "puwede"]);
+const ASKING = new Set([
+  "pwede",
+  "puede",
+  "pwde",
+  "pede",
+  "pwd",
+  "puwede",
+  // English: "can i order", "i would like to get", "i need", "please buy"
+  "can",
+  "could",
+  "would",
+  "will",
+  "want",
+  "wanna",
+  "need",
+  "like",
+  "to",
+  "get",
+  "buy",
+  "please",
+  "id",
+  "i'd",
+  "im",
+  "i'm",
+]);
 
 /**
  * Greetings, thanks, small talk, polite and order words: never a product or
@@ -309,7 +367,8 @@ function isChatter(word: string): boolean {
     FILLER.has(w) ||
     SOFT_WORDS.has(w) ||
     OPENERS.has(w) ||
-    ASKING.has(w)
+    ASKING.has(w) ||
+    GRAMMAR.has(w)
   );
 }
 
@@ -360,8 +419,19 @@ export function cleanItemName(name: string): string {
   return result.trim();
 }
 
+/**
+ * "kabilog!!", "mercury?", "biogesic..." -> the word itself. Commas and
+ * semicolons stay: they separate items. A dot inside a word ("1.5L") stays.
+ */
+function stripPunctuation(text: string): string {
+  return text
+    .replace(/[!?…"“”'‘’()[\]{}*~_]+/g, " ")
+    .replace(/\.+(?=\s|$|,|;)/g, " ")
+    .replace(/[^\S\n]+/g, " ");
+}
+
 export function parsePabakalMessage(message: string): StopDraft[] {
-  let text = message.trim();
+  let text = stripPunctuation(message).trim();
   // Drop "pabakal ko", "palihog pabili" and the like from the start, keeping
   // the newlines that separate items.
   let opener: RegExpExecArray | null;
@@ -399,6 +469,11 @@ export function parsePabakalMessage(message: string): StopDraft[] {
     // "sa earth duwa kabilog": a quantity after the store belongs to the item
     // before it, and the store's name is only the store.
     let storeText = storeParts.join(" ").trim();
+    {
+      const sw = storeText.split(/\s+/).filter(Boolean);
+      while (sw.length > 1 && isChatter(sw[sw.length - 1])) sw.pop();
+      storeText = sw.join(" ");
+    }
     const storeEach = takeEach(storeText);
     const lastItem = pending[pending.length - 1];
     if (storeEach.each !== null) {
@@ -414,13 +489,13 @@ export function parsePabakalMessage(message: string): StopDraft[] {
       while (sw.length > 1 && isChatter(sw[sw.length - 1])) sw.pop();
       let t = sw.length;
       while (t > 1 && COUNT_TAIL.has(sw[t - 1].toLowerCase())) t -= 1;
-      const n = t >= 2 ? numberWord(sw[t - 1]) : null;
-      if (n !== null) {
+      const found = quantityAtEnd(sw, t, 1);
+      if (found) {
         if (lastItem && implicit.has(lastItem)) {
-          lastItem.quantity = String(n);
+          lastItem.quantity = String(found.qty);
           implicit.delete(lastItem);
         }
-        sw.length = t - 1;
+        sw.length = found.start;
       }
       storeText = sw.join(" ");
     }
@@ -717,5 +792,7 @@ export function chatIntent(message: string): ChatIntent {
   const store = /\b(?:sa|from)\s+\S/i.test(message);
   // "pabakl", "pbili": a misspelled order word is still an order word.
   const asked = SHOPPING_WORD.test(message) || plain.some((w) => inSet(w, SHOPPING));
-  return numbered || store || asked ? "shopping" : "other";
+  // "biogesic po": a product we know is an order even with no number or store.
+  const product = plain.some((w) => w.length >= 3 && isKnownProduct(w));
+  return numbered || store || asked || product ? "shopping" : "other";
 }
