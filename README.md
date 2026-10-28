@@ -341,3 +341,7 @@ verified user id.
 - **Branch rules**: native branch protection is unavailable on the free
   private plan; see "Branch protection" above for the free equivalents and the
   command to apply once the plan supports it.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
