@@ -5,11 +5,14 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import {
   BikeIcon,
+  ChartIcon,
   LayoutDashboardIcon,
   MailIcon,
   MapPinIcon,
+  RefundIcon,
   ShieldIcon,
   ReceiptIcon,
+  StarIcon,
   StoreIcon,
   UsersIcon,
   UtensilsIcon,
@@ -42,6 +45,28 @@ const navItems = [
   { href: "/dashboard/riders", label: "Riders", icon: BikeIcon },
   { href: "/dashboard/customers", label: "Customers", icon: UsersIcon },
   { href: "/dashboard/menu", label: "Menu Items", icon: UtensilsIcon },
+  // Money over a period, the money that went back, and what customers said.
+  // Admin only: both refunds and the platform-wide revenue picture are the
+  // owner's numbers, and RLS would otherwise show a merchant a partial page
+  // whose totals silently described one shop.
+  {
+    href: "/dashboard/reports",
+    label: "Reports",
+    icon: ChartIcon,
+    adminOnly: true,
+  },
+  {
+    href: "/dashboard/refunds",
+    label: "Refunds",
+    icon: RefundIcon,
+    adminOnly: true,
+  },
+  {
+    href: "/dashboard/reviews",
+    label: "Reviews",
+    icon: StarIcon,
+    adminOnly: true,
+  },
   // Admin only, because attaching a restaurant to an account is the one nav
   // item that grants access to anything. The link is hidden for merchants, and
   // 0011_merchant_provisioning.sql refuses the write for them regardless --

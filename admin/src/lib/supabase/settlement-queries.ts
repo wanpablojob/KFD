@@ -49,3 +49,16 @@ export async function setCommission(pct: number): Promise<void> {
   const { error } = await supabase.rpc("admin_set_commission", { p_pct: pct });
   if (error) throw new Error(error.message);
 }
+
+/**
+ * The current platform-wide rate (0138).
+ *
+ * Read through the RPC, not the table: `platform_settings` is revoked from
+ * `authenticated` and only reachable by a SECURITY DEFINER function, which is
+ * also what keeps the Reports page and the settlement screen on one number.
+ */
+export async function fetchCommission(): Promise<number> {
+  const { data, error } = await supabase.rpc("admin_commission");
+  if (error) throw new Error(error.message);
+  return Number(data ?? 0);
+}

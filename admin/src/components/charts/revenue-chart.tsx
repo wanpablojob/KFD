@@ -1,12 +1,24 @@
 import { formatCurrency, formatCompact } from "@/lib/format";
 import type { RevenuePoint } from "@/lib/types";
 
-export function RevenueChart({ data }: { data: RevenuePoint[] }) {
+export function RevenueChart({
+  data,
+  periodLabel = "this week",
+}: {
+  data: RevenuePoint[];
+  /** What the total at the bottom describes. Reports pass its actual range. */
+  periodLabel?: string;
+}) {
   // Guarded: an empty 7-day window makes the true maximum 0, and
   // `revenue / 0` is NaN, which React silently drops -- leaving bars with no
   // height and no explanation. The floor keeps the empty chart flat and finite.
   const max = Math.max(1, ...data.map((d) => d.revenue));
   const chartHeight = 220;
+
+  // A 90-day report has 90 bars and 90 labels, which overlap into a grey line.
+  // Every seventh label keeps the axis readable; the hover tooltip still names
+  // the exact day and amount for every bar.
+  const labelEvery = data.length <= 14 ? 1 : Math.ceil(data.length / 7);
 
   return (
     <div className="px-5 pb-5">
@@ -35,20 +47,19 @@ export function RevenueChart({ data }: { data: RevenuePoint[] }) {
         })}
       </div>
       <div className="mt-2 flex gap-3">
-        {data.map((point) => (
+        {data.map((point, index) => (
           <div
             key={point.label}
             className="flex-1 text-center text-xs text-muted-foreground"
           >
-            {point.label}
+            {index % labelEvery === 0 ? point.label : ""}
           </div>
         ))}
       </div>
       <p className="mt-3 text-xs text-muted-foreground">
-        Peak: {formatCompact(max)} — revenue this week{" "}
-      
+        Peak: {formatCompact(max)} — revenue {periodLabel}{" "}
         {formatCurrency(data.reduce((sum, d) => sum + d.revenue, 0))}
       </p>
-    </div>  
+    </div>
   );
 }

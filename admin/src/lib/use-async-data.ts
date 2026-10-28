@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 interface AsyncState<T> {
   data: T | null;
@@ -15,7 +15,8 @@ export interface AsyncDataResult<T> extends AsyncState<T> {
 /**
  * `key` re-runs the fetcher when it changes, without spreading a variable
  * length array into the dependency list. Use it when the fetcher closes over
- * something that resolves late, such as the session user id.
+ * something that changes, such as a date range or the session user id; the
+ * freshest closure is the one that runs.
  */
 export function useAsyncData<T>(
   fetcher: () => Promise<T>,
@@ -27,10 +28,22 @@ export function useAsyncData<T>(
     error: null,
   });
 
-  // Captured once: the fetcher is a stable inline arrow in every caller, and
-  // `key` is what re-runs it. Reading .current during render is also a lint
-  // error under the React compiler rules.
-  const [runner] = useState(() => ({ current: fetcher }));
+  // The fetcher is re-created on every render -- it is an inline arrow that
+  // closes over the caller's state -- and `key` is the caller's promise that
+  // "the inputs changed, run it again". Holding the fetcher in state captured
+  // the FIRST render's closure forever: a page that refetched a filtered query
+  // under a new key ran the old closure and returned the old rows, so a date
+  // range or a search that drove the query looked like it did nothing.
+  //
+  // Keep the latest fetcher in a ref instead, synced in its own effect. The
+  // sync effect is declared before the fetch effect, so in the commit where
+  // `key` changes the ref already points at this render's closure. Writing the
+  // ref in an effect rather than during render keeps the React compiler rules
+  // happy.
+  const runner = useRef(fetcher);
+  useEffect(() => {
+    runner.current = fetcher;
+  });
   const [tick, setTick] = useState(0);
 
   useEffect(() => {
@@ -55,7 +68,7 @@ export function useAsyncData<T>(
     return () => {
       active = false;
     };
-  }, [key, tick, runner]);
+  }, [key, tick]);
 
   const refetch = useCallback(() => setTick((t) => t + 1), []);
 
