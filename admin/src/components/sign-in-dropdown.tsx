@@ -12,6 +12,7 @@ import { secondaryButton } from "@/components/marketing/styles";
 import { signOut, useSessionUser } from "@/lib/auth";
 import { useUserRole } from "@/lib/use-user-role";
 import { portalMenu, type PortalKey } from "@/lib/portal-menu";
+import { LoginForm } from "@/components/login-form";
 
 const ITEM =
   "flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-foreground no-underline transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
@@ -23,20 +24,25 @@ const ICONS: Record<PortalKey, typeof StoreIcon> = {
 };
 
 /**
- * The staff menu in the landing page header.
+ * The sign-in button in the landing page header.
  *
- * Signed out it offers the three ways in; signed in it offers only the portals
- * that account's role may open, plus sign out. portalMenu() decides which; the
- * gates and the database still enforce access on every portal page, so this
- * never grants anything, it just does not offer a door that would bounce.
+ * Signed out, "Sign in" drops down the sign-in form itself: after signing in,
+ * the form sends each account where its role belongs (resolveRoleTarget), so
+ * there is no portal to pick first. Signed in, it offers only the portals that
+ * account's role may open, plus sign out. portalMenu() decides which; the gates
+ * and the database still enforce access on every portal page.
  */
 export function SignInDropdown() {
   const { user, loading: authLoading } = useSessionUser();
   const { loading: roleLoading, isAdmin, isMerchant } = useUserRole();
-  const menu = portalMenu({ signedIn: !!user, roleLoading, isAdmin, isMerchant });
+  const menu = portalMenu({
+    signedIn: !!user,
+    roleLoading,
+    isAdmin,
+    isMerchant,
+  });
 
   const [open, setOpen] = useState(false);
-  const [selected, setSelected] = useState<PortalKey>("admin");
   const [signingOut, setSigningOut] = useState(false);
   const scope = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -47,7 +53,8 @@ export function SignInDropdown() {
     if (!open) return;
 
     const onPointerDown = (e: MouseEvent) => {
-      if (scope.current && !scope.current.contains(e.target as Node)) setOpen(false);
+      if (scope.current && !scope.current.contains(e.target as Node))
+        setOpen(false);
     };
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
@@ -73,8 +80,8 @@ export function SignInDropdown() {
     }
   }
 
-  const current = menu.portals.find((p) => p.key === selected) ?? menu.portals[0];
   const signedIn = menu.mode === "open";
+  const track = menu.portals.find((p) => p.key === "customer");
 
   return (
     <div ref={scope} className="relative inline-block text-left">
@@ -88,20 +95,35 @@ export function SignInDropdown() {
         onClick={() => setOpen((v) => !v)}
         className={`${secondaryButton} px-4 py-2`}
       >
-        {signedIn ? (
-          <span>Open portal</span>
-        ) : (
-          <>
-            <span className="hidden sm:inline">Sign in as: {current.label}</span>
-            <span className="sm:hidden">Sign in</span>
-          </>
-        )}
+        <span>{signedIn ? "Open portal" : "Sign in"}</span>
         <span aria-hidden="true" className="text-xs">
           {open ? "▲" : "▼"}
         </span>
       </button>
 
-      {open ? (
+      {open && !signedIn ? (
+        <div
+          role="dialog"
+          aria-label="Sign in"
+          className="absolute right-0 z-50 mt-3 w-[min(24rem,calc(100vw-2rem))] rounded-2xl border border-border bg-card p-5 shadow-lg"
+        >
+          <p className="mb-4 text-base font-semibold text-foreground">
+            Sign in
+          </p>
+          <LoginForm next={null} message={null} />
+          {track ? (
+            <Link
+              href={track.href}
+              onClick={() => setOpen(false)}
+              className="mt-4 block text-center text-sm text-muted-foreground underline-offset-2 hover:underline"
+            >
+              Ordered as a customer? {track.label}
+            </Link>
+          ) : null}
+        </div>
+      ) : null}
+
+      {open && signedIn ? (
         <div
           role="menu"
           aria-label={signedIn ? "Your portals" : "Choose a portal"}
@@ -121,10 +143,7 @@ export function SignInDropdown() {
                 href={portal.href}
                 role="menuitem"
                 data-dropdown-item=""
-                onClick={() => {
-                  setSelected(portal.key);
-                  setOpen(false);
-                }}
+                onClick={() => setOpen(false)}
                 className={ITEM}
               >
                 <span className="shrink-0 text-primary" aria-hidden="true">
@@ -132,14 +151,18 @@ export function SignInDropdown() {
                 </span>
                 <span className="flex flex-col">
                   <span className="text-sm font-semibold">{portal.label}</span>
-                  <span className="text-xs text-muted-foreground">{portal.blurb}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {portal.blurb}
+                  </span>
                 </span>
               </Link>
             );
           })}
 
           {signedIn && roleLoading ? (
-            <p className="px-3 py-2 text-xs text-muted-foreground">Checking your access…</p>
+            <p className="px-3 py-2 text-xs text-muted-foreground">
+              Checking your access…
+            </p>
           ) : null}
 
           {signedIn ? (
@@ -150,7 +173,10 @@ export function SignInDropdown() {
               disabled={signingOut}
               className={`${ITEM} mt-1 border-t border-border pt-3`}
             >
-              <span className="shrink-0 text-muted-foreground" aria-hidden="true">
+              <span
+                className="shrink-0 text-muted-foreground"
+                aria-hidden="true"
+              >
                 <LogOutIcon className="h-5 w-5" />
               </span>
               <span className="text-sm font-semibold">
