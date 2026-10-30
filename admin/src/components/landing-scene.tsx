@@ -8,6 +8,7 @@ import { LeadForm } from "@/components/lead-form";
 import { TrackReferenceForm } from "@/components/track/track-reference-form";
 import { BikeIcon, MapPinIcon, ReceiptIcon, StoreIcon } from "@/components/ui/icons";
 import { primaryButton, secondaryButton } from "@/components/marketing/styles";
+import { PixelRider } from "@/components/pixel/sprites-render";
 import { useLandingMotion } from "@/components/landing-motion";
 import {
   APP_DOWNLOADS,
@@ -40,6 +41,16 @@ const NAV = [
 
 /** One icon per service fact, in SERVICE_FACTS order. */
 const FACT_ICONS = [ReceiptIcon, MapPinIcon, StoreIcon, BikeIcon] as const;
+
+/** Dishes orbiting the hero photo: where each sits, and its depth to the mouse. */
+const HERO_FLOATS = [
+  { dish: "Piaya", at: "-top-8 -right-6", depth: 40 },
+  { dish: "Kansi", at: "top-1/2 -right-12", depth: 24 },
+  { dish: "Napoleones", at: "-bottom-8 left-10", depth: 56 },
+] as const;
+
+/** The dish names that run under the hero; the badge separates them. */
+const MARQUEE = ["Inasal", "Piaya", "Kansi", "Napoleones", "Pabakal"] as const;
 
 /** The gallery's layout: the first dish leads, larger. */
 const GALLERY_ORDER = ["Inasal", "Piaya", "Kansi", "Napoleones"] as const;
@@ -98,7 +109,7 @@ export function LandingScene() {
 
           <div className="flex items-center gap-2">
             <SignInDropdown />
-            <a href="#track" className={`${primaryButton} px-4 py-2`}>
+            <a href="#track" data-magnet className={`${primaryButton} px-4 py-2`}>
               Track order
             </a>
           </div>
@@ -136,10 +147,10 @@ export function LandingScene() {
                 follow every step of your order.
               </p>
               <div className="enter flex flex-wrap items-center gap-3" style={turn(3)}>
-                <a href="#app" className={primaryButton}>
+                <a href="#app" data-magnet className={primaryButton}>
                   Get the app
                 </a>
-                <a href="#track" className={secondaryButton}>
+                <a href="#track" data-magnet className={secondaryButton}>
                   Track order
                 </a>
               </div>
@@ -176,6 +187,19 @@ export function LandingScene() {
                   className="enter-seal h-28 w-28 drop-shadow-xl sm:h-36 sm:w-36"
                 />
               </span>
+              {/* Dishes orbiting the photo; data-float is their depth to the mouse. */}
+              {HERO_FLOATS.map((f) => (
+                <span
+                  key={f.dish}
+                  aria-hidden="true"
+                  data-float={f.depth}
+                  className={`absolute hidden sm:block ${f.at}`}
+                >
+                  <span className="relative block h-20 w-20 overflow-hidden rounded-full shadow-xl ring-4 ring-background lg:h-24 lg:w-24">
+                    <Image src={DISH_PHOTOS[f.dish]} alt="" fill sizes="96px" className="object-cover" />
+                  </span>
+                </span>
+              ))}
             </div>
           </div>
         </section>
@@ -197,12 +221,32 @@ export function LandingScene() {
           </ul>
         </section>
 
+        {/* ---------- dish names: one strip, steered by the scroll ---------- */}
+        <div aria-hidden="true" className="overflow-hidden border-b border-border py-6 sm:py-8">
+          <div data-marquee-track className="flex w-max items-center">
+            {[0, 1].map((copy) =>
+              MARQUEE.map((word, i) => (
+                <span key={`${copy}-${word}`} className="flex items-center">
+                  <span
+                    className={`px-6 font-display text-4xl font-bold tracking-tight whitespace-nowrap sm:px-8 sm:text-6xl ${
+                      i % 2 ? "text-transparent [-webkit-text-stroke:1.5px_var(--primary)]" : "text-foreground"
+                    }`}
+                  >
+                    {word}
+                  </span>
+                  <Image src="/images/kabankalan/badge.png" alt="" width={48} height={48} className="h-10 w-10 sm:h-12 sm:w-12" />
+                </span>
+              )),
+            )}
+          </div>
+        </div>
+
         {/* ---------- how it works: a numbered run on a tinted band ---------- */}
         <div className="landing-tint">
           <section id="how" data-reveal className={SECTION}>
             <div className="grid gap-10 md:grid-cols-[0.9fr_1.1fr]">
               <div>
-                <h2 className={H2}>How it works</h2>
+                <h2 data-words className={H2}>How it works</h2>
                 <p className={LEAD}>Tatlong hakbang lang: pumili, magbayad, at hintayin.</p>
                 {DELIVERY.areas.length > 0 ? (
                   <p className="mt-6 text-sm text-muted-foreground">
@@ -239,6 +283,13 @@ export function LandingScene() {
           data-reveal
           className="mx-auto w-full max-w-6xl scroll-mt-24 px-4 py-10 sm:px-6"
         >
+          <div className="relative pt-12">
+          {/* The rider rides the band's top edge; zoom keeps the box the sprite's size. */}
+          <span aria-hidden="true" data-rider className="absolute top-0 left-6 block">
+            <span className="block">
+              <PixelRider style={{ zoom: 0.75 }} />
+            </span>
+          </span>
           <div className="landing-band grid gap-8 overflow-hidden rounded-3xl bg-primary p-8 text-primary-foreground shadow-[0_30px_70px_-35px_color-mix(in_srgb,var(--primary)_70%,transparent)] sm:p-12 md:grid-cols-2 md:items-center">
             <div>
               <h2 className="font-display text-3xl font-bold tracking-tight sm:text-4xl">Track your order</h2>
@@ -254,13 +305,14 @@ export function LandingScene() {
               <TrackReferenceForm />
             </div>
           </div>
+          </div>
         </section>
 
         {/* ---------- local food: real photos of the region's dishes ---------- */}
         <section id="restaurants" data-reveal className={SECTION}>
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div>
-              <h2 className={H2}>Local food, local kitchens</h2>
+              <h2 data-words className={H2}>Local food, local kitchens</h2>
               <p className={LEAD}>The dishes Negros is known for, from Kabankalan kitchens.</p>
             </div>
           </div>
@@ -288,6 +340,11 @@ export function LandingScene() {
                     i === 0 ? "col-span-2 row-span-2" : i === 1 ? "col-span-2" : ""
                   }`}
                 >
+                  <span
+                    aria-hidden="true"
+                    data-glare
+                    className="pointer-events-none absolute inset-0 opacity-0 bg-[radial-gradient(circle_at_var(--gx,50%)_var(--gy,50%),rgba(255,255,255,0.35),transparent_55%)]"
+                  />
                   <div className="landing-settle absolute inset-0 -z-10">
                     <Image
                       src={DISH_PHOTOS[dish]}
@@ -323,7 +380,7 @@ export function LandingScene() {
         <section id="pabakal" data-reveal className={SECTION}>
           <div className="grid items-center gap-12 md:grid-cols-[0.95fr_1.05fr]">
             <div>
-              <h2 className={H2}>Pabakal. Just say what you need.</h2>
+              <h2 data-words className={H2}>Pabakal. Just say what you need.</h2>
               <p className={LEAD}>
                 Message what to buy and where. A rider shops for you and brings it
                 to your door.
@@ -338,7 +395,7 @@ export function LandingScene() {
                   </li>
                 ))}
               </ul>
-              <a href="#app" data-stagger className={`${secondaryButton} mt-8`}>
+              <a href="#app" data-stagger data-magnet className={`${secondaryButton} mt-8`}>
                 Get the app
               </a>
             </div>
@@ -395,6 +452,16 @@ export function LandingScene() {
                 </div>
                 </div>
               </div>
+              <div className="mt-4 flex justify-end">
+                <button
+                  type="button"
+                  data-chat-replay
+                  hidden
+                  className="rounded-full bg-muted px-4 py-2 text-xs font-semibold text-foreground transition-colors hover:bg-primary hover:text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  Play again
+                </button>
+              </div>
             </figure>
           </div>
         </section>
@@ -421,12 +488,12 @@ export function LandingScene() {
                   </p>
                   <div className="flex flex-wrap gap-3">
                     {APP_DOWNLOADS.android ? (
-                      <a href={APP_DOWNLOADS.android} className={whiteButton}>
+                      <a href={APP_DOWNLOADS.android} data-magnet className={whiteButton}>
                         Download for Android
                       </a>
                     ) : null}
                     {APP_DOWNLOADS.iphone ? (
-                      <a href={APP_DOWNLOADS.iphone} className={whiteButton}>
+                      <a href={APP_DOWNLOADS.iphone} data-magnet className={whiteButton}>
                         Get it on iPhone
                       </a>
                     ) : null}
@@ -459,7 +526,7 @@ export function LandingScene() {
 
         {/* ---------- partners ---------- */}
         <section data-reveal className={SECTION}>
-          <h2 className={H2}>Grow with KFD</h2>
+          <h2 data-words className={H2}>Grow with KFD</h2>
           <div className="mt-10 grid gap-6 md:grid-cols-2">
             <article
               id="sell"
@@ -510,7 +577,7 @@ export function LandingScene() {
         {/* ---------- FAQ ---------- */}
         <section id="faq" data-reveal className={SECTION}>
           <div className="mx-auto max-w-3xl">
-            <h2 className={H2}>Questions</h2>
+            <h2 data-words className={H2}>Questions</h2>
             <div className="mt-8 divide-y divide-border border-y border-border">
               {FAQ.map((item) => (
                 <details key={item.q} data-stagger className="group py-5">
