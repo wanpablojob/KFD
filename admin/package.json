@@ -15,7 +15,7 @@
     "@sentry/nextjs": "^11.7.0",
     "@supabase/supabase-js": "^2.117.1",
     "clsx": "^2.1.1",
-    "expo-server-sdk": "^7.2.0",
+    "expo-server-sdk": "^8.0.0",
     "gsap": "^3.15.0",
     "next": "16.4.2",
     "react": "19.3.0",
