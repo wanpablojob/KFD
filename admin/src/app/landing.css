@@ -64,17 +64,19 @@
     scroll-behavior: smooth;
   }
 
-  /* Hero: copy rises in sequence (--i sets each element's turn), the photo
-     settles slightly after. Runs once, with no JavaScript. */
+  /* Hero: copy rises in sequence (--i sets each element's turn). Runs once, with no JavaScript. */
   .landing .enter {
     opacity: 0;
     animation: landing-rise 800ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
     animation-delay: calc(var(--i, 0) * 90ms + 60ms);
   }
 
-  .landing .enter-photo {
+
+  /* The dishes around the hero badge pop in one after another. */
+  .landing .enter-orbit {
     opacity: 0;
-    animation: landing-settle 1100ms cubic-bezier(0.16, 1, 0.3, 1) 180ms forwards;
+    animation: landing-seal 800ms cubic-bezier(0.34, 1.4, 0.64, 1) forwards;
+    animation-delay: calc(var(--i, 0) * 110ms + 450ms);
   }
 
   .landing .enter-seal {
@@ -94,16 +96,6 @@
   }
 }
 
-@keyframes landing-settle {
-  from {
-    opacity: 0;
-    transform: translateY(14px) scale(0.97);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
 
 @keyframes landing-seal {
   from {
@@ -134,12 +126,6 @@
       animation-timeline: scroll(root);
     }
 
-    /* The hero photo drifts slower than the page: a gentle parallax. */
-    .landing-parallax {
-      animation: landing-drift linear both;
-      animation-timeline: scroll(root);
-      animation-range: 0 90vh;
-    }
 
     /* Dish photos settle from a slight zoom as they come into view. */
     .landing-settle {
@@ -159,14 +145,6 @@
   }
 }
 
-@keyframes landing-drift {
-  from {
-    transform: translateY(0);
-  }
-  to {
-    transform: translateY(12%);
-  }
-}
 
 @keyframes landing-unzoom {
   from {

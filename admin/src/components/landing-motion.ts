@@ -1,12 +1,11 @@
 "use client";
 
 import gsap from "gsap";
-import { Draggable } from "gsap/Draggable";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { SplitText } from "gsap/SplitText";
 import { useGSAP } from "@gsap/react";
 
-gsap.registerPlugin(useGSAP, ScrollTrigger, SplitText, Draggable);
+gsap.registerPlugin(useGSAP, ScrollTrigger, SplitText);
 
 const EASE = "power3.out";
 
@@ -30,9 +29,12 @@ const EASE = "power3.out";
  *   data-words          a heading whose words light up with the scroll
  *   data-marquee-track  the dish names, sped up and skewed by scroll speed
  *   data-rider          the pixel rider riding the edge of the tracking band
- *   data-float          a dish orbiting the hero photo, with depth to the mouse
- *   data-tilt           the hero photo, which leans toward the pointer
- *   data-spin           the hero seal: turned by the scroll, and draggable
+ *   data-orbit          the ring of dishes around the hero badge; spins, and
+ *                       can be flung with a mouse (data-orbit-stage)
+ *   data-orbit-item     one dish, counter-turned so it stays upright
+ *   data-ring-deco      a guide ring turning the other way
+ *   data-badge          the hero badge: breathes, and turns when clicked
+ *   data-tilt           the hero orbit, which leans toward the pointer
  *   data-magnet         a button that leans toward the mouse
  *   data-pop            a badge that springs in with its section
  *   data-zoom           a photo that settles from a zoom as it scrolls through
@@ -135,27 +137,108 @@ export function useLandingMotion(
           });
         }
 
-        // Dishes orbit the hero photo: they pop in after it, then bob.
-        const floats = q("[data-float]");
-        if (floats.length) {
-          gsap.from(floats, {
-            scale: 0,
-            autoAlpha: 0,
-            duration: 0.8,
-            ease: "back.out(2)",
-            stagger: 0.12,
-            delay: 0.9,
+        // The orbit: dishes circle the badge, always upright. It turns at a
+        // base speed; scrolling and a mouse drag add spin that eases back,
+        // so a flick keeps it going for a moment.
+        const ring = q("[data-orbit]")[0];
+        const stage = q("[data-orbit-stage]")[0] as HTMLElement | undefined;
+        if (ring && stage) {
+          const items = ring.querySelectorAll("[data-orbit-item]");
+          const BASE = 8; // degrees a second
+          const spinClamp = gsap.utils.clamp(-400, 400);
+          let angle = 0;
+          let extra = 0;
+          let dragging = false;
+          const turnOrbit = () => {
+            const ticks = gsap.ticker.deltaRatio(60);
+            if (!dragging) {
+              angle += ((BASE + extra) * ticks) / 60;
+              extra *= 0.96 ** ticks;
+            }
+            gsap.set(ring, { rotation: angle });
+            gsap.set(items, { rotation: -angle });
+          };
+          gsap.ticker.add(turnOrbit);
+          off.push(() => gsap.ticker.remove(turnOrbit));
+
+          ScrollTrigger.create({
+            start: 0,
+            end: "max",
+            onUpdate: (self) => {
+              extra = spinClamp(self.getVelocity() / 10);
+            },
           });
-          floats.forEach((f, i) =>
-            gsap.to(f.firstElementChild, {
-              y: i % 2 ? 10 : -10,
-              rotate: i % 2 ? -6 : 6,
-              duration: 2.4 + i * 0.4,
-              ease: "sine.inOut",
-              yoyo: true,
+
+          // Grab the ring with a mouse and spin it; touch keeps the scroll.
+          const angleAt = (e: PointerEvent) => {
+            const r = stage.getBoundingClientRect();
+            return (
+              (Math.atan2(
+                e.clientY - (r.top + r.height / 2),
+                e.clientX - (r.left + r.width / 2),
+              ) *
+                180) /
+              Math.PI
+            );
+          };
+          let last = 0;
+          let lastT = 0;
+          on(stage, "pointerdown", (ev) => {
+            const e = ev as PointerEvent;
+            if (e.pointerType !== "mouse") return;
+            dragging = true;
+            last = angleAt(e);
+            lastT = performance.now();
+            stage.setPointerCapture(e.pointerId);
+            stage.style.cursor = "grabbing";
+          });
+          on(stage, "pointermove", (ev) => {
+            if (!dragging) return;
+            const e = ev as PointerEvent;
+            const a = angleAt(e);
+            const d = ((a - last + 540) % 360) - 180; // shortest way round
+            const now = performance.now();
+            angle += d;
+            extra = spinClamp((d / Math.max(now - lastT, 1)) * 1000 - BASE);
+            last = a;
+            lastT = now;
+          });
+          const release = () => {
+            dragging = false;
+            stage.style.cursor = "";
+          };
+          on(stage, "pointerup", release);
+          on(stage, "pointercancel", release);
+
+          // The guide rings turn the other way, slowly.
+          q("[data-ring-deco]").forEach((deco, i) =>
+            gsap.to(deco, {
+              rotation: i ? 360 : -360,
+              duration: i ? 90 : 60,
+              ease: "none",
               repeat: -1,
             }),
           );
+        }
+
+        // The badge breathes, and does a full turn when clicked.
+        const badge = q("[data-badge]")[0];
+        if (badge) {
+          gsap.to(badge, {
+            scale: 1.04,
+            duration: 2.2,
+            ease: "sine.inOut",
+            yoyo: true,
+            repeat: -1,
+          });
+          on(badge, "click", () => {
+            if (gsap.isTweening(badge.firstElementChild)) return;
+            gsap.fromTo(
+              badge.firstElementChild,
+              { rotation: 0 },
+              { rotation: 360, duration: 1.1, ease: "back.inOut(1.6)" },
+            );
+          });
         }
 
         // The dish names run sideways; scrolling speeds them up, turns them
@@ -361,20 +444,6 @@ export function useLandingMotion(
           );
         }
 
-        // The hero seal turns a little as the page leaves the hero.
-        for (const seal of q("[data-spin]")) {
-          gsap.to(seal, {
-            rotate: 40,
-            ease: "none",
-            scrollTrigger: {
-              trigger: seal,
-              start: "top 20%",
-              end: "+=500",
-              scrub: true,
-            },
-          });
-        }
-
         // The headline's last words get underlined once the entrance lands.
         gsap.fromTo(
           q("[data-underline]"),
@@ -448,8 +517,7 @@ export function useLandingMotion(
         return () => off.forEach((fn) => fn());
       });
 
-      // Mouse only: touch screens keep these still, and dragging the seal
-      // would fight the scroll.
+      // Mouse only: touch screens keep these still.
       mm.add(
         "(prefers-reduced-motion: no-preference) and (pointer: fine)",
         () => {
@@ -524,25 +592,6 @@ export function useLandingMotion(
             });
           }
 
-          // The orbiting dishes drift against the mouse, the nearer ones more.
-          const hero = q("#top")[0];
-          const floats = q("[data-float]") as HTMLElement[];
-          if (hero && floats.length) {
-            const movers = floats.map((f) => ({
-              depth: Number(f.dataset.float) || 20,
-              x: gsap.quickTo(f, "x", { duration: 0.9, ease: EASE }),
-              y: gsap.quickTo(f, "y", { duration: 0.9, ease: EASE }),
-            }));
-            on(hero, "pointermove", (e) => {
-              const nx = e.clientX / window.innerWidth - 0.5;
-              const ny = e.clientY / window.innerHeight - 0.5;
-              for (const m of movers) {
-                m.x(nx * -m.depth);
-                m.y(ny * -m.depth);
-              }
-            });
-          }
-
           // Each headline word hops when the mouse touches it.
           for (const word of q(".landing-word")) {
             on(word, "pointerenter", () => {
@@ -592,23 +641,8 @@ export function useLandingMotion(
               }
             });
 
-          // The seal can be pulled off the photo; it springs back on release.
-          const drags = q("[data-spin]").flatMap((seal) =>
-            Draggable.create(seal, {
-              onRelease() {
-                gsap.to(this.target, {
-                  x: 0,
-                  y: 0,
-                  duration: 1.2,
-                  ease: "elastic.out(1, 0.35)",
-                });
-              },
-            }),
-          );
-
           return () => {
             off.forEach((fn) => fn());
-            drags.forEach((d) => d.kill());
           };
         },
       );

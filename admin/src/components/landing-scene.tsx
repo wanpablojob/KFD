@@ -18,7 +18,7 @@ import {
   DISH_DETAILS,
   DISH_PHOTOS,
   FAQ,
-  HERO_PHOTO,
+  FEAST_PHOTO,
   HOW_IT_WORKS,
   KITCHEN_PHOTO,
   LOCAL_SPECIALTIES,
@@ -42,11 +42,13 @@ const NAV = [
 /** One icon per service fact, in SERVICE_FACTS order. */
 const FACT_ICONS = [ReceiptIcon, MapPinIcon, StoreIcon, BikeIcon] as const;
 
-/** Dishes orbiting the hero photo: where each sits, and its depth to the mouse. */
-const HERO_FLOATS = [
-  { dish: "Piaya", at: "-top-8 -right-6", depth: 40 },
-  { dish: "Kansi", at: "top-1/2 -right-12", depth: 24 },
-  { dish: "Napoleones", at: "-bottom-8 left-10", depth: 56 },
+/** The food circling the badge in the hero, clockwise from the top. */
+const HERO_ORBIT = [
+  { name: "Inasal", src: DISH_PHOTOS.Inasal },
+  { name: "Piaya", src: DISH_PHOTOS.Piaya },
+  { name: "Kansi", src: DISH_PHOTOS.Kansi },
+  { name: "Napoleones", src: DISH_PHOTOS.Napoleones },
+  { name: "Boodle fight", src: FEAST_PHOTO },
 ] as const;
 
 /** The dish names that run under the hero; the badge separates them. */
@@ -172,50 +174,62 @@ export function LandingScene() {
               </div>
             </div>
 
-            {/* A real photo of a Filipino feast, with the badge as a seal. */}
-            <div data-tilt className="relative mx-auto w-full max-w-120 min-w-0 md:mr-0">
-              <div className="enter-photo relative aspect-4/3 overflow-hidden md:aspect-4/5 rounded-4xl shadow-[0_40px_80px_-40px_color-mix(in_srgb,var(--primary)_55%,transparent)] ring-1 ring-border">
-                <div className="landing-parallax absolute inset-x-0 -top-[8%] h-[116%]">
-                  <Image
-                    src={HERO_PHOTO}
-                    alt="A boodle fight: grilled meat, fish, eggplant and fruit laid on banana leaves between two rows of rice"
-                    fill
-                    priority
-                    sizes="(min-width: 768px) 480px, 92vw"
-                    className="object-cover"
-                  />
-                </div>
-                <div
-                  aria-hidden="true"
-                  className="absolute inset-x-0 bottom-0 h-1/3 bg-linear-to-t from-black/45 to-transparent"
-                />
-                <p className="absolute right-5 bottom-4 left-5 text-right text-sm font-semibold text-white drop-shadow">
-                  A boodle fight, made for sharing
-                </p>
-              </div>
-              {/* The wrapper turns with the scroll; the seal's own entrance is CSS. */}
-              <span data-spin className="absolute -top-6 -left-4 sm:-left-8">
+            {/* The badge, with local food circling it. Positions are set here so
+                the orbit is whole without JavaScript; landing-motion.ts turns it. */}
+            <div
+              data-tilt
+              data-orbit-stage
+              className="relative mx-auto aspect-square w-full max-w-sm min-w-0 select-none sm:max-w-120 md:mr-0"
+            >
+              <div aria-hidden="true" className="absolute inset-[16%] rounded-full bg-primary/15 blur-3xl" />
+              <span
+                aria-hidden="true"
+                data-ring-deco
+                className="absolute inset-[8%] rounded-full border-2 border-dashed border-primary/25"
+              />
+              <span
+                aria-hidden="true"
+                data-ring-deco
+                className="absolute inset-[24%] rounded-full border border-primary/15"
+              />
+              <div data-badge className="absolute inset-[27%]">
                 <Image
                   src="/images/kabankalan/badge.png"
-                  alt=""
-                  width={160}
-                  height={160}
-                  className="enter-seal h-28 w-28 drop-shadow-xl sm:h-36 sm:w-36"
+                  alt="Kabankalan Food Delivery"
+                  fill
+                  priority
+                  sizes="(min-width: 640px) 220px, 46vw"
+                  className="enter-seal object-contain drop-shadow-2xl"
                 />
-              </span>
-              {/* Dishes orbiting the photo; data-float is their depth to the mouse. */}
-              {HERO_FLOATS.map((f) => (
-                <span
-                  key={f.dish}
-                  aria-hidden="true"
-                  data-float={f.depth}
-                  className={`absolute hidden sm:block ${f.at}`}
-                >
-                  <span className="relative block h-20 w-20 overflow-hidden rounded-full shadow-xl ring-4 ring-background lg:h-24 lg:w-24">
-                    <Image src={DISH_PHOTOS[f.dish]} alt="" fill sizes="96px" className="object-cover" />
-                  </span>
-                </span>
-              ))}
+              </div>
+              <ul data-orbit className="absolute inset-0">
+                {HERO_ORBIT.map((dish, i) => {
+                  const a = (i / HERO_ORBIT.length) * 2 * Math.PI;
+                  return (
+                    <li
+                      key={dish.name}
+                      data-orbit-item
+                      className="absolute -translate-x-1/2 -translate-y-1/2"
+                      // Rounded: the browser shortens long decimals, which breaks hydration.
+                      style={{
+                        left: `${(50 + 42 * Math.sin(a)).toFixed(2)}%`,
+                        top: `${(50 - 42 * Math.cos(a)).toFixed(2)}%`,
+                      }}
+                    >
+                      <div className="enter-orbit" style={turn(i)}>
+                        <div className="flex flex-col items-center gap-1.5 transition-transform duration-300 ease-out hover:scale-110">
+                          <span className="relative block size-16 overflow-hidden rounded-full shadow-xl ring-4 ring-background sm:size-24">
+                            <Image src={dish.src} alt={dish.name} fill sizes="96px" className="object-cover" />
+                          </span>
+                          <span className="rounded-full bg-card/90 px-2.5 py-0.5 text-[11px] font-semibold text-foreground shadow-sm backdrop-blur sm:text-xs">
+                            {dish.name}
+                          </span>
+                        </div>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
             </div>
           </div>
         </section>

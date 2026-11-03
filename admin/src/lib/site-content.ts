@@ -92,8 +92,8 @@ export const DISH_DETAILS: Record<(typeof LOCAL_SPECIALTIES)[number], string> = 
   Napoleones: "Flaky puff pastry layered with custard under a sugar glaze.",
 };
 
-/** A 4:5 centre crop of the Commons original, sized for the hero frame. */
-export const HERO_PHOTO = "/images/food/hero-boodle.jpg";
+/** A 4:5 centre crop of the Commons boodle-fight photo; one of the dishes circling the hero badge. */
+export const FEAST_PHOTO = "/images/food/hero-boodle.jpg";
 export const KITCHEN_PHOTO = "/images/food/inasal-plate.jpg";
 
 /**
