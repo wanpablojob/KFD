@@ -102,6 +102,49 @@ export function formatLine(item: { name: string; quantity: number }): string {
   return item.quantity > 0 ? `${item.quantity}× ${item.name}` : item.name;
 }
 
+/** "2 stores · 5 items" for a card; a 0120 free-text list counts as one item. */
+export function pabakalSize(p: Pick<Pabakal, "stops" | "store" | "items">): string {
+  const stops = stopsOf(p);
+  const items = stops.reduce(
+    (n, s) => n + s.items.reduce((m, i) => m + Math.max(i.quantity, 1), 0),
+    0
+  );
+  return `${stops.length} store${stops.length === 1 ? "" : "s"} · ${items} item${items === 1 ? "" : "s"}`;
+}
+
+export interface PabakalStep {
+  label: string;
+  at: string | null;
+}
+
+/**
+ * The pabakal's history, oldest first. Steps not reached yet have no time; a
+ * cancelled pabakal ends at Cancelled after the last step it reached.
+ */
+export function pabakalTimeline(
+  p: Pick<
+    Pabakal,
+    | "status"
+    | "created_at"
+    | "accepted_at"
+    | "bought_at"
+    | "delivered_at"
+    | "cancelled_at"
+  >
+): PabakalStep[] {
+  const steps: PabakalStep[] = [
+    { label: "Requested", at: p.created_at },
+    { label: "Rider accepted", at: p.accepted_at },
+    { label: "Bought, on the way", at: p.bought_at },
+    { label: "Delivered", at: p.delivered_at },
+  ];
+  if (p.status !== "cancelled") return steps;
+  return [
+    ...steps.filter((s) => s.at !== null),
+    { label: "Cancelled", at: p.cancelled_at },
+  ];
+}
+
 function check<T>(result: { data: T; error: { message: string } | null }): T {
   if (result.error) throw new Error(result.error.message);
   return result.data;

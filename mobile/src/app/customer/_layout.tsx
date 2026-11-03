@@ -56,6 +56,8 @@ const ROUTES = TABS.map((tab) => tab.route);
 const PARENT_TAB: Record<string, number> = {
   "/customer/restaurant": 1,
   "/customer/addresses": 4,
+  // A pabakal's full order opens from My pabakal.
+  "/customer/pabakal-order": 2,
   // Orders is no longer a tab; it opens from Account and after checkout.
   "/customer/orders": 4,
 };

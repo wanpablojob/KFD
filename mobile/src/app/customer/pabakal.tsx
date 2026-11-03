@@ -2,9 +2,7 @@ import { useCallback, useRef, useState, type ComponentProps } from "react";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
-  Linking,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -25,25 +23,27 @@ import { loadAddresses, type SavedAddress } from "../../lib/addresses";
 import { backoffFor } from "../../lib/poll";
 import { useSession } from "../../lib/session-context";
 import {
-  cancelPabakal,
   cleanStops,
   fetchMyPabakal,
-  formatLine,
   mergeStops,
   PABAKAL_RULES,
   PABAKAL_STATUS_LABEL,
+  pabakalSize,
   pabakalAmountDue,
-  fetchPabakalRider,
   pabakalFee,
   prescriptionItems,
-  receiptUrl,
   requestPabakal,
   stopsOf,
   type Pabakal,
   type StopDraft,
 } from "../../lib/pabakal";
 import { readPabakalMessage } from "../../lib/pabakal-from-message";
-import { RiderOnTheWay } from "../../components/RiderOnTheWay";
+import {
+  PabakalProgress,
+  PabakalRider,
+  PabakalStatusPill,
+} from "../../components/PabakalStatus";
+import { shortTimestamp } from "../../lib/order-timestamp";
 import { chatIntent, type ChatIntent } from "../../lib/pabakal-parse";
 import { correctStops, describeCorrections } from "../../lib/spelling";
 import { colors, radius, shadow, spacing, type } from "../../lib/theme";
@@ -51,8 +51,6 @@ import { colors, radius, shadow, spacing, type } from "../../lib/theme";
 const peso = (n: number) => `₱${n.toFixed(2)}`;
 const blankItem = () => ({ name: "", quantity: "1" });
 const ACTIVE: Pabakal["status"][] = ["open", "accepted", "delivering"];
-/** The progress bar on a card; cancelled has none. */
-const STEPS: Pabakal["status"][] = ["open", "accepted", "delivering", "delivered"];
 
 interface Bubble {
   id: number;
@@ -147,13 +145,6 @@ export default function PabakalScreen() {
         e instanceof Error ? e.message : "That did not go through. Try again."
       );
     },
-  });
-
-  const cancel = useMutation({
-    mutationFn: cancelPabakal,
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["pabakal"] }),
-    onError: (e) =>
-      Alert.alert("Could not cancel", e instanceof Error ? e.message : "Try again."),
   });
 
   /** A typed message: more items while building, the rider's note when confirming. */
@@ -353,16 +344,11 @@ export default function PabakalScreen() {
               <PabakalCard
                 key={p.id}
                 p={p}
-                cancelling={cancel.isPending && cancel.variables === p.id}
-                onCancel={() =>
-                  Alert.alert("Cancel this pabakal?", p.store, [
-                    { text: "Keep it", style: "cancel" },
-                    {
-                      text: "Cancel it",
-                      style: "destructive",
-                      onPress: () => cancel.mutate(p.id),
-                    },
-                  ])
+                onOpen={() =>
+                  router.push({
+                    pathname: "/customer/pabakal-order",
+                    params: { id: p.id },
+                  })
                 }
               />
             ))
@@ -636,153 +622,50 @@ function SummaryRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-const STATUS_TONE: Record<Pabakal["status"], { fg: string; bg: string }> = {
-  open: { fg: colors.warning, bg: colors.goldSoft },
-  accepted: { fg: colors.primary, bg: colors.primarySoft },
-  delivering: { fg: colors.primary, bg: colors.primarySoft },
-  delivered: { fg: colors.success, bg: colors.successSoft },
-  cancelled: { fg: colors.textMuted, bg: colors.surface },
-};
-
-/** Who has the pabakal, a call button, and where they are once it is bought. */
-function PabakalRider({ p }: { p: Pabakal }) {
-  const rider = useQuery({
-    queryKey: ["pabakalRider", p.id],
-    queryFn: () => fetchPabakalRider(p.id),
-    refetchInterval: (query) => backoffFor(30_000, query.state.fetchFailureCount),
-  });
-  return (
-    <>
-      {rider.data ? (
-        <View style={styles.rowBetween}>
-          <View style={styles.row}>
-            <Ionicons name="bicycle-outline" size={16} color={colors.secondary} />
-            <Text style={type.body}>Rider {rider.data.name}</Text>
-          </View>
-          {rider.data.phone ? (
-            <Pressable
-              onPress={() => void Linking.openURL(`tel:${rider.data?.phone}`)}
-              accessibilityRole="button"
-              accessibilityLabel={`Call rider ${rider.data.name}`}
-              hitSlop={8}
-              style={styles.row}
-            >
-              <Ionicons name="call-outline" size={16} color={colors.primary} />
-              <Text style={styles.linkSmall}>Call</Text>
-            </Pressable>
-          ) : null}
-        </View>
-      ) : null}
-      <RiderOnTheWay reference={p.reference} enabled={p.status === "delivering"} />
-    </>
-  );
-}
-
-function PabakalCard({
-  p,
-  cancelling,
-  onCancel,
-}: {
-  p: Pabakal;
-  cancelling: boolean;
-  onCancel: () => void;
-}) {
+/** A pabakal at a glance; tapping it opens the whole order. */
+function PabakalCard({ p, onOpen }: { p: Pabakal; onOpen: () => void }) {
   const due = pabakalAmountDue(p);
-  const tone = STATUS_TONE[p.status];
-  const step = STEPS.indexOf(p.status);
+  const stores = stopsOf(p).map((stop) => stop.store);
   return (
-    <View style={[styles.card, styles.orderCard]}>
+    <Pressable
+      onPress={onOpen}
+      accessibilityRole="button"
+      accessibilityLabel={`${p.reference}, ${PABAKAL_STATUS_LABEL[p.status]}. Open the order`}
+      style={({ pressed }) => [
+        styles.card,
+        styles.orderCard,
+        pressed && styles.pressed,
+      ]}
+    >
       <View style={styles.rowBetween}>
         <Text style={styles.strong}>{p.reference}</Text>
-        <View style={[styles.pill, { backgroundColor: tone.bg }]}>
-          <Text style={[styles.pillText, { color: tone.fg }]}>
-            {PABAKAL_STATUS_LABEL[p.status]}
-          </Text>
-        </View>
+        <PabakalStatusPill status={p.status} />
       </View>
 
       {p.status === "accepted" || p.status === "delivering" ? (
         <PabakalRider p={p} />
       ) : null}
+      <PabakalProgress status={p.status} />
 
-      {step >= 0 ? (
-        <View
-          style={styles.progress}
-          accessibilityLabel={PABAKAL_STATUS_LABEL[p.status]}
-        >
-          {STEPS.map((s, i) => (
-            <View
-              key={s}
-              style={[styles.progressBar, i <= step && styles.progressOn]}
-            />
-          ))}
-        </View>
-      ) : null}
-
-      {stopsOf(p).map((stop, i) => (
-        <View key={i} style={styles.stopSummary}>
-          <View style={styles.row}>
-            <Ionicons name="storefront-outline" size={14} color={colors.secondary} />
-            <Text style={styles.strong}>{stop.store}</Text>
-          </View>
-          {stop.items.map((item, j) => (
-            <Text key={j} style={[type.body, styles.indent]}>
-              {formatLine(item)}
-            </Text>
-          ))}
-        </View>
-      ))}
-
-      <View style={[styles.rowBetween, styles.divider]}>
-        {due !== null && p.item_cost !== null ? (
-          <>
-            <Text style={type.caption}>
-              Receipt {peso(p.item_cost)} + fees {peso(p.delivery_fee + p.pabakal_fee)}
-            </Text>
-            <Text style={type.price}>Pay {peso(due)}</Text>
-          </>
-        ) : (
-          <Text style={type.caption}>
-            Receipt total + fees {peso(p.delivery_fee + p.pabakal_fee)}, cash on
-            delivery
-          </Text>
-        )}
+      <View style={styles.row}>
+        <Ionicons name="storefront-outline" size={14} color={colors.secondary} />
+        <Text style={[type.body, styles.flex]} numberOfLines={1}>
+          {stores.join(", ")}
+        </Text>
       </View>
 
-      {/* The receipt the rider photographed (0140): what the customer pays. */}
-      {p.receipt_path ? (
-        <Pressable
-          onPress={() =>
-            void receiptUrl(p.receipt_path as string).then((url) => {
-              if (url) void Linking.openURL(url);
-              else Alert.alert("Could not open the receipt", "Try again in a moment.");
-            })
-          }
-          accessibilityRole="link"
-          style={styles.row}
-        >
-          <Ionicons name="receipt-outline" size={16} color={colors.primary} />
-          <Text style={styles.linkSmall}>View receipt</Text>
-        </Pressable>
-      ) : null}
-
-      {p.status === "cancelled" && p.cancel_reason ? (
-        <Text style={type.caption}>{p.cancel_reason}</Text>
-      ) : null}
-      {p.status === "open" ? (
-        <Pressable
-          onPress={onCancel}
-          disabled={cancelling}
-          accessibilityRole="button"
-          hitSlop={8}
-          style={styles.cancel}
-        >
-          <Text style={styles.cancelLabel}>
-            {cancelling ? "Cancelling…" : "Cancel"}
+      <View style={[styles.rowBetween, styles.divider]}>
+        <Text style={type.caption}>
+          {pabakalSize(p)} · {shortTimestamp(p.created_at)}
+        </Text>
+        <View style={styles.row}>
+          <Text style={due !== null ? type.price : type.caption}>
+            {due !== null ? `Pay ${peso(due)}` : "Details"}
           </Text>
-        </Pressable>
-      ) : null}
-    </View>
+          <Ionicons name="chevron-forward" size={18} color={colors.textFaint} />
+        </View>
+      </View>
+    </Pressable>
   );
 }
 
@@ -1018,19 +901,9 @@ const styles = StyleSheet.create({
   empty: { alignItems: "center", paddingVertical: spacing.xl, gap: spacing.md },
 
   orderCard: { gap: spacing.md },
-  pill: {
-    borderRadius: radius.pill,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 3,
-  },
-  pillText: { fontSize: 12, fontWeight: "800" },
-  progress: { flexDirection: "row", gap: 4 },
-  progressBar: { flex: 1, height: 4, borderRadius: 2, backgroundColor: colors.surface },
-  progressOn: { backgroundColor: colors.primary },
+  pressed: { opacity: 0.85 },
   stopSummary: { gap: 2 },
   indent: { paddingLeft: 22 },
-  cancel: { alignSelf: "flex-start" },
-  cancelLabel: { ...type.label, color: colors.danger },
   screen: { flex: 1, backgroundColor: colors.background },
   header: {
     paddingHorizontal: spacing.lg,
