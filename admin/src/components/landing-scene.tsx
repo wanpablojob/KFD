@@ -640,13 +640,25 @@ export function LandingScene() {
               <p className="mt-2 mb-6 text-sm text-muted-foreground">
                 {PARTNER_TERMS.rider.terms}
               </p>
-              <LeadForm
-                kind="rider"
-                submitLabel="Apply as a rider"
-                withNote
-                notePlaceholder="Barangay, your motorcycle, and availability"
-                compact
-              />
+              {/* The real application (0046), reviewed under Riders like one from
+                  the app; a lead here only ever reached a spreadsheet. */}
+              <ul className="mb-6 flex flex-col gap-2 text-sm text-foreground">
+                {[
+                  "Create an account or sign in",
+                  "Send your details, licence and OR/CR numbers",
+                  "We review and contact you; approved riders go online in the app",
+                ].map((step, i) => (
+                  <li key={step} className="flex items-start gap-3">
+                    <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
+                      {i + 1}
+                    </span>
+                    {step}
+                  </li>
+                ))}
+              </ul>
+              <Link href="/drive" data-magnet className={primaryButton}>
+                Apply to ride
+              </Link>
             </article>
           </div>
         </section>

@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase/client";
 import { resolveRoleTarget } from "@/lib/role";
 import { signOut } from "@/lib/auth";
 import { safeNextPath } from "@/lib/safe-next";
+import { DRIVE_PATH } from "@/lib/rider-apply";
 
 /**
  * Where Google returns the browser after authorization.
@@ -45,6 +46,15 @@ export default function AuthCallbackPage() {
 
       if (!user) {
         window.location.replace("/login?error=oauth-failed");
+        return;
+      }
+
+      // The rider application is open to any signed-in account: applying is
+      // how a customer becomes a rider, and the page only reads and writes the
+      // caller's own application (auth.uid() in 0046). Everywhere else keeps
+      // the role gate below.
+      if (target === DRIVE_PATH) {
+        window.location.replace(DRIVE_PATH);
         return;
       }
 

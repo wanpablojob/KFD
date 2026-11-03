@@ -38,6 +38,31 @@ export async function signInWithPassword(email: string, password: string) {
 }
 
 /**
+ * Create an account with email and password, for the website's rider
+ * application (/drive). Returns whether the browser is signed in now: false
+ * when the project asks new accounts to confirm their email first, in which
+ * case the link in that email lands on the callback, which sends them back.
+ */
+export async function signUpWithPassword(
+  email: string,
+  password: string,
+  next: string,
+): Promise<{ signedIn: boolean }> {
+  const target = safeNextPath(next);
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      emailRedirectTo: `${window.location.origin}/auth/callback${
+        target ? `?next=${encodeURIComponent(target)}` : ""
+      }`,
+    },
+  });
+  if (error) throw error;
+  return { signedIn: Boolean(data.session) };
+}
+
+/**
  * Start the Google OAuth exchange using the default implicit flow.
  *
  * The provider redirects the browser to the callback page with the session
