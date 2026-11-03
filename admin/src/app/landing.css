@@ -72,48 +72,6 @@
   }
 
 
-  /* The dishes around the hero badge pop in one after another. */
-  .landing .enter-orbit {
-    opacity: 0;
-    animation: landing-seal 800ms cubic-bezier(0.34, 1.4, 0.64, 1) forwards;
-    animation-delay: calc(var(--i, 0) * 110ms + 450ms);
-  }
-
-  /* Hero: a rider makes the round of the dishes. One lap is --lap; dish N
-     (--stop) is reached at N / --stops of it, when it pops and a pin drops.
-     Hovering the stage stops the rider so a dish can be looked at. */
-  .landing [data-orbit-stage] {
-    --lap: 10s;
-  }
-
-  .landing .landing-route {
-    animation: landing-round var(--lap) linear infinite;
-  }
-
-  /* Turning back as fast as the round keeps the rider upright; it faces
-     right along the top half and left along the bottom. */
-  .landing .landing-upright {
-    animation: landing-round var(--lap) linear infinite reverse;
-  }
-
-  .landing .landing-face {
-    animation: landing-face var(--lap) step-end infinite;
-  }
-
-  .landing .landing-stop,
-  .landing .landing-pin {
-    animation: landing-stop var(--lap) ease-out infinite;
-    animation-delay: calc(var(--stop, 0) * var(--lap) / var(--stops, 5));
-  }
-
-  .landing .landing-pin {
-    animation-name: landing-pin;
-  }
-
-  .landing [data-orbit-stage]:hover :is(.landing-route, .landing-upright, .landing-face, .landing-stop, .landing-pin) {
-    animation-play-state: paused;
-  }
-
   .landing .enter-seal {
     opacity: 0;
     animation: landing-seal 900ms cubic-bezier(0.34, 1.4, 0.64, 1) 650ms forwards;
@@ -131,53 +89,6 @@
   }
 }
 
-
-@keyframes landing-round {
-  to {
-    rotate: 360deg;
-  }
-}
-
-@keyframes landing-face {
-  0%,
-  75% {
-    scale: 1 1;
-  }
-  25% {
-    scale: -1 1;
-  }
-}
-
-@keyframes landing-stop {
-  0%,
-  9%,
-  100% {
-    scale: 1;
-  }
-  3% {
-    scale: 1.18;
-  }
-}
-
-@keyframes landing-pin {
-  0% {
-    opacity: 0;
-    scale: 0.4;
-    translate: -50% 8px;
-  }
-  4%,
-  30% {
-    opacity: 1;
-    scale: 1;
-    translate: -50% -4px;
-  }
-  40%,
-  100% {
-    opacity: 0;
-    scale: 1;
-    translate: -50% -4px;
-  }
-}
 
 @keyframes landing-seal {
   from {

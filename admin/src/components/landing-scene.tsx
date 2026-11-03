@@ -42,14 +42,22 @@ const NAV = [
 /** One icon per service fact, in SERVICE_FACTS order. */
 const FACT_ICONS = [ReceiptIcon, MapPinIcon, StoreIcon, BikeIcon] as const;
 
-/** The stops on the rider's round in the hero, clockwise from the top. */
-const HERO_ORBIT = [
+/** The dishes the hero rider carries, one per run. */
+const HERO_DISHES = [
   { name: "Inasal", src: DISH_PHOTOS.Inasal },
   { name: "Piaya", src: DISH_PHOTOS.Piaya },
   { name: "Kansi", src: DISH_PHOTOS.Kansi },
   { name: "Napoleones", src: DISH_PHOTOS.Napoleones },
   { name: "Boodle fight", src: FEAST_PHOTO },
 ] as const;
+
+/**
+ * The hero road, in the stage's 100 x 100 box: from under the badge (top
+ * left), an S-bend down to the door (bottom right). ROUTE_PARK is where the
+ * rider waits when nothing moves: the middle of the first bend.
+ */
+const ROUTE_PATH = "M 24 34 C 30 60, 78 40, 74 62 S 44 78, 82 86";
+const ROUTE_PARK = { x: 52.75, y: 49.5 };
 
 /** The dish names that run under the hero; the badge separates them. */
 const MARQUEE = ["Inasal", "Piaya", "Kansi", "Napoleones", "Pabakal"] as const;
@@ -174,85 +182,101 @@ export function LandingScene() {
               </div>
             </div>
 
-            {/* The badge, with local food around it and a rider making the round:
-                the dashed ring is the road, each dish a stop that pops with a pin
-                as the rider reaches it. CSS (landing.css) drives it, so it runs
-                from the first paint; reduced motion parks the rider at the top. */}
+            {/* The delivery run: from the KFD shop (top left) down a winding road
+                to the customer's door. The rider carries one dish per run; at
+                the door the pin bounces and a "Delivered" note shows, then the
+                next dish goes out. Static, the rider waits mid-road with the
+                first dish; landing-motion.ts drives the runs. */}
             <div
               data-tilt
-              data-orbit-stage
+              data-route-stage
               className="relative mx-auto aspect-square w-full max-w-sm min-w-0 select-none sm:max-w-120 md:mr-0"
-              style={{ "--stops": HERO_ORBIT.length } as CSSProperties}
             >
-              <div aria-hidden="true" className="absolute inset-[16%] rounded-full bg-primary/15 blur-3xl" />
-              <span
+              <div aria-hidden="true" className="absolute inset-[18%] rounded-full bg-primary/15 blur-3xl" />
+
+              {/* The road, in a 100 x 100 box so its points are percentages of the stage. */}
+              <svg
                 aria-hidden="true"
-                className="absolute inset-[8%] rounded-full border-[3px] border-dashed border-primary/35"
-              />
-              <span
+                viewBox="0 0 100 100"
+                className="absolute inset-0 h-full w-full overflow-visible"
+              >
+                <path
+                  d={ROUTE_PATH}
+                  fill="none"
+                  strokeWidth={9}
+                  strokeLinecap="round"
+                  style={{ stroke: "color-mix(in srgb, var(--foreground) 14%, transparent)" }}
+                />
+                <path
+                  data-route
+                  d={ROUTE_PATH}
+                  fill="none"
+                  strokeWidth={0.9}
+                  strokeLinecap="round"
+                  strokeDasharray="3 3"
+                  style={{ stroke: "var(--card)" }}
+                />
+              </svg>
+
+              {/* The rider, with the dish it is carrying in a bubble above it. */}
+              <div
+                data-route-rider
                 aria-hidden="true"
-                data-ring-deco
-                className="absolute inset-[24%] rounded-full border border-primary/15"
-              />
-              <div data-badge className="absolute inset-[27%]">
+                className="absolute -translate-1/2"
+                style={{ left: `${ROUTE_PARK.x}%`, top: `${ROUTE_PARK.y}%` }}
+              >
+                <div className="relative flex flex-col items-center">
+                  <span className="relative mb-1 block size-12 sm:size-14">
+                    {HERO_DISHES.map((dish, i) => (
+                      <span
+                        key={dish.name}
+                        data-route-dish
+                        className={`absolute inset-0 overflow-hidden rounded-full shadow-lg ring-3 ring-card ${i === 0 ? "" : "invisible opacity-0"}`}
+                      >
+                        <Image src={dish.src} alt="" fill sizes="56px" className="object-cover" />
+                      </span>
+                    ))}
+                  </span>
+                  <PixelRider style={{ zoom: 0.85 }} />
+                </div>
+              </div>
+
+              {/* The shop: the badge, which breathes and turns when clicked. */}
+              <div data-badge className="absolute top-[2%] left-[2%] aspect-square w-[42%]">
                 <Image
                   src="/images/kabankalan/badge.png"
                   alt="Kabankalan Food Delivery"
                   fill
                   priority
-                  sizes="(min-width: 640px) 220px, 46vw"
+                  sizes="(min-width: 640px) 200px, 40vw"
                   className="enter-seal object-contain drop-shadow-2xl"
                 />
               </div>
-              {/* Under the dishes, so the rider passes behind each stop. */}
-              <div aria-hidden="true" className="landing-route absolute inset-0">
-                <span className="absolute top-[8%] left-1/2 block -translate-1/2">
-                  {/* Kept upright as the round turns, and facing the way it rides. */}
-                  <span className="landing-upright block">
-                    <span className="landing-face block">
-                      <PixelRider style={{ zoom: 0.75 }} />
-                    </span>
-                  </span>
-                </span>
-              </div>
-              <ul className="absolute inset-0">
-                {HERO_ORBIT.map((dish, i) => {
-                  const a = (i / HERO_ORBIT.length) * 2 * Math.PI;
-                  return (
-                    <li
+
+              {/* The door, and the note each run ends with. */}
+              <div className="absolute top-[86%] left-[82%] -translate-1/2">
+                <div className="relative flex flex-col items-center gap-1.5">
+                  {HERO_DISHES.map((dish) => (
+                    <p
                       key={dish.name}
-                      className="absolute -translate-x-1/2 -translate-y-1/2"
-                      // Rounded: the browser shortens long decimals, which breaks hydration.
-                      style={{
-                        left: `${(50 + 42 * Math.sin(a)).toFixed(2)}%`,
-                        top: `${(50 - 42 * Math.cos(a)).toFixed(2)}%`,
-                      }}
+                      data-route-note
+                      aria-hidden="true"
+                      className="invisible absolute bottom-full mb-2 rounded-full bg-card px-3 py-1 text-xs font-semibold whitespace-nowrap text-foreground opacity-0 shadow-md"
                     >
-                      <div className="enter-orbit" style={turn(i)}>
-                        <div className="flex flex-col items-center gap-1.5 transition-transform duration-300 ease-out hover:scale-110">
-                          <span
-                            className="landing-stop relative block"
-                            style={{ "--stop": i } as CSSProperties}
-                          >
-                            <span className="relative block size-16 overflow-hidden rounded-full shadow-xl ring-4 ring-background sm:size-24">
-                              <Image src={dish.src} alt={dish.name} fill sizes="96px" className="object-cover" />
-                            </span>
-                            <span
-                              aria-hidden="true"
-                              className="landing-pin absolute -top-3 left-1/2 grid size-7 -translate-x-1/2 place-items-center rounded-full bg-primary text-primary-foreground opacity-0 shadow-md"
-                            >
-                              <MapPinIcon className="h-4 w-4" />
-                            </span>
-                          </span>
-                          <span className="rounded-full bg-card/90 px-2.5 py-0.5 text-[11px] font-semibold text-foreground shadow-sm backdrop-blur sm:text-xs">
-                            {dish.name}
-                          </span>
-                        </div>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
+                      Delivered: {dish.name}
+                    </p>
+                  ))}
+                  <span
+                    data-route-pin
+                    className="grid size-12 place-items-center rounded-full bg-primary text-primary-foreground shadow-lg ring-4 ring-background"
+                  >
+                    <MapPinIcon className="h-6 w-6" aria-hidden="true" />
+                  </span>
+                  <span className="rounded-full bg-card/90 px-2.5 py-0.5 text-xs font-semibold text-foreground whitespace-nowrap shadow-sm">
+                    Your door
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
         </section>

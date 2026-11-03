@@ -29,9 +29,10 @@ const EASE = "power3.out";
  *   data-words          a heading whose words light up with the scroll
  *   data-marquee-track  the dish names, sped up and skewed by scroll speed
  *   data-rider          the pixel rider riding the edge of the tracking band
- *   data-orbit-stage    the hero badge with its dishes and rider (the rider's
- *                       round is CSS); it leans toward the pointer (data-tilt)
- *   data-ring-deco      the inner guide ring, turning slowly
+ *   data-route-stage    the hero delivery run: the shop badge, the road
+ *                       (data-route), the rider (data-route-rider) carrying a
+ *                       dish (data-route-dish), the door pin (data-route-pin)
+ *                       and the "Delivered" note (data-route-note)
  *   data-badge          the hero badge: breathes, and turns when clicked
  *   data-tilt           the hero stage, which leans toward the pointer
  *   data-magnet         a button that leans toward the mouse
@@ -136,16 +137,75 @@ export function useLandingMotion(
           });
         }
 
-        // The hero's inner guide ring turns slowly against the rider's round
-        // (the round itself is CSS, in landing.css).
-        q("[data-ring-deco]").forEach((deco) =>
-          gsap.to(deco, {
-            rotation: -360,
-            duration: 60,
+        // The hero's delivery run: the rider leaves the shop with one dish,
+        // rides the road to the door, the pin bounces and the note says what
+        // was delivered; then the next dish goes out. Positions come from the
+        // SVG path in its 100 x 100 box, scaled to the stage each frame, so the
+        // run fits any screen size.
+        const routeStage = q("[data-route-stage]")[0] as
+          HTMLElement | undefined;
+        const road = q("[data-route]")[0] as unknown as
+          SVGPathElement | undefined;
+        const courier = q("[data-route-rider]")[0] as HTMLElement | undefined;
+        if (routeStage && road && courier) {
+          const dishes = q("[data-route-dish]");
+          const notes = q("[data-route-note]");
+          const pin = q("[data-route-pin]")[0];
+          const length = road.getTotalLength();
+          // The rider's resting spot (ROUTE_PARK), which its x/y offset from.
+          const park = {
+            x: parseFloat(courier.style.left),
+            y: parseFloat(courier.style.top),
+          };
+          const run = { p: 0 };
+          const place = () => {
+            const pt = road.getPointAtLength(run.p * length);
+            const size = routeStage.offsetWidth;
+            gsap.set(courier, {
+              x: ((pt.x - park.x) / 100) * size,
+              y: ((pt.y - park.y) / 100) * size,
+            });
+          };
+
+          // The centre line flows along the road the whole time.
+          gsap.to(road, {
+            strokeDashoffset: -12,
+            duration: 1,
             ease: "none",
             repeat: -1,
-          }),
-        );
+          });
+
+          const runs = gsap.timeline({ repeat: -1 });
+          dishes.forEach((dish, i) => {
+            runs
+              .set(run, { p: 0 })
+              .call(place)
+              .set(dishes, { autoAlpha: 0 })
+              .set(dish, { autoAlpha: 1, scale: 0 })
+              .to(courier, { autoAlpha: 1, duration: 0.25 })
+              .to(dish, { scale: 1, duration: 0.35, ease: "back.out(2)" }, "<")
+              .to(run, {
+                p: 1,
+                duration: 3.4,
+                ease: "power1.inOut",
+                onUpdate: place,
+              })
+              .to(dish, { scale: 0, duration: 0.25, ease: "power2.in" })
+              .to(pin, { y: -12, duration: 0.18, yoyo: true, repeat: 1 }, "<")
+              .fromTo(
+                notes[i],
+                { autoAlpha: 0, y: 8 },
+                { autoAlpha: 1, y: 0, duration: 0.3, ease: EASE },
+                "<",
+              )
+              .to(courier, { autoAlpha: 0, duration: 0.3 }, "+=0.2")
+              .to(notes[i], { autoAlpha: 0, duration: 0.3 }, "+=0.6");
+          });
+          // Resize: the next frame re-reads the stage size.
+          const onResize = () => place();
+          window.addEventListener("resize", onResize);
+          off.push(() => window.removeEventListener("resize", onResize));
+        }
 
         // The badge breathes, and does a full turn when clicked.
         const badge = q("[data-badge]")[0];
