@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { sendRiderPush, OFFERS_CHANNEL_ID } from "@/lib/server/push-notify";
+import { sendQueuedOffer, type QueuedOffer } from "@/lib/server/offer-push";
 
 export const runtime = "nodejs";
 
@@ -24,13 +24,6 @@ export const runtime = "nodejs";
  * already live whether or not this succeeds, so a push failure is reported in
  * the body and never turned into an error the scheduler has to handle.
  */
-
-interface QueueRow {
-  id: number;
-  order_id: string | null;
-  delivery_id: string | null;
-  rider_id: string;
-}
 
 function serviceClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -76,51 +69,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "could not read the queue" }, { status: 500 });
   }
 
-  const queue = (rows ?? []) as QueueRow[];
+  const queue = (rows ?? []) as QueuedOffer[];
   let notified = 0;
 
   for (const row of queue) {
-    // The reference the rider sees, and the id their app opens.
-    let reference = "";
-    let data: Record<string, unknown> = { type: "dispatch_offer" };
-    if (row.delivery_id) {
-      const { data: trip } = await supabase
-        .from("deliveries")
-        .select("reference")
-        .eq("id", row.delivery_id)
-        .maybeSingle();
-      reference = trip?.reference ?? "";
-      data = { type: "dispatch_offer", deliveryId: row.delivery_id, reference };
-    } else if (row.order_id) {
-      const { data: order } = await supabase
-        .from("orders")
-        .select("reference")
-        .eq("id", row.order_id)
-        .maybeSingle();
-      reference = order?.reference ?? "";
-      data = { type: "dispatch_offer", orderId: row.order_id, reference };
-    }
-
-    const { data: rider } = await supabase
-      .from("riders")
-      .select("id, user_id")
-      .eq("id", row.rider_id)
-      .maybeSingle();
-
-    if (rider?.user_id) {
-      await sendRiderPush(
-        supabase,
-        rider.user_id,
-        "New delivery offer",
-        reference
-          ? `Order ${reference} is available. Open the app to accept it.`
-          : "There is a delivery available near you. Open the app to accept it.",
-        data,
-        // Its own channel: an offer expires in minutes and is worth chasing.
-        OFFERS_CHANNEL_ID,
-      );
-      notified += 1;
-    }
+    if (await sendQueuedOffer(supabase, row)) notified += 1;
 
     // Marked either way: a rider with no phone is not going to get one later.
     await supabase

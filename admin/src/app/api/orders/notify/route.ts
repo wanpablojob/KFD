@@ -15,6 +15,7 @@ import {
   sendCustomerPush,
   sendRiderPush,
 } from "@/lib/server/push-notify";
+import { pushOffersNow } from "@/lib/server/offer-push";
 import { reportServerError } from "@/lib/server/report-error";
 import { checkRateLimit } from "@/lib/server/rate-limit";
 
@@ -332,6 +333,16 @@ export async function POST(req: Request) {
   };
 
   if (event === "placed") {
+    // The riders were offered this order as it was saved (0121), but their
+    // pushes wait for the per-minute scheduler. Send them now, alongside the
+    // shop's, so a rider hears about the job as soon as the kitchen does.
+    // Started before the mail and awaited at the end: neither waits on, or
+    // can fail, the other.
+    const ridersTold = pushOffersNow(supabase, {
+      orderId: order?.id ?? null,
+      deliveryId: trip?.id ?? null,
+    }).catch(() => 0);
+
     // Tell the restaurant first: this is the order it has to cook. An order
     // with no restaurant_id is legacy/walk-in, so there is nobody to tell and
     // the customer confirmation below still goes out.
@@ -470,6 +481,7 @@ export async function POST(req: Request) {
       results,
       customer: { configured: Boolean(customerEmail), result: confirmation },
       push,
+      ridersNotified: await ridersTold,
     });
   }
 
