@@ -29,12 +29,11 @@ const EASE = "power3.out";
  *   data-words          a heading whose words light up with the scroll
  *   data-marquee-track  the dish names, sped up and skewed by scroll speed
  *   data-rider          the pixel rider riding the edge of the tracking band
- *   data-orbit          the ring of dishes around the hero badge; spins, and
- *                       can be flung with a mouse (data-orbit-stage)
- *   data-orbit-item     one dish, counter-turned so it stays upright
- *   data-ring-deco      a guide ring turning the other way
+ *   data-orbit-stage    the hero badge with its dishes and rider (the rider's
+ *                       round is CSS); it leans toward the pointer (data-tilt)
+ *   data-ring-deco      the inner guide ring, turning slowly
  *   data-badge          the hero badge: breathes, and turns when clicked
- *   data-tilt           the hero orbit, which leans toward the pointer
+ *   data-tilt           the hero stage, which leans toward the pointer
  *   data-magnet         a button that leans toward the mouse
  *   data-pop            a badge that springs in with its section
  *   data-zoom           a photo that settles from a zoom as it scrolls through
@@ -137,89 +136,16 @@ export function useLandingMotion(
           });
         }
 
-        // The orbit: dishes circle the badge, always upright. It turns at a
-        // base speed; scrolling and a mouse drag add spin that eases back,
-        // so a flick keeps it going for a moment.
-        const ring = q("[data-orbit]")[0];
-        const stage = q("[data-orbit-stage]")[0] as HTMLElement | undefined;
-        if (ring && stage) {
-          const items = ring.querySelectorAll("[data-orbit-item]");
-          const BASE = 8; // degrees a second
-          const spinClamp = gsap.utils.clamp(-400, 400);
-          let angle = 0;
-          let extra = 0;
-          let dragging = false;
-          const turnOrbit = () => {
-            const ticks = gsap.ticker.deltaRatio(60);
-            if (!dragging) {
-              angle += ((BASE + extra) * ticks) / 60;
-              extra *= 0.96 ** ticks;
-            }
-            gsap.set(ring, { rotation: angle });
-            gsap.set(items, { rotation: -angle });
-          };
-          gsap.ticker.add(turnOrbit);
-          off.push(() => gsap.ticker.remove(turnOrbit));
-
-          ScrollTrigger.create({
-            start: 0,
-            end: "max",
-            onUpdate: (self) => {
-              extra = spinClamp(self.getVelocity() / 10);
-            },
-          });
-
-          // Grab the ring with a mouse and spin it; touch keeps the scroll.
-          const angleAt = (e: PointerEvent) => {
-            const r = stage.getBoundingClientRect();
-            return (
-              (Math.atan2(
-                e.clientY - (r.top + r.height / 2),
-                e.clientX - (r.left + r.width / 2),
-              ) *
-                180) /
-              Math.PI
-            );
-          };
-          let last = 0;
-          let lastT = 0;
-          on(stage, "pointerdown", (ev) => {
-            const e = ev as PointerEvent;
-            if (e.pointerType !== "mouse") return;
-            dragging = true;
-            last = angleAt(e);
-            lastT = performance.now();
-            stage.setPointerCapture(e.pointerId);
-            stage.style.cursor = "grabbing";
-          });
-          on(stage, "pointermove", (ev) => {
-            if (!dragging) return;
-            const e = ev as PointerEvent;
-            const a = angleAt(e);
-            const d = ((a - last + 540) % 360) - 180; // shortest way round
-            const now = performance.now();
-            angle += d;
-            extra = spinClamp((d / Math.max(now - lastT, 1)) * 1000 - BASE);
-            last = a;
-            lastT = now;
-          });
-          const release = () => {
-            dragging = false;
-            stage.style.cursor = "";
-          };
-          on(stage, "pointerup", release);
-          on(stage, "pointercancel", release);
-
-          // The guide rings turn the other way, slowly.
-          q("[data-ring-deco]").forEach((deco, i) =>
-            gsap.to(deco, {
-              rotation: i ? 360 : -360,
-              duration: i ? 90 : 60,
-              ease: "none",
-              repeat: -1,
-            }),
-          );
-        }
+        // The hero's inner guide ring turns slowly against the rider's round
+        // (the round itself is CSS, in landing.css).
+        q("[data-ring-deco]").forEach((deco) =>
+          gsap.to(deco, {
+            rotation: -360,
+            duration: 60,
+            ease: "none",
+            repeat: -1,
+          }),
+        );
 
         // The badge breathes, and does a full turn when clicked.
         const badge = q("[data-badge]")[0];

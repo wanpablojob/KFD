@@ -42,7 +42,7 @@ const NAV = [
 /** One icon per service fact, in SERVICE_FACTS order. */
 const FACT_ICONS = [ReceiptIcon, MapPinIcon, StoreIcon, BikeIcon] as const;
 
-/** The food circling the badge in the hero, clockwise from the top. */
+/** The stops on the rider's round in the hero, clockwise from the top. */
 const HERO_ORBIT = [
   { name: "Inasal", src: DISH_PHOTOS.Inasal },
   { name: "Piaya", src: DISH_PHOTOS.Piaya },
@@ -174,18 +174,20 @@ export function LandingScene() {
               </div>
             </div>
 
-            {/* The badge, with local food circling it. Positions are set here so
-                the orbit is whole without JavaScript; landing-motion.ts turns it. */}
+            {/* The badge, with local food around it and a rider making the round:
+                the dashed ring is the road, each dish a stop that pops with a pin
+                as the rider reaches it. CSS (landing.css) drives it, so it runs
+                from the first paint; reduced motion parks the rider at the top. */}
             <div
               data-tilt
               data-orbit-stage
               className="relative mx-auto aspect-square w-full max-w-sm min-w-0 select-none sm:max-w-120 md:mr-0"
+              style={{ "--stops": HERO_ORBIT.length } as CSSProperties}
             >
               <div aria-hidden="true" className="absolute inset-[16%] rounded-full bg-primary/15 blur-3xl" />
               <span
                 aria-hidden="true"
-                data-ring-deco
-                className="absolute inset-[8%] rounded-full border-2 border-dashed border-primary/25"
+                className="absolute inset-[8%] rounded-full border-[3px] border-dashed border-primary/35"
               />
               <span
                 aria-hidden="true"
@@ -202,13 +204,23 @@ export function LandingScene() {
                   className="enter-seal object-contain drop-shadow-2xl"
                 />
               </div>
-              <ul data-orbit className="absolute inset-0">
+              {/* Under the dishes, so the rider passes behind each stop. */}
+              <div aria-hidden="true" className="landing-route absolute inset-0">
+                <span className="absolute top-[8%] left-1/2 block -translate-1/2">
+                  {/* Kept upright as the round turns, and facing the way it rides. */}
+                  <span className="landing-upright block">
+                    <span className="landing-face block">
+                      <PixelRider style={{ zoom: 0.75 }} />
+                    </span>
+                  </span>
+                </span>
+              </div>
+              <ul className="absolute inset-0">
                 {HERO_ORBIT.map((dish, i) => {
                   const a = (i / HERO_ORBIT.length) * 2 * Math.PI;
                   return (
                     <li
                       key={dish.name}
-                      data-orbit-item
                       className="absolute -translate-x-1/2 -translate-y-1/2"
                       // Rounded: the browser shortens long decimals, which breaks hydration.
                       style={{
@@ -218,8 +230,19 @@ export function LandingScene() {
                     >
                       <div className="enter-orbit" style={turn(i)}>
                         <div className="flex flex-col items-center gap-1.5 transition-transform duration-300 ease-out hover:scale-110">
-                          <span className="relative block size-16 overflow-hidden rounded-full shadow-xl ring-4 ring-background sm:size-24">
-                            <Image src={dish.src} alt={dish.name} fill sizes="96px" className="object-cover" />
+                          <span
+                            className="landing-stop relative block"
+                            style={{ "--stop": i } as CSSProperties}
+                          >
+                            <span className="relative block size-16 overflow-hidden rounded-full shadow-xl ring-4 ring-background sm:size-24">
+                              <Image src={dish.src} alt={dish.name} fill sizes="96px" className="object-cover" />
+                            </span>
+                            <span
+                              aria-hidden="true"
+                              className="landing-pin absolute -top-3 left-1/2 grid size-7 -translate-x-1/2 place-items-center rounded-full bg-primary text-primary-foreground opacity-0 shadow-md"
+                            >
+                              <MapPinIcon className="h-4 w-4" />
+                            </span>
                           </span>
                           <span className="rounded-full bg-card/90 px-2.5 py-0.5 text-[11px] font-semibold text-foreground shadow-sm backdrop-blur sm:text-xs">
                             {dish.name}
