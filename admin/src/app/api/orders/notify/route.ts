@@ -9,6 +9,7 @@ import {
   type OrderEmailData,
 } from "@/lib/server/order-email";
 import { resolveCustomerEmail } from "@/lib/notify-customer";
+import { orderEmailData } from "@/lib/notify-order-email-data";
 import { mayNotifyOrder } from "@/lib/notify-authz";
 import {
   sendMerchantOrderPush,
@@ -324,13 +325,9 @@ export async function POST(req: Request) {
     }
   }
 
-  const emailData: OrderEmailData = {
-    reference: order?.reference ?? trip?.reference ?? "",
-    restaurant: order.restaurant,
-    customer: order.customer,
-    items: Array.isArray(order.items) ? order.items : [],
-    total: Number(order.total),
-  };
+  // A trip notify has no order row (the customer places a basket as one
+  // delivery), so this must never read `order.x` unconditionally.
+  const emailData: OrderEmailData = orderEmailData(order, trip);
 
   if (event === "placed") {
     // The riders were offered this order as it was saved (0121), but their
