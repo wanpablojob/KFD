@@ -11,8 +11,10 @@ import {
   View,
 } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCart } from "../../lib/cart-context";
+import { queryKeys } from "../../lib/hooks";
 import { feeBreakdown, toShopPayload } from "../../lib/cart-logic";
 import { autoEnablePush } from "../../lib/push";
 import { useTabBarInset } from "../../components/TabBarInset";
@@ -46,6 +48,7 @@ const PAYMENTS: {
 /** Review -> address -> pay -> place. Every peso shown here comes from the server. */
 export default function CustomerCartScreen() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const insets = useSafeAreaInsets();
   const tabInset = useTabBarInset();
   const { lines, shops, shopCount, setQuantity, remove, clear, checkoutRequestId } =
@@ -205,6 +208,13 @@ export default function CustomerCartScreen() {
         contactPhone: newPhone,
       });
       clear();
+      // The orders list is cached for five minutes and this screen navigates
+      // straight to it, so without this it showed the pre-checkout list and
+      // never even asked the server. The trip row is required to render the
+      // order, and deliveries are not in the realtime publication, so both
+      // keys have to be invalidated -- not just ["orders"].
+      queryClient.invalidateQueries({ queryKey: queryKeys.orders() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.deliveries() });
       // The moment alerts start to matter: register this phone so "on the way"
       // and "delivered" reach it. The OS prompt itself happens at most once.
       // Never blocks or delays the tracker.

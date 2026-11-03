@@ -166,7 +166,7 @@ export default function CustomerOrdersScreen() {
   const { data: orders, isLoading, isError, error, refetch } = useMyOrders();
   // The customer's own trips (0092): a basket from several shops is one
   // order for the customer, and the reference they were given is the trip's.
-  const { data: deliveries } = useMyDeliveries();
+  const { data: deliveries, refetch: refetchDeliveries } = useMyDeliveries();
   // A shop's part of a trip (0092) is shown with the trip's reference: that
   // is the reference the customer can track and the one the trip answers to.
   // One row per trip (0092). A basket from several shops is one order for
@@ -175,15 +175,23 @@ export default function CustomerOrdersScreen() {
   // are about a shop.
   const entries = useMemo(() => {
     const trips: HistoryEntry[] = [];
+    const tripPartIds = new Set<string>();
     for (const trip of deliveries ?? []) {
       const parts = (orders ?? []).filter((o) => o.delivery_id === trip.id);
       if (parts.length === 0) continue;
+      for (const part of parts) tripPartIds.add(part.id);
       trips.push({ key: `trip:${trip.id}`, trip, parts });
     }
+    // A trip part whose delivery row is missing (still in flight, or the
+    // deliveries query failed) must still be listed: the customer has paid for
+    // it, and hiding it is indistinguishable from losing the order.
+    const orphans: HistoryEntry[] = (orders ?? [])
+      .filter((o) => o.delivery_id && !tripPartIds.has(o.id))
+      .map((o) => ({ key: `order:${o.id}`, trip: null, parts: [o] }));
     const singles: HistoryEntry[] = (orders ?? [])
       .filter((o) => !o.delivery_id)
       .map((o) => ({ key: `order:${o.id}`, trip: null, parts: [o] }));
-    return [...trips, ...singles];
+    return [...trips, ...orphans, ...singles];
   }, [orders, deliveries]);
   const [mounted, setMounted] = useState(false);
   const { count, shops, replace } = useCart();
@@ -344,7 +352,11 @@ export default function CustomerOrdersScreen() {
             filter: `customer_user_id=eq.${user.id}`,
           },
           () => {
+            // The order's trip row is what the list groups on, and deliveries
+            // are not in the realtime publication, so refetching only the
+            // orders left a newly placed trip invisible.
             refetch();
+            refetchDeliveries();
           }
         )
         .subscribe();
@@ -355,7 +367,7 @@ export default function CustomerOrdersScreen() {
           channelRef.current = null;
         }
       };
-    }, [refetch, user])
+    }, [refetch, refetchDeliveries, user])
   );
 
   if (!mounted) {

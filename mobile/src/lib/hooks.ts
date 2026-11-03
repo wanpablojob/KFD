@@ -56,6 +56,7 @@ export const queryKeys = {
   menuSearch: (query: string, cuisine: string | null) =>
     ["menu-search", query, cuisine] as const,
   orders: () => ["orders"] as const,
+  deliveries: () => ["myDeliveries"] as const,
   orderFees: () => ["order-fees"] as const,
 };
 
@@ -137,7 +138,7 @@ export function useMyOrders() {
  */
 export function useMyDeliveries() {
   return useQuery({
-    queryKey: ["myDeliveries"],
+    queryKey: queryKeys.deliveries(),
     queryFn: fetchMyDeliveries,
     placeholderData: (prev) => prev,
   });
@@ -236,6 +237,7 @@ export function usePlaceOrder() {
       placeCustomerOrder(args),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.orders() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.deliveries() });
       queryClient.invalidateQueries({ queryKey: ["cart"] });
     },
   });
