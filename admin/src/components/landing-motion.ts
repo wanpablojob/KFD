@@ -36,6 +36,12 @@ const EASE = "power3.out";
  *   data-magnet         a button that leans toward the mouse
  *   data-pop            a badge that springs in with its section
  *   data-zoom           a photo that settles from a zoom as it scrolls through
+ *   data-underline      the bar drawn under the headline's last words
+ *   data-orb            brand light drifting behind the hero, leaning to the mouse
+ *   data-hero-copy      the hero text, which lifts and fades as you scroll away
+ *   data-fact-icon      a service-fact icon that spins in
+ *   data-spotlight      a red band with a light that follows the mouse
+ *   data-wordmark       the footer KFD, rising letter by letter
  */
 export function useLandingMotion(
   scope: React.RefObject<HTMLDivElement | null>,
@@ -369,6 +375,76 @@ export function useLandingMotion(
           });
         }
 
+        // The headline's last words get underlined once the entrance lands.
+        gsap.fromTo(
+          q("[data-underline]"),
+          { scaleX: 0 },
+          { scaleX: 1, duration: 0.9, ease: "expo.out", delay: 0.9 },
+        );
+
+        // Brand light drifts slowly behind the hero.
+        q("[data-orb]").forEach((orb, i) =>
+          gsap.to(orb, {
+            xPercent: i ? 25 : -20,
+            yPercent: i ? -20 : 25,
+            scale: i ? 1.15 : 0.9,
+            duration: 9 + i * 3,
+            ease: "sine.inOut",
+            yoyo: true,
+            repeat: -1,
+          }),
+        );
+
+        // Leaving the hero: the copy lifts and fades while the photo sinks
+        // back, so the page reads as layers.
+        const hero = q("#top")[0];
+        if (hero) {
+          gsap
+            .timeline({
+              scrollTrigger: {
+                trigger: hero,
+                start: "top top",
+                end: "bottom top",
+                scrub: true,
+              },
+            })
+            .to(
+              q("[data-hero-copy]"),
+              { y: -80, autoAlpha: 0.15, ease: "none" },
+              0,
+            )
+            .to(q("[data-tilt]"), { y: 60, scale: 0.92, ease: "none" }, 0);
+        }
+
+        // The service facts' icons spin in as the strip arrives.
+        const icons = q("[data-fact-icon]");
+        if (icons.length)
+          gsap.from(icons, {
+            scale: 0.3,
+            rotate: -90,
+            duration: 0.7,
+            ease: "back.out(2)",
+            stagger: 0.1,
+            scrollTrigger: { trigger: icons[0], start: "top 92%", once: true },
+          });
+
+        // The footer wordmark rises letter by letter as the page ends.
+        const mark = q("[data-wordmark]")[0];
+        if (mark) {
+          const split = SplitText.create(mark, { type: "chars" });
+          gsap.from(split.chars, {
+            yPercent: 100,
+            stagger: 0.08,
+            ease: "none",
+            scrollTrigger: {
+              trigger: mark,
+              start: "top bottom",
+              end: "bottom bottom",
+              scrub: 0.6,
+            },
+          });
+        }
+
         return () => off.forEach((fn) => fn());
       });
 
@@ -481,6 +557,40 @@ export function useLandingMotion(
               });
             });
           }
+
+          // The red bands: a light follows the mouse across them.
+          for (const band of q("[data-spotlight]") as HTMLElement[]) {
+            gsap.set(band, { "--sx": "0px", "--sy": "0px", "--so": 0 });
+            on(band, "pointermove", (e) => {
+              const r = band.getBoundingClientRect();
+              gsap.to(band, {
+                "--sx": `${e.clientX - r.left}px`,
+                "--sy": `${e.clientY - r.top}px`,
+                "--so": 1,
+                duration: 0.3,
+              });
+            });
+            on(band, "pointerleave", () =>
+              gsap.to(band, { "--so": 0, duration: 0.5 }),
+            );
+          }
+
+          // The hero light leans after the mouse too, slower than the dishes.
+          const heroSec = q("#top")[0];
+          const orbs = (q("[data-orb]") as HTMLElement[]).map((orb, i) => ({
+            k: i ? -50 : 70,
+            x: gsap.quickTo(orb, "x", { duration: 2, ease: EASE }),
+            y: gsap.quickTo(orb, "y", { duration: 2, ease: EASE }),
+          }));
+          if (heroSec && orbs.length)
+            on(heroSec, "pointermove", (e) => {
+              const nx = e.clientX / window.innerWidth - 0.5;
+              const ny = e.clientY / window.innerHeight - 0.5;
+              for (const o of orbs) {
+                o.x(nx * o.k);
+                o.y(ny * o.k);
+              }
+            });
 
           // The seal can be pulled off the photo; it springs back on release.
           const drags = q("[data-spin]").flatMap((seal) =>

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Fraunces, Geist, Geist_Mono } from "next/font/google";
+import { Bricolage_Grotesque, Geist, Geist_Mono } from "next/font/google";
 import { SITE_URL } from "@/lib/site-url";
 import "./globals.css";
 
@@ -14,14 +14,16 @@ const geistMono = Geist_Mono({
 });
 
 /**
- * The brand's display face, for landing headings only. A soft, warm serif reads
- * as home cooking and sits well beside the round red badge; Geist stays the body
+ * The brand's display face, for landing headings only. A chunky, friendly
+ * grotesque reads as street food and sits well beside the round red badge;
+ * its optical-size axis tightens it at headline sizes. Geist stays the body
  * and dashboard face. next/font self-hosts it, so there is no runtime CDN call.
  */
-const fraunces = Fraunces({
-  variable: "--font-fraunces",
+const bricolage = Bricolage_Grotesque({
+  variable: "--font-bricolage",
   subsets: ["latin"],
-  weight: ["600", "700", "800"],
+  weight: "variable",
+  axes: ["opsz", "wdth"],
 });
 
 export const metadata: Metadata = {
@@ -46,7 +48,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${geistSans.variable} ${geistMono.variable} ${fraunces.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${bricolage.variable} h-full antialiased`}
     >
       <body className="min-h-full">
         <script dangerouslySetInnerHTML={{ __html: themeInit }} />

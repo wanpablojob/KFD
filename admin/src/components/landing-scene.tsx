@@ -124,8 +124,13 @@ export function LandingScene() {
         {/* ---------- hero ---------- */}
         <section id="top" className="landing-hero-bg relative isolate">
           <div aria-hidden="true" className="landing-dots absolute inset-0 -z-10" />
+          {/* Soft brand light that drifts behind the hero. */}
+          <div aria-hidden="true" className="absolute inset-0 -z-10 overflow-hidden">
+            <span data-orb className="absolute -top-24 right-[-10%] h-112 w-md rounded-full bg-primary/20 blur-3xl" />
+            <span data-orb className="absolute bottom-[-20%] left-[-10%] h-96 w-96 rounded-full bg-secondary/15 blur-3xl" />
+          </div>
           <div className="mx-auto grid w-full max-w-6xl items-center gap-12 px-4 pt-12 pb-20 sm:px-6 md:grid-cols-[1.05fr_0.95fr] md:pt-20 md:pb-28">
-            <div className="flex min-w-0 flex-col gap-6">
+            <div data-hero-copy className="flex min-w-0 flex-col gap-6">
               <span
                 className="enter text-xs font-semibold uppercase tracking-[0.16em] text-primary"
                 style={turn(0)}
@@ -137,7 +142,18 @@ export function LandingScene() {
                 className="enter font-display text-4xl font-bold leading-[1.05] tracking-tight text-foreground sm:text-5xl lg:text-6xl"
                 style={turn(1)}
               >
-                Pagkaing Kabankalan, hatid sa pinto mo.
+                Pagkaing Kabankalan,{" "}
+                <span className="text-primary">
+                  hatid sa{" "}
+                  <span className="relative inline-block whitespace-nowrap">
+                    pinto mo.
+                    <span
+                      aria-hidden="true"
+                      data-underline
+                      className="absolute inset-x-0 bottom-[0.06em] -z-10 h-[0.28em] origin-left rounded-full bg-primary/20"
+                    />
+                  </span>
+                </span>
               </h1>
               <p
                 className="enter max-w-[38ch] text-lg leading-relaxed text-muted-foreground"
@@ -156,13 +172,13 @@ export function LandingScene() {
               </div>
             </div>
 
-            {/* A real photo of the region's signature dish, with the badge as a seal. */}
+            {/* A real photo of a Filipino feast, with the badge as a seal. */}
             <div data-tilt className="relative mx-auto w-full max-w-120 min-w-0 md:mr-0">
               <div className="enter-photo relative aspect-4/3 overflow-hidden md:aspect-4/5 rounded-4xl shadow-[0_40px_80px_-40px_color-mix(in_srgb,var(--primary)_55%,transparent)] ring-1 ring-border">
                 <div className="landing-parallax absolute inset-x-0 -top-[8%] h-[116%]">
                   <Image
                     src={HERO_PHOTO}
-                    alt="Chicken inasal on a skewer with a mound of rice and calamansi"
+                    alt="A boodle fight: grilled meat, fish, eggplant and fruit laid on banana leaves between two rows of rice"
                     fill
                     priority
                     sizes="(min-width: 768px) 480px, 92vw"
@@ -173,8 +189,8 @@ export function LandingScene() {
                   aria-hidden="true"
                   className="absolute inset-x-0 bottom-0 h-1/3 bg-linear-to-t from-black/45 to-transparent"
                 />
-                <p className="absolute bottom-4 left-5 right-5 text-sm font-semibold text-white drop-shadow">
-                  Chicken inasal, the taste of Negros
+                <p className="absolute right-5 bottom-4 left-5 text-right text-sm font-semibold text-white drop-shadow">
+                  A boodle fight, made for sharing
                 </p>
               </div>
               {/* The wrapper turns with the scroll; the seal's own entrance is CSS. */}
@@ -211,7 +227,7 @@ export function LandingScene() {
               const Icon = FACT_ICONS[i % FACT_ICONS.length];
               return (
                 <li key={fact} className="flex items-center gap-3 text-sm font-semibold">
-                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-primary/10 text-primary">
+                  <span data-fact-icon className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-primary/10 text-primary">
                     <Icon className="h-4 w-4" aria-hidden="true" />
                   </span>
                   {fact}
@@ -290,7 +306,7 @@ export function LandingScene() {
               <PixelRider style={{ zoom: 0.75 }} />
             </span>
           </span>
-          <div className="landing-band grid gap-8 overflow-hidden rounded-3xl bg-primary p-8 text-primary-foreground shadow-[0_30px_70px_-35px_color-mix(in_srgb,var(--primary)_70%,transparent)] sm:p-12 md:grid-cols-2 md:items-center">
+          <div data-spotlight className="landing-band relative grid gap-8 overflow-hidden rounded-3xl bg-primary p-8 text-primary-foreground shadow-[0_30px_70px_-35px_color-mix(in_srgb,var(--primary)_70%,transparent)] sm:p-12 md:grid-cols-2 md:items-center">
             <div>
               <h2 className="font-display text-3xl font-bold tracking-tight sm:text-4xl">Track your order</h2>
               <p className="mt-3 max-w-[44ch] text-base leading-relaxed opacity-90">
@@ -468,7 +484,7 @@ export function LandingScene() {
 
         {/* ---------- get the app: the brand red, as the app's own splash ---------- */}
         <section id="app" data-reveal className="mx-auto w-full max-w-6xl scroll-mt-24 px-4 py-10 sm:px-6">
-          <div className="landing-band grid overflow-hidden rounded-4xl bg-primary text-primary-foreground shadow-[0_30px_70px_-35px_color-mix(in_srgb,var(--primary)_70%,transparent)] md:grid-cols-[1.15fr_0.85fr]">
+          <div data-spotlight className="landing-band relative grid overflow-hidden rounded-4xl bg-primary text-primary-foreground shadow-[0_30px_70px_-35px_color-mix(in_srgb,var(--primary)_70%,transparent)] md:grid-cols-[1.15fr_0.85fr]">
             <div className="flex flex-col items-start gap-5 p-8 sm:p-12">
               <Image
                 src="/images/kabankalan/badge.png"
@@ -701,6 +717,15 @@ export function LandingScene() {
                 ){i < PHOTO_CREDITS.length - 1 ? "; " : "."}
               </span>
             ))}
+          </p>
+        </div>
+        {/* The brand, large, rising letter by letter as the page ends. */}
+        <div aria-hidden="true" className="overflow-hidden px-4 sm:px-6">
+          <p
+            data-wordmark
+            className="mx-auto max-w-6xl text-center font-display text-[30vw] leading-[0.78] font-extrabold tracking-tighter text-primary select-none lg:text-[22rem]"
+          >
+            KFD
           </p>
         </div>
       </footer>

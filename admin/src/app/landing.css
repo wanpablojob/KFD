@@ -30,6 +30,17 @@
     repeating-linear-gradient(135deg, color-mix(in srgb, #fff 5%, transparent) 0 2px, transparent 2px 16px);
 }
 
+/* The light that follows the mouse across a red band (landing-motion.ts
+   moves --sx/--sy and fades --so in). */
+.landing [data-spotlight]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(420px circle at var(--sx, 50%) var(--sy, 50%), color-mix(in srgb, #fff 22%, transparent), transparent 60%);
+  opacity: var(--so, 0);
+}
+
 /* A tinted section, softer than a card. */
 .landing-tint {
   background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--secondary) 7%, transparent) 18%, color-mix(in srgb, var(--secondary) 7%, transparent) 82%, transparent);

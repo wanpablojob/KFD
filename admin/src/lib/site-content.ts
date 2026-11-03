@@ -92,7 +92,8 @@ export const DISH_DETAILS: Record<(typeof LOCAL_SPECIALTIES)[number], string> = 
   Napoleones: "Flaky puff pastry layered with custard under a sugar glaze.",
 };
 
-export const HERO_PHOTO = "/images/food/hero-inasal.jpg";
+/** A 4:5 centre crop of the Commons original, sized for the hero frame. */
+export const HERO_PHOTO = "/images/food/hero-boodle.jpg";
 export const KITCHEN_PHOTO = "/images/food/inasal-plate.jpg";
 
 /**
@@ -118,11 +119,11 @@ const BY_SA_4 = "https://creativecommons.org/licenses/by-sa/4.0/";
 
 export const PHOTO_CREDITS = [
   {
-    subject: "Chicken inasal",
-    author: "Obsidian Soul",
+    subject: "Boodle fight",
+    author: "Ej Afable",
     license: "CC BY-SA 4.0",
     licenseUrl: BY_SA_4,
-    source: "https://commons.wikimedia.org/wiki/File:Chicken_inasal_(Philippines).jpg",
+    source: "https://commons.wikimedia.org/wiki/File:Boodle_fight_(kamayan)_01.jpg",
   },
   {
     subject: "Chicken inasal with rice",
