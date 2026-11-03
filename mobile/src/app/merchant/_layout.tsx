@@ -8,7 +8,7 @@ import { FloatingTabBar, type FloatingTab } from "../../components/FloatingTabBa
 import { TabBarInsetProvider } from "../../components/TabBarInset";
 import { TAB_ICONS } from "../../components/tab-icons";
 import { colors } from "../../lib/theme";
-import { autoEnablePushOnce, ensureNotificationChannels } from "../../lib/push";
+import { autoEnablePush, ensureNotificationChannels } from "../../lib/push";
 import { useMerchantOrders } from "../../lib/merchant";
 import { resolveTabIndex } from "../../lib/tab-bar";
 
@@ -55,7 +55,7 @@ function useMerchantAlerts() {
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    void ensureNotificationChannels().then(autoEnablePushOnce);
+    void ensureNotificationChannels().then(autoEnablePush);
   }, []);
 
   useEffect(() => {

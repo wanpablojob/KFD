@@ -14,7 +14,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCart } from "../../lib/cart-context";
 import { feeBreakdown, toShopPayload } from "../../lib/cart-logic";
-import { autoEnablePushOnce } from "../../lib/push";
+import { autoEnablePush } from "../../lib/push";
 import { useTabBarInset } from "../../components/TabBarInset";
 import { TRAVEL_MINUTES } from "../../lib/delivery-estimate";
 import { useCartQuote } from "../../lib/cart-quote";
@@ -205,9 +205,10 @@ export default function CustomerCartScreen() {
         contactPhone: newPhone,
       });
       clear();
-      // The moment alerts start to matter: ask once so "on the way" and
-      // "delivered" reach this phone. Never blocks or delays the tracker.
-      void autoEnablePushOnce();
+      // The moment alerts start to matter: register this phone so "on the way"
+      // and "delivered" reach it. The OS prompt itself happens at most once.
+      // Never blocks or delays the tracker.
+      void autoEnablePush();
       // Land on the Orders tab, then open tracking on top of it. Replacing the
       // customer group with /track used to drop the tab bar and leave Back with
       // nowhere to go, so the customer could not get home again.

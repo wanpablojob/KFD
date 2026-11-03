@@ -237,24 +237,22 @@ export async function sendUserPush(
     return { ok: false, sent: 0, skipped: "no push tokens for this rider" };
   }
 
-  // Delivery timing is part of correctness for an offer: it expires in five
-  // minutes, so a message FCM batches until the phone leaves doze is worthless.
-  // High priority wakes the device instead. On iOS the same reasoning is
-  // `interruptionLevel`, which stops Focus from filing the offer under the lock
-  // screen's summary; it is iOS-only and ignored for Android tokens. Without the
-  // Time Sensitive Notifications entitlement iOS still delivers it, just at the
-  // normal interruption level.
-  const isOffer = channelId === OFFERS_CHANNEL_ID;
-
+  // Every alert on this path is worth waking a phone for: a rider offer expires
+  // in five minutes, and a customer or rider who is told "your rider is on the
+  // way" while the screen is off should not find out when Android next leaves
+  // doze. A default-priority FCM message is batched until then. `priority: high`
+  // wakes Android; `interruptionLevel: time-sensitive` stops iOS Focus filing
+  // the alert under the lock screen's summary (iOS-only, ignored for Android
+  // tokens; without the Time Sensitive entitlement iOS still delivers it at the
+  // normal level).
   const messages: ExpoPushMessage[] = validTokens.map((to) => ({
     to,
     sound: "default",
     channelId,
     title,
     body,
-    ...(isOffer
-      ? { priority: "high" as const, interruptionLevel: "time-sensitive" as const }
-      : {}),
+    priority: "high",
+    interruptionLevel: "time-sensitive",
     ...(data ? { data } : {}),
   }));
 

@@ -81,7 +81,8 @@ export default function MerchantAccountScreen() {
       const token = session?.access_token;
       if (!token) return;
       if (push.granted && push.registered) {
-        await disablePush(token);
+        // Remembered: auto-registration on the next open must not undo this.
+        await disablePush(token, { userChoice: true });
         setPush({ granted: false, registered: false });
       } else {
         setPush(await enablePush(token));

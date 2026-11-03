@@ -4,6 +4,7 @@ import * as Device from "expo-device";
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 import Constants from "expo-constants";
+import { nextAutoPushAction } from "./push-auto";
 import { supabase } from "./supabase";
 
 /**
@@ -25,6 +26,10 @@ const projectId = Constants.expoConfig?.extra?.eas?.projectId as string | undefi
 
 const DEVICE_ID_KEY = "kfd.push.deviceId";
 const REGISTERED_KEY = "kfd.push.registered";
+// The user switched alerts off in Account. Separate from REGISTERED_KEY on
+// purpose: sign-out also clears the registration, but that is not a choice to
+// stay off, and auto-registration has to be able to undo it.
+const OPTED_OUT_KEY = "kfd.push.optedOut";
 
 /**
  * Android notification channel ids.
@@ -289,6 +294,8 @@ export async function enablePush(accessToken: string): Promise<PushStatus> {
     };
   }
 
+  // The user asked for alerts, so the device-level opt-out no longer applies.
+  await SecureStore.deleteItemAsync(OPTED_OUT_KEY).catch(() => {});
   await SecureStore.setItemAsync(REGISTERED_KEY, "1");
   return { granted: true, registered: true };
 }
@@ -296,23 +303,52 @@ export async function enablePush(accessToken: string): Promise<PushStatus> {
 const AUTO_ASKED_KEY = "kfd.push.autoAsked";
 
 /**
- * Turn alerts on without the user hunting for a toggle -- once per install.
- * Called at the moment alerts start to matter (a merchant's first visit, a
- * customer's first order). After the first attempt it never runs again, so a
- * user who later switches alerts off in Account stays off.
+ * Turn alerts on without the user hunting for a toggle.
+ *
+ * Called every time a merchant or rider surface opens, and on a customer's
+ * order flow. It is not "once per install" any more: `registered` alone decides
+ * whether the server has this device, so a sign-out (which unregisters), a
+ * failed first attempt, or a token fetch that timed out all get repaired on the
+ * next open. The OS prompt still happens at most once -- see
+ * `nextAutoPushAction` in lib/push-auto.ts for the rule and the reasons.
  */
-export async function autoEnablePushOnce(): Promise<void> {
-  if ((await SecureStore.getItemAsync(AUTO_ASKED_KEY)) === "1") return;
-  if ((await getPushStatus()).registered) return;
+export async function autoEnablePush(): Promise<void> {
   const {
     data: { session },
   } = await supabase.auth.getSession();
+  const status = await getPushStatus();
+  const action = nextAutoPushAction({
+    signedIn: Boolean(session?.access_token),
+    optedOut: (await SecureStore.getItemAsync(OPTED_OUT_KEY)) === "1",
+    registered: status.registered,
+    granted: status.granted,
+    permission: status.permission ?? "undetermined",
+    asked: (await SecureStore.getItemAsync(AUTO_ASKED_KEY)) === "1",
+  });
+
+  if (action === "skip") return;
   if (!session?.access_token) return;
-  await SecureStore.setItemAsync(AUTO_ASKED_KEY, "1");
+
+  // Written before the prompt so two surfaces mounting together cannot both
+  // ask. A failed ask is not retried: the OS prompt is the part that must not
+  // repeat, and the user can still use the Account toggle.
+  if (action === "ask") await SecureStore.setItemAsync(AUTO_ASKED_KEY, "1");
+
   await enablePush(session.access_token).catch(() => {});
 }
 
-export async function disablePush(accessToken: string): Promise<void> {
+/**
+ * Unregister this device. Called on sign-out and by the Account toggle.
+ *
+ * `userChoice` is the difference between the two: switching alerts off in
+ * Account is remembered and survives the next launch, while the unregister that
+ * happens on sign-out must not stop the next sign-in from registering again.
+ */
+export async function disablePush(
+  accessToken: string,
+  options: { userChoice?: boolean } = {}
+): Promise<void> {
+  if (options.userChoice) await SecureStore.setItemAsync(OPTED_OUT_KEY, "1");
   const deviceId = await SecureStore.getItemAsync(DEVICE_ID_KEY);
   await SecureStore.deleteItemAsync(REGISTERED_KEY);
 
