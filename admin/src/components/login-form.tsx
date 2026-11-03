@@ -14,6 +14,9 @@ const NOT_PROVISIONED =
   "This account is not linked to an admin or a restaurant yet. Contact the KFD team.";
 const NO_RESTAURANT =
   "Your merchant account has no restaurant attached. Contact the KFD team.";
+// A customer or rider is provisioned — just not for the web console.
+const NOT_AN_OPERATOR =
+  "That is a customer or rider account. The web portal is for admins and merchants — use the KFD app.";
 
 /**
  * One sign-in form for both roles. After the password is accepted it resolves
@@ -84,7 +87,15 @@ export function LoginForm({
       // the session so the browser is not left holding credentials that can
       // only ever fail.
       await signOut().catch(() => {});
-      setError(role === "merchant" ? NO_RESTAURANT : NOT_PROVISIONED);
+      // A customer or rider is provisioned; telling them "not linked yet"
+      // would send them to support for a problem they do not have.
+      setError(
+        role === "merchant"
+          ? NO_RESTAURANT
+          : role === "customer" || role === "rider"
+            ? NOT_AN_OPERATOR
+            : NOT_PROVISIONED,
+      );
       setLoading(false);
     } catch (err) {
       setError(

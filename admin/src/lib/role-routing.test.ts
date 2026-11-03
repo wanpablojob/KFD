@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { roleTargetPath } from "./role-routing.ts";
+import { asAppRole, isOperatorRole, roleTargetPath } from "./role-routing.ts";
 
 /**
  * Regression tests for the login landing rule.
@@ -54,4 +54,41 @@ test("merchant stays inside the portal even when the target is outside it", () =
 test("unprovisioned or restricted accounts have no surface at all", () => {
   assert.equal(roleTargetPath(null, null, "/"), null);
   assert.equal(roleTargetPath("merchant", null, "/merchant"), null);
+});
+
+/**
+ * The bug this guards: `AppRole` was `"admin" | "merchant" | null` and the
+ * database value was cast straight into it. `app_role` also holds `customer`
+ * and `rider`, so a customer arrived as a role the console believed in, and
+ * because `provisioned` was computed as `role !== null`, every customer was
+ * routed to /merchant. Reported as "every user turns into merchant".
+ */
+test("a customer or rider is not an operator and has no console", () => {
+  assert.equal(isOperatorRole("customer"), false);
+  assert.equal(isOperatorRole("rider"), false);
+  assert.equal(isOperatorRole("admin"), true);
+  assert.equal(isOperatorRole("merchant"), true);
+  assert.equal(isOperatorRole(null), false);
+});
+
+test("roleTargetPath gives customers and riders no surface", () => {
+  // Every path a login could have been reached from.
+  for (const target of [null, "/", "/dashboard", "/dashboard/orders", "/merchant", "/merchant/orders"]) {
+    assert.equal(roleTargetPath("customer", null, target), null);
+    assert.equal(roleTargetPath("rider", null, target), null);
+    // Even holding a restaurant id must not promote a customer.
+    assert.equal(roleTargetPath("customer", "rst_01", target), null);
+  }
+});
+
+test("asAppRole keeps the real role and fails closed on an unknown one", () => {
+  assert.equal(asAppRole("admin"), "admin");
+  assert.equal(asAppRole("merchant"), "merchant");
+  assert.equal(asAppRole("customer"), "customer");
+  assert.equal(asAppRole("rider"), "rider");
+  // A role added to the enum but not to this list must not become a console.
+  assert.equal(asAppRole("dispatcher"), null);
+  assert.equal(asAppRole(null), null);
+  assert.equal(asAppRole(undefined), null);
+  assert.equal(asAppRole(42), null);
 });

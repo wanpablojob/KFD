@@ -13,6 +13,8 @@ export const metadata = {
 const MESSAGES: Record<string, string> = {
   "not-provisioned":
     "That account is not linked to an admin or a restaurant yet. Contact the KFD team to have it set up.",
+  "not-an-operator":
+    "That account is a customer or rider account. The web portal is for admins and merchants — use the KFD app for ordering and deliveries.",
   "no-restaurant":
     "Your merchant account has no restaurant attached. Contact the KFD team.",
   "lookup-failed":

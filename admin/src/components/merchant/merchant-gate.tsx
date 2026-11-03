@@ -28,6 +28,7 @@ export function MerchantGate({ children }: { children: React.ReactNode }) {
     loading: roleLoading,
     isAdmin,
     isMerchant,
+    isOperator,
     provisioned,
     error,
   } = useUserRole();
@@ -50,12 +51,16 @@ export function MerchantGate({ children }: { children: React.ReactNode }) {
     if (isAdmin || isMerchant) return;
 
     void signOut().catch(() => {});
-    router.replace(
-      provisioned
-        ? `/login?error=no-restaurant&next=${encodeURIComponent(MERCHANT_HOME)}`
-        : `/login?error=not-provisioned&next=${encodeURIComponent(MERCHANT_HOME)}`
-    );
-  }, [authLoading, user, roleLoading, isAdmin, isMerchant, provisioned, error, router]);
+    // A merchant row with no restaurant is a provisioning problem; a customer
+    // or rider is simply using the wrong product. They used to be told the
+    // first thing, because "has an app_users row" was mistaken for "merchant".
+    const code = !provisioned
+      ? "not-provisioned"
+      : isOperator
+        ? "no-restaurant"
+        : "not-an-operator";
+    router.replace(`/login?error=${code}&next=${encodeURIComponent(MERCHANT_HOME)}`);
+  }, [authLoading, user, roleLoading, isAdmin, isMerchant, isOperator, provisioned, error, router]);
 
   if (authLoading || (user && roleLoading)) {
     return (

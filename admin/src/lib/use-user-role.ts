@@ -2,6 +2,7 @@
 
 import { useSessionUser } from "@/lib/auth";
 import { fetchUserRole, type AppRole } from "@/lib/role";
+import { isOperatorRole } from "@/lib/role-routing";
 import { useAsyncData } from "@/lib/use-async-data";
 
 export interface UserAccess {
@@ -9,11 +10,13 @@ export interface UserAccess {
   restaurantId: string | null;
   restaurantName: string | null;
   loading: boolean;
-  /** The account has an app_users row with either role. */
+  /** The account has an `app_users` row, whatever its role. */
   provisioned: boolean;
   isAdmin: boolean;
   /** A merchant row that also has a restaurant attached. */
   isMerchant: boolean;
+  /** Admin or merchant: the roles that have a web console at all. */
+  isOperator: boolean;
   /** A failed lookup, distinct from "no row" so a network blip is not a logout. */
   error: string | null;
 }
@@ -26,6 +29,7 @@ const PENDING: UserAccess = {
   provisioned: false,
   isAdmin: false,
   isMerchant: false,
+  isOperator: false,
   error: null,
 };
 
@@ -63,6 +67,7 @@ export function useUserRole(): UserAccess {
     provisioned: role !== null,
     isAdmin: role === "admin",
     isMerchant: role === "merchant" && restaurantId !== null,
+    isOperator: isOperatorRole(role),
     error: null,
   };
 }

@@ -1,4 +1,36 @@
-export type AppRole = "admin" | "merchant" | null;
+/**
+ * Every role the database can hold (app_role).
+ *
+ * This used to be `"admin" | "merchant" | null`, which was true when only
+ * operators had an `app_users` row. Customers and riders have rows now, so
+ * that type was a lie: `fetchUserRole` cast the database value into it and a
+ * customer became a role the console believed in. Both are listed here so the
+ * type cannot lie again, and `roleTargetPath` is what decides that neither has
+ * a console.
+ */
+export type AppRole = "admin" | "merchant" | "customer" | "rider" | null;
+
+/** The roles that have a web console. Customers and riders use the app. */
+export function isOperatorRole(role: AppRole): role is "admin" | "merchant" {
+  return role === "admin" || role === "merchant";
+}
+
+/**
+ * The roles this database can hold, mirroring the `app_role` enum.
+ *
+ * Anything outside this list reads as null: an unknown role must fail closed
+ * to "no console", never default into one. Before this existed the database
+ * value was cast straight into a two-member union, so a `customer` arrived as
+ * a role the console believed in and every customer was routed to the
+ * merchant portal.
+ */
+const KNOWN_ROLES = ["admin", "merchant", "customer", "rider"] as const;
+
+export function asAppRole(value: unknown): AppRole {
+  return typeof value === "string" && (KNOWN_ROLES as readonly string[]).includes(value)
+    ? (value as (typeof KNOWN_ROLES)[number])
+    : null;
+}
 
 /**
  * The post-login landing decision, kept pure so it can be tested without a

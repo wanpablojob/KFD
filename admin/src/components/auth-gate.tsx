@@ -22,7 +22,7 @@ import { useUserRole } from "@/lib/use-user-role";
 export function AuthGate({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { user, loading: authLoading } = useSessionUser();
-  const { loading: roleLoading, isAdmin, provisioned, error } = useUserRole();
+  const { loading: roleLoading, isAdmin, isMerchant, provisioned, error } = useUserRole();
 
   useEffect(() => {
     if (authLoading) return;
@@ -41,14 +41,23 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
 
     if (isAdmin) return;
 
-    if (provisioned) {
+    // A merchant with a restaurant belongs in their own portal.
+    if (isMerchant) {
       router.replace("/merchant");
+      return;
+    }
+
+    // A customer or a rider holds an `app_users` row but has no web console.
+    // This branch is the bug that was reported: `provisioned` is true for any
+    // role, so treating it as "is a merchant" sent every customer here.
+    if (provisioned) {
+      router.replace("/login?error=not-an-operator");
       return;
     }
 
     void signOut().catch(() => {});
     router.replace("/login?error=not-provisioned");
-  }, [authLoading, user, roleLoading, isAdmin, provisioned, error, router]);
+  }, [authLoading, user, roleLoading, isAdmin, isMerchant, provisioned, error, router]);
 
   if (authLoading || (user && roleLoading)) {
     return (

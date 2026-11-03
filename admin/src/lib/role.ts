@@ -1,6 +1,7 @@
 import { supabase } from "./supabase/client";
-import { roleTargetPath, type AppRole } from "./role-routing";
+import { asAppRole, roleTargetPath, type AppRole } from "./role-routing";
 
+export { asAppRole } from "./role-routing";
 export type { AppRole } from "./role-routing";
 
 export interface UserRole {
@@ -8,6 +9,7 @@ export interface UserRole {
   restaurantId: string | null;
   restaurantName: string | null;
 }
+
 
 /**
  * Resolves the signed-in user's role from app_users.
@@ -51,7 +53,7 @@ export async function fetchUserRole(): Promise<UserRole> {
   }
 
   return {
-    role: data.role as AppRole,
+    role: asAppRole(data.role),
     restaurantId,
     restaurantName,
   };

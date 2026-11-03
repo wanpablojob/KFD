@@ -14,6 +14,10 @@ import type { AppRole } from "@/lib/role";
 const ROLE_LABELS: Record<NonNullable<AppRole>, string> = {
   admin: "Administrator",
   merchant: "Merchant",
+  // Neither has a console; they are labelled only so the record stays
+  // exhaustive over the enum. AppShell never renders for them.
+  customer: "Customer",
+  rider: "Rider",
 };
 
 export function AppShell({ children }: { children: React.ReactNode }) {
