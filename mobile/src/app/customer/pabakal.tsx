@@ -5,7 +5,6 @@ import {
   Alert,
   KeyboardAvoidingView,
   Linking,
-  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -372,7 +371,13 @@ export default function PabakalScreen() {
       ) : (
         <KeyboardAvoidingView
           style={styles.flex}
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          // Android needs `padding` too now: Expo SDK 57 runs edge-to-edge on
+          // Android 15+, so the window no longer resizes for the keyboard and
+          // an unset behavior leaves this bar underneath it. RN 0.86 computes
+          // the pad from the keyboard's screen position, so if a device does
+          // still resize the window the pad comes out as zero rather than
+          // doubling up.
+          behavior="padding"
         >
           <ScrollView
             ref={scroll}

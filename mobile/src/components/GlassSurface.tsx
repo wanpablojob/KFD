@@ -126,10 +126,12 @@ export function useGlassPreferences(): GlassPreferences {
 /**
  * True while the software keyboard is up.
  *
- * Android resizes the window for the keyboard (Expo's default
- * softwareKeyboardLayoutMode), so anything pinned to the bottom of the screen
- * rides up and sits on top of the keyboard. iOS uses the "will" events so the
- * bar leaves with the keyboard rather than after it.
+ * Callers use this to drop the tab-bar inset, because the tab bar hides while
+ * the keyboard covers where it was. It does not mean the layout has already
+ * avoided the keyboard: Expo SDK 57 runs edge-to-edge on Android 15+, so the
+ * window no longer resizes for the IME and a KeyboardAvoidingView still has to
+ * set behavior="padding" on Android. iOS uses the "will" events so a bar leaves
+ * with the keyboard rather than after it.
  */
 export function useKeyboardVisible(): boolean {
   const [visible, setVisible] = useState(false);
