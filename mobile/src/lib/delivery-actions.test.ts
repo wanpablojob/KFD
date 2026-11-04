@@ -11,10 +11,12 @@ describe("deliveryActions", () => {
     });
   });
 
-  it("offers both pickup and completion once confirmed", () => {
+  it("offers pickup, not completion, once confirmed (0144)", () => {
+    // The food is still at the shop: it has to be picked up before it can be
+    // handed over, so Mark delivered waits for the pickup.
     expect(deliveryActions("confirmed")).toEqual({
       canPickUp: true,
-      canDeliver: true,
+      canDeliver: false,
       canReportFailed: true,
     });
   });
@@ -22,7 +24,7 @@ describe("deliveryActions", () => {
   it("still offers pickup while preparing, since the kitchen may be cooking", () => {
     expect(deliveryActions("preparing")).toEqual({
       canPickUp: true,
-      canDeliver: true,
+      canDeliver: false,
       canReportFailed: true,
     });
   });
@@ -57,12 +59,13 @@ describe("deliveryActions", () => {
     });
   });
 
-  it("always lets a rider hand a delivery back", () => {
-    // If deliver and report-failed diverge, some order becomes impossible to
-    // resolve.
+  it("always leaves a running order a way forward", () => {
+    // Every order the rider holds can be either picked up, delivered, or handed
+    // back, so none is ever stuck on the card with nothing to press.
     for (const status of ["confirmed", "preparing", "out_for_delivery"]) {
       const actions = deliveryActions(status);
-      expect(actions.canDeliver).toBe(actions.canReportFailed);
+      expect(actions.canReportFailed).toBe(true);
+      expect(actions.canPickUp || actions.canDeliver).toBe(true);
     }
   });
 });

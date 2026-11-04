@@ -534,11 +534,13 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
           // This used to be `!isTerminalStatus(...)` -- "not finished" rather
           // than "can act on" -- which offered Mark delivered on a `pending`
           // order the server refuses, a button that could only ever error.
-          const { canPickUp, canDeliver } = deliveryActions(item.status);
+          const { canPickUp, canDeliver, canReportFailed } = deliveryActions(
+            item.status
+          );
           const cash = item.payment === "cash";
           const busy = reporting;
           return (
-            <View style={[styles.orderCard, !canDeliver && styles.orderCardPast]}>
+            <View style={[styles.orderCard, !canReportFailed && styles.orderCardPast]}>
               <View style={styles.orderHeader}>
                 <Text style={styles.orderRef}>{item.reference}</Text>
                 <Text style={styles.orderStatus}>
@@ -550,7 +552,21 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
                   delivery to make. Cash is the customer's money, not the
                   rider's, so it is stated separately from the fee below and
                   never added to it. */}
-              {canDeliver && cash ? (
+              {/* The step the rider is on: at the shop, or on the way. */}
+              {canPickUp || canDeliver ? (
+                <View style={styles.step}>
+                  <Text style={styles.stepCount}>
+                    {canPickUp ? "Step 1 of 2" : "Step 2 of 2"}
+                  </Text>
+                  <Text style={styles.stepText}>
+                    {canPickUp
+                      ? `Go to ${item.restaurant} and pick up the food`
+                      : `Deliver to ${item.customer}`}
+                  </Text>
+                </View>
+              ) : null}
+
+              {canReportFailed && cash ? (
                 <View style={styles.collect}>
                   <Text style={styles.collectLabel}>Collect from customer</Text>
                   <Text style={styles.collectAmount}>
@@ -696,7 +712,7 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
                 </Pressable>
               ) : null}
 
-              {canDeliver ? (
+              {canReportFailed ? (
                 // Two outcomes, side by side. Reporting a failure is the honest
                 // escape from a job that cannot be completed, and it has to be
                 // as reachable as the lie it replaces.
@@ -711,15 +727,19 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
                     <Text style={styles.failButtonLabel}>Can&apos;t deliver</Text>
                   </Pressable>
 
-                  <Pressable
-                    style={[styles.deliverButton, busy && styles.disabled]}
-                    disabled={busy || offline}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Mark ${item.reference} delivered`}
-                    onPress={() => setConfirmingId(item.id)}
-                  >
-                    <Text style={styles.deliverButtonLabel}>Mark delivered</Text>
-                  </Pressable>
+                  {/* Only once it is picked up (0144); until then the pickup
+                      button above is the next step. */}
+                  {canDeliver ? (
+                    <Pressable
+                      style={[styles.deliverButton, busy && styles.disabled]}
+                      disabled={busy || offline}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Mark ${item.reference} delivered`}
+                      onPress={() => setConfirmingId(item.id)}
+                    >
+                      <Text style={styles.deliverButtonLabel}>Mark delivered</Text>
+                    </Pressable>
+                  ) : null}
                 </View>
               ) : null}
             </View>
@@ -891,6 +911,15 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
     marginBottom: spacing.xs,
   },
+  step: {
+    backgroundColor: colors.primarySoft,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    gap: 2,
+  },
+  stepCount: { fontSize: 12, fontWeight: "800", color: colors.primary },
+  stepText: { fontSize: 15, fontWeight: "700", color: colors.text },
   collect: {
     backgroundColor: colors.goldSoft,
     borderWidth: 1,

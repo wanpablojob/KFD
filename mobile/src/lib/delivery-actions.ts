@@ -32,15 +32,21 @@ export interface DeliveryActions {
 const PICKUP_STATUSES: readonly string[] = ["confirmed", "preparing"];
 
 /**
- * rider_mark_delivered and rider_report_failed_delivery accept exactly these
- * (0038, extended by 0071). Identical on purpose: a rider who cannot complete a
- * delivery must be able to return it.
+ * rider_report_failed_delivery accepts exactly these (0038, extended by 0071):
+ * a rider can hand an order back from the moment they hold it.
  */
 const RUNNING_STATUSES: readonly string[] = [
   "confirmed",
   "preparing",
   "out_for_delivery",
 ];
+
+/**
+ * rider_mark_delivered accepts only a picked-up order (0144): the food has to
+ * leave the shop before it can be handed over, so the rider marks it picked
+ * up first and completes it second.
+ */
+const DELIVERABLE_STATUSES: readonly string[] = ["out_for_delivery"];
 
 /**
  * Nothing further will happen, so every action disappears. This is the same
@@ -55,7 +61,7 @@ export function deliveryActions(status: string): DeliveryActions {
   }
   return {
     canPickUp: PICKUP_STATUSES.includes(status),
-    canDeliver: RUNNING_STATUSES.includes(status),
+    canDeliver: DELIVERABLE_STATUSES.includes(status),
     canReportFailed: RUNNING_STATUSES.includes(status),
   };
 }

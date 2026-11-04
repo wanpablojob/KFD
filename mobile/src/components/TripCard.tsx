@@ -44,10 +44,20 @@ export function TripCard({
   );
 
   const cash = trip.payment === "cash";
-  const canDeliver =
+  // Still a job to do (it can be handed back from here on).
+  const running =
     trip.status === "out_for_delivery" ||
     trip.status === "preparing" ||
     trip.status === "confirmed";
+  // Complete only once every shop's food is in the bag: the server refuses
+  // before that (0095), so the button waits for the last pickup.
+  const allCollected =
+    list.length > 0 &&
+    list.every((stop) =>
+      ["out_for_delivery", "delivered", "cancelled"].includes(stop.status)
+    ) &&
+    list.some((stop) => stop.status !== "cancelled");
+  const canDeliver = running && allCollected;
 
   return (
     <View style={[styles.card, shadow.card]}>
@@ -64,7 +74,7 @@ export function TripCard({
 
       {/* What the rider has to collect: the trip's grand total, once. The
           customer paid one bill. */}
-      {canDeliver && cash ? (
+      {running && cash ? (
         <View style={styles.collect}>
           <Text style={styles.collectLabel}>Collect from customer</Text>
           <Text style={styles.collectAmount}>₱{Number(trip.total).toFixed(2)}</Text>
@@ -147,20 +157,26 @@ export function TripCard({
         </Pressable>
       ) : null}
 
-      {canDeliver ? (
+      {running ? (
         <View style={styles.actions}>
-          <Pressable
-            style={({ pressed }) => [
-              styles.primaryAction,
-              pressed && styles.actionPressed,
-            ]}
-            onPress={onComplete}
-            disabled={busy}
-            accessibilityRole="button"
-            accessibilityLabel={`Complete the delivery of ${trip.reference}`}
-          >
-            <Text style={styles.primaryActionLabel}>Complete delivery</Text>
-          </Pressable>
+          {canDeliver ? (
+            <Pressable
+              style={({ pressed }) => [
+                styles.primaryAction,
+                pressed && styles.actionPressed,
+              ]}
+              onPress={onComplete}
+              disabled={busy}
+              accessibilityRole="button"
+              accessibilityLabel={`Complete the delivery of ${trip.reference}`}
+            >
+              <Text style={styles.primaryActionLabel}>Complete delivery</Text>
+            </Pressable>
+          ) : (
+            <Text style={styles.nextStep}>
+              Pick up from every shop above, then complete the delivery here.
+            </Text>
+          )}
           <Pressable
             style={({ pressed }) => [
               styles.secondaryAction,
@@ -189,6 +205,7 @@ const TRIP_STATUS: Record<string, string> = {
 };
 
 const styles = StyleSheet.create({
+  nextStep: { ...type.caption, flex: 1 },
   card: {
     backgroundColor: colors.card,
     borderRadius: radius.lg,
