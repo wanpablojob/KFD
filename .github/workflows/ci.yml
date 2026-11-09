@@ -163,16 +163,15 @@ jobs:
         run: npm ci
 
       # The app is pinned to Expo SDK 57 (`expo` and every `expo-*` package).
-      # This compares the installed tree against the versions SDK 57 bundles
-      # and fails the build the moment one of them has walked onto another
-      # SDK -- which is exactly what a hand-edited version range looks like
-      # before it reaches a build. Dependabot's ranges cannot cause this, but
-      # a manual bump can. CI=1 keeps the check non-interactive: otherwise
-      # the CLI offers to rewrite the lockfile from inside the build.
+      # A hand-edited version range walking onto another SDK is what this
+      # catches. It lives in a script because `expo install --check` alone
+      # compares against the version list Expo publishes *today*: that turned
+      # main red on 2026-11-09 with 11 patch bumps and no mobile change. The
+      # script fails on major/minor drift and prints patch drift.
       - name: Expo SDK alignment
         env:
           CI: "true"
-        run: npx expo install --check
+        run: bash ../scripts/expo-sdk-alignment.sh
 
       - name: Lint
         run: npm run lint

@@ -116,12 +116,21 @@ upstream issue can't wedge every future push. Admin's audit *is* blocking, which
 is why the Next.js critical advisory didn't survive.
 
 The **Expo SDK alignment** check is blocking, in the local gate and in CI
-alike. The app is pinned to SDK 57, and `expo install --check` compares the
-installed tree against the versions SDK 57 bundles — it fails the moment an
-`expo-*` package has walked onto another SDK. Dependabot's `~57.0.x` ranges
-cannot cause that; a hand-edited version range can. It runs with `CI=1` so it
-stays non-interactive: without that the CLI offers to "Fix dependencies?" and
+alike. The app is pinned to SDK 57, and the check compares the installed tree
+against the versions SDK 57 bundles, so an `expo-*` package that has walked
+onto another SDK fails the build. Dependabot's `~57.0.x` ranges cannot cause
+that; a hand-edited version range can. It runs with `CI=1` so it stays
+non-interactive: without that the CLI offers to "Fix dependencies?" and
 rewrites the lockfile from inside the gate.
+
+The classification lives in `scripts/expo-sdk-alignment.sh`, shared by
+`verify.sh` and CI, because `expo install --check` on its own compares against
+the version list Expo publishes *today*. Expo ships patch releases for a live
+SDK without notice, so on 2026-11-09 the check turned `main` red on a commit
+that touched no mobile file — 11 packages flagged, every one a patch bump. The
+script fails on major/minor drift (a different SDK) and prints patch drift
+without failing. An exit 1 with no drift lines — missing install, config error,
+network failure — still fails, so the check can never pass by not running.
 
 The root `package.json` pins `expo` to the same SDK 57 line for a related
 reason. `npx expo` from the repository root has no local copy to resolve, so it

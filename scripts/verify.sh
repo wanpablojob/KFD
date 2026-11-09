@@ -64,8 +64,13 @@ verify_mobile() {
   # one of them has walked onto another SDK. CI=1 keeps it non-interactive:
   # without it the CLI offers to "Fix dependencies?" and rewrites the
   # lockfile from inside the gate.
+  #
+  # The classification lives in a script so CI and this gate share one rule:
+  # `expo install --check` compares against the version list Expo publishes
+  # *today*, so patch releases turn a green tree red with no commit. Major or
+  # minor drift fails; patch drift is printed. See its header for the incident.
   run "mobile: expo SDK alignment" "$ROOT/mobile" required \
-    env CI=1 npx expo install --check
+    env CI=1 bash "$ROOT/scripts/expo-sdk-alignment.sh"
   run "mobile: lint"          "$ROOT/mobile" required npm run lint
   run "mobile: typecheck"     "$ROOT/mobile" required npm run typecheck
   run "mobile: test"          "$ROOT/mobile" required npm run test -- --ci
