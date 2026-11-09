@@ -309,6 +309,11 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
     // cached queries, so neither refreshes when the other is invalidated.
     void queryClient.invalidateQueries({ queryKey: ["riderEarningsSummary"] });
     void queryClient.invalidateQueries({ queryKey: ["riderCashPosition"] });
+    // A closed trip has to leave the rider's list now, not when its 20 second
+    // poll happens to next run. The trip card and its stops are separate
+    // cached queries, so both are invalidated.
+    void queryClient.invalidateQueries({ queryKey: ["riderDeliveries"] });
+    void queryClient.invalidateQueries({ queryKey: ["deliveryStops"] });
   }
 
   function openFailReport(orderId: string) {
@@ -510,7 +515,7 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
                 trip={trip}
                 busy={pickingUpId !== null || reporting}
                 pickingUpId={pickingUpId}
-                onPickUp={(orderId) => void pickedUp.mutateAsync(orderId)}
+                onPickUp={(orderId) => void onPickedUp(orderId)}
                 onComplete={() => setConfirmingTripId(trip.delivery_id)}
                 onReportFailed={() => {
                   setFailReason("");

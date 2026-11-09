@@ -400,6 +400,14 @@ export function useMarkPickedUp() {
     mutationFn: (orderId: string) => markOrderPickedUp(orderId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["riderOrders"] });
+      // A pickup can be one stop of a trip (0092, 0095). TripCard decides
+      // whether "Complete delivery" is available from its stops' statuses, so
+      // the trip and its stops both have to be re-read. Without this the card
+      // kept showing every stop as uncollected after the rider marked it, the
+      // complete button never appeared, and the job stopped there until the
+      // app was backgrounded and reopened.
+      queryClient.invalidateQueries({ queryKey: ["riderDeliveries"] });
+      queryClient.invalidateQueries({ queryKey: ["deliveryStops"] });
     },
   });
 }
