@@ -48,6 +48,7 @@
       "firebase": {
         "type": "local",
         "command": ["bash", "scripts/mcp-server.sh", "firebase"],
+        "disabled": true,
         "timeout": {
           "startup": 120000,
           "catalog": 120000

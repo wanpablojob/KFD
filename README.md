@@ -78,6 +78,18 @@ Steps apply from the repository root.
    `expo` for that reason), so avoid running it outside the project tree with an
    unpinned global install.
 
+   If OpenCode reports an MCP server as failed, name the layer before touching
+   any config — a DNS blip and a bad token look identical on screen:
+
+   ```sh
+   scripts/mcp-doctor.sh
+   ```
+
+   It checks each remote endpoint and each local binary separately. If a server
+   still shows as failed after the network is back, run `opencode reload` — the
+   tool catalog is built at connect time, so a server that failed during startup
+   stays missing until the configuration is reloaded.
+
 5. **Run tests and the full gate**. One command runs everything CI runs —
    lint, typecheck, tests, both builds, the Android bundle, migrations and the
    launch preflight:
