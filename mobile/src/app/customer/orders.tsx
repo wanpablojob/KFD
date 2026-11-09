@@ -463,7 +463,7 @@ export default function CustomerOrdersScreen() {
           )
         }
         refreshControl={
-          <RefreshControl refreshing={false} onRefresh={() => refetch()} />
+          <RefreshControl refreshing={false} onRefresh={() => void refetch()} />
         }
       />
 

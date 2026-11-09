@@ -746,7 +746,7 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
           );
         }}
         ListFooterComponent={
-          fetchError ? <Text style={styles.error}>{fetchError}</Text> : null
+          fetchError ? <Text style={styles.error}>{fetchError}</Text> : undefined
         }
       />
 

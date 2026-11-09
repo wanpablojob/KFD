@@ -10,6 +10,7 @@ import {
   Text,
   TextInput,
   View,
+  type ScrollViewInstance,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -90,7 +91,7 @@ export default function PabakalScreen() {
   const keyboardUp = useKeyboardVisible();
   const bottomPadding = useScrollBottomPadding();
   const queryClient = useQueryClient();
-  const scroll = useRef<ScrollView>(null);
+  const scroll = useRef<ScrollViewInstance>(null);
   const nextId = useRef(1);
 
   const mine = useQuery({

@@ -187,7 +187,7 @@ export default function CustomerShopsScreen() {
         }
         renderItem={({ item }) => <RestaurantCard row={item} />}
         refreshControl={
-          <RefreshControl refreshing={isFetching} onRefresh={() => refetch()} />
+          <RefreshControl refreshing={isFetching} onRefresh={() => void refetch()} />
         }
       />
     </View>

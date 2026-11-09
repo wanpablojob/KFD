@@ -1,4 +1,5 @@
 import * as Notifications from "expo-notifications";
+import { AndroidImportance, AndroidNotificationVisibility } from "expo-notifications";
 import type { EventSubscription } from "expo-modules-core";
 import * as Device from "expo-device";
 import * as SecureStore from "expo-secure-store";
@@ -70,7 +71,7 @@ export async function ensureNotificationChannels(): Promise<void> {
     // carried these settings since it was introduced.
     await Notifications.setNotificationChannelAsync(ORDERS_CHANNEL_ID, {
       name: "Order alerts",
-      importance: Notifications.AndroidImportance.HIGH,
+      importance: AndroidImportance.HIGH,
     });
     // Offers live 5 minutes and are worth real money, so this channel is HIGH
     // with sound and vibration. MAX would head-up every offer; that is too
@@ -78,11 +79,11 @@ export async function ensureNotificationChannels(): Promise<void> {
     await Notifications.setNotificationChannelAsync(OFFERS_CHANNEL_ID, {
       name: "Delivery offers",
       description: "New delivery jobs you can accept before they expire.",
-      importance: Notifications.AndroidImportance.HIGH,
+      importance: AndroidImportance.HIGH,
       sound: "default",
       enableVibrate: true,
       lightColor: "#ffd23f",
-      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+      lockscreenVisibility: AndroidNotificationVisibility.PUBLIC,
     });
   } catch {
     // A channel that cannot be created is a missing notification, not a crash.
@@ -222,7 +223,7 @@ export async function getPushStatus(): Promise<PushStatus> {
         await Notifications.getNotificationChannelAsync(OFFERS_CHANNEL_ID);
       // Null means the channel does not exist yet (created on launch), which is
       // not muted -- it is just not there to read.
-      alertsMuted = channel?.importance === Notifications.AndroidImportance.NONE;
+      alertsMuted = channel?.importance === AndroidImportance.NONE;
     } catch {
       // Channel state is a hint. An unreadable channel must not break the
       // screen that asks for push status.
