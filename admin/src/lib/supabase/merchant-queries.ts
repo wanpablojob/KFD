@@ -113,13 +113,14 @@ const MERCHANT_TRANSITIONS: Record<MerchantOrderStatus, MerchantOrderStatus[]> =
 /**
  * Statuses a merchant may move an order to from its current one. The rider
  * leg (out_for_delivery -> delivered) is deliberately excluded: dispatch is
- * the platform's job, not the restaurant's.
+ * the platform's job, not the restaurant's. So is accepting: every order is
+ * accepted when placed (0132), so a pending one offers only cancel.
  */
 export function allowedTransitions(
   status: MerchantOrderStatus
 ): MerchantOrderStatus[] {
   return (MERCHANT_TRANSITIONS[status] ?? []).filter(
-    (next) => next !== "out_for_delivery"
+    (next) => next !== "out_for_delivery" && next !== "confirmed"
   );
 }
 

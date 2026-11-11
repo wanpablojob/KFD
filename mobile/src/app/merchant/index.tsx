@@ -26,10 +26,15 @@ import { colors, radius, spacing, type } from "../../lib/theme";
 
 const peso = (n: number) => `₱${n.toFixed(2)}`;
 
+/** An order this new carries a NEW tag, next to the push the phone already got. */
+const NEW_FOR_MINUTES = 3;
+
 /**
- * The kitchen's live screen: orders waiting for a decision (oldest first, red
- * after OVERDUE_MINUTES), then what is cooking with its rider. Accepting
- * offers the order to riders automatically (0085).
+ * The kitchen's live screen. Every order is accepted the moment it is placed
+ * (0132) and offered to riders at once, so there is nothing to accept: new
+ * orders arrive here (and as a push) ready to cook, oldest first and red once
+ * not started after OVERDUE_MINUTES. Then what is cooking. Cancel, with a
+ * reason the customer sees, is for an order the shop truly cannot make.
  */
 export default function MerchantOrdersScreen() {
   const { role } = useSession();
@@ -37,7 +42,7 @@ export default function MerchantOrdersScreen() {
   const orders = useMerchantOrders();
   const store = useStoreStatus(restaurantId);
   const setStatus = useSetMerchantOrderStatus();
-  const [rejecting, setRejecting] = useState<MerchantOrder | null>(null);
+  const [cancelling, setCancelling] = useState<MerchantOrder | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // Keeps "N min ago" counting between polls.
@@ -50,12 +55,12 @@ export default function MerchantOrdersScreen() {
   if (orders.isPending) return <MerchantLoading message="Loading orders…" />;
 
   const rows = orders.data ?? [];
-  const pending = rows
-    .filter((o) => o.status === "pending")
+  // "pending" only survives on an order placed before 0132 or mid-accept; the
+  // server accepts it within minutes either way, so it is shown as new too.
+  const fresh = rows
+    .filter((o) => o.status === "pending" || o.status === "confirmed")
     .sort((a, b) => a.placedAt.localeCompare(b.placedAt));
-  const kitchen = rows.filter(
-    (o) => o.status === "confirmed" || o.status === "preparing"
-  );
+  const cooking = rows.filter((o) => o.status === "preparing");
   const counts = todayCounts(rows, now);
 
   async function move(order: MerchantOrder, status: OrderStatus, reason?: string) {
@@ -72,7 +77,7 @@ export default function MerchantOrdersScreen() {
   return (
     <MerchantScreen
       title={role?.restaurantName ?? "Orders"}
-      subtitle={`${counts.pending} waiting · ${counts.today} today`}
+      subtitle={`${fresh.length} new · ${counts.today} today`}
       refreshing={orders.isRefetching}
       onRefresh={() => void orders.refetch()}
     >
@@ -89,35 +94,14 @@ export default function MerchantOrdersScreen() {
       ) : null}
       {error ? <Text style={ui.error}>{error}</Text> : null}
 
-      <MerchantSection label={`Needs your decision (${pending.length})`}>
-        {pending.length === 0 ? (
+      <MerchantSection label={`New orders (${fresh.length})`}>
+        {fresh.length === 0 ? (
           <Text style={ui.muted}>
-            Nothing waiting. New orders appear here the moment they are placed.
+            No new orders. They appear here, already accepted, the moment a customer
+            orders, and this phone gets a notification.
           </Text>
         ) : (
-          pending.map((order) => (
-            <OrderCard key={order.id} order={order} now={now}>
-              <MerchantButton
-                label="Accept"
-                busy={busyId === order.id}
-                onPress={() => void move(order, "confirmed")}
-              />
-              <MerchantButton
-                label="Reject"
-                tone="danger"
-                disabled={!!busyId}
-                onPress={() => setRejecting(order)}
-              />
-            </OrderCard>
-          ))
-        )}
-      </MerchantSection>
-
-      <MerchantSection label={`In the kitchen (${kitchen.length})`}>
-        {kitchen.length === 0 ? (
-          <Text style={ui.muted}>Nothing cooking.</Text>
-        ) : (
-          kitchen.map((order) => (
+          fresh.map((order) => (
             <OrderCard key={order.id} order={order} now={now}>
               {order.status === "confirmed" ? (
                 <MerchantButton
@@ -130,19 +114,36 @@ export default function MerchantOrdersScreen() {
                 label="Cancel"
                 tone="danger"
                 disabled={!!busyId}
-                onPress={() => setRejecting(order)}
+                onPress={() => setCancelling(order)}
               />
             </OrderCard>
           ))
         )}
       </MerchantSection>
 
-      <RejectDialog
-        order={rejecting}
-        onCancel={() => setRejecting(null)}
+      <MerchantSection label={`Preparing (${cooking.length})`}>
+        {cooking.length === 0 ? (
+          <Text style={ui.muted}>Nothing cooking.</Text>
+        ) : (
+          cooking.map((order) => (
+            <OrderCard key={order.id} order={order} now={now}>
+              <MerchantButton
+                label="Cancel"
+                tone="danger"
+                disabled={!!busyId}
+                onPress={() => setCancelling(order)}
+              />
+            </OrderCard>
+          ))
+        )}
+      </MerchantSection>
+
+      <CancelDialog
+        order={cancelling}
+        onCancel={() => setCancelling(null)}
         onConfirm={(reason) => {
-          const order = rejecting;
-          setRejecting(null);
+          const order = cancelling;
+          setCancelling(null);
           if (order) void move(order, "cancelled", reason);
         }}
       />
@@ -160,11 +161,20 @@ function OrderCard({
   children: React.ReactNode;
 }) {
   const waited = minutesWaiting(order.placedAt, now);
-  const overdue = order.status === "pending" && waited >= OVERDUE_MINUTES;
+  const notStarted = order.status === "pending" || order.status === "confirmed";
+  const overdue = notStarted && waited >= OVERDUE_MINUTES;
+  const isNew = notStarted && waited < NEW_FOR_MINUTES;
   return (
     <View style={styles.card}>
       <View style={styles.cardTop}>
-        <Text style={styles.reference}>{order.reference}</Text>
+        <View style={styles.referenceRow}>
+          <Text style={styles.reference}>{order.reference}</Text>
+          {isNew ? (
+            <View style={styles.newTag}>
+              <Text style={styles.newTagText}>NEW</Text>
+            </View>
+          ) : null}
+        </View>
         <Text style={[styles.age, overdue && styles.ageOverdue]}>
           {waited === 0 ? "just now" : `${waited} min ago`}
         </Text>
@@ -172,19 +182,15 @@ function OrderCard({
       <Text style={ui.body}>{itemSummary(order.items)}</Text>
       <Text style={ui.muted}>
         {order.customer} · {peso(order.subtotal)}
-        {order.status === "pending"
-          ? ""
-          : order.rider
-            ? ` · Rider: ${order.rider}`
-            : " · Finding a rider…"}
+        {order.rider ? ` · Rider: ${order.rider}` : " · Finding a rider…"}
       </Text>
       <View style={styles.actions}>{children}</View>
     </View>
   );
 }
 
-/** A reason is required to reject or cancel; the customer sees it (Prompt 2.5). */
-function RejectDialog({
+/** A reason is required to cancel; the customer sees it (Prompt 2.5). */
+function CancelDialog({
   order,
   onCancel,
   onConfirm,
@@ -207,7 +213,7 @@ function RejectDialog({
     >
       <Pressable style={styles.backdrop} onPress={close} accessibilityLabel="Dismiss">
         <Pressable style={styles.dialog} onPress={() => {}}>
-          <Text style={type.heading}>Reject {order?.reference}?</Text>
+          <Text style={type.heading}>Cancel {order?.reference}?</Text>
           <Text style={ui.muted}>Tell the customer why. They will see this.</Text>
           <TextInput
             value={reason}
@@ -220,7 +226,7 @@ function RejectDialog({
           <View style={styles.actions}>
             <MerchantButton label="Keep order" tone="outline" onPress={close} />
             <MerchantButton
-              label="Reject"
+              label="Cancel order"
               tone="danger"
               disabled={!reason.trim()}
               onPress={() => {
@@ -254,7 +260,15 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
   },
+  referenceRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   reference: { ...type.heading },
+  newTag: {
+    backgroundColor: colors.primary,
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+  },
+  newTagText: { color: colors.textInverse, fontSize: 11, fontWeight: "800" },
   age: { ...type.caption, color: colors.textMuted },
   ageOverdue: { color: colors.danger, fontWeight: "700" },
   actions: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.xs },
