@@ -21,6 +21,7 @@ export function TripCard({
   trip,
   busy,
   pickingUpId,
+  offline = false,
   onPickUp,
   onComplete,
   onReportFailed,
@@ -29,6 +30,7 @@ export function TripCard({
   busy: boolean;
   /** The stop being marked picked up right now, so only that row waits. */
   pickingUpId: string | null;
+  offline?: boolean;
   onPickUp: (orderId: string) => void;
   onComplete: () => void;
   onReportFailed: () => void;
@@ -121,7 +123,7 @@ export function TripCard({
                   pressed && styles.pickUpPressed,
                 ]}
                 onPress={() => onPickUp(stop.order_id)}
-                disabled={busy || pickingUpId === stop.order_id}
+                disabled={busy || offline || pickingUpId === stop.order_id}
                 accessibilityRole="button"
                 accessibilityLabel={`Mark ${stop.restaurant} picked up`}
               >
@@ -166,7 +168,7 @@ export function TripCard({
                 pressed && styles.actionPressed,
               ]}
               onPress={onComplete}
-              disabled={busy}
+              disabled={busy || offline}
               accessibilityRole="button"
               accessibilityLabel={`Complete the delivery of ${trip.reference}`}
             >
@@ -183,7 +185,7 @@ export function TripCard({
               pressed && styles.actionPressed,
             ]}
             onPress={onReportFailed}
-            disabled={busy}
+            disabled={busy || offline}
             accessibilityRole="button"
             accessibilityLabel={`Report a problem with ${trip.reference}`}
           >

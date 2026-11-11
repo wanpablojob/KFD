@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   ActivityIndicator,
   FlatList,
-  Linking,
   Pressable,
   RefreshControl,
   StyleSheet,
@@ -91,6 +91,7 @@ function offerSummary(offers: readonly RiderOffer[]): string {
 export function RiderOffersScreen({ userId }: { userId: string }) {
   const insets = useSafeAreaInsets();
   const bottomPadding = useScrollBottomPadding();
+  const queryClient = useQueryClient();
   const { data: offers, error, isPending, refetch } = useRiderOffers();
   // Trips (0092): a basket from several shops is offered as one job, so the
   // rider takes the whole trip or none of it.
@@ -111,11 +112,11 @@ export function RiderOffersScreen({ userId }: { userId: string }) {
   const refresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      await refetch();
+      await Promise.all([refetch(), refetchTripOffers()]);
     } finally {
       setRefreshing(false);
     }
-  }, [refetch]);
+  }, [refetch, refetchTripOffers]);
 
   const [busyId, setBusyId] = useState<string | null>(null);
   const [goingOnline, setGoingOnline] = useState(false);
@@ -180,6 +181,11 @@ export function RiderOffersScreen({ userId }: { userId: string }) {
     setActionError(null);
     try {
       await claimDelivery(deliveryId);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["riderDeliveryOffers"] }),
+        queryClient.invalidateQueries({ queryKey: ["riderDeliveries"] }),
+        queryClient.invalidateQueries({ queryKey: ["riderOffers"] }),
+      ]);
     } catch (cause) {
       setActionError(cause instanceof Error ? cause.message : "Could not accept.");
       await refetchTripOffers();
@@ -194,6 +200,7 @@ export function RiderOffersScreen({ userId }: { userId: string }) {
     setActionError(null);
     try {
       await declineDelivery(deliveryId);
+      await queryClient.invalidateQueries({ queryKey: ["riderDeliveryOffers"] });
     } catch (cause) {
       setActionError(cause instanceof Error ? cause.message : "Could not decline.");
       await refetchTripOffers();
@@ -274,9 +281,18 @@ export function RiderOffersScreen({ userId }: { userId: string }) {
               <View>
                 <Text style={styles.sectionTitle}>Available</Text>
                 <Text style={styles.subtitle}>
-                  {(offers ?? []).length === 0
+                  {(offers ?? []).length === 0 && (tripOffers ?? []).length === 0
                     ? "Nothing on offer right now."
-                    : offerSummary(offers ?? [])}
+                    : [
+                        ...((offers ?? []).length > 0
+                          ? [offerSummary(offers ?? [])]
+                          : []),
+                        ...((tripOffers ?? []).length > 0
+                          ? [
+                              `${(tripOffers ?? []).length} trip${(tripOffers ?? []).length === 1 ? "" : "s"} waiting`,
+                            ]
+                          : []),
+                      ].join(" · ")}
                 </Text>
               </View>
               <ActivityIndicator size="small" color={colors.textFaint} />
@@ -380,9 +396,10 @@ export function RiderOffersScreen({ userId }: { userId: string }) {
           </View>
         }
         ListEmptyComponent={
-          // Same reasoning as the deliveries tab: say why it is empty rather
-          // than showing a blank list that reads like a broken screen.
-          error ? (
+          // Trip offers live in the header, so "empty" means both kinds are gone.
+          // Without this, a rider with trip offers saw "No deliveries on offer"
+          // directly below them.
+          (tripOffers ?? []).length > 0 ? undefined : error ? (
             <Text style={styles.error}>{error.message}</Text>
           ) : (
             <View style={styles.empty}>
@@ -496,16 +513,7 @@ export function RiderOffersScreen({ userId }: { userId: string }) {
           );
         }}
         ListFooterComponent={
-          actionError ? (
-            <Text style={styles.error}>{actionError}</Text>
-          ) : (
-            <Pressable
-              style={styles.callRow}
-              onPress={() => void Linking.openURL("tel:")}
-            >
-              <Text style={styles.noPhone}>Rider support</Text>
-            </Pressable>
-          )
+          actionError ? <Text style={styles.error}>{actionError}</Text> : undefined
         }
       />
       <StatusBar style="dark" />

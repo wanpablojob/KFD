@@ -515,6 +515,7 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
                 trip={trip}
                 busy={pickingUpId !== null || reporting}
                 pickingUpId={pickingUpId}
+                offline={offline}
                 onPickUp={(orderId) => void onPickedUp(orderId)}
                 onComplete={() => setConfirmingTripId(trip.delivery_id)}
                 onReportFailed={() => {

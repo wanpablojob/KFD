@@ -347,8 +347,11 @@ export async function fetchRiderOrdersPage(
     (data ?? []) as unknown as Record<string, unknown>[]
   ).map(mapRiderOrderRow);
 
-  // All rows in a page have the same next_cursor (from the window function)
-  const nextCursor = rows[0]?.next_cursor ?? null;
+  // Each row carries its own placed_at as next_cursor when more pages exist
+  // (0092's window function sets it per row). The cursor for the NEXT page is
+  // the LAST (oldest) row in this DESC result; taking rows[0] used the newest
+  // row and made "load more" re-fetch almost the whole first page.
+  const nextCursor = rows[rows.length - 1]?.next_cursor ?? null;
   return { items: rows, nextCursor };
 }
 
