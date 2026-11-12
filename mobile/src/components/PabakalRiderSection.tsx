@@ -186,6 +186,15 @@ function ActiveJob({
             disabled={disabled || !valid || value <= 0 || !receipt}
             onPress={() => bought.mutate()}
           />
+          {/* A grey button with no reason reads as "the app is stuck". Say
+              what is missing; offline is already announced by the banner. */}
+          {!disabled && (!valid || value <= 0 || !receipt) ? (
+            <Text style={ui.muted}>
+              {!valid || value <= 0
+                ? "Enter the receipt total to continue."
+                : "Take the receipt photo to continue."}
+            </Text>
+          ) : null}
           {/* Only before buying: after that the rider's own money is spent. */}
           <MerchantButton
             label="Can't do it, give it back"
@@ -228,6 +237,9 @@ function ActiveJob({
             disabled={disabled || !valid}
             onPress={() => delivered.mutate()}
           />
+          {!disabled && !valid ? (
+            <Text style={ui.muted}>Enter the cash you collected to finish.</Text>
+          ) : null}
         </>
       )}
     </View>

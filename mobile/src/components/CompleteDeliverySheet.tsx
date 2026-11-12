@@ -9,7 +9,7 @@ import {
   TextInput,
   View,
 } from "react-native";
-import * as ImagePicker from "expo-image-picker";
+import { pickPhoto } from "../lib/pick-photo";
 
 import { colors, radius, spacing, type } from "../lib/theme";
 import {
@@ -92,22 +92,22 @@ export function CompleteDeliverySheet({ order, riderId, onCancel, onDone }: Prop
 
   async function takePhoto() {
     setFieldError(null);
-    const permission = await ImagePicker.requestCameraPermissionsAsync();
-    if (!permission.granted) {
-      setFieldError("Allow camera access to take a delivery photo.");
+    // Camera or gallery, the same choice the pabakal receipt already offers
+    // (lib/pick-photo.ts). Camera-only was a permanent dead end: once the rider
+    // (or the OS) denies camera access, requestCameraPermissionsAsync never
+    // prompts again, so the photo this form requires can never be supplied and
+    // every delivery on that phone becomes uncompletable. An existing photo is
+    // still evidence, and the server verifies the object it is handed.
+    const picked = await pickPhoto(
+      "Photo of the delivery",
+      "Photograph the handover so the delivery can be confirmed.",
+      [3, 4]
+    );
+    if (picked.error) {
+      setFieldError(picked.error);
       return;
     }
-    const result = await ImagePicker.launchCameraAsync({
-      quality: 0.5,
-      // Proof is evidence of arrival, not a photo shoot. A modest quality keeps
-      // the upload small enough to finish on a weak connection at the door,
-      // which is where this always happens.
-      allowsEditing: false,
-      cameraType: ImagePicker.CameraType.back,
-    });
-    if (!result.canceled && result.assets[0]) {
-      setPhotoUri(result.assets[0].uri);
-    }
+    if (picked.uri) setPhotoUri(picked.uri);
   }
 
   async function submit() {
@@ -195,11 +195,11 @@ export function CompleteDeliverySheet({ order, riderId, onCancel, onDone }: Prop
             {photoUri ? (
               <Pressable onPress={takePhoto}>
                 <Image source={{ uri: photoUri }} style={styles.preview} />
-                <Text style={styles.retake}>Tap to retake</Text>
+                <Text style={styles.retake}>Tap to change the photo</Text>
               </Pressable>
             ) : (
               <Pressable style={styles.photoButton} onPress={takePhoto}>
-                <Text style={styles.photoButtonLabel}>Take photo</Text>
+                <Text style={styles.photoButtonLabel}>Add photo</Text>
               </Pressable>
             )}
 

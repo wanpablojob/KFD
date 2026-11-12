@@ -20,6 +20,7 @@ import { isOfferClaimable, secondsUntilExpiry } from "../lib/offer-claimable";
 import { riderStatusMeta } from "../lib/rider-status";
 import { deviceMapsUrl, openInMaps } from "../lib/maps";
 import { useConnectivity } from "../lib/connectivity-context";
+import { isOffline } from "../lib/connectivity-state";
 import { riderProfileGate } from "../lib/rider-profile-gate";
 import {
   useAcceptOffer,
@@ -123,8 +124,10 @@ export function RiderOffersScreen({ userId }: { userId: string }) {
   const [actionError, setActionError] = useState<string | null>(null);
 
   const connectivity = useConnectivity();
-  const offline =
-    connectivity.isConnected === false || connectivity.isInternetReachable === false;
+  // Same rule as the deliveries tab and the offline banner; see
+  // lib/connectivity-state.ts. A failed reachability probe must not disable
+  // claiming a job or closing a pabakal.
+  const offline = isOffline(connectivity);
 
   async function goOnline() {
     if (busyId || goingOnline) return;

@@ -120,6 +120,7 @@ export function TripCard({
               <Pressable
                 style={({ pressed }) => [
                   styles.pickUp,
+                  (busy || offline || pickingUpId === stop.order_id) && styles.disabled,
                   pressed && styles.pickUpPressed,
                 ]}
                 onPress={() => onPickUp(stop.order_id)}
@@ -165,6 +166,7 @@ export function TripCard({
             <Pressable
               style={({ pressed }) => [
                 styles.primaryAction,
+                (busy || offline) && styles.disabled,
                 pressed && styles.actionPressed,
               ]}
               onPress={onComplete}
@@ -182,6 +184,7 @@ export function TripCard({
           <Pressable
             style={({ pressed }) => [
               styles.secondaryAction,
+              (busy || offline) && styles.disabled,
               pressed && styles.actionPressed,
             ]}
             onPress={onReportFailed}
@@ -288,4 +291,9 @@ const styles = StyleSheet.create({
   },
   secondaryActionLabel: { ...type.label, color: colors.textMuted },
   actionPressed: { opacity: 0.7 },
+  // A disabled control has to LOOK disabled. These buttons were already gated
+  // on `offline` with no visual change, so a rider whose phone reported no
+  // network tapped a live-looking button and nothing happened -- which reads
+  // as "the app will not let me complete the delivery".
+  disabled: { opacity: 0.5 },
 });

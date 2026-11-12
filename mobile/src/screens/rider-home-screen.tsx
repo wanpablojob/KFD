@@ -29,6 +29,7 @@ import { deliveryActions } from "../lib/delivery-actions";
 import { paymentLabel } from "../lib/payment-label";
 import { footerMeta } from "../lib/order-timestamp";
 import { useConnectivity } from "../lib/connectivity-context";
+import { isOffline } from "../lib/connectivity-state";
 import { TripCard } from "../components/TripCard";
 import {
   CompleteDeliverySheet,
@@ -106,8 +107,10 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
   const router = useRouter();
   const connectivity = useConnectivity();
   const queryClient = useQueryClient();
-  const offline =
-    connectivity.isConnected === false || connectivity.isInternetReachable === false;
+  // `isInternetReachable` is deliberately not consulted; see
+  // lib/connectivity-state.ts. Treating a failed probe as offline disabled
+  // "Complete delivery" on a phone that could reach the server fine.
+  const offline = isOffline(connectivity);
 
   // Whether this phone can actually receive a new-delivery alert. Read on focus,
   // not only on mount: the rider fixes it in system settings or on the profile

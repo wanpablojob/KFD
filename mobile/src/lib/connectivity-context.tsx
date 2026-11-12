@@ -2,6 +2,7 @@ import { createContext, use, useEffect, useState, type PropsWithChildren } from 
 import NetInfo, { NetInfoState } from "@react-native-community/netinfo";
 import { View, Text, StyleSheet } from "react-native";
 import { colors } from "../lib/theme";
+import { isOffline } from "./connectivity-state";
 
 export interface ConnectivityState {
   isConnected: boolean | null;
@@ -46,13 +47,14 @@ export function useConnectivity(): ConnectivityState {
 }
 
 export function ConnectivityBanner() {
-  const { isConnected, isInternetReachable } = useConnectivity();
+  const state = useConnectivity();
+  const { isConnected } = state;
 
   if (isConnected === null) return null;
 
-  const offline = isConnected === false || isInternetReachable === false;
-
-  if (!offline) return null;
+  // One shared rule with the screens that disable a write while offline; see
+  // lib/connectivity-state.ts for why the reachability probe is not consulted.
+  if (!isOffline(state)) return null;
 
   return (
     <View style={styles.banner}>
