@@ -108,10 +108,16 @@ export const KITCHEN_PHOTO = "/images/food/inasal-plate.jpg";
  * installed it could never receive a push. The iPhone link is the TestFlight
  * public link, which needs the Apple Developer account and an App Store
  * Connect app: TODO(owner), until then it stays null.
+ *
+ * Expo deletes old build artifacts, so this link stops working on its own: the
+ * 28 October build answered `NoSuchKey` on 12 November and every older build
+ * was gone too. Repoint this at the newest preview build in the same release
+ * that publishes an update, or the landing page's download button serves an
+ * XML error instead of an app.
  */
 export const APP_DOWNLOADS = {
   android:
-    "https://expo.dev/artifacts/eas/xQhygy6Cq3755DaghegSqcv-HlcNFS0JEM-hz-dLyaU.apk" as string | null,
+    "https://expo.dev/artifacts/eas/H3cJMhvDuUii5p5TSpoxr7WF7uzV48phCPJMQX0E1mw.apk" as string | null,
   iphone: null as string | null,
 } as const;
 
