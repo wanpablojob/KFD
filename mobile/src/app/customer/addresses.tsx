@@ -4,7 +4,6 @@ import {
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -130,10 +129,7 @@ export default function CustomerAddressesScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={styles.screen}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-    >
+    <KeyboardAvoidingView style={styles.screen} behavior="padding">
       <View style={[styles.topBar, { paddingTop: spacing.lg + insets.top }]}>
         <Pressable
           style={styles.backBtn}

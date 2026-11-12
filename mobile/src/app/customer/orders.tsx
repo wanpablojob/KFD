@@ -6,7 +6,6 @@ import {
   FlatList,
   KeyboardAvoidingView,
   Modal,
-  Platform,
   Pressable,
   RefreshControl,
   StyleSheet,
@@ -482,9 +481,7 @@ export default function CustomerOrdersScreen() {
             style={[styles.sheet, { paddingBottom: spacing.xl + insets.bottom }]}
             onPress={() => undefined}
           >
-            <KeyboardAvoidingView
-              behavior={Platform.OS === "ios" ? "padding" : undefined}
-            >
+            <KeyboardAvoidingView behavior="padding">
               <Text style={styles.sheetTitle}>
                 Rate {ratingTarget?.restaurant ?? "your order"}
               </Text>

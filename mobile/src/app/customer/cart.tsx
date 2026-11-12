@@ -3,7 +3,6 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -255,10 +254,7 @@ export default function CustomerCartScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      style={styles.screen}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-    >
+    <KeyboardAvoidingView style={styles.screen} behavior="padding">
       <View style={[styles.topBar, { paddingTop: spacing.lg + insets.top }]}>
         <View style={styles.backBtn} />
         <View style={styles.topTitles}>

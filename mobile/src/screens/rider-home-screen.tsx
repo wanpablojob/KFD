@@ -5,7 +5,6 @@ import {
   KeyboardAvoidingView,
   Linking,
   Modal,
-  Platform,
   Pressable,
   RefreshControl,
   SectionList,
@@ -804,9 +803,7 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
             style={[styles.sheet, { paddingBottom: spacing.xl + insets.bottom }]}
             onPress={() => undefined}
           >
-            <KeyboardAvoidingView
-              behavior={Platform.OS === "ios" ? "padding" : undefined}
-            >
+            <KeyboardAvoidingView behavior="padding">
               <Text style={styles.sheetTitle}>Why can&apos;t you deliver this?</Text>
               <Text style={styles.sheetBody}>
                 The order goes back to the restaurant to hand to another rider. You earn
