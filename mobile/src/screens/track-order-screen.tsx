@@ -222,6 +222,19 @@ export function TrackOrderScreen({
           />
         ) : null}
 
+        {/* GCash, for an order or a trip: checkout places a trip even for one
+            shop (0092), and the QR used to live only in the single-order card,
+            so it could never show. Hidden once the order is finished. */}
+        {payment === "e_wallet" &&
+        status &&
+        !["delivered", "cancelled"].includes(status) ? (
+          <GcashPayment
+            riderPayment={riderPayment ?? null}
+            riderName={riderContact?.riderName ?? null}
+            total={Number(delivery?.total ?? order?.total ?? 0)}
+          />
+        ) : null}
+
         {/* Where the rider is, once it is on the way (0135). Own customer only. */}
         <RiderOnTheWay
           reference={submitted}
@@ -233,7 +246,6 @@ export function TrackOrderScreen({
             order={order}
             updatedAt={dataUpdatedAt}
             refreshing={isFetching}
-            riderPayment={riderPayment ?? null}
             riderContact={riderContact ?? null}
             reporting={{
               open: reportingOpen,
@@ -474,18 +486,59 @@ function ReportProblem({
   );
 }
 
+/**
+ * How a GCash customer pays: the assigned rider's own QR (order_rider_payment,
+ * returned only to the order's own customer). Until there is one to show, it
+ * says why, rather than nothing: no QR on screen reads as "GCash did nothing".
+ */
+function GcashPayment({
+  riderPayment,
+  riderName,
+  total,
+}: {
+  riderPayment: RiderPayment | null;
+  riderName: string | null;
+  total: number;
+}) {
+  return (
+    <View style={[styles.card, styles.payBlock]}>
+      <Text style={styles.addressLabel}>Pay by GCash</Text>
+      {riderPayment ? (
+        <>
+          <Image
+            source={{ uri: riderPayment.gcashQrUrl }}
+            style={styles.qr}
+            resizeMode="contain"
+            accessibilityLabel={`GCash QR of rider ${riderPayment.riderName}`}
+          />
+          <Text style={styles.meta}>
+            {riderPayment.gcashName
+              ? `${riderPayment.gcashName} · rider ${riderPayment.riderName}`
+              : `Rider ${riderPayment.riderName}`}
+          </Text>
+          <Text style={styles.meta}>Scan in GCash to send ₱{total.toFixed(2)}.</Text>
+        </>
+      ) : (
+        <Text style={styles.meta}>
+          {riderName
+            ? `${riderName} has not added a GCash QR. Pay them ₱${total.toFixed(2)} by GCash or in cash at the door.`
+            : `Your rider's GCash QR shows here as soon as a rider takes your order. Scan it to pay ₱${total.toFixed(2)}.`}
+        </Text>
+      )}
+    </View>
+  );
+}
+
 function OrderCard({
   order,
   updatedAt,
   refreshing,
-  riderPayment,
   riderContact,
   reporting,
 }: {
   order: TrackedOrder;
   updatedAt: number;
   refreshing: boolean;
-  riderPayment: RiderPayment | null;
   riderContact: RiderContact | null;
   reporting: {
     open: boolean;
@@ -572,27 +625,6 @@ function OrderCard({
         <View style={styles.addressBlock}>
           <Text style={styles.addressLabel}>Deliver to</Text>
           <Text style={styles.addressValue}>{order.delivery_address}</Text>
-        </View>
-      ) : null}
-
-      {/* GCash payment: the assigned rider's own QR. Server returns it only for
-          an e_wallet order to its own customer, so anon/others get nothing. */}
-      {riderPayment ? (
-        <View style={styles.payBlock}>
-          <Text style={styles.addressLabel}>Pay by GCash</Text>
-          <Image
-            source={{ uri: riderPayment.gcashQrUrl }}
-            style={styles.qr}
-            resizeMode="contain"
-          />
-          <Text style={styles.meta}>
-            {riderPayment.gcashName
-              ? `${riderPayment.gcashName} · rider ${riderPayment.riderName}`
-              : `Rider ${riderPayment.riderName}`}
-          </Text>
-          <Text style={styles.meta}>
-            Scan in GCash to send ₱{Number(order.total).toFixed(2)}.
-          </Text>
         </View>
       ) : null}
 

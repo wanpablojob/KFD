@@ -306,6 +306,12 @@ export function useOrderRiderPayment(reference: string, enabled: boolean) {
     queryKey: ["orderRiderPayment", reference],
     queryFn: () => fetchOrderRiderPayment(reference),
     enabled: enabled && reference.trim().length > 0,
+    // The QR exists only once a rider takes the order, which is after the
+    // customer lands on the tracker. It used to be asked once, at landing,
+    // answered "no rider yet", and never asked again, so a GCash customer
+    // never saw the QR. Keep asking until it arrives, then stop.
+    refetchInterval: (query) =>
+      query.state.data ? false : backoffFor(15_000, query.state.fetchFailureCount),
   });
 }
 

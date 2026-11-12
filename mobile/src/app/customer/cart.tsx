@@ -461,6 +461,15 @@ export default function CustomerCartScreen() {
           })}
         </View>
 
+        {/* Picking GCash changes nothing on this screen, so say what happens
+            next: without this, placing the order looked like GCash did nothing. */}
+        {payment === "e_wallet" ? (
+          <Text style={styles.payNote}>
+            No payment now. Once a rider takes your order, their GCash QR shows on the
+            tracking screen: scan it in GCash to pay.
+          </Text>
+        ) : null}
+
         <View style={[styles.totalCard, shadow.card]}>
           {/* "—" rather than a guess: a stale or assumed figure here is the
               exact failure this screen was rewritten to prevent. */}
@@ -562,6 +571,7 @@ function BillLine({
 }
 
 const styles = StyleSheet.create({
+  payNote: { ...type.caption, marginTop: -spacing.xs, marginBottom: spacing.sm },
   screen: { flex: 1, backgroundColor: colors.background },
   center: {
     alignItems: "center",
