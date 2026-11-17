@@ -22,6 +22,9 @@ export function RiderSummaryCards({
   filter,
   onFilterChange,
   pendingApplications = 0,
+  cashHolding,
+  cashFilterActive = false,
+  onOpenCash,
 }: {
   rows: RiderOverview[];
   filter: RiderFilter;
@@ -32,6 +35,12 @@ export function RiderSummaryCards({
    * to the queue rather than a filter over these rows.
    */
   pendingApplications?: number;
+  /** Riders still holding customer cash they haven't turned in. */
+  cashHolding?: { count: number; total: number };
+  /** True when the rider list below is already narrowed to those riders. */
+  cashFilterActive?: boolean;
+  /** Opens the list of riders holding cash and how much each holds. */
+  onOpenCash?: () => void;
 }) {
   const dispatchable = rows.filter((r) => !r.archivedAt && !r.suspendedAt);
   const count = (status: RiderOverview["status"]) =>
@@ -81,6 +90,25 @@ export function RiderSummaryCards({
             : "Waiting on decisions"}
         </p>
       </Link>
+      {cashHolding ? (
+        <button
+          type="button"
+          onClick={onOpenCash}
+          aria-haspopup="dialog"
+          className={`rounded-(--radius-card) border bg-card p-4 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+            cashFilterActive ? "border-primary ring-1 ring-primary" : "border-border"
+          }`}
+        >
+          <p className="text-sm text-muted-foreground">Cash to collect</p>
+          <p className="mt-2 text-2xl font-bold tracking-tight text-card-foreground">
+            {cashHolding.count}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {cashHolding.count === 1 ? "Rider holding" : "Riders holding"}{" "}
+            {formatCurrency(cashHolding.total)}
+          </p>
+        </button>
+      ) : null}
     </div>
   );
 }

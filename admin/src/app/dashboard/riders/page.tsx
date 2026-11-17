@@ -28,6 +28,8 @@ import {
   RiderInsightPanels,
   RiderSummaryCards,
 } from "@/components/rider/rider-summary";
+import { CashToCollectDialog } from "@/components/rider/cash-to-collect-dialog";
+import { cashOnHandTotal, ridersHoldingCash } from "@/lib/rider-cash";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/status";
 import { PaginatedDataTable } from "@/components/ui/paginated-data-table";
@@ -96,6 +98,8 @@ export default function RidersPage() {
   const [resolvingDispute, setResolvingDispute] = useState<DisputedPayout | null>(
     null,
   );
+  const [cashOnly, setCashOnly] = useState(false);
+  const [cashOpen, setCashOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
   // The queue was one undifferentiated table: pending and long-settled
@@ -162,6 +166,12 @@ export default function RidersPage() {
   const cashByRiderId = new Map(
     (cash.data ?? []).map((row) => [row.riderId, row]),
   );
+  const cashHoldingRiders = ridersHoldingCash(cash.data ?? []);
+  const cashHoldingIds = new Set(cashHoldingRiders.map((row) => row.riderId));
+  const cashHolding = {
+    count: cashHoldingRiders.length,
+    total: cashOnHandTotal(cashHoldingRiders),
+  };
   const riderColumns = buildRiderColumns({
     onSuspend: (rider) => setMode({ kind: "suspend", rider }),
     onReinstate: (rider) => setMode({ kind: "reinstate", rider }),
@@ -206,6 +216,7 @@ export default function RidersPage() {
           return true;
       }
     })
+    .filter((rider) => !cashOnly || cashHoldingIds.has(rider.id))
     .filter((rider) => matchesRiderFacets(rider, params))
     .sort((a, b) =>
       compareRiders(
@@ -243,6 +254,9 @@ export default function RidersPage() {
         filter={params.filter}
         pendingApplications={pendingCount}
         onFilterChange={(next: RiderFilter) => set({ filter: next })}
+        cashHolding={cash.data ? cashHolding : undefined}
+        cashFilterActive={cashOnly}
+        onOpenCash={() => setCashOpen(true)}
       />
       <RiderInsightPanels rows={allRiders} />
 
@@ -385,9 +399,11 @@ export default function RidersPage() {
               onRowClick={(row) => router.push(`/dashboard/riders/${row.id}`)}
               emptyTitle="No riders found"
               emptyDescription={
-                params.filter === "all"
-                  ? "Add a rider, or approve an application below."
-                  : "No rider has this status right now."
+                cashOnly
+                  ? "No rider is holding cash to turn in right now."
+                  : params.filter === "all"
+                    ? "Add a rider, or approve an application below."
+                    : "No rider has this status right now."
               }
               exportName="/dashboard/riders"
               exportColumns={[
@@ -526,6 +542,17 @@ export default function RidersPage() {
       </Section>
       </div>
 
+
+      <CashToCollectDialog
+        open={cashOpen}
+        rows={cashHoldingRiders}
+        filterActive={cashOnly}
+        onClose={() => setCashOpen(false)}
+        onToggleFilter={() => {
+          setCashOnly((value) => !value);
+          setCashOpen(false);
+        }}
+      />
 
       {open ? (
         <RiderFormDialog
