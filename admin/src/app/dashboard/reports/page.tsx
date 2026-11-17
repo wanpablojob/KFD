@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { fetchOrders } from "@/lib/supabase/queries";
-import { fetchCommission } from "@/lib/supabase/settlement-queries";
 import { useAsyncData } from "@/lib/use-async-data";
 import {
   PageContainer,
@@ -34,9 +33,7 @@ const SHOP_COLUMNS: CsvColumn<ReportShop>[] = [
   { key: "orders", header: "Delivered orders" },
   { key: "gross", header: "Gross order value (PHP)" },
   { key: "refunds", header: "Refunds (PHP)" },
-  { key: "foodSales", header: "Food sales, net of refunds (PHP)" },
-  { key: "commission", header: "Commission (PHP)" },
-  { key: "owed", header: "Owed to shop (PHP)" },
+  { key: "paidAtPickup", header: "Paid to shop at pickup (PHP)" },
 ];
 
 const DAY_COLUMNS: CsvColumn<ReportDay>[] = [
@@ -55,8 +52,9 @@ const DAY_COLUMNS: CsvColumn<ReportDay>[] = [
  * total per shop and nothing to export.
  *
  * Everything here comes from the same definitions the rest of the app uses --
- * delivered orders only, net of refunds, commission on food (0138) -- so the
- * page cannot disagree with the settlement screen. See report-metrics.ts.
+ * delivered orders only, net of refunds, food paid to the shop by the rider at
+ * pickup (0147) -- so the page cannot disagree with the rider's cash. See
+ * report-metrics.ts.
  */
 export default function ReportsPage() {
   const [range, setRange] = useState<RangeValue>(() => presetRange(30, new Date()));
@@ -67,11 +65,11 @@ export default function ReportsPage() {
     // so the first eight hours of each local day would fall outside it.
     // `buildReport` decides membership itself by local day, so the wider fetch
     // is only a superset.
-    const [orders, commissionPct] = await Promise.all([
-      fetchOrders({ from: shiftDays(range.from, -1), to: shiftDays(range.to, 1) }),
-      fetchCommission(),
-    ]);
-    return buildReport(orders, commissionPct, range.from, range.to);
+    const orders = await fetchOrders({
+      from: shiftDays(range.from, -1),
+      to: shiftDays(range.to, 1),
+    });
+    return buildReport(orders, range.from, range.to);
   }, `${range.from}:${range.to}`);
 
   const data = report.data;
@@ -161,16 +159,16 @@ export default function ReportsPage() {
                 />
                 <StatCard
                   kpi={{
-                    label: "Commission earned",
-                    value: formatCurrency(data.totals.commission),
-                    hint: "KFD's cut of food sales, at the current rate",
+                    label: "KFD fees",
+                    value: formatCurrency(data.totals.kfdFees),
+                    hint: "delivery and service fees · the rider hands these in",
                   }}
                 />
                 <StatCard
                   kpi={{
-                    label: "Owed to shops",
-                    value: formatCurrency(data.totals.owedToShops),
-                    hint: "food sales less commission · payouts page settles it",
+                    label: "Paid to shops at pickup",
+                    value: formatCurrency(data.totals.paidToShops),
+                    hint: "food the riders paid for · KFD owes shops nothing",
                   }}
                 />
               </StatGrid>
@@ -242,7 +240,7 @@ export default function ReportsPage() {
               <Card>
                 <CardHeader
                   title="By restaurant"
-                  subtitle="Food sales are net of the refund that lands on the food; commission is not deducted from the refund column."
+                  subtitle="Riders pay each shop for the food at pickup, so nothing here is owed by KFD."
                   action={
                     <Button
                       variant="outline"
@@ -268,16 +266,14 @@ export default function ReportsPage() {
                         <th className="py-2 px-3 text-right font-medium">Orders</th>
                         <th className="py-2 px-3 text-right font-medium">Gross</th>
                         <th className="py-2 px-3 text-right font-medium">Refunds</th>
-                        <th className="py-2 px-3 text-right font-medium">Food sales</th>
-                        <th className="py-2 px-3 text-right font-medium">Commission</th>
-                        <th className="py-2 pl-3 text-right font-medium">Owed to shop</th>
+                        <th className="py-2 pl-3 text-right font-medium">Paid at pickup</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
                       {data.shops.length === 0 ? (
                         <tr>
                           <td
-                            colSpan={7}
+                            colSpan={5}
                             className="py-6 text-center text-muted-foreground"
                           >
                             No delivered orders in this period.
@@ -298,14 +294,8 @@ export default function ReportsPage() {
                             <td className="py-2 px-3 text-right tabular-nums">
                               {formatCurrency(shop.refunds)}
                             </td>
-                            <td className="py-2 px-3 text-right tabular-nums">
-                              {formatCurrency(shop.foodSales)}
-                            </td>
-                            <td className="py-2 px-3 text-right tabular-nums">
-                              {formatCurrency(shop.commission)}
-                            </td>
                             <td className="py-2 pl-3 text-right font-semibold tabular-nums text-card-foreground">
-                              {formatCurrency(shop.owed)}
+                              {formatCurrency(shop.paidAtPickup)}
                             </td>
                           </tr>
                         ))

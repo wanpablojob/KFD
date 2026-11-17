@@ -36,7 +36,7 @@ export default function MerchantSalesPage() {
     <PageContainer>
       <PageHeader
         title="Sales"
-        description="Food sales from delivered orders, net of refunds. Delivery and service fees are not included, and commission is not deducted."
+        description="Food sales from delivered orders, net of refunds. The rider pays you for the food at pickup; delivery and service fees are not included."
       />
 
       <TableBoundary

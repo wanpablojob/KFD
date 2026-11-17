@@ -158,7 +158,8 @@ export function buildRiderColumns({
     {
       // The other direction of the same money (0079). Earnings are what the
       // platform owes the rider; cash on hand is what the rider owes the
-      // platform, and it is the number that decides who needs to bank today.
+      // platform (the fees only: the food went to the shop at pickup, 0147),
+      // and it is the number that decides who needs to bank today.
       key: "cash_on_hand",
       header: "Cash on hand",
       align: "right",

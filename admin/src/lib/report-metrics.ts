@@ -9,7 +9,7 @@ import type { Order, OrderStatus } from "./types";
  * an accountant. This module is the arithmetic; the page is the controls.
  *
  * Three rules are taken from the code that already owns them, so the reports
- * page cannot disagree with the dashboard or the settlement screen:
+ * page cannot disagree with the dashboard or the rider's cash:
  *
  *  * Only delivered orders are revenue (`countsAsRevenue`, dashboard-metrics).
  *    A cancelled or in-flight order has not earned anything yet.
@@ -21,9 +21,9 @@ import type { Order, OrderStatus } from "./types";
  * is loaded directly by the node test runner, which (unlike the Next bundler)
  * will not resolve an extensionless import. A test pins the restatement to the
  * dashboard's definitions so the two cannot drift apart silently.
- *  * Commission is a percentage of *food*, not of the order total, and a refund
- *    can only remove the food value -- an order whose delivery fee was refunded
- *    too costs the shop its food and no more (0138, `restaurant_owed`).
+ *  * The rider pays the shop the food subtotal at pickup (0147), so a shop is
+ *    never owed anything by KFD. What KFD takes in is the rest of the bill:
+ *    the delivery and service fees.
  *
  * Days are local calendar days, keyed without `toISOString` (the merchant-sales
  * bug): Manila is UTC+8, so a 9pm order belongs to the day the operator read on
@@ -155,13 +155,11 @@ export interface ReportTotals {
   refunds: number;
   /** gross - refunds. */
   netRevenue: number;
-  /** Food subtotal less the refund that lands on the food. */
-  foodSales: number;
+  /** Food subtotals, paid to shops by riders at pickup (0147). */
+  paidToShops: number;
   deliveryFees: number;
-  /** KFD's cut of foodSales at the current rate. */
-  commission: number;
-  /** What KFD owes shops for the period's food, after commission. */
-  owedToShops: number;
+  /** Delivery and service fees: the part of the bill that is KFD's. */
+  kfdFees: number;
   averageOrderValue: number;
 }
 
@@ -179,9 +177,8 @@ export interface ReportShop {
   orders: number;
   gross: number;
   refunds: number;
-  foodSales: number;
-  commission: number;
-  owed: number;
+  /** Food subtotals the riders paid this shop at pickup. */
+  paidAtPickup: number;
 }
 
 export interface ReportStatus {
@@ -217,7 +214,6 @@ const STATUS_ORDER: readonly OrderStatus[] = [
  */
 export function buildReport(
   orders: readonly Order[],
-  commissionPct: number,
   from: string,
   to: string,
 ): Report {
@@ -240,7 +236,6 @@ export function buildReport(
   let gross = 0;
   let refunds = 0;
   let food = 0;
-  let foodRefund = 0;
   let deliveryFees = 0;
 
   for (const order of orders) {
@@ -254,13 +249,11 @@ export function buildReport(
     // The refund RPC caps the total at the order total; a negative or missing
     // value is not money that went back, so it is clamped rather than trusted.
     const refunded = Math.max(0, order.refunded ?? 0);
-    const foodRefunded = Math.min(refunded, order.subtotal);
 
     delivered += 1;
     gross += order.total;
     refunds += refunded;
     food += order.subtotal;
-    foodRefund += foodRefunded;
     deliveryFees += order.deliveryFee;
 
     day.orders += 1;
@@ -274,48 +267,29 @@ export function buildReport(
         orders: 0,
         gross: 0,
         refunds: 0,
-        foodSales: 0,
-        commission: 0,
-        owed: 0,
+        paidAtPickup: 0,
       };
       shops.set(order.restaurant, shop);
     }
     shop.orders += 1;
     shop.gross += order.total;
     shop.refunds += refunded;
-    shop.foodSales += order.subtotal - foodRefunded;
+    shop.paidAtPickup += order.subtotal;
   }
 
-  // The rate column is constrained to 0-50 at the database, but a report is
-  // arithmetic on whatever it was handed; clamp so a bad read cannot invent
-  // negative commission or commission larger than the food.
-  const pct = Math.min(Math.max(commissionPct, 0), 50);
-
-  let commission = 0;
-  let owed = 0;
-  const shopRows: ReportShop[] = [];
-  for (const shop of shops.values()) {
-    const shopCommission = cents((shop.foodSales * pct) / 100);
-    const shopOwed = cents(shop.foodSales - shopCommission);
-    commission += shopCommission;
-    owed += shopOwed;
-    shopRows.push({
-      restaurant: shop.restaurant,
-      orders: shop.orders,
-      gross: cents(shop.gross),
-      refunds: cents(shop.refunds),
-      foodSales: cents(shop.foodSales),
-      commission: shopCommission,
-      owed: shopOwed,
-    });
-  }
-  shopRows.sort((a, b) => b.owed - a.owed);
+  const shopRows: ReportShop[] = [...shops.values()].map((shop) => ({
+    restaurant: shop.restaurant,
+    orders: shop.orders,
+    gross: cents(shop.gross),
+    refunds: cents(shop.refunds),
+    paidAtPickup: cents(shop.paidAtPickup),
+  }));
+  shopRows.sort((a, b) => b.gross - a.gross);
 
   // Named `netTotal`, not `netRevenue`: a local with the imported function's
   // name shadows it for the whole scope, and the call above then hits the
   // temporal dead zone instead of the function.
   const netTotal = cents(gross - refunds);
-  const foodSales = cents(food - foodRefund);
 
   return {
     totals: {
@@ -324,12 +298,9 @@ export function buildReport(
       gross: cents(gross),
       refunds: cents(refunds),
       netRevenue: netTotal,
-      foodSales,
+      paidToShops: cents(food),
       deliveryFees: cents(deliveryFees),
-      // Summed from the shop rows, so the table always adds up to the KPI even
-      // when each row had to round its own centavo.
-      commission: cents(commission),
-      owedToShops: cents(owed),
+      kfdFees: cents(gross - food),
       averageOrderValue: delivered === 0 ? 0 : cents(netTotal / delivered),
     },
     days: days.map((key) => {

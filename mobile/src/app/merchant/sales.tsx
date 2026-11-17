@@ -158,8 +158,8 @@ export default function MerchantSalesScreen() {
       ) : null}
 
       <Text style={ui.muted}>
-        Delivery and service fees are not included, and commission is not deducted. CSV
-        downloads are on the web portal.
+        The rider pays you for the food at pickup. Delivery and service fees are not
+        included. CSV downloads are on the web portal.
       </Text>
     </MerchantScreen>
   );

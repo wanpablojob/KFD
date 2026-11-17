@@ -188,8 +188,9 @@ export default function TermsPage() {
             KFD under separate partner terms.
           </p>
           <p>
-            KFD collects the payment for each order and pays the restaurant the
-            food total, less any refunds and KFD&apos;s commission. While a
+            The rider pays the restaurant for the food when collecting it, and
+            you pay the rider in cash on delivery. The delivery and service fees
+            go to KFD, which pays the rider for the trip. While a
             rider is delivering your order, you can see where they are in the
             app.
           </p>

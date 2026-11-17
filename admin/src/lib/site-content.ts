@@ -228,7 +228,7 @@ export const PARTNER_TERMS = {
     blurb:
       "Sell on KFD and reach Kabankalan customers without building your own delivery.",
     terms:
-      "Pilot commission terms are being finalised. Apply and we will walk you through the exact rates before you commit.",
+      "The rider pays you for the food when collecting it, so your sales are in your hands the same day, not owed by KFD.",
   },
   rider: {
     blurb:
