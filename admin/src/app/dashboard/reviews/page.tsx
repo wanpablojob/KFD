@@ -21,23 +21,34 @@ import { Stars } from "@/components/ui/stars";
 import { RangeFilter, type RangeValue } from "@/components/range-filter";
 import { Toolbar, ToolbarSearch } from "@/components/toolbar";
 import { downloadCsv, timestampedFilename, type CsvColumn } from "@/lib/csv";
-import { endOfLocalDay, isWithinRange, parseLocalDate } from "@/lib/merchant-order-range";
+import {
+  endOfLocalDay,
+  isWithinRange,
+  parseLocalDate,
+} from "@/lib/merchant-order-range";
 import { formatShortDate } from "@/lib/format";
 import { presetRange, shiftDays } from "@/lib/report-metrics";
 import {
   matchesReview,
   ratingDistribution,
+  scoreboard,
   summarizeReviews,
   type ReviewEntry,
+  type ScoreboardRow,
 } from "@/lib/review-metrics";
 
 const PAGE_SIZE = 15;
 
 const CSV_COLUMNS: CsvColumn<ReviewEntry>[] = [
-  { key: "createdAt", header: "Rated at", format: (row) => row.createdAt.slice(0, 10) },
+  {
+    key: "createdAt",
+    header: "Rated at",
+    format: (row) => row.createdAt.slice(0, 10),
+  },
   { key: "reference", header: "Order" },
   { key: "customer", header: "Customer" },
   { key: "restaurant", header: "Shop" },
+  { key: "rider", header: "Rider", format: (row) => row.rider ?? "" },
   { key: "restaurantRating", header: "Shop rating" },
   { key: "riderRating", header: "Rider rating" },
   { key: "comment", header: "Comment" },
@@ -69,6 +80,12 @@ const columns: Column<ReviewEntry>[] = [
       ),
   },
   { key: "restaurant", header: "Restaurant", cell: (row) => row.restaurant },
+  {
+    key: "rider",
+    header: "Delivered by",
+    cell: (row) =>
+      row.rider ?? <span className="text-muted-foreground">—</span>,
+  },
   { key: "customer", header: "Customer", cell: (row) => row.customer },
   {
     key: "comment",
@@ -77,7 +94,9 @@ const columns: Column<ReviewEntry>[] = [
       (row.comment ?? "").trim() === "" ? (
         <span className="text-muted-foreground">—</span>
       ) : (
-        <span className="block max-w-md text-card-foreground">{row.comment}</span>
+        <span className="block max-w-md text-card-foreground">
+          {row.comment}
+        </span>
       ),
   },
   {
@@ -103,7 +122,9 @@ const columns: Column<ReviewEntry>[] = [
  * has gone wrong lately", not "all time, oldest first".
  */
 export default function ReviewsPage() {
-  const [range, setRange] = useState<RangeValue>(() => presetRange(90, new Date()));
+  const [range, setRange] = useState<RangeValue>(() =>
+    presetRange(90, new Date()),
+  );
   const [query, setQuery] = useState("");
   const [stars, setStars] = useState<"all" | "low" | 3 | 4 | 5>("all");
   const [restaurant, setRestaurant] = useState("all");
@@ -112,7 +133,11 @@ export default function ReviewsPage() {
   const reviews = useAsyncData(
     // A day either side: the SQL bound is UTC and would drop the first eight
     // local hours of the range. `inRange` below decides membership by local day.
-    () => fetchRatings({ from: shiftDays(range.from, -1), to: shiftDays(range.to, 1) }),
+    () =>
+      fetchRatings({
+        from: shiftDays(range.from, -1),
+        to: shiftDays(range.to, 1),
+      }),
     `${range.from}:${range.to}`,
   );
   // Stable identity: `reviews.data ?? []` would be a new array every render and
@@ -136,6 +161,8 @@ export default function ReviewsPage() {
 
   const summary = useMemo(() => summarizeReviews(inRange), [inRange]);
   const distribution = useMemo(() => ratingDistribution(inRange), [inRange]);
+  const byShop = useMemo(() => scoreboard(inRange, "restaurant"), [inRange]);
+  const byRider = useMemo(() => scoreboard(inRange, "rider"), [inRange]);
 
   // Only shops that actually have a review in the period: a dropdown listing
   // every restaurant the platform has ever had is a filter nobody can use.
@@ -145,7 +172,8 @@ export default function ReviewsPage() {
   );
 
   const filtered = useMemo(
-    () => inRange.filter((row) => matchesReview(row, { query, stars, restaurant })),
+    () =>
+      inRange.filter((row) => matchesReview(row, { query, stars, restaurant })),
     [inRange, query, stars, restaurant],
   );
 
@@ -201,7 +229,10 @@ export default function ReviewsPage() {
                 <StatCard
                   kpi={{
                     label: "Rider rating",
-                    value: summary.averageRider === 0 ? "—" : summary.averageRider.toFixed(1),
+                    value:
+                      summary.averageRider === 0
+                        ? "—"
+                        : summary.averageRider.toFixed(1),
                     hint: "out of 5 · reviews that scored a rider",
                   }}
                 />
@@ -298,7 +329,11 @@ export default function ReviewsPage() {
 
                   {filtered.length === 0 ? (
                     <EmptyState
-                      title={inRange.length === 0 ? "No reviews in this period" : "No match"}
+                      title={
+                        inRange.length === 0
+                          ? "No reviews in this period"
+                          : "No match"
+                      }
                       description={
                         inRange.length === 0
                           ? "Nobody rated an order in the dates chosen."
@@ -328,7 +363,10 @@ export default function ReviewsPage() {
                   />
                   <ul className="space-y-3 px-5 pb-5">
                     {distribution.map((row) => (
-                      <li key={row.stars} className="flex items-center gap-3 text-sm">
+                      <li
+                        key={row.stars}
+                        className="flex items-center gap-3 text-sm"
+                      >
                         <span className="w-10 shrink-0 text-muted-foreground">
                           {row.stars} star
                         </span>
@@ -347,9 +385,97 @@ export default function ReviewsPage() {
                 </Card>
               </Section>
             </div>
+
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <ScoreboardCard
+                title="By shop"
+                subtitle="Lowest average first: the top row is the call to make"
+                empty="No shop was rated in this period."
+                rows={byShop}
+                onSelect={(name) => {
+                  setRestaurant(name);
+                  setPage(1);
+                }}
+              />
+              <ScoreboardCard
+                title="By rider"
+                subtitle="Only reviews that scored the rider"
+                empty="No rider was rated in this period."
+                rows={byRider}
+              />
+            </div>
           </>
         )}
       </Stack>
     </PageContainer>
+  );
+}
+
+/**
+ * One shop or rider per row, worst first. A shop row filters the ratings list
+ * to that shop, which is where its comments are.
+ */
+function ScoreboardCard({
+  title,
+  subtitle,
+  empty,
+  rows,
+  onSelect,
+}: {
+  title: string;
+  subtitle: string;
+  empty: string;
+  rows: ScoreboardRow[];
+  onSelect?: (name: string) => void;
+}) {
+  return (
+    <Section aria-label={title}>
+      <Card className="h-full">
+        <CardHeader title={title} subtitle={subtitle} />
+        {rows.length === 0 ? (
+          <p className="px-5 pb-5 text-sm text-muted-foreground">{empty}</p>
+        ) : (
+          <ul className="divide-y divide-border px-5 pb-3">
+            {rows.map((row) => (
+              <li
+                key={row.name}
+                className="flex items-center gap-3 py-2.5 text-sm"
+              >
+                <span className="min-w-0 flex-1 truncate font-medium text-card-foreground">
+                  {onSelect ? (
+                    <button
+                      type="button"
+                      className="truncate text-left hover:underline"
+                      onClick={() => onSelect(row.name)}
+                      aria-label={`Show ${row.name}'s reviews`}
+                    >
+                      {row.name}
+                    </button>
+                  ) : (
+                    row.name
+                  )}
+                </span>
+                <Stars value={Math.round(row.average)} />
+                <span className="w-8 text-right tabular-nums text-card-foreground">
+                  {row.average.toFixed(1)}
+                </span>
+                <span className="w-20 text-right text-muted-foreground">
+                  {row.count} {row.count === 1 ? "review" : "reviews"}
+                </span>
+                <span
+                  className={
+                    row.low > 0
+                      ? "w-14 text-right font-medium text-warning"
+                      : "w-14 text-right text-muted-foreground"
+                  }
+                >
+                  {row.low} low
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+    </Section>
   );
 }

@@ -16,6 +16,8 @@ export interface ReviewEntry {
   reference: string;
   customer: string;
   restaurant: string;
+  /** Who delivered it (orders.rider), or null when no rider was recorded. */
+  rider: string | null;
   /** 1-5. */
   restaurantRating: number;
   /** 1-5, or null when the customer skipped the rider. */
@@ -64,7 +66,8 @@ export function summarizeReviews(rows: readonly ReviewEntry[]): ReviewSummary {
     averageRestaurant: mean(restaurantScores),
     averageRider: mean(riderScores),
     low,
-    lowShare: rows.length === 0 ? 0 : Math.round((low / rows.length) * 100) / 100,
+    lowShare:
+      rows.length === 0 ? 0 : Math.round((low / rows.length) * 100) / 100,
     withComment: rows.filter((row) => (row.comment ?? "").trim() !== "").length,
   };
 }
@@ -78,7 +81,8 @@ export function ratingDistribution(
     return {
       stars,
       count,
-      share: rows.length === 0 ? 0 : Math.round((count / rows.length) * 100) / 100,
+      share:
+        rows.length === 0 ? 0 : Math.round((count / rows.length) * 100) / 100,
     };
   });
 }
@@ -98,8 +102,52 @@ export function matchesReview(row: ReviewEntry, filter: ReviewFilter): boolean {
 
   const query = (filter.query ?? "").trim().toLowerCase();
   if (!query) return true;
-  return [row.reference, row.customer, row.restaurant, row.comment ?? ""]
+  return [
+    row.reference,
+    row.customer,
+    row.restaurant,
+    row.rider ?? "",
+    row.comment ?? "",
+  ]
     .join(" ")
     .toLowerCase()
     .includes(query);
+}
+
+export interface ScoreboardRow {
+  name: string;
+  count: number;
+  /** Mean score, one decimal. */
+  average: number;
+  /** Scores of 1 or 2. */
+  low: number;
+}
+
+/**
+ * Who is carrying the bad reviews: one row per shop or per rider, worst first
+ * (lowest average, then most low scores, then most reviews), so the top of the
+ * list is the call to make. A review that skipped the rider, or has no rider
+ * recorded, does not count against anyone.
+ */
+export function scoreboard(
+  rows: readonly ReviewEntry[],
+  by: "restaurant" | "rider",
+): ScoreboardRow[] {
+  const groups = new Map<string, number[]>();
+  for (const row of rows) {
+    const name = by === "restaurant" ? row.restaurant : row.rider;
+    const score = by === "restaurant" ? row.restaurantRating : row.riderRating;
+    if (name === null || score === null) continue;
+    groups.set(name, [...(groups.get(name) ?? []), score]);
+  }
+  return [...groups.entries()]
+    .map(([name, scores]) => ({
+      name,
+      count: scores.length,
+      average: mean(scores),
+      low: scores.filter((score) => score <= 2).length,
+    }))
+    .sort(
+      (a, b) => a.average - b.average || b.low - a.low || b.count - a.count,
+    );
 }

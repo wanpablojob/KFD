@@ -25,7 +25,9 @@ export async function fetchOrderRefunds(orderId: string): Promise<Refund[]> {
     .eq("order_id", orderId)
     .order("created_at");
   if (error) throw new Error(error.message);
-  return (data ?? []).map((r) => ({ ...r, amount: Number(r.amount) }) as Refund);
+  return (data ?? []).map(
+    (r) => ({ ...r, amount: Number(r.amount) }) as Refund,
+  );
 }
 
 /** The server refuses anything that would refund more than the order total. */
@@ -33,7 +35,7 @@ export async function recordRefund(
   orderId: string,
   amount: number,
   method: Refund["method"],
-  reason: string
+  reason: string,
 ): Promise<void> {
   const { data, error } = await supabase.rpc("admin_record_refund", {
     p_order_id: orderId,
@@ -55,7 +57,9 @@ export interface Rating {
 }
 
 /** Newest ratings, for one restaurant (admin) or the merchant's own (RLS). */
-export async function fetchRecentRatings(restaurantId?: string): Promise<Rating[]> {
+export async function fetchRecentRatings(
+  restaurantId?: string,
+): Promise<Rating[]> {
   let query = supabase
     .from("order_ratings")
     .select("order_id, restaurant_rating, rider_rating, comment, created_at")
@@ -129,7 +133,12 @@ type ReviewRow = {
   comment: string | null;
   created_at: string;
   restaurant_id: string | null;
-  orders: { reference: string; customer: string; restaurant: string } | null;
+  orders: {
+    reference: string;
+    customer: string;
+    restaurant: string;
+    rider: string | null;
+  } | null;
 };
 
 export async function fetchRatings(range?: DateRange): Promise<ReviewEntry[]> {
@@ -137,7 +146,7 @@ export async function fetchRatings(range?: DateRange): Promise<ReviewEntry[]> {
     let query = supabase
       .from("order_ratings")
       .select(
-        "order_id, restaurant_rating, rider_rating, comment, created_at, restaurant_id, orders(reference, customer, restaurant)",
+        "order_id, restaurant_rating, rider_rating, comment, created_at, restaurant_id, orders(reference, customer, restaurant, rider)",
       )
       .order("created_at", { ascending: false })
       .order("order_id")
@@ -152,6 +161,7 @@ export async function fetchRatings(range?: DateRange): Promise<ReviewEntry[]> {
     reference: row.orders?.reference ?? row.order_id,
     customer: row.orders?.customer ?? "—",
     restaurant: row.orders?.restaurant ?? row.restaurant_id ?? "—",
+    rider: row.orders?.rider?.trim() || null,
     restaurantRating: row.restaurant_rating,
     riderRating: row.rider_rating,
     comment: row.comment,
