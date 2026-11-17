@@ -6,6 +6,7 @@ import {
   mapPayoutSummary,
   reviewWindowRemaining,
   successRate,
+  successRateLabel,
   type RiderPayout,
 } from "./rider-ledger.ts";
 
@@ -89,6 +90,30 @@ test("a rider who failed everything has a rate of zero, not null", () => {
   // Four failures are four attempts, so the rate is a real 0 rather than an
   // absence of one.
   assert.equal(successRate({ deliveredCount: 0, failedCount: 4 }), 0);
+});
+
+test("an order left stalled counts as an attempt that did not complete", () => {
+  // 0149: a rider whose phone died on an order has not completed it, and the
+  // customer waited exactly as they would have for a failure. Leaving stalls
+  // out of the denominator is what made a dead phone look like a clean record.
+  assert.equal(successRate({ deliveredCount: 9, failedCount: 0, stalledCount: 1 }), 0.9);
+  assert.equal(successRate({ deliveredCount: 0, failedCount: 0, stalledCount: 2 }), 0);
+});
+
+test("stalls do not change a rate that has none", () => {
+  // Existing callers pass no stall count at all; the arithmetic must not move.
+  assert.equal(successRate({ deliveredCount: 3, failedCount: 1, stalledCount: 0 }), 0.75);
+});
+
+test("the label says how many stalled, and only when some did", () => {
+  assert.equal(
+    successRateLabel({ deliveredCount: 9, failedCount: 1, stalledCount: 0 }),
+    "90% — 9 of 10 deliveries completed",
+  );
+  assert.equal(
+    successRateLabel({ deliveredCount: 9, failedCount: 0, stalledCount: 2 }),
+    "82% — 9 of 11 deliveries completed, 2 stalled",
+  );
 });
 // ---------------------------------------------------------------------------
 // 0075: the 24-hour dispute window

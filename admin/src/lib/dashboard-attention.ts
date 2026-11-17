@@ -37,6 +37,11 @@ const OPEN = ["pending", "confirmed", "preparing", "out_for_delivery"];
 export function attentionItems(
   input: {
     orders: AttentionOrder[];
+    /**
+     * Orders stalled with a rider right now (0149): still open, a rider on
+     * them, and nothing has moved for `STALL_MINUTES`. The dead-phone case.
+     */
+    stalled: number;
     disputedPayouts: number;
     pendingApplications: number;
     deletionRequests: number;
@@ -74,6 +79,16 @@ export function attentionItems(
     },
     { key: "no-rider", label: "Waiting for a rider", count: noRider, href: "#waiting-for-rider", urgent: true },
     { key: "failed", label: "Failed delivery, needs a new rider", count: failed, href: "#waiting-for-rider", urgent: true },
+    {
+      key: "stalled",
+      // A rider who has stopped reporting is the one case where the order looks
+      // fine on every other screen: it has a rider, so it is not "waiting", and
+      // it has not failed, so nothing else picks it up.
+      label: "Stalled with a rider, no movement",
+      count: input.stalled,
+      href: "#stalled-orders",
+      urgent: true,
+    },
     { key: "disputes", label: "Disputed rider payouts", count: input.disputedPayouts, href: "/dashboard/riders", urgent: false },
     { key: "applications", label: "Rider applications to review", count: input.pendingApplications, href: "/dashboard/riders", urgent: false },
     { key: "deletions", label: "Rider account deletion requests", count: input.deletionRequests, href: "/dashboard/riders", urgent: false },

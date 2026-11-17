@@ -11,7 +11,7 @@ const order = (status: string, placedMinsAgo: number, rider = "", failed = false
   deliveryFailedAt: failed ? minsAgo(1) : null,
 });
 
-const none = { disputedPayouts: 0, pendingApplications: 0, deletionRequests: 0 };
+const none = { stalled: 0, disputedPayouts: 0, pendingApplications: 0, deletionRequests: 0 };
 
 test("nothing to do is an empty list, not a list of zeros", () => {
   assert.deepEqual(attentionItems({ orders: [order("delivered", 60, "Ana")], ...none }, NOW), []);
@@ -41,9 +41,20 @@ test("accepted orders without a rider, and open failed deliveries, are flagged",
   assert.deepEqual(items.map((i) => [i.key, i.count]), [["no-rider", 1], ["failed", 1]]);
 });
 
+test("an order stalled with a rider is flagged even though it has one", () => {
+  // The dead-phone case: a rider is assigned, so it is not "waiting for a
+  // rider", and nothing was marked failed, so no other item catches it. Only
+  // the sweep knows it stopped moving.
+  const items = attentionItems(
+    { orders: [order("out_for_delivery", 90, "Ben")], ...none, stalled: 1 },
+    NOW,
+  );
+  assert.deepEqual(items.map((i) => [i.key, i.count, i.urgent]), [["stalled", 1, true]]);
+});
+
 test("queues come after the urgent items", () => {
   const items = attentionItems(
-    { orders: [order("pending", 30)], disputedPayouts: 2, pendingApplications: 1, deletionRequests: 1 },
+    { orders: [order("pending", 30)], ...none, disputedPayouts: 2, pendingApplications: 1, deletionRequests: 1 },
     NOW,
   );
   assert.deepEqual(items.map((i) => i.key), ["unanswered", "disputes", "applications", "deletions"]);

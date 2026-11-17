@@ -193,8 +193,15 @@ export function reviewWindowRemaining(
 export function successRate(counts: {
   deliveredCount: number;
   failedCount: number;
+  /**
+   * Deliveries the rider left stalled with a customer waiting (0149). They are
+   * attempted deliveries that never finished, so they belong in the same
+   * denominator as a failure: a rider whose phone died on an order has not
+   * completed it either, and the customer waited just the same.
+   */
+  stalledCount?: number;
 }): number | null {
-  const attempted = counts.deliveredCount + counts.failedCount;
+  const attempted = counts.deliveredCount + counts.failedCount + (counts.stalledCount ?? 0);
   if (attempted <= 0) return null;
   return counts.deliveredCount / attempted;
 }
@@ -203,10 +210,12 @@ export function successRate(counts: {
 export function successRateLabel(counts: {
   deliveredCount: number;
   failedCount: number;
+  stalledCount?: number;
 }): string {
   const rate = successRate(counts);
+  const stalled = counts.stalledCount ?? 0;
   if (rate === null) return "No completed deliveries yet";
-  return `${Math.round(rate * 100)}% — ${counts.deliveredCount} of ${
-    counts.deliveredCount + counts.failedCount
-  } deliveries completed`;
+  const attempted = counts.deliveredCount + counts.failedCount + stalled;
+  const tail = stalled > 0 ? `, ${stalled} stalled` : "";
+  return `${Math.round(rate * 100)}% — ${counts.deliveredCount} of ${attempted} deliveries completed${tail}`;
 }

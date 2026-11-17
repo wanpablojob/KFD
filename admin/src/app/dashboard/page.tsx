@@ -29,6 +29,9 @@ import {
   PERIOD_DAYS,
 } from "@/lib/dashboard-metrics";
 import { attentionItems, liveCounts, topRestaurants } from "@/lib/dashboard-attention";
+import { stalledRows } from "@/lib/stuck-orders";
+import { fetchOpenStalls } from "@/lib/supabase/stall-queries";
+import { StalledOrders } from "@/components/stalled-orders";
 import { WaitingForRider } from "@/components/waiting-for-rider";
 import { fetchPendingDeliveries } from "@/lib/supabase/dispatch-queries";
 import type { Kpi } from "@/lib/types";
@@ -51,6 +54,10 @@ export default function OverviewPage() {
   const disputes = useAsyncData(() => fetchDisputedPayouts());
   const applications = useAsyncData(() => fetchRiderApplications("pending"));
   const deletions = useAsyncData(() => fetchRiderDeletionRequests());
+  // Orders stalled with a rider (0149). Best-effort like the queue counts: on a
+  // deployment where the migration is not applied yet the item is simply
+  // absent instead of taking the overview down.
+  const stalls = useAsyncData(() => fetchOpenStalls());
 
   const loading = orders.loading || riders.loading;
   const error = orders.error ?? riders.error;
@@ -86,6 +93,7 @@ export default function OverviewPage() {
   const attention = attentionItems(
     {
       orders: orderRows,
+      stalled: (stalls.data ?? []).length,
       disputedPayouts: disputes.data?.length ?? 0,
       pendingApplications: applications.data?.length ?? 0,
       deletionRequests: deletions.data?.size ?? 0,
@@ -182,6 +190,8 @@ export default function OverviewPage() {
             </Card>
           </Section>
         </div>
+
+        <StalledOrders stalls={stalledRows(stalls.data ?? [], orderRows, now)} />
 
         <WaitingForRider
           orders={orderRows}

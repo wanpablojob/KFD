@@ -46,6 +46,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/field";
 import { ArrowLeftIcon } from "@/components/ui/icons";
 import { useAsyncData } from "@/lib/use-async-data";
+import { fetchStallCountForRider } from "@/lib/supabase/stall-queries";
 import { TableBoundary } from "@/components/ui/table-boundary";
 import type { Rider } from "@/lib/types";
 import { riderFlags } from "@/lib/rider-flags";
@@ -120,6 +121,9 @@ export default function RiderDetailPage() {
   // whose arithmetic could disagree.
   const cash = useAsyncData(() => fetchRiderCashPositions(), riderId);
   const cashPosition = (cash.data ?? []).find((row) => row.riderId === riderId);
+  // Orders this rider left sitting (0149). Best-effort: the page still renders
+  // its money and history on a deployment where the migration is not applied.
+  const stalls = useAsyncData(() => fetchStallCountForRider(riderId), riderId);
   const deletionRequests = useAsyncData(
     () => fetchRiderDeletionRequests(),
     riderId,
@@ -217,9 +221,11 @@ export default function RiderDetailPage() {
   );
 
   const summary = payoutSummary.data;
+  const stalledCount = stalls.data?.total ?? 0;
   const rateLabel = successRateLabel({
     deliveredCount: summary?.deliveredCount ?? 0,
     failedCount: summary?.failedCount ?? 0,
+    stalledCount,
   });
 
   const events = sortActivity(activity.data ?? []);
@@ -422,7 +428,7 @@ export default function RiderDetailPage() {
 
         {/* Every peso here is the ledger, not orders.total and not the
             denormalised riders.earnings counter. See lib/rider-ledger.ts. */}
-        <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-5">
           <StatCard
             kpi={{
               label: "Earned today",
@@ -449,6 +455,19 @@ export default function RiderDetailPage() {
               label: "Rating",
               value: `${rider.rating} ★`,
               hint: rateLabel,
+            }}
+          />
+          <StatCard
+            kpi={{
+              label: "Orders stalled",
+              // 0149: orders this rider had when they stopped moving. The
+              // customer star rating is what customers said, and is left
+              // alone; this is what the system saw.
+              value: String(stalledCount),
+              hint:
+                (stalls.data?.open ?? 0) > 0
+                  ? `${stalls.data?.open} stalled right now`
+                  : "None stalled right now",
             }}
           />
         </div>
