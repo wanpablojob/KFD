@@ -42,7 +42,8 @@ do $$ begin
   if exists (select 1 from orders where id like 'O-%' and (status <> 'delivered' or delivery_photo_path is null)) then
     raise exception 'FAIL an order was not closed with its photo';
   end if;
-  if (select on_hand from rider_cash_position()) <> 440 or (select flagged from rider_cash_position()) <> 10 then
+  -- 440 taken, less the 195 + 150 of food the rider paid the shop (0147).
+  if (select on_hand from rider_cash_position()) <> 95 or (select flagged from rider_cash_position()) <> 10 then
     raise exception 'FAIL rider cash position wrong';
   end if;
   raise notice 'PASS variance, photo and cash position';

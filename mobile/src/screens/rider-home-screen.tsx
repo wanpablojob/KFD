@@ -68,6 +68,15 @@ const STATUS_LABEL: Record<string, string> = {
  * Availability and sign-out live on the profile tab; the rider's own stats are
  * on the earnings tab, so this screen stays about the delivery queue.
  */
+/**
+ * What the rider pays the shop at pickup (0147): the food, from the order's
+ * own lines. The customer pays the rider the whole bill at the door.
+ */
+function foodPeso(items: { quantity: number; price: number }[]): string {
+  const food = items.reduce((sum, line) => sum + line.quantity * Number(line.price), 0);
+  return `₱${food.toFixed(2)}`;
+}
+
 export function RiderHomeScreen({ userId }: { userId: string }) {
   const insets = useSafeAreaInsets();
   const bottomPadding = useScrollBottomPadding();
@@ -570,8 +579,8 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
                   <Text style={styles.stepText}>
                     {canPickUp
                       ? isReadyForPickup(item.status, item.ready_for_pickup_at)
-                        ? `${item.restaurant} has it ready: pick it up`
-                        : `Go to ${item.restaurant} and pick up the food`
+                        ? `${item.restaurant} has it ready: pay ${foodPeso(item.items)} and pick it up`
+                        : `Go to ${item.restaurant}, pay ${foodPeso(item.items)} for the food and pick it up`
                       : `Deliver to ${item.customer}`}
                   </Text>
                 </View>

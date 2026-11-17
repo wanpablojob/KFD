@@ -23,7 +23,6 @@ import {
 import Link from "next/link";
 import { useAsyncData } from "@/lib/use-async-data";
 import { RecentRatings } from "@/components/recent-ratings";
-import { RestaurantSettlement } from "@/components/restaurant-settlement";
 import { TableBoundary } from "@/components/ui/table-boundary";
 import type { Column } from "@/components/ui/data-table";
 import type { Order, MenuItem } from "@/lib/types";
@@ -221,10 +220,6 @@ export default function RestaurantDetailPage() {
       />
 
       <Section aria-label="Restaurant details">
-        <RestaurantSettlement
-          restaurantId={restaurantId}
-          name={restaurant.name}
-        />
         <Card className="mb-6">
           <div className="flex flex-col sm:flex-row sm:items-center gap-4 p-5">
             <Avatar name={restaurant.name} size="lg" />

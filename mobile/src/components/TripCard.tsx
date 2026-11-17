@@ -112,6 +112,12 @@ export function TripCard({
                 </Text>
               </View>
             ))}
+            {/* The rider pays each shop for its food at pickup (0147). */}
+            {!collected && !cancelled ? (
+              <Text style={styles.stopMeta}>
+                Pay the shop ₱{Number(stop.subtotal).toFixed(2)} when you collect it
+              </Text>
+            ) : null}
             {/* The shop packed it (0146): the rider can go straight in. */}
             {!collected && !cancelled && stop.ready_for_pickup_at ? (
               <Text style={styles.readyNote}>Ready for pickup</Text>

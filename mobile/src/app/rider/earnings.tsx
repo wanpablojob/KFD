@@ -163,9 +163,10 @@ export default function RiderEarningsRoute() {
           <View style={[styles.cashCard, shadow.card]}>
             <View style={styles.cashHeader}>
               <View style={styles.cashText}>
-                <Text style={type.eyebrow}>Cash on hand</Text>
+                <Text style={type.eyebrow}>To hand in to KFD</Text>
                 <Text style={styles.cashCaption}>
-                  Collected from customers, not yet handed in
+                  Delivery and service fees collected, not yet handed in. The food money
+                  already went to the shop at pickup.
                 </Text>
               </View>
               <Text
