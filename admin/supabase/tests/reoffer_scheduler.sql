@@ -157,6 +157,9 @@ insert into orders (
   '12 Katipunan St., Barangay Poblacion', 'RS-Priced', 10, now()
 );
 
+-- Placing the order may already have offered it; this case is about the
+-- decline alone, so start from a decline and nothing else.
+delete from order_offers where order_id = 'ord_rs_declined';
 insert into order_offers (order_id, rider_id, status, offered_at, expires_at) values
   ('ord_rs_declined', 'R-RS1', 'declined', now() - interval '10 minutes', now() - interval '5 minutes');
 

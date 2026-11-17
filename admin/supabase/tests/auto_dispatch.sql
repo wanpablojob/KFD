@@ -19,7 +19,9 @@ insert into riders (id, name, email, user_id, city, status) values
   ('R-OFF', 'Off', 'offline@example.test', '00000000-0000-0000-0000-0000000000a3', 'Kabankalan', 'offline'),
   ('R-FAR', 'Far', 'elsewhere@example.test', '00000000-0000-0000-0000-0000000000a4', 'Himamaylan', 'online');
 insert into orders (id, reference, customer, restaurant, restaurant_id, status, rider_id, subtotal, delivery_fee, service_fee, total, payment) values
+  -- Two jobs in hand, the most a rider carries (0148).
   ('O-BUSY', '#KFD-AD0', 'C', 'Auto Kitchen', 'RS-AD', 'out_for_delivery', 'R-BUSY', 100, 45, 5, 150, 'cash'),
+  ('O-BUSY2', '#KFD-AD9', 'C', 'Auto Kitchen', 'RS-AD', 'out_for_delivery', 'R-BUSY', 100, 45, 5, 150, 'cash'),
   ('O-AD1', '#KFD-AD1', 'C', 'Auto Kitchen', 'RS-AD', 'pending', null, 100, 45, 5, 150, 'cash'),
   ('O-AD2', '#KFD-AD2', 'C', 'Auto Kitchen', 'RS-AD', 'pending', null, 100, 45, 5, 150, 'cash');
 

@@ -26,7 +26,7 @@ export const RIDER_STATUS_META: Record<RiderStatus, RiderStatusMeta> = {
   },
   busy: {
     label: "Busy",
-    description: "On a delivery. Not offered new work",
+    description: "Not offered new work. Set for you while you carry 2 deliveries",
   },
   offline: {
     label: "Offline",
