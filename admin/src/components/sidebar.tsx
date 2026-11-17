@@ -15,7 +15,6 @@ import {
   StarIcon,
   StoreIcon,
   UsersIcon,
-  UtensilsIcon,
   UserCogIcon,
   XIcon,
 } from "./ui/icons";
@@ -44,7 +43,6 @@ const navItems = [
   { href: "/dashboard/restaurants", label: "Restaurants", icon: StoreIcon },
   { href: "/dashboard/riders", label: "Riders", icon: BikeIcon },
   { href: "/dashboard/customers", label: "Customers", icon: UsersIcon },
-  { href: "/dashboard/menu", label: "Menu Items", icon: UtensilsIcon },
   // Money over a period, the money that went back, and what customers said.
   // Admin only: both refunds and the platform-wide revenue picture are the
   // owner's numbers, and RLS would otherwise show a merchant a partial page

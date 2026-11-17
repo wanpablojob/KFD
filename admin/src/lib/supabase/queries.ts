@@ -55,20 +55,6 @@ export type RiderInput = RiderProfileInput & {
   status: Rider["status"];
 };
 
-export type MenuItemInput = {
-  restaurant: string;
-  /**
-   * Required since migration 0027 made menu_items.restaurant_id NOT NULL: an
-   * item that cannot be attributed to a restaurant is an orphan no role can
-   * see, and it cannot be priced into an order.
-   */
-  restaurant_id: string;
-  name: string;
-  category: string;
-  price: number;
-  available?: boolean;
-};
-
 function makeId(prefix: string): string {
   return `${prefix}_${Math.random().toString(36).slice(2, 10)}`;
 }
@@ -149,44 +135,6 @@ export async function updateRiderProfile(
       city: patch.city,
       vehicle: input.vehicle,
     })
-    .eq("id", id);
-  if (error) throw new Error(error.message);
-}
-
-/**
- * Create or update a menu item from the admin dashboard.
- *
- * `restaurant_id` is required: migration 0027 made menu_items.restaurant_id NOT
- * NULL, because an item that cannot be attributed to a restaurant is an orphan
- * no role can see and it cannot be priced into an order.
- */
-export async function upsertMenuItem(
-  input: MenuItemInput,
-  existingId?: string,
-): Promise<void> {
-  const id = existingId ?? makeId("mnu");
-  const { error } = await supabase.from("menu_items").upsert(
-    {
-      id,
-      restaurant: input.restaurant,
-      restaurant_id: input.restaurant_id,
-      name: input.name,
-      category: input.category,
-      price: input.price,
-      available: input.available ?? true,
-    },
-    { onConflict: "id" },
-  );
-  if (error) throw new Error(error.message);
-}
-
-export async function setMenuItemAvailable(
-  id: string,
-  available: boolean,
-): Promise<void> {
-  const { error } = await supabase
-    .from("menu_items")
-    .update({ available })
     .eq("id", id);
   if (error) throw new Error(error.message);
 }
@@ -442,25 +390,6 @@ export async function fetchCustomers(): Promise<Customer[]> {
   }));
 }
 
-export async function fetchMenuItems(): Promise<MenuItem[]> {
-  const { data, error } = await supabase
-    .from("menu_items")
-    .select("*")
-    .order("name");
-
-  if (error) throw new Error(error.message);
-
-  return (data ?? []).map((m) => ({
-    id: m.id,
-    restaurant: m.restaurant,
-    restaurant_id: m.restaurant_id,
-    name: m.name,
-    category: m.category,
-    price: Number(m.price),
-    available: Boolean(m.available),
-  }));
-}
-
 export type DateRange = { from?: string; to?: string };
 
 export async function fetchOrders(range?: DateRange): Promise<Order[]> {
@@ -701,15 +630,15 @@ export async function fetchMenuItemsByRestaurant(
 // ---------------------------------------------------------------------------
 
 export type SearchEntity =
-  "order" | "restaurant" | "rider" | "customer" | "menu_item";
+  "order" | "restaurant" | "rider" | "customer";
 
 /**
  * One row of the search popover. `entity` is a discriminant so the UI can
  * label and group without string-matching the subtitle.
  *
  * Every field except `entity` is a string on purpose: the popover renders
- * rows from five different tables with five different shapes, and a union of
- * five object types would only move the `!` around.
+ * rows from four different tables with four different shapes, and a union of
+ * four object types would only move the `!` around.
  */
 export type SearchResult = {
   entity: SearchEntity;
@@ -724,7 +653,6 @@ export const SEARCH_ENTITY_LABELS: Record<SearchEntity, string> = {
   restaurant: "Restaurant",
   rider: "Rider",
   customer: "Customer",
-  menu_item: "Menu item",
 };
 
 /** Per entity, not overall: a search for "a" should not drown in orders. */
@@ -738,7 +666,7 @@ function listHref(path: string, term: string): string {
 }
 
 /**
- * One search across every table the admin can see, issued as five parallel
+ * One search across every table the admin can see, issued as four parallel
  * requests. No index and no database search function: the spec forbids both,
  * and at this table size a sequential `ilike` scan per table is not the
  * bottleneck.
@@ -753,7 +681,7 @@ export async function searchEverything(term: string): Promise<SearchResult[]> {
   const trimmed = term.trim();
   if (trimmed.length < MIN_TERM_LENGTH) return [];
 
-  const [orders, restaurants, riders, customers, menuItems] = await Promise.all(
+  const [orders, restaurants, riders, customers] = await Promise.all(
     [
       supabase
         .from("orders")
@@ -781,19 +709,13 @@ export async function searchEverything(term: string): Promise<SearchResult[]> {
         .or(anyIlikeFilter(["name", "email", "phone", "city"], trimmed))
         .order("name")
         .limit(PER_ENTITY),
-      supabase
-        .from("menu_items")
-        .select("id, name, category, restaurant, price")
-        .or(anyIlikeFilter(["name", "category", "restaurant"], trimmed))
-        .order("name")
-        .limit(PER_ENTITY),
     ],
   );
 
-  const responses = [orders, restaurants, riders, customers, menuItems];
+  const responses = [orders, restaurants, riders, customers];
   const failures = responses.filter((r) => r.error);
 
-  // Partial results are worth showing; five failures are an outage, and
+  // Partial results are worth showing; four failures are an outage, and
   // rendering that as "no matches for X" would be a lie.
   if (failures.length === responses.length) {
     throw new Error(failures[0]?.error?.message ?? "Search failed.");
@@ -817,7 +739,7 @@ function text(value: unknown): string {
 }
 
 /**
- * Normalizes the five differently-shaped rows into one shape. Kept as a
+ * Normalizes the four differently-shaped rows into one shape. Kept as a
  * `switch` on the entity so a new entity cannot be added without deciding what
  * its title and subtitle are: an unmapped entity throws instead of rendering
  * a blank row.
@@ -859,17 +781,6 @@ function toSearchResult(
         .filter(Boolean)
         .join(" · "),
       href: listHref("riders", label),
-    };
-  }
-  if ("price" in row) {
-    return {
-      entity: "menu_item",
-      id,
-      title: text(row.name),
-      subtitle: [text(row.restaurant), text(row.category)]
-        .filter(Boolean)
-        .join(" · "),
-      href: listHref("/dashboard/menu", label),
     };
   }
   return {
