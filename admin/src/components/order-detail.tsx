@@ -25,9 +25,7 @@ const paymentLabels: Record<Order["payment"], string> = {
 
 export function OrderDetail({ order }: { order: Order }) {
   const currentIndex =
-    order.status === "cancelled"
-      ? -1
-      : timelineSteps.indexOf(order.status);
+    order.status === "cancelled" ? -1 : timelineSteps.indexOf(order.status);
 
   return (
     <div className="space-y-5">
@@ -108,6 +106,13 @@ export function OrderDetail({ order }: { order: Order }) {
               {formatCurrency(order.deliveryFee)}
             </dd>
           </div>
+          <div className="flex justify-between">
+            <dt className="text-muted-foreground">Service fee</dt>
+            <dd className="tabular-nums text-card-foreground">
+              {/* The total is food + delivery + service by construction (0093/0094). */}
+              {formatCurrency(order.total - order.subtotal - order.deliveryFee)}
+            </dd>
+          </div>
           <div className="flex justify-between border-t border-border pt-1.5">
             <dt className="font-semibold text-card-foreground">Total</dt>
             <dd className="font-semibold tabular-nums text-card-foreground">
@@ -145,7 +150,9 @@ export function OrderDetail({ order }: { order: Order }) {
             <p className="mt-1.5 text-muted-foreground">
               {order.rejectionReason ? (
                 <>
-                  <span className="font-medium text-card-foreground">Reason: </span>
+                  <span className="font-medium text-card-foreground">
+                    Reason:{" "}
+                  </span>
                   {order.rejectionReason}
                 </>
               ) : (

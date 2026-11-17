@@ -22,7 +22,7 @@ export function OrderTracker({ reference }: { reference: string }) {
   // the public tracker has to show the whole delivery.
   const [delivery, setDelivery] = useState<TrackedDelivery | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "missing" | "error">(
-    "loading"
+    "loading",
   );
   // Held in a ref as well as state: the poller must not tear down and rebuild
   // its interval every time a poll resolves, or a slow response would starve
@@ -79,7 +79,10 @@ export function OrderTracker({ reference }: { reference: string }) {
 
   if (state === "loading") {
     return (
-      <p className="text-sm text-muted-foreground" data-tracking-state="loading">
+      <p
+        className="text-sm text-muted-foreground"
+        data-tracking-state="loading"
+      >
         Looking up {reference}…
       </p>
     );
@@ -154,7 +157,10 @@ export function OrderTracker({ reference }: { reference: string }) {
                 </span>
               </div>
               {stop.items.map((item, i) => (
-                <p key={`${stop.order_id}-${i}`} className="text-xs text-muted-foreground">
+                <p
+                  key={`${stop.order_id}-${i}`}
+                  className="text-xs text-muted-foreground"
+                >
                   {item.quantity}× {item.name}
                 </p>
               ))}
@@ -233,9 +239,16 @@ export function OrderTracker({ reference }: { reference: string }) {
           </dd>
         </div>
         <div className="flex justify-between">
-          <dt className="text-muted-foreground">Delivery</dt>
+          <dt className="text-muted-foreground">Delivery fee</dt>
           <dd className="tabular-nums text-card-foreground">
             {formatCurrency(order.deliveryFee)}
+          </dd>
+        </div>
+        <div className="flex justify-between">
+          <dt className="text-muted-foreground">Service fee</dt>
+          <dd className="tabular-nums text-card-foreground">
+            {/* The total is food + delivery + service by construction (0093/0094). */}
+            {formatCurrency(order.total - order.subtotal - order.deliveryFee)}
           </dd>
         </div>
         <div className="flex justify-between border-t border-border pt-1.5 font-medium">

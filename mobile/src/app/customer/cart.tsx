@@ -466,7 +466,13 @@ export default function CustomerCartScreen() {
         <View style={[styles.totalCard, shadow.card]}>
           {/* "—" rather than a guess: a stale or assumed figure here is the
               exact failure this screen was rewritten to prevent. */}
-          <BillLine label="Subtotal" value={peso(subtotal)} />
+          {/* Each line says where its pesos go (panel feedback): the food is the
+              shop's, paid by the rider at pickup (0147); the fees are KFD's. */}
+          <BillLine
+            label="Food"
+            value={peso(subtotal)}
+            hint="Goes to the shop. Your rider pays them when collecting it."
+          />
           <BillLine
             label="Delivery fee"
             value={
@@ -474,6 +480,7 @@ export default function CustomerCartScreen() {
                 ? "Agreed with rider"
                 : peso(fees?.deliveryFee ?? null)
             }
+            hint={`Your rider's trip${barangay ? ` to ${barangay}` : ""}.`}
           />
           {fees && fees.extraShops > 0 ? (
             <Text style={styles.feeNote}>
@@ -481,9 +488,18 @@ export default function CustomerCartScreen() {
               extra {fees.extraShops === 1 ? "shop" : "shops"}
             </Text>
           ) : null}
-          <BillLine label="Service fee" value={peso(fees?.serviceFee ?? null)} />
+          <BillLine
+            label="Service fee"
+            value={peso(fees?.serviceFee ?? null)}
+            hint="Goes to KFD for running the app and support."
+          />
           <View style={styles.divider} />
-          <BillLine label="Total" value={peso(total)} bold />
+          <BillLine
+            label="Total"
+            value={peso(total)}
+            bold
+            hint="Paid to your rider in cash when the food arrives."
+          />
         </View>
 
         {kitchenClosed ? (
@@ -550,15 +566,21 @@ function BillLine({
   label,
   value,
   bold,
+  hint,
 }: {
   label: string;
   value: string;
   bold?: boolean;
+  /** Where this money goes, in one short sentence. */
+  hint?: string;
 }) {
   return (
-    <View style={styles.billLine}>
-      <Text style={[styles.billLabel, bold && styles.billBold]}>{label}</Text>
-      <Text style={[styles.billValue, bold && styles.billBold]}>{value}</Text>
+    <View>
+      <View style={styles.billLine}>
+        <Text style={[styles.billLabel, bold && styles.billBold]}>{label}</Text>
+        <Text style={[styles.billValue, bold && styles.billBold]}>{value}</Text>
+      </View>
+      {hint ? <Text style={styles.billHint}>{hint}</Text> : null}
     </View>
   );
 }
@@ -732,6 +754,7 @@ const styles = StyleSheet.create({
   },
   etaRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
   feeNote: { ...type.caption, color: colors.textFaint, marginTop: -spacing.xs },
+  billHint: { ...type.caption, color: colors.textFaint, marginTop: 2 },
   etaClosed: { ...type.caption, color: colors.danger, fontWeight: "700", flex: 1 },
   emptyTitle: { ...type.title, color: colors.textMuted },
   browseBtn: {
