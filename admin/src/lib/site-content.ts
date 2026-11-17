@@ -17,7 +17,7 @@
 
 /** True, verifiable facts only. These are service guarantees, not stats. */
 export const SERVICE_FACTS = [
-  "Cash or GCash on delivery",
+  "Cash on delivery",
   "Kabankalan only",
   "Local restaurants",
   "Follow your rider",
@@ -32,7 +32,7 @@ export const HOW_IT_WORKS = [
   {
     key: "Bayad",
     title: "Bayad",
-    body: "Order and pay the rider in cash or by GCash when it arrives.",
+    body: "Order and pay the rider in cash when it arrives.",
   },
   {
     key: "Hintay",
@@ -246,7 +246,7 @@ export const PARTNER_TERMS = {
 export const FAQ = [
   {
     q: "Paano ako magbabayad?",
-    a: "Pay the rider when your food arrives, in cash or by GCash. KFD does not take card payments.",
+    a: "Pay the rider in cash when your food arrives. KFD does not take card or online payments yet.",
   },
   {
     q: "How long does delivery take?",

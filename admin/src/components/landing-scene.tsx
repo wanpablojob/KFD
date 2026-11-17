@@ -169,7 +169,7 @@ export function LandingScene() {
                 className="enter max-w-[38ch] text-lg leading-relaxed text-muted-foreground"
                 style={turn(2)}
               >
-                Order from local kitchens, pay cash or GCash when it arrives, and
+                Order from local kitchens, pay cash when it arrives, and
                 follow every step of your order.
               </p>
               <div className="enter flex flex-wrap items-center gap-3" style={turn(3)}>
