@@ -110,8 +110,14 @@ function RootNavigator() {
       applyResponse(response);
     }
 
+    // Cleared once read: the OS keeps returning the last tap until told
+    // otherwise, so an old "order on the way" tap reopened tracking on every
+    // launch and every sign-in (this provider remounts per user).
     const last = Notifications.getLastNotificationResponse();
-    if (last) onResponse(last);
+    if (last) {
+      Notifications.clearLastNotificationResponse();
+      onResponse(last);
+    }
 
     const subscription =
       Notifications.addNotificationResponseReceivedListener(onResponse);
