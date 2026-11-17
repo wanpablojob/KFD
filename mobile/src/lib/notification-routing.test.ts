@@ -117,9 +117,15 @@ describe("routeForNotification", () => {
   });
 
   it("ignores a non-string type instead of trusting it", () => {
-    expect(routeForNotification({ type: 7, reference: "KFD-9" }, "rider")).toEqual({
+    expect(routeForNotification({ type: 7, reference: "KFD-9" }, "customer")).toEqual({
       kind: "track",
       reference: "KFD-9",
+    });
+  });
+
+  it("opens a rider's Deliveries tab for an order alert, not the public tracker", () => {
+    expect(routeForNotification({ reference: "KFD-9" }, "rider")).toEqual({
+      kind: "rider-home",
     });
   });
 });

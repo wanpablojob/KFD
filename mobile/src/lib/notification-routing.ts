@@ -85,6 +85,12 @@ export function routeForNotification(
     return { kind: "merchant-orders" };
   }
 
+  // A rider has no way back from the public tracker's signed-out pages, so an
+  // order alert opens their Deliveries tab instead.
+  if (reference && role === "rider") {
+    return { kind: "rider-home" };
+  }
+
   // Other reference-only payloads (order status for customers) go to the
   // public tracker, which is deliberately reachable signed out.
   if (reference) {
