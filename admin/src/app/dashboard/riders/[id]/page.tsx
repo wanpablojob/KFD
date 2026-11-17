@@ -482,8 +482,8 @@ export default function RiderDetailPage() {
                 Cash on hand
               </h2>
               <p className="mt-1 text-xs text-muted-foreground">
-                Delivery and service fees collected from customers and not yet
-                handed in. The food money went to the shops at pickup.
+                ₱20 per cash delivery, not yet handed in. The rider keeps ₱25 of
+                the fees; the food money went to the shops at pickup.
               </p>
               {cashPosition ? (
                 <div className="mt-3 flex flex-wrap items-baseline gap-x-4 gap-y-1">
@@ -497,15 +497,10 @@ export default function RiderDetailPage() {
                     {formatCurrency(cashPosition.onHand)}
                   </span>
                   <span className="text-xs text-muted-foreground">
-                    {formatCurrency(cashPosition.collected)} collected ·{" "}
-                    {/* What is left after the hand-ins and the fees still out is
-                        the food the rider paid shops at pickup (0147). */}
-                    {formatCurrency(
-                      cashPosition.collected -
-                        cashPosition.handedOver -
-                        cashPosition.onHand,
-                    )}{" "}
-                    paid to shops ·{" "}
+                    {/* on_hand is 20.00 per cash delivery less hand-ins (0151). */}
+                    {cashPosition.deliveries}{" "}
+                    {cashPosition.deliveries === 1 ? "delivery" : "deliveries"}{" "}
+                    × ₱20 = {formatCurrency(cashPosition.deliveries * 20)} ·{" "}
                     {formatCurrency(cashPosition.handedOver)} handed in
                   </span>
                   {cashPosition.flagged > 0 ? (

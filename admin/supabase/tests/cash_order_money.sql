@@ -25,13 +25,12 @@ do $$ begin
     raise exception 'FAIL the delivery is not in the rider''s earnings';
   end if;
   raise notice 'PASS the rider sees the delivery in their earnings';
-  -- 0147: the rider paid the shop the 150 food at pickup, so only the 50 of
-  -- delivery and service fees is still to hand in, not the whole 200. Their
-  -- own 25 comes back to them through the payout ledger.
-  if (select on_hand from rider_cash_position()) <> 50 then
-    raise exception 'FAIL rider owes KFD % instead of the 50 in fees', (select on_hand from rider_cash_position());
+  -- 0151: the food went to the shop at pickup (0147); of the 50 in fees the
+  -- rider keeps 25 and the 5 service fee is the royalty, so KFD is owed 20.
+  if (select on_hand from rider_cash_position()) <> 20 then
+    raise exception 'FAIL rider owes KFD % instead of 20', (select on_hand from rider_cash_position());
   end if;
-  raise notice 'PASS only the fees are left to hand in';
+  raise notice 'PASS the rider owes KFD 20 for the delivery';
 end $$;
 
 reset role;

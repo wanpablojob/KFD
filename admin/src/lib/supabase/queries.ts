@@ -629,8 +629,7 @@ export async function fetchMenuItemsByRestaurant(
 // Global search (Prompt 3.1)
 // ---------------------------------------------------------------------------
 
-export type SearchEntity =
-  "order" | "restaurant" | "rider" | "customer";
+export type SearchEntity = "order" | "restaurant" | "rider" | "customer";
 
 /**
  * One row of the search popover. `entity` is a discriminant so the UI can
@@ -681,36 +680,34 @@ export async function searchEverything(term: string): Promise<SearchResult[]> {
   const trimmed = term.trim();
   if (trimmed.length < MIN_TERM_LENGTH) return [];
 
-  const [orders, restaurants, riders, customers] = await Promise.all(
-    [
-      supabase
-        .from("orders")
-        .select("id, reference, customer, restaurant, status, total, placed_at")
-        .or(anyIlikeFilter(["reference", "customer", "restaurant"], trimmed))
-        .order("placed_at", { ascending: false })
-        .limit(PER_ENTITY),
-      supabase
-        .from("restaurants")
-        .select("id, name, cuisine, city, status")
-        .or(anyIlikeFilter(["name", "cuisine", "city"], trimmed))
-        .is("archived_at", null)
-        .order("name")
-        .limit(PER_ENTITY),
-      supabase
-        .from("riders")
-        .select("id, name, email, phone, vehicle, status")
-        .or(anyIlikeFilter(["name", "email", "phone", "city"], trimmed))
-        .is("archived_at", null)
-        .order("name")
-        .limit(PER_ENTITY),
-      supabase
-        .from("customers")
-        .select("id, name, email, phone, city")
-        .or(anyIlikeFilter(["name", "email", "phone", "city"], trimmed))
-        .order("name")
-        .limit(PER_ENTITY),
-    ],
-  );
+  const [orders, restaurants, riders, customers] = await Promise.all([
+    supabase
+      .from("orders")
+      .select("id, reference, customer, restaurant, status, total, placed_at")
+      .or(anyIlikeFilter(["reference", "customer", "restaurant"], trimmed))
+      .order("placed_at", { ascending: false })
+      .limit(PER_ENTITY),
+    supabase
+      .from("restaurants")
+      .select("id, name, cuisine, city, status")
+      .or(anyIlikeFilter(["name", "cuisine", "city"], trimmed))
+      .is("archived_at", null)
+      .order("name")
+      .limit(PER_ENTITY),
+    supabase
+      .from("riders")
+      .select("id, name, email, phone, vehicle, status")
+      .or(anyIlikeFilter(["name", "email", "phone", "city"], trimmed))
+      .is("archived_at", null)
+      .order("name")
+      .limit(PER_ENTITY),
+    supabase
+      .from("customers")
+      .select("id, name, email, phone, city")
+      .or(anyIlikeFilter(["name", "email", "phone", "city"], trimmed))
+      .order("name")
+      .limit(PER_ENTITY),
+  ]);
 
   const responses = [orders, restaurants, riders, customers];
   const failures = responses.filter((r) => r.error);
@@ -1150,6 +1147,26 @@ export async function fetchRiderCashPositions(): Promise<RiderCashPosition[]> {
     })),
     RIDER_CASH_MIGRATION,
   );
+}
+
+/** One delivery behind a rider's unpaid balance: KFD's 20.00 for it (0151). */
+export interface RiderCashOrder {
+  riderId: string;
+  reference: string;
+  collectedAt: string;
+  amount: number;
+}
+
+/** The deliveries each rider still owes KFD for, newest first. */
+export async function fetchRiderCashOrders(): Promise<RiderCashOrder[]> {
+  const { data, error } = await supabase.rpc("admin_rider_cash_orders");
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((row) => ({
+    riderId: row.rider_id,
+    reference: row.reference,
+    collectedAt: row.collected_at,
+    amount: Number(row.amount),
+  }));
 }
 
 /**

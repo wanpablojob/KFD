@@ -428,8 +428,8 @@ begin
     raise exception 'FAIL a shop was not delivered with the trip';
   end if;
   -- The rider's own books: one trip, one cash collection.
-  -- 240 taken, less the 200 of food the rider paid the two shops (0147).
-  if (select on_hand from rider_cash_position()) <> 40 then
+  -- One trip is one delivery: KFD is owed 20 for it (0151), whatever the shops.
+  if (select on_hand from rider_cash_position()) <> 20 then
     raise exception 'FAIL the rider''s on-hand cash is wrong: %', (select on_hand from rider_cash_position());
   end if;
   if (select flagged from rider_cash_position()) <> 5 then

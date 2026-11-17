@@ -95,9 +95,8 @@ export default function RidersPage() {
 
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<Mode>(null);
-  const [resolvingDispute, setResolvingDispute] = useState<DisputedPayout | null>(
-    null,
-  );
+  const [resolvingDispute, setResolvingDispute] =
+    useState<DisputedPayout | null>(null);
   const [cashOnly, setCashOnly] = useState(false);
   const [cashOpen, setCashOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -146,10 +145,7 @@ export default function RidersPage() {
    * deliveries and earnings from the ledger, so the fleet list is refetched
    * alongside the queue rather than only the queue.
    */
-  async function resolveDispute(
-    decision: "release" | "reverse",
-    note: string,
-  ) {
+  async function resolveDispute(decision: "release" | "reverse", note: string) {
     if (!resolvingDispute) return;
     await action.run(`dispute:${resolvingDispute.orderId}`, async () => {
       await resolveDeliveryIssue(resolvingDispute.orderId, decision, note);
@@ -227,14 +223,13 @@ export default function RidersPage() {
       ),
     );
 
-
-
   const allApplications = applications.data ?? [];
-  const pendingCount = allApplications.filter((a) => a.status === "pending").length;
+  const pendingCount = allApplications.filter(
+    (a) => a.status === "pending",
+  ).length;
   const visibleApplications = allApplications.filter(
     (a) => applicationFilter === "all" || a.status === applicationFilter,
   );
-
 
   return (
     <PageContainer>
@@ -309,7 +304,9 @@ export default function RidersPage() {
                       <Button
                         variant="outline"
                         size="sm"
-                        disabled={action.isPending(`dispute:${dispute.orderId}`)}
+                        disabled={action.isPending(
+                          `dispute:${dispute.orderId}`,
+                        )}
                         onClick={() => setResolvingDispute(dispute)}
                       >
                         Resolve
@@ -352,7 +349,10 @@ export default function RidersPage() {
           </Select>
         </div>
         <div>
-          <Label htmlFor="rider-vehicle" className="text-xs text-muted-foreground">
+          <Label
+            htmlFor="rider-vehicle"
+            className="text-xs text-muted-foreground"
+          >
             Vehicle
           </Label>
           <Select
@@ -419,7 +419,9 @@ export default function RidersPage() {
                 { key: "status", header: "Status" },
               ]}
               sort={{ key: params.sort, dir: params.dir }}
-              onSortChange={(next) => set({ sort: next.key as typeof params.sort, dir: next.dir })}
+              onSortChange={(next) =>
+                set({ sort: next.key as typeof params.sort, dir: next.dir })
+              }
               sortableKeys={[
                 "name",
                 "city",
@@ -452,102 +454,107 @@ export default function RidersPage() {
       ) : null}
 
       <div id="applications">
-      <Section aria-label="Rider applications" className="mt-8">
-        <h2 className="mb-1 text-lg font-semibold text-card-foreground">
-          Applications
-          {pendingCount > 0 ? (
-            <Badge variant="primary" size="sm" className="ml-2">
-              {pendingCount} pending
-            </Badge>
-          ) : null}
-        </h2>
-        <p className="mb-3 text-sm text-muted-foreground">
-          People who applied to deliver from the app, oldest request first.
-          Approving creates their rider record and lets them sign in; it does not
-          put them online, which is their own tap on the availability toggle.
-        </p>
-        <TableBoundary
-          loading={applications.loading}
-          error={applications.error}
-          onRetry={applications.refetch}
-          errorTitle="Could not load rider applications"
-          skeletonRows={3}
-        >
-          {allApplications.length === 0 ? (
-            <EmptyState
-              title="No applications yet"
-              description="Applications submitted from the rider app land here."
-            />
-          ) : (
-            <>
-              <div
-                className="mb-3 flex flex-wrap gap-2"
-                role="group"
-                aria-label="Filter applications by status"
-              >
-                {(
-                  [
-                    ["pending", "Pending"],
-                    ["approved", "Approved"],
-                    ["rejected", "Rejected"],
-                    ["all", "All"],
-                  ] as const
-                ).map(([key, label]) => (
-                  <Button
-                    key={key}
-                    size="sm"
-                    variant={applicationFilter === key ? "primary" : "outline"}
-                    aria-pressed={applicationFilter === key}
-                    onClick={() => setApplicationFilter(key)}
-                  >
-                    {label}
-                    {key === "pending" && pendingCount > 0 ? (
-                      <span className="ml-1.5 opacity-70">{pendingCount}</span>
-                    ) : null}
-                  </Button>
-                ))}
-              </div>
-              <Card className="overflow-hidden">
-                <PaginatedDataTable<RiderApplication>
-                  columns={applicationColumns}
-                  rows={visibleApplications}
-                  searchFields={[
-                    "fullName",
-                    "applicantEmail",
-                    "phone",
-                    "city",
-                    "vehicle",
-                    "decisionNote",
-                  ]}
-                  emptyTitle="No applications match"
-                  emptyDescription="Nothing with this status right now."
-                  exportName="/dashboard/riders-applications"
-                  exportColumns={[
-                    { key: "fullName", header: "Applicant" },
-                    { key: "applicantEmail", header: "Account" },
-                    { key: "phone", header: "Phone" },
-                    { key: "city", header: "City" },
-                    { key: "vehicle", header: "Vehicle" },
-                    { key: "status", header: "Status" },
-                    { key: "decisionNote", header: "Note" },
-                    { key: "reviewerEmail", header: "Reviewed by" },
-                    { key: "reviewedAt", header: "Reviewed" },
-                    { key: "createdAt", header: "Applied" },
-                  ]}
-                />
-              </Card>
-            </>
-          )}
-        </TableBoundary>
-      </Section>
+        <Section aria-label="Rider applications" className="mt-8">
+          <h2 className="mb-1 text-lg font-semibold text-card-foreground">
+            Applications
+            {pendingCount > 0 ? (
+              <Badge variant="primary" size="sm" className="ml-2">
+                {pendingCount} pending
+              </Badge>
+            ) : null}
+          </h2>
+          <p className="mb-3 text-sm text-muted-foreground">
+            People who applied to deliver from the app, oldest request first.
+            Approving creates their rider record and lets them sign in; it does
+            not put them online, which is their own tap on the availability
+            toggle.
+          </p>
+          <TableBoundary
+            loading={applications.loading}
+            error={applications.error}
+            onRetry={applications.refetch}
+            errorTitle="Could not load rider applications"
+            skeletonRows={3}
+          >
+            {allApplications.length === 0 ? (
+              <EmptyState
+                title="No applications yet"
+                description="Applications submitted from the rider app land here."
+              />
+            ) : (
+              <>
+                <div
+                  className="mb-3 flex flex-wrap gap-2"
+                  role="group"
+                  aria-label="Filter applications by status"
+                >
+                  {(
+                    [
+                      ["pending", "Pending"],
+                      ["approved", "Approved"],
+                      ["rejected", "Rejected"],
+                      ["all", "All"],
+                    ] as const
+                  ).map(([key, label]) => (
+                    <Button
+                      key={key}
+                      size="sm"
+                      variant={
+                        applicationFilter === key ? "primary" : "outline"
+                      }
+                      aria-pressed={applicationFilter === key}
+                      onClick={() => setApplicationFilter(key)}
+                    >
+                      {label}
+                      {key === "pending" && pendingCount > 0 ? (
+                        <span className="ml-1.5 opacity-70">
+                          {pendingCount}
+                        </span>
+                      ) : null}
+                    </Button>
+                  ))}
+                </div>
+                <Card className="overflow-hidden">
+                  <PaginatedDataTable<RiderApplication>
+                    columns={applicationColumns}
+                    rows={visibleApplications}
+                    searchFields={[
+                      "fullName",
+                      "applicantEmail",
+                      "phone",
+                      "city",
+                      "vehicle",
+                      "decisionNote",
+                    ]}
+                    emptyTitle="No applications match"
+                    emptyDescription="Nothing with this status right now."
+                    exportName="/dashboard/riders-applications"
+                    exportColumns={[
+                      { key: "fullName", header: "Applicant" },
+                      { key: "applicantEmail", header: "Account" },
+                      { key: "phone", header: "Phone" },
+                      { key: "city", header: "City" },
+                      { key: "vehicle", header: "Vehicle" },
+                      { key: "status", header: "Status" },
+                      { key: "decisionNote", header: "Note" },
+                      { key: "reviewerEmail", header: "Reviewed by" },
+                      { key: "reviewedAt", header: "Reviewed" },
+                      { key: "createdAt", header: "Applied" },
+                    ]}
+                  />
+                </Card>
+              </>
+            )}
+          </TableBoundary>
+        </Section>
       </div>
-
 
       <CashToCollectDialog
         open={cashOpen}
         rows={cashHoldingRiders}
         filterActive={cashOnly}
         onClose={() => setCashOpen(false)}
+        onCollected={cash.refetch}
         onToggleFilter={() => {
           setCashOnly((value) => !value);
           setCashOpen(false);
@@ -572,7 +579,9 @@ export default function RidersPage() {
               } catch (cause) {
                 throw new Error(
                   friendlyRiderSaveError(cause) ??
-                    (cause instanceof Error ? cause.message : "Could not save."),
+                    (cause instanceof Error
+                      ? cause.message
+                      : "Could not save."),
                 );
               }
             }, `Added ${values.name}.`);
@@ -634,18 +643,20 @@ export default function RidersPage() {
           busy={busy}
           onClose={() => setMode(null)}
           onConfirm={async (reason) => {
-            await run(async () => {
-              await setRiderSuspended(
-                mode.rider.id,
-                mode.kind === "suspend",
-                reason,
-              );
-              await overview.refetch();
-              setMode(null);
-            },
-            mode.kind === "suspend"
-              ? `${mode.rider.name} is suspended and will not be offered orders.`
-              : `${mode.rider.name} is reinstated.`);
+            await run(
+              async () => {
+                await setRiderSuspended(
+                  mode.rider.id,
+                  mode.kind === "suspend",
+                  reason,
+                );
+                await overview.refetch();
+                setMode(null);
+              },
+              mode.kind === "suspend"
+                ? `${mode.rider.name} is suspended and will not be offered orders.`
+                : `${mode.rider.name} is reinstated.`,
+            );
           }}
         />
       ) : null}
@@ -671,12 +682,18 @@ export default function RidersPage() {
           // refuses the approval (0051), because a hint that can be bypassed is
           // not an enforcement.
           emailTaken={existingEmails.some(
-            (email) => email.trim().toLowerCase() === mode.row.applicantEmail.trim().toLowerCase(),
+            (email) =>
+              email.trim().toLowerCase() ===
+              mode.row.applicantEmail.trim().toLowerCase(),
           )}
           onClose={() => setMode(null)}
           onDecide={async (approve, note) => {
             await run(async () => {
-              const result = await reviewRiderApplication(mode.row.id, approve, note);
+              const result = await reviewRiderApplication(
+                mode.row.id,
+                approve,
+                note,
+              );
               await Promise.all([
                 applications.refetch(),
                 overview.refetch(),
@@ -695,4 +712,3 @@ export default function RidersPage() {
     </PageContainer>
   );
 }
-

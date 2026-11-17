@@ -165,8 +165,8 @@ export default function RiderEarningsRoute() {
               <View style={styles.cashText}>
                 <Text style={type.eyebrow}>To hand in to KFD</Text>
                 <Text style={styles.cashCaption}>
-                  Delivery and service fees collected, not yet handed in. The food money
-                  already went to the shop at pickup.
+                  ₱20 for each delivery, not yet handed in. You keep ₱25 of the fees,
+                  and the food money already went to the shop at pickup.
                 </Text>
               </View>
               <Text

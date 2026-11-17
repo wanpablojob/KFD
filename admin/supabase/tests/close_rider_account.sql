@@ -38,12 +38,12 @@ do $$ begin
     perform admin_close_rider_account('R-BYE');
     raise exception 'FAIL closed a rider still holding cash';
   exception when sqlstate 'P0001' then
-    if sqlerrm not like '%(150.00 on hand)%' then raise; end if;
+    if sqlerrm not like '%(20.00 on hand)%' then raise; end if;
   end;
   raise notice 'PASS refused without a request, and with cash on hand';
 end $$;
 
-select admin_record_cash_handover('R-BYE', 150, 'final') is not null as handed_over;
+select admin_record_cash_handover('R-BYE', 20, 'final') is not null as handed_over;
 select admin_close_rider_account('R-BYE');
 
 do $$ begin

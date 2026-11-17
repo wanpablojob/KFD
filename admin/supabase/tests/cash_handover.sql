@@ -10,10 +10,16 @@ insert into rider_cash_collections (rider_id, order_id, amount_expected, amount_
 values ('R-T1', 'O-1', 100, 100, 0), ('R-T1', 'O-2', 100, 90, -10);
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated"}', true);
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000000a1', true);
--- On hand 190. Hand over 50 -> 140 left.
-select admin_record_cash_handover('R-T1', 50, 'first') is not null as handover_1;
--- 140 is allowed exactly (the buggy join would have computed 280 - 100 = 180 here, or refused wrongly elsewhere).
-select admin_record_cash_handover('R-T1', 140, 'rest') is not null as handover_2;
+-- Two deliveries: KFD is owed 20 each, 40 in all (0151), whatever was collected.
+do $$ begin
+  if (select string_agg(reference || '=' || amount, ',' order by reference)
+        from admin_rider_cash_orders() where rider_id = 'R-T1') is not null then
+    raise exception 'FAIL orders without a reference row should not be listed';
+  end if;
+end $$;
+-- Hand over 15 -> 25 left; 25 is allowed exactly.
+select admin_record_cash_handover('R-T1', 15, 'first') is not null as handover_1;
+select admin_record_cash_handover('R-T1', 25, 'rest') is not null as handover_2;
 -- Now 0 on hand: 0.01 must be refused with a readable amount.
 do $$ begin
   perform admin_record_cash_handover('R-T1', 0.01, 'over');
@@ -24,7 +30,7 @@ exception when others then
 end $$;
 do $$ begin
   if (select collected::text || '|' || handed_over || '|' || on_hand || '|' || flagged
-        from admin_rider_cash() where rider_id = 'R-T1') <> '190.00|190.00|0.00|10.00' then
+        from admin_rider_cash() where rider_id = 'R-T1') <> '190.00|40.00|0.00|10.00' then
     raise exception 'FAIL admin cash roster totals wrong';
   end if;
   raise notice 'PASS admin cash roster totals';
@@ -51,9 +57,23 @@ values ('R-T2', 'O-T1', 100, 100, 0);
 insert into delivery_cash_collections (delivery_id, rider_id, amount_expected, amount_collected, variance)
 values ('D-T1', 'R-T2', 300, 300, 0);
 
--- The handover of the whole balance must be accepted. Before 0110 this was
--- refused with "more than the rider is holding (100.00 on hand)".
-select admin_record_cash_handover('R-T2', 400, 'orders and trip') is not null as trip_handover;
+-- One order and one trip: two deliveries, so 40 is owed (0151). The trip's
+-- reference is listed for the admin at 20.00.
+do $$ begin
+  if (select string_agg(reference || '=' || amount, ',')
+        from admin_rider_cash_orders() where rider_id = 'R-T2') <> '#KFD-TT1=20.00' then
+    raise exception 'FAIL the trip is not listed at 20: %',
+      (select string_agg(reference || '=' || amount, ',') from admin_rider_cash_orders() where rider_id = 'R-T2');
+  end if;
+  raise notice 'PASS the admin sees the delivery behind the balance';
+end $$;
+select admin_record_cash_handover('R-T2', 40, 'orders and trip') is not null as trip_handover;
+do $$ begin
+  if exists (select 1 from admin_rider_cash_orders() where rider_id = 'R-T2') then
+    raise exception 'FAIL a paid-off rider still has deliveries listed';
+  end if;
+  raise notice 'PASS nothing is listed once the rider has handed it in';
+end $$;
 -- Nothing is left now, so a further peso must be refused with the balance.
 do $$ begin
   perform admin_record_cash_handover('R-T2', 0.01, 'over');
@@ -64,7 +84,7 @@ exception when others then
 end $$;
 do $$ begin
   if (select collected::text || '|' || handed_over || '|' || on_hand
-        from admin_rider_cash() where rider_id = 'R-T2') <> '400.00|400.00|0.00' then
+        from admin_rider_cash() where rider_id = 'R-T2') <> '400.00|40.00|0.00' then
     raise exception 'FAIL trip cash missing from the roster or the balance: %',
       (select collected::text || '|' || handed_over || '|' || on_hand
          from admin_rider_cash() where rider_id = 'R-T2');
