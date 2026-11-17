@@ -1,6 +1,7 @@
 import { createContext, use, useEffect, useState, type PropsWithChildren } from "react";
 import NetInfo, { NetInfoState } from "@react-native-community/netinfo";
 import { View, Text, StyleSheet } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "../lib/theme";
 import { isOffline } from "./connectivity-state";
 
@@ -48,6 +49,7 @@ export function useConnectivity(): ConnectivityState {
 
 export function ConnectivityBanner() {
   const state = useConnectivity();
+  const insets = useSafeAreaInsets();
   const { isConnected } = state;
 
   if (isConnected === null) return null;
@@ -57,7 +59,9 @@ export function ConnectivityBanner() {
   if (!isOffline(state)) return null;
 
   return (
-    <View style={styles.banner}>
+    // Over the screen, below the status bar: it is drawn on top of the
+    // navigator, so it must not push every screen down or sit under the clock.
+    <View style={[styles.banner, { paddingTop: insets.top + 8 }]}>
       <Text style={styles.text}>You&apos;re offline — showing cached data</Text>
     </View>
   );
@@ -65,6 +69,12 @@ export function ConnectivityBanner() {
 
 const styles = StyleSheet.create({
   banner: {
+    position: "absolute",
+    // Taps go through to the screen under it.
+    pointerEvents: "none",
+    top: 0,
+    left: 0,
+    right: 0,
     backgroundColor: colors.goldSoft,
     paddingVertical: 8,
     paddingHorizontal: 16,

@@ -173,46 +173,52 @@ function RootNavigator() {
     role.role !== "merchant";
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <ConnectivityBanner />
-      <Stack.Protected guard={signedOut}>
-        <Stack.Screen name="index" />
-        <Stack.Screen name="login" />
-        <Stack.Screen name="signup" />
-        <Stack.Screen name="forgot-password" />
-      </Stack.Protected>
-      <Stack.Protected guard={isRider}>
-        <Stack.Screen name="rider" />
-      </Stack.Protected>
-      <Stack.Protected guard={isCustomer}>
-        <Stack.Screen name="customer" />
-        {/*
-         * Rider application, from the customer's Account. It needs a signed-in
-         * account (submit_rider_application uses auth.uid()); it used to sit in
-         * the signed-out group, so the Account link always bounced.
-         */}
-        <Stack.Screen name="rider-apply" />
-      </Stack.Protected>
-      <Stack.Protected guard={isMerchant}>
-        <Stack.Screen name="merchant" />
-      </Stack.Protected>
-      <Stack.Protected guard={isStaff}>
-        <Stack.Screen name="account" />
-      </Stack.Protected>
-      {/* The inbox, for every signed-in role. After the role groups so it is
+    // The banner is a sibling of the Stack, drawn over it. A Stack takes only
+    // Screen and Protected children; SDK 58's expo-router throws on anything
+    // else ("Unknown child element passed to Stack"), which stopped the app at
+    // launch for every signed-in role.
+    <View style={styles.root}>
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Protected guard={signedOut}>
+          <Stack.Screen name="index" />
+          <Stack.Screen name="login" />
+          <Stack.Screen name="signup" />
+          <Stack.Screen name="forgot-password" />
+        </Stack.Protected>
+        <Stack.Protected guard={isRider}>
+          <Stack.Screen name="rider" />
+        </Stack.Protected>
+        <Stack.Protected guard={isCustomer}>
+          <Stack.Screen name="customer" />
+          {/*
+           * Rider application, from the customer's Account. It needs a signed-in
+           * account (submit_rider_application uses auth.uid()); it used to sit in
+           * the signed-out group, so the Account link always bounced.
+           */}
+          <Stack.Screen name="rider-apply" />
+        </Stack.Protected>
+        <Stack.Protected guard={isMerchant}>
+          <Stack.Screen name="merchant" />
+        </Stack.Protected>
+        <Stack.Protected guard={isStaff}>
+          <Stack.Screen name="account" />
+        </Stack.Protected>
+        {/* The inbox, for every signed-in role. After the role groups so it is
           never the screen the navigator falls back to. */}
-      <Stack.Protected guard={!!user && !!role}>
-        <Stack.Screen name="notifications" />
-      </Stack.Protected>
-      {/*
-       * Public tracking is declared LAST on purpose. When a screen becomes
-       * protected (e.g. a signed-in customer leaving /login), the navigator
-       * redirects to the first available screen in the stack. If `track` came
-       * first it would win that race and a customer would land on the tracking
-       * page instead of the storefront.
-       */}
-      <Stack.Screen name="track" />
-    </Stack>
+        <Stack.Protected guard={!!user && !!role}>
+          <Stack.Screen name="notifications" />
+        </Stack.Protected>
+        {/*
+         * Public tracking is declared LAST on purpose. When a screen becomes
+         * protected (e.g. a signed-in customer leaving /login), the navigator
+         * redirects to the first available screen in the stack. If `track` came
+         * first it would win that race and a customer would land on the tracking
+         * page instead of the storefront.
+         */}
+        <Stack.Screen name="track" />
+      </Stack>
+      <ConnectivityBanner />
+    </View>
   );
 }
 
@@ -244,6 +250,7 @@ export default function RootLayout() {
 }
 
 const styles = StyleSheet.create({
+  root: { flex: 1 },
   errorScreen: {
     flex: 1,
     backgroundColor: colors.background,
