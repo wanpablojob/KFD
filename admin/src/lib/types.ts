@@ -48,6 +48,8 @@ export interface Order {
    */
   deliveryFailedReason: string | null;
   deliveryFailedAt: string | null;
+  /** When the shop marked it packed and waiting for the rider (0146). */
+  readyForPickupAt?: string | null;
   /**
    * Total refunded against this order (0084), as a positive number. Revenue is
    * reported net of it. Optional because only the revenue queries join the

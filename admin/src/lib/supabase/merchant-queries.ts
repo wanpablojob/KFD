@@ -76,6 +76,8 @@ export async function fetchMerchantOrders(): Promise<Order[]> {
       typeof o.delivery_failed_reason === "string" ? o.delivery_failed_reason : null,
     deliveryFailedAt:
       typeof o.delivery_failed_at === "string" ? o.delivery_failed_at : null,
+    readyForPickupAt:
+      typeof o.ready_for_pickup_at === "string" ? o.ready_for_pickup_at : null,
     refunded: refundedByOrder.get(o.id) ?? 0,
   }));
 }
@@ -122,6 +124,16 @@ export function allowedTransitions(
   return (MERCHANT_TRANSITIONS[status] ?? []).filter(
     (next) => next !== "out_for_delivery" && next !== "confirmed"
   );
+}
+
+/**
+ * The food is packed and waiting for the rider (0146). The order stays
+ * `preparing`; merchant_mark_ready stamps the time, for the merchant's own shop
+ * or an admin only.
+ */
+export async function markOrderReady(id: string): Promise<void> {
+  const { error } = await supabase.rpc("merchant_mark_ready", { p_order_id: id });
+  if (error) throw new Error(error.message);
 }
 
 export async function setOrderStatus(

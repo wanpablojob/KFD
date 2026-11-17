@@ -31,6 +31,7 @@ import type {
 } from "../lib/storefront";
 import { colors, radius, shadow, spacing, type } from "../lib/theme";
 import { RiderOnTheWay } from "../components/RiderOnTheWay";
+import { statusLabel } from "../lib/order-status";
 
 const STATUS_LABEL: Record<string, string> = {
   pending: "Order placed",
@@ -332,7 +333,7 @@ function DeliveryCard({
                 {stop.restaurant}
               </Text>
               <Text style={styles.shopStatus}>
-                {STATUS_LABEL[stop.status] ?? stop.status}
+                {statusLabel(STATUS_LABEL, stop.status, stop.ready_for_pickup_at)}
               </Text>
             </View>
             {stop.items.map((item, index) => (
@@ -551,7 +552,7 @@ function OrderCard({
   };
 }) {
   const cancelled = order.status === "cancelled";
-  const steps = orderProgress(order.status);
+  const steps = orderProgress(order.status, order.ready_for_pickup_at);
   const eta = deliveryWindow(order.placed_at, order.prep_minutes, order.status);
 
   return (
@@ -572,7 +573,7 @@ function OrderCard({
               order.status === "delivered" && styles.statusLabelDelivered,
             ]}
           >
-            {STATUS_LABEL[order.status] ?? order.status}
+            {statusLabel(STATUS_LABEL, order.status, order.ready_for_pickup_at)}
           </Text>
         </View>
       </View>

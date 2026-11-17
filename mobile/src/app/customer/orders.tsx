@@ -32,6 +32,7 @@ import { fetchMenu } from "../../lib/storefront";
 import { buildReorder } from "../../lib/reorder";
 import { supabase } from "../../lib/supabase";
 import { colors, radius, shadow, spacing, type } from "../../lib/theme";
+import { statusLabel } from "../../lib/order-status";
 
 const STATUS_LABEL: Record<string, string> = {
   pending: "Order placed",
@@ -623,7 +624,7 @@ function OrderCard({
               delivered && styles.statusTextDelivered,
             ]}
           >
-            {STATUS_LABEL[order.status] ?? order.status}
+            {statusLabel(STATUS_LABEL, order.status, order.ready_for_pickup_at)}
           </Text>
         </View>
       </View>
@@ -724,7 +725,7 @@ function TripCard({
                 delivered && styles.statusTextDelivered,
               ]}
             >
-              {STATUS_LABEL[status] ?? status}
+              {statusLabel(STATUS_LABEL, status, parts[0]?.ready_for_pickup_at)}
             </Text>
           </View>
         </View>
@@ -737,7 +738,7 @@ function TripCard({
               {part.restaurant}
             </Text>
             <Text style={styles.tripShopStatus}>
-              {STATUS_LABEL[part.status] ?? part.status}
+              {statusLabel(STATUS_LABEL, part.status, part.ready_for_pickup_at)}
             </Text>
           </View>
           <Text style={styles.items}>

@@ -242,7 +242,10 @@ export default function MerchantOrdersPage() {
                           <span className="text-sm font-semibold">
                             {formatCurrency(order.total)}
                           </span>
-                          <StatusBadge status={order.status} />
+                          <StatusBadge
+                            status={order.status}
+                            readyForPickupAt={order.readyForPickupAt}
+                          />
                         </div>
                       </div>
 
@@ -263,6 +266,7 @@ export default function MerchantOrdersPage() {
                       </ul>
 
                       <OrderActions
+                        readyForPickupAt={order.readyForPickupAt ?? null}
                         orderId={order.id}
                         status={order.status}
                         onChanged={orders.refetch}

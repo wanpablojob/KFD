@@ -112,6 +112,10 @@ export function TripCard({
                 </Text>
               </View>
             ))}
+            {/* The shop packed it (0146): the rider can go straight in. */}
+            {!collected && !cancelled && stop.ready_for_pickup_at ? (
+              <Text style={styles.readyNote}>Ready for pickup</Text>
+            ) : null}
             {collected ? (
               <Text style={styles.collected}>Picked up</Text>
             ) : cancelled ? (
@@ -211,6 +215,7 @@ const TRIP_STATUS: Record<string, string> = {
 
 const styles = StyleSheet.create({
   nextStep: { ...type.caption, flex: 1 },
+  readyNote: { ...type.label, color: colors.success },
   card: {
     backgroundColor: colors.card,
     borderRadius: radius.lg,

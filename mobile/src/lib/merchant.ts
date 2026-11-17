@@ -28,6 +28,8 @@ export interface MerchantOrder {
   rider: string | null;
   rejectionReason: string | null;
   items: { name: string; quantity: number }[];
+  /** When the kitchen marked it packed and waiting for the rider (0146). */
+  readyForPickupAt: string | null;
 }
 
 function parseItems(value: unknown): { name: string; quantity: number }[] {
@@ -52,7 +54,7 @@ export async function fetchMerchantOrders(): Promise<MerchantOrder[]> {
   const { data, error } = await supabase
     .from("orders")
     .select(
-      "id, reference, customer, status, placed_at, subtotal, rider, rejection_reason, items"
+      "id, reference, customer, status, placed_at, subtotal, rider, rejection_reason, items, ready_for_pickup_at"
     )
     .or(
       `placed_at.gte.${since},status.in.(pending,confirmed,preparing,out_for_delivery)`
@@ -70,6 +72,7 @@ export async function fetchMerchantOrders(): Promise<MerchantOrder[]> {
     rider: o.rider || null,
     rejectionReason: o.rejection_reason ?? null,
     items: parseItems(o.items),
+    readyForPickupAt: o.ready_for_pickup_at ?? null,
   }));
 }
 
@@ -137,6 +140,16 @@ export async function setMerchantOrderStatus(
     event: "status_changed",
     ...(status === "cancelled" && reason ? { reason: reason.trim() } : {}),
   });
+}
+
+/**
+ * The food is packed and waiting for the rider (0146). The order stays
+ * `preparing` on the server; merchant_mark_ready only stamps the time, and only
+ * for the merchant's own shop.
+ */
+export async function markMerchantOrderReady(orderId: string): Promise<void> {
+  const { error } = await supabase.rpc("merchant_mark_ready", { p_order_id: orderId });
+  if (error) throw error;
 }
 
 export interface MerchantMenuItem {
@@ -400,6 +413,14 @@ export function useSetMerchantOrderStatus() {
   return useMutation({
     mutationFn: (args: { orderId: string; status: OrderStatus; reason?: string }) =>
       setMerchantOrderStatus(args.orderId, args.status, args.reason),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["merchantOrders"] }),
+  });
+}
+
+export function useMarkOrderReady() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: markMerchantOrderReady,
     onSettled: () => queryClient.invalidateQueries({ queryKey: ["merchantOrders"] }),
   });
 }

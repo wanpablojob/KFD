@@ -228,10 +228,14 @@ function OrderRow({
           <span className="text-sm font-semibold">
             {formatCurrency(order.subtotal)}
           </span>
-          <StatusBadge status={order.status} />
+          <StatusBadge
+                            status={order.status}
+                            readyForPickupAt={order.readyForPickupAt}
+                          />
         </div>
       </div>
       <OrderActions
+                        readyForPickupAt={order.readyForPickupAt ?? null}
         orderId={order.id}
         status={order.status}
         onChanged={onChanged}

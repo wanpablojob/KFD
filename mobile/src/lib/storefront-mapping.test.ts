@@ -39,6 +39,8 @@ describe("mapRiderOrderRow", () => {
       delivery_address: "12 Mabini St",
       rider_payout: 45,
       next_cursor: "2026-10-20T10:00:00Z",
+      // Not marked ready by the shop (0146).
+      ready_for_pickup_at: null,
     });
   });
 

@@ -26,6 +26,7 @@ import { riderProfileGate } from "../lib/rider-profile-gate";
 import { deviceMapsUrl, openInMaps } from "../lib/maps";
 import { isTerminalStatus } from "../lib/order-progress";
 import { deliveryActions } from "../lib/delivery-actions";
+import { isReadyForPickup, statusLabel } from "../lib/order-status";
 import { paymentLabel } from "../lib/payment-label";
 import { footerMeta } from "../lib/order-timestamp";
 import { useConnectivity } from "../lib/connectivity-context";
@@ -552,7 +553,7 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
               <View style={styles.orderHeader}>
                 <Text style={styles.orderRef}>{item.reference}</Text>
                 <Text style={styles.orderStatus}>
-                  {STATUS_LABEL[item.status] ?? item.status}
+                  {statusLabel(STATUS_LABEL, item.status, item.ready_for_pickup_at)}
                 </Text>
               </View>
 
@@ -568,7 +569,9 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
                   </Text>
                   <Text style={styles.stepText}>
                     {canPickUp
-                      ? `Go to ${item.restaurant} and pick up the food`
+                      ? isReadyForPickup(item.status, item.ready_for_pickup_at)
+                        ? `${item.restaurant} has it ready: pick it up`
+                        : `Go to ${item.restaurant} and pick up the food`
                       : `Deliver to ${item.customer}`}
                   </Text>
                 </View>
@@ -715,7 +718,7 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
                   {pickingUpId === item.id ? (
                     <ActivityIndicator color={colors.textInverse} size="small" />
                   ) : (
-                    <Text style={styles.pickupLabel}>Picked up</Text>
+                    <Text style={styles.pickupLabel}>Out for delivery</Text>
                   )}
                 </Pressable>
               ) : null}

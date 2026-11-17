@@ -183,6 +183,8 @@ export interface RiderOrderPageItem {
   payment: string;
   placed_at: string;
   next_cursor: string | null;
+  /** When the shop marked the food packed and waiting (0146); null until then. */
+  ready_for_pickup_at: string | null;
 }
 
 export interface RiderOrderPageResult {
@@ -219,6 +221,7 @@ export function mapRiderOrderRow(row: Record<string, unknown>): RiderOrderPageIt
     payment: String(row.payment),
     placed_at: String(row.placed_at),
     next_cursor: (row.next_cursor as string | null) ?? null,
+    ready_for_pickup_at: (row.ready_for_pickup_at as string | null) ?? null,
   };
 }
 
@@ -604,6 +607,8 @@ export interface CustomerOrder {
   payment: string;
   placed_at: string;
   delivery_address: string | null;
+  /** When the shop marked the food packed and waiting (0146); null until then. */
+  ready_for_pickup_at: string | null;
 }
 
 /**
@@ -633,6 +638,7 @@ export function mapMyOrderRow(row: Record<string, unknown>): CustomerOrder {
     payment: String(row.payment),
     placed_at: String(row.placed_at),
     delivery_address: (row.delivery_address as string | null) ?? null,
+    ready_for_pickup_at: (row.ready_for_pickup_at as string | null) ?? null,
   };
 }
 
@@ -641,7 +647,7 @@ export async function fetchMyOrders(): Promise<CustomerOrder[]> {
   const { data, error } = await supabase
     .from("orders")
     .select(
-      "id, reference, restaurant, restaurant_id, rider_id, delivery_id, rejection_reason, delivery_failed_reason, items, subtotal, delivery_fee, service_fee, total, status, payment, placed_at, delivery_address"
+      "id, reference, restaurant, restaurant_id, rider_id, delivery_id, rejection_reason, delivery_failed_reason, items, subtotal, delivery_fee, service_fee, total, status, payment, placed_at, delivery_address, ready_for_pickup_at"
     )
     .order("placed_at", { ascending: false })
     .limit(30);
@@ -707,6 +713,8 @@ export interface TrackedOrder {
   delivery_address: string | null;
   /** Restaurant prep time snapshotted at order time; null on orders before 0077. */
   prep_minutes: number | null;
+  /** When the shop marked the food packed and waiting (0146); null until then. */
+  ready_for_pickup_at: string | null;
 }
 
 /**
@@ -766,6 +774,7 @@ export async function fetchTrackedOrder(
     placed_at: String(row.placed_at),
     delivery_address: (row.delivery_address as string | null) ?? null,
     prep_minutes: row.prep_minutes == null ? null : Number(row.prep_minutes),
+    ready_for_pickup_at: (row.ready_for_pickup_at as string | null) ?? null,
   };
 }
 
@@ -1055,6 +1064,8 @@ export interface TrackedDeliveryStop {
   }[];
   subtotal: number;
   status: string;
+  /** When the shop marked the food packed and waiting (0146); null until then. */
+  ready_for_pickup_at: string | null;
 }
 
 export interface TrackedDelivery {
@@ -1116,6 +1127,10 @@ export async function fetchTrackedDelivery(
           restaurant: typeof shop.restaurant === "string" ? shop.restaurant : "",
           subtotal: typeof shop.subtotal === "number" ? shop.subtotal : 0,
           status: typeof shop.status === "string" ? shop.status : "pending",
+          ready_for_pickup_at:
+            typeof shop.ready_for_pickup_at === "string"
+              ? shop.ready_for_pickup_at
+              : null,
           items: items.flatMap((item) => {
             if (item === null || typeof item !== "object") return [];
             const row2 = item as Record<string, unknown>;
@@ -1182,6 +1197,8 @@ export interface DeliveryStop {
    * on the route any more -- already collected, or the shop cancelled.
    */
   stop_order: number | null;
+  /** When the shop marked the food packed and waiting (0146); null until then. */
+  ready_for_pickup_at: string | null;
 }
 
 /**
@@ -1302,6 +1319,7 @@ export async function fetchDeliveryStops(deliveryId: string): Promise<DeliverySt
     prep_minutes: row.prep_minutes ?? null,
     ready_at: row.ready_at ?? null,
     stop_order: row.stop_order ?? null,
+    ready_for_pickup_at: row.ready_for_pickup_at ?? null,
     items: (parseOrderItems(row.items) ?? []).map((item) => ({
       menu_item_id: item.menu_item_id ?? "",
       name: item.name,

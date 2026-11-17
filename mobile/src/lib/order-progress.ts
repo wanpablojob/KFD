@@ -15,6 +15,9 @@ export const ORDER_PROGRESS = [
   { status: "pending", label: "Order placed" },
   { status: "confirmed", label: "Confirmed" },
   { status: "preparing", label: "Being prepared" },
+  // Not an order status: the shop's ready_for_pickup_at on a preparing order
+  // (0146). Shown as its own step so the customer sees the food is waiting.
+  { status: "ready_for_pickup", label: "Ready for pickup" },
   { status: "out_for_delivery", label: "Out for delivery" },
   { status: "delivered", label: "Delivered" },
 ] as const;
@@ -39,10 +42,15 @@ export function isTerminalStatus(status: string): boolean {
  * progression, so this returns an empty list and the screen shows the cancelled
  * outcome on its own.
  */
-export function orderProgress(status: string): ProgressStep[] {
+export function orderProgress(
+  status: string,
+  readyForPickupAt: string | null = null
+): ProgressStep[] {
   if (status === "cancelled") return [];
 
-  const found = ORDER_PROGRESS.findIndex((step) => step.status === status);
+  const effective =
+    status === "preparing" && readyForPickupAt ? "ready_for_pickup" : status;
+  const found = ORDER_PROGRESS.findIndex((step) => step.status === effective);
   // An unrecognised status is treated as the first step rather than throwing:
   // the screen still has to render something, and "placed" is the safe claim.
   const currentIndex = found === -1 ? 0 : found;

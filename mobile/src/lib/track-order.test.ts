@@ -60,6 +60,7 @@ describe("fetchTrackedOrder", () => {
       delivery_address: "123 Rizal St, Kabankalan",
       // A row from before 0077 carries no prep time; the estimate falls back.
       prep_minutes: null,
+      ready_for_pickup_at: null,
     });
   });
 

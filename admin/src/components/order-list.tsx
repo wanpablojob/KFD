@@ -75,7 +75,7 @@ const columns: Column<Order>[] = [
     // view nobody opens before reassigning.
     cell: (row) => (
       <div className="flex flex-col items-start gap-1">
-        <StatusBadge status={row.status} />
+        <StatusBadge status={row.status} readyForPickupAt={row.readyForPickupAt} />
         {row.deliveryFailedReason ? (
           <Badge variant="destructive" size="sm" className="max-w-[22rem] whitespace-normal">
             <span className="line-clamp-2">

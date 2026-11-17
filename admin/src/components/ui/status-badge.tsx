@@ -24,7 +24,20 @@ const statusMap: Record<Status, { variant: BadgeVariant; label: string }> = {
   rejected: { variant: "destructive", label: "Rejected" },
 };
 
-export function StatusBadge({ status }: { status: Status }) {
+/**
+ * `readyForPickupAt` (0146): a preparing order the shop marked packed shows
+ * "Ready for pickup". It is not a status of its own on the server.
+ */
+export function StatusBadge({
+  status,
+  readyForPickupAt,
+}: {
+  status: Status;
+  readyForPickupAt?: string | null;
+}) {
+  if (status === "preparing" && readyForPickupAt) {
+    return <Badge variant="success">Ready for pickup</Badge>;
+  }
   const entry = statusMap[status];
   if (!entry) {
     return <Badge>{status.replace(/_/g, " ")}</Badge>;

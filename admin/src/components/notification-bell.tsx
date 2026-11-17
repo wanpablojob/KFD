@@ -191,7 +191,7 @@ export function NotificationBell({
                         <span className="truncate text-sm font-medium text-card-foreground">
                           {o.reference}
                         </span>
-                        <StatusBadge status={o.status} />
+                        <StatusBadge status={o.status} readyForPickupAt={o.readyForPickupAt} />
                       </div>
                       <p className="mt-0.5 truncate text-xs text-muted-foreground">
                         {o.customer} · {o.restaurant}

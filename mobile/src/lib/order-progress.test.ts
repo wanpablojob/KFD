@@ -25,6 +25,7 @@ describe("orderProgress", () => {
       "pending",
       "confirmed",
       "preparing",
+      "ready_for_pickup",
       "out_for_delivery",
       "delivered",
     ]);
@@ -44,12 +45,25 @@ describe("orderProgress", () => {
       "current",
       "upcoming",
       "upcoming",
+      "upcoming",
     ]);
+  });
+
+  it("moves to Ready for pickup once the shop marks a preparing order ready", () => {
+    const steps = orderProgress("preparing", "2026-11-17T10:00:00Z");
+    expect(steps.find((s) => s.state === "current")?.label).toBe("Ready for pickup");
+    // Picked up: on the way, whatever the shop said before.
+    expect(
+      orderProgress("out_for_delivery", "2026-11-17T10:00:00Z").find(
+        (s) => s.state === "current"
+      )?.status
+    ).toBe("out_for_delivery");
   });
 
   it("marks the final step current (and the rest done) when delivered", () => {
     const steps = orderProgress("delivered");
     expect(steps.map((s) => s.state)).toEqual([
+      "done",
       "done",
       "done",
       "done",

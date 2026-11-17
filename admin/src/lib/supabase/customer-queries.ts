@@ -198,6 +198,7 @@ function mapCustomerDelivery(row: Record<string, unknown>): CustomerDelivery {
     rejectionReason: text(row.rejection_reason),
     deliveryFailedReason: text(row.delivery_failed_reason),
     deliveryFailedAt: text(row.delivery_failed_at),
+    readyForPickupAt: text(row.ready_for_pickup_at),
     deliveryAddress: text(row.delivery_address),
   };
 }

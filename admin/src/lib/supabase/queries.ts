@@ -542,6 +542,8 @@ function toOrder(o: Tables<"orders">, refunded = 0): Order {
         : null,
     deliveryFailedAt:
       typeof o.delivery_failed_at === "string" ? o.delivery_failed_at : null,
+    readyForPickupAt:
+      typeof o.ready_for_pickup_at === "string" ? o.ready_for_pickup_at : null,
     refunded,
   };
 }
@@ -583,6 +585,8 @@ export async function fetchOrdersByCustomer(
         : null,
     deliveryFailedAt:
       typeof o.delivery_failed_at === "string" ? o.delivery_failed_at : null,
+    readyForPickupAt:
+      typeof o.ready_for_pickup_at === "string" ? o.ready_for_pickup_at : null,
   }));
 }
 
@@ -623,6 +627,8 @@ export async function fetchOrdersByRider(
         : null,
     deliveryFailedAt:
       typeof o.delivery_failed_at === "string" ? o.delivery_failed_at : null,
+    readyForPickupAt:
+      typeof o.ready_for_pickup_at === "string" ? o.ready_for_pickup_at : null,
   }));
 }
 
@@ -663,6 +669,8 @@ export async function fetchOrdersByRestaurant(
         : null,
     deliveryFailedAt:
       typeof o.delivery_failed_at === "string" ? o.delivery_failed_at : null,
+    readyForPickupAt:
+      typeof o.ready_for_pickup_at === "string" ? o.ready_for_pickup_at : null,
   }));
 }
 

@@ -20,6 +20,7 @@ import { homeSections } from "../../lib/customer-home";
 import { buildTasteProfile, fetchHomePicks, greetingFor } from "../../lib/home-picks";
 import type { RestaurantRow } from "../../lib/storefront";
 import { colors, radius, shadow, spacing, type } from "../../lib/theme";
+import { statusLabel } from "../../lib/order-status";
 
 const STATUS_COPY: Record<string, string> = {
   pending: "Waiting for the restaurant to accept",
@@ -135,7 +136,13 @@ export default function CustomerHomeScreen() {
             <Ionicons name="bicycle" size={28} color={colors.textInverse} />
             <View style={styles.activeText}>
               <Text style={styles.activeTitle}>
-                {STATUS_COPY[sections.activeOrder.status] ?? "Your order"}
+                {sections.activeOrder.status in STATUS_COPY
+                  ? statusLabel(
+                      STATUS_COPY,
+                      sections.activeOrder.status,
+                      sections.activeOrder.ready_for_pickup_at
+                    )
+                  : "Your order"}
               </Text>
               <Text style={styles.activeSub}>
                 {sections.activeOrder.reference} · Tap to track

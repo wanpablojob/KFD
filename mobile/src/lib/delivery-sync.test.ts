@@ -16,6 +16,7 @@ function page(ids: string[], nextCursor: string | null = null): DeliveryPage {
       payment: "cash",
       placed_at: "2026-10-01T00:00:00Z",
       next_cursor: nextCursor,
+      ready_for_pickup_at: null,
     })),
     nextCursor,
   };

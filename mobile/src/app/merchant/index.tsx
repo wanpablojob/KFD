@@ -10,6 +10,7 @@ import {
 } from "../../components/MerchantUi";
 import { useSession } from "../../lib/session-context";
 import {
+  useMarkOrderReady,
   useMerchantOrders,
   useSetMerchantOrderStatus,
   useStoreStatus,
@@ -42,6 +43,7 @@ export default function MerchantOrdersScreen() {
   const orders = useMerchantOrders();
   const store = useStoreStatus(restaurantId);
   const setStatus = useSetMerchantOrderStatus();
+  const markReady = useMarkOrderReady();
   const [cancelling, setCancelling] = useState<MerchantOrder | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -72,7 +74,20 @@ export default function MerchantOrdersScreen() {
     }
   }
 
-  const busyId = setStatus.isPending ? setStatus.variables?.orderId : undefined;
+  async function ready(order: MerchantOrder) {
+    setError(null);
+    try {
+      await markReady.mutateAsync(order.id);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not update the order.");
+    }
+  }
+
+  const busyId = setStatus.isPending
+    ? setStatus.variables?.orderId
+    : markReady.isPending
+      ? markReady.variables
+      : undefined;
 
   return (
     <MerchantScreen
@@ -127,6 +142,16 @@ export default function MerchantOrdersScreen() {
         ) : (
           cooking.map((order) => (
             <OrderCard key={order.id} order={order} now={now}>
+              {/* Packed and waiting: the rider and the customer see "Ready for
+                  pickup" (0146). Once set, the card says so instead. */}
+              {order.readyForPickupAt ? null : (
+                <MerchantButton
+                  label="Ready for pickup"
+                  busy={busyId === order.id}
+                  disabled={!!busyId}
+                  onPress={() => void ready(order)}
+                />
+              )}
               <MerchantButton
                 label="Cancel"
                 tone="danger"
@@ -172,6 +197,11 @@ function OrderCard({
           {isNew ? (
             <View style={styles.newTag}>
               <Text style={styles.newTagText}>NEW</Text>
+            </View>
+          ) : null}
+          {order.status === "preparing" && order.readyForPickupAt ? (
+            <View style={styles.readyTag}>
+              <Text style={styles.readyTagText}>READY FOR PICKUP</Text>
             </View>
           ) : null}
         </View>
@@ -269,6 +299,13 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   newTagText: { color: colors.textInverse, fontSize: 11, fontWeight: "800" },
+  readyTag: {
+    backgroundColor: colors.successSoft,
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+  },
+  readyTagText: { color: colors.success, fontSize: 11, fontWeight: "800" },
   age: { ...type.caption, color: colors.textMuted },
   ageOverdue: { color: colors.danger, fontWeight: "700" },
   actions: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.xs },

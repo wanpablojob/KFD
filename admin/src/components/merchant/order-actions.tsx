@@ -3,6 +3,7 @@
 import { useState } from "react";
 import {
   allowedTransitions,
+  markOrderReady,
   setOrderStatus,
   type MerchantOrderStatus,
 } from "@/lib/supabase/merchant-queries";
@@ -64,11 +65,14 @@ const REASON_MAX = 280;
 export function OrderActions({
   orderId,
   status,
+  readyForPickupAt = null,
   onChanged,
   compact = false,
 }: {
   orderId: string;
   status: MerchantOrderStatus;
+  /** Set once the kitchen marked it packed (0146). */
+  readyForPickupAt?: string | null;
   onChanged: () => void;
   compact?: boolean;
 }) {
@@ -76,6 +80,8 @@ export function OrderActions({
   const [confirmReject, setConfirmReject] = useState(false);
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [readying, setReadying] = useState(false);
+  const ready = status === "preparing" && !!readyForPickupAt;
 
   const next = allowedTransitions(status);
   if (next.length === 0) {
@@ -135,6 +141,21 @@ export function OrderActions({
     }
   }
 
+  // Packed and waiting (0146): the rider and the customer see "Ready for
+  // pickup". The order stays preparing, so nothing else about it changes.
+  async function markReady() {
+    setError(null);
+    setReadying(true);
+    try {
+      await markOrderReady(orderId);
+      onChanged();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update order.");
+    } finally {
+      setReadying(false);
+    }
+  }
+
   function openReject() {
     setError(null);
     setReason("");
@@ -153,6 +174,16 @@ export function OrderActions({
   return (
     <>
       <div className={compact ? "flex items-center gap-2" : "space-y-2"}>
+        {status === "preparing" && !ready ? (
+          <Button
+            size="sm"
+            variant="primary"
+            disabled={pending !== null || readying}
+            onClick={() => void markReady()}
+          >
+            {readying ? "Saving…" : "Ready for pickup"}
+          </Button>
+        ) : null}
         {next.map((target) =>
           target === "cancelled" ? (
             <Button
@@ -176,7 +207,9 @@ export function OrderActions({
             </Button>
           ),
         )}
-        <p className="text-xs text-muted-foreground">{HELP[status]}</p>
+        <p className="text-xs text-muted-foreground">
+          {ready ? "Ready for pickup, waiting for the rider" : HELP[status]}
+        </p>
         {error ? <p className="text-xs text-destructive">{error}</p> : null}
       </div>
 

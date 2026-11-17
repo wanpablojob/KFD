@@ -11,6 +11,8 @@ interface HomeOrder {
   restaurant_id: string | null;
   status: string;
   placed_at: string;
+  /** The shop marked it packed and waiting (0146). */
+  ready_for_pickup_at?: string | null;
 }
 
 interface HomeRestaurant {

@@ -247,7 +247,7 @@ export default function OverviewPage() {
                         <span className="text-sm font-semibold text-card-foreground">
                           {formatCurrency(o.total)}
                         </span>
-                        <StatusBadge status={o.status} />
+                        <StatusBadge status={o.status} readyForPickupAt={o.readyForPickupAt} />
                       </span>
                     </li>
                   ))
