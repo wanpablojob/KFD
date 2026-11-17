@@ -148,6 +148,34 @@ begin
 end;
 $$;
 
+-- Busy is the system's to set: a rider picks Online or Offline. Rebuilt from
+-- 0071 with only the allowed values changed. An admin can still set Busy.
+create or replace function public.rider_set_status(p_status text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if p_status not in ('online', 'offline') then
+    raise exception 'Status must be online or offline. Busy is set for you at 2 deliveries.';
+  end if;
+
+  if not exists (
+    select 1 from riders
+     where user_id = auth.uid()
+       and archived_at is null
+       and suspended_at is null
+  ) then
+    raise exception 'Your account is not linked to an active rider.' using errcode = '42501';
+  end if;
+
+  update riders
+     set status = p_status::public.rider_status
+   where user_id = auth.uid();
+end;
+$$;
+
 revoke all on function public.rider_job_cap_guard() from public, anon, authenticated;
 revoke all on function public.rider_job_sync() from public, anon, authenticated;
 revoke all on function public.riders_status_guard() from public, anon, authenticated;

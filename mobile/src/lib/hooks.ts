@@ -375,6 +375,8 @@ export function useAcceptOffer() {
       queryClient.invalidateQueries({ queryKey: ["riderOffers"] });
       queryClient.invalidateQueries({ queryKey: ["riderOrders"] });
       queryClient.invalidateQueries({ queryKey: ["riderEarningsSummary"] });
+      // A second job turns the rider Busy on the server (0148).
+      queryClient.invalidateQueries({ queryKey: ["riderProfile"] });
     },
   });
 }
@@ -451,6 +453,9 @@ export function useRiderProfile(userId: string) {
     queryKey: ["riderProfile", userId],
     queryFn: () => fetchRiderProfile(userId),
     enabled: !!userId,
+    // The server flips Busy/Online as jobs start and finish (0148); poll so
+    // the rider sees it without leaving the screen.
+    refetchInterval: (query) => backoffFor(15_000, query.state.fetchFailureCount),
   });
 }
 

@@ -81,17 +81,26 @@ do $$ begin
   raise notice 'PASS finishing a job: online and offered again';
 end $$;
 
--- A Busy the rider chose is left alone when a job ends.
+-- A rider cannot pick Busy; only the system (or an admin) sets it.
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000c1","role":"authenticated"}', true);
-select rider_set_status('busy');
+do $$ begin
+  perform rider_set_status('busy');
+  raise exception 'FAIL a rider set Busy by hand';
+exception when others then
+  if sqlerrm not like '%Busy is set for you%' then raise exception 'FAIL: %', sqlerrm; end if;
+  raise notice 'PASS a rider cannot pick Busy';
+end $$;
 reset role;
+
+-- A Busy an admin set is left alone when a job ends.
+update riders set status = 'busy' where id = 'R-CAP';
 update orders set status = 'delivered' where id = 'O-C2';
 do $$ begin
   if (select status::text || '/' || auto_busy::text from riders where id = 'R-CAP') <> 'busy/false' then
-    raise exception 'FAIL a Busy the rider chose was undone by the system';
+    raise exception 'FAIL a Busy an admin set was undone by the system';
   end if;
-  raise notice 'PASS a rider''s own Busy is kept';
+  raise notice 'PASS an admin''s Busy is kept';
 end $$;
 
 rollback;

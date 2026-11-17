@@ -20,7 +20,7 @@ import { requestRiderAccountDeletion } from "../../lib/storefront";
 import { openLegal } from "../../lib/legal";
 import { MerchantButton } from "../../components/MerchantUi";
 import {
-  RIDER_STATUSES,
+  RIDER_CHOICES,
   riderStatusMeta,
   type RiderStatus,
 } from "../../lib/rider-status";
@@ -235,7 +235,7 @@ export default function RiderProfileRoute() {
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>Availability</Text>
           <View style={styles.statusButtons}>
-            {RIDER_STATUSES.map((s) => {
+            {RIDER_CHOICES.map((s) => {
               const active = profile.status === s;
               const meta = riderStatusMeta(s);
               return (

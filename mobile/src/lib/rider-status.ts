@@ -13,6 +13,9 @@ export const RIDER_STATUSES = ["online", "busy", "offline"] as const;
 
 export type RiderStatus = (typeof RIDER_STATUSES)[number];
 
+/** What a rider can pick. Busy is set by the system at 2 deliveries (0148). */
+export const RIDER_CHOICES = ["online", "offline"] as const;
+
 export interface RiderStatusMeta {
   label: string;
   /** What the server does with this value, in one sentence. */
@@ -26,7 +29,7 @@ export const RIDER_STATUS_META: Record<RiderStatus, RiderStatusMeta> = {
   },
   busy: {
     label: "Busy",
-    description: "Not offered new work. Set for you while you carry 2 deliveries",
+    description: "Carrying 2 deliveries. You'll go back online when one is done",
   },
   offline: {
     label: "Offline",

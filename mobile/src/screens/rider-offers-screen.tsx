@@ -188,6 +188,7 @@ export function RiderOffersScreen({ userId }: { userId: string }) {
         queryClient.invalidateQueries({ queryKey: ["riderDeliveryOffers"] }),
         queryClient.invalidateQueries({ queryKey: ["riderDeliveries"] }),
         queryClient.invalidateQueries({ queryKey: ["riderOffers"] }),
+        queryClient.invalidateQueries({ queryKey: ["riderProfile"] }),
       ]);
     } catch (cause) {
       setActionError(cause instanceof Error ? cause.message : "Could not accept.");
@@ -545,19 +546,22 @@ function OfflineBanner({
     <View style={styles.banner} accessibilityRole="alert">
       <View style={styles.bannerText}>
         <Text style={styles.bannerTitle}>
-          {status === "busy" ? "You're on a delivery" : "You're offline"}
+          {status === "busy" ? "You have 2 deliveries" : "You're offline"}
         </Text>
         <Text style={styles.bannerBody}>{meta.description}.</Text>
       </View>
-      <Pressable
-        style={styles.bannerButton}
-        onPress={() => void onGoOnline()}
-        accessibilityRole="button"
-        accessibilityLabel="Go online"
-        accessibilityHint="Sets your availability to online so offers reach you"
-      >
-        <Text style={styles.bannerButtonLabel}>Go online</Text>
-      </Pressable>
+      {/* Busy is set and cleared by the system (0148); there is nothing to press. */}
+      {status === "busy" ? null : (
+        <Pressable
+          style={styles.bannerButton}
+          onPress={() => void onGoOnline()}
+          accessibilityRole="button"
+          accessibilityLabel="Go online"
+          accessibilityHint="Sets your availability to online so offers reach you"
+        >
+          <Text style={styles.bannerButtonLabel}>Go online</Text>
+        </Pressable>
+      )}
     </View>
   );
 }
