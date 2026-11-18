@@ -1183,8 +1183,38 @@ jobs:
           )[0]
           expected_delivery = float(fee["delivery_fee"] or 0)
           expected_service = float(fee["service_fee"] or 0)
+          # The seeded demo shop (rst_01) has since been archived on live data.
+          # Hardcoding it made this check fail for a business reason, not a
+          # schema one: there is nothing wrong with the ordering path when a
+          # shop is closed. Pick an open, unarchived shop that has something on
+          # the menu today, and price the probe from that shop's own item.
+          probe_shop = query(
+              """
+              select r.id as restaurant_id, m.id as menu_item_id
+                from public.restaurants r
+                join public.menu_items m on m.restaurant_id = r.id
+               where r.status = 'active'
+                 and r.archived_at is null
+                 and r.is_open
+                 and m.available
+               order by r.id, m.id
+               limit 1
+              """
+          )
+          if not probe_shop:
+              failures.append(
+                  "no open restaurant with an available menu item exists to "
+                  "probe customer_place_order; the ordering path cannot be "
+                  "exercised"
+              )
+          shop_id = probe_shop[0]["restaurant_id"] if probe_shop else None
+          item_id = probe_shop[0]["menu_item_id"] if probe_shop else None
+          sql_lit = lambda v: "'" + str(v).replace("'", "''") + "'"
           try:
-              cust_place = query(
+              if not probe_shop:
+                  cust_place = []
+              else:
+                  cust_place = query(
                   """
                   begin;
                   -- 0076 makes the contact number mandatory: a rider with no
@@ -1208,8 +1238,8 @@ jobs:
                     true);
                   set local role authenticated;
                   select * from public.customer_place_order(
-                    'rst_01',
-                    '[{"menu_item_id": "mnu_01", "quantity": 2}]',
+                    """ + sql_lit(shop_id) + """,
+                    """ + sql_lit(json.dumps([{"menu_item_id": item_id, "quantity": 2}])) + """,
                     'Gate St, Kabankalan',
                     'cash',
                     'kfd-assert-store-probe',
@@ -1223,7 +1253,11 @@ jobs:
               failures.append(
                   "customer_place_order raised %s: %s" % (type(e).__name__, str(e)[:200])
               )
-          if not cust_place or not isinstance(cust_place, list) or "total" not in cust_place[0]:
+          if not probe_shop:
+              # Already reported above; a second, vaguer error here would only
+              # make the real reason harder to read.
+              pass
+          elif not cust_place or not isinstance(cust_place, list) or "total" not in cust_place[0]:
               failures.append(
                   "customer_place_order returned nothing usable for an "
                   "impersonated customer (%s)" % str(cust_place)[:200]
@@ -1231,14 +1265,14 @@ jobs:
           else:
               placed = cust_place[0]
               # The subtotal is priced from menu_items server-side, so assert
-              # the arithmetic the function performed: read the seeded price for
-              # mnu_01 rather than hardcoding it (the row is a moving target).
+              # the arithmetic the function performed: read the chosen item's
+              # price rather than hardcoding it (prices are a moving target).
               price = query(
-                  "select price from menu_items where id = 'mnu_01'"
+                  "select price from menu_items where id = %s" % sql_lit(item_id)
               )
               unit = price[0]["price"] if price else None
               if not price or unit is None:
-                  failures.append("mnu_01 is missing; cannot check order pricing")
+                  failures.append("%s is missing; cannot check order pricing" % item_id)
               else:
                   expected_total = (
                       (float(unit) * 2) + expected_delivery + expected_service
@@ -1248,8 +1282,8 @@ jobs:
                   if round(float(placed["total"]), 2) != round(expected_total, 2):
                       failures.append(
                           "customer_place_order total %s, expected %s for "
-                          "mnu_01 x2 + %s delivery + %s service"
-                          % (placed["total"], expected_total,
+                          "%s x2 + %s delivery + %s service"
+                          % (placed["total"], expected_total, item_id,
                              expected_delivery, expected_service)
                       )
               if placed["status"] != "pending":
