@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Kabankalan Food Delivery",
+    "name": "Meriendash",
     "slug": "kfd-mobile",
     "version": "1.0.2",
     "orientation": "portrait",
@@ -17,7 +17,7 @@
     "android": {
       "package": "ph.kabankalan.kfd",
       "adaptiveIcon": {
-        "backgroundColor": "#FFF8E7",
+        "backgroundColor": "#F4EEE6",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
@@ -44,7 +44,7 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#FFF8E7",
+          "backgroundColor": "#F4EEE6",
           "image": "./assets/splash-icon.png",
           "imageWidth": 240
         }
@@ -59,7 +59,7 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "KFD shares your location with the customer while you deliver their order, so they can see you are on the way."
+          "locationWhenInUsePermission": "Meriendash shares your location with the customer while you deliver their order, so they can see you are on the way."
         }
       ]
     ]

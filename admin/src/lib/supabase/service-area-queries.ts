@@ -1,7 +1,7 @@
 import { supabase } from "./client";
 
 /**
- * Barangays KFD delivers to (0077) and what delivery costs there (0080). While
+ * Barangays Meriendash delivers to (0077) and what delivery costs there (0080). While
  * the list is empty the customer app accepts any address at the flat fee; once
  * it has rows, customer_place_order refuses orders outside it. RLS lets anyone
  * read and only admins write.
@@ -32,7 +32,7 @@ export async function fetchServiceAreas(): Promise<ServiceArea[]> {
 export async function setServiceArea(
   barangay: string,
   fee: number | null,
-  agreedInPerson: boolean
+  agreedInPerson: boolean,
 ): Promise<void> {
   const { error } = await supabase.rpc("admin_set_service_area", {
     p_barangay: barangay.trim(),
@@ -45,6 +45,9 @@ export async function setServiceArea(
 }
 
 export async function removeServiceArea(barangay: string): Promise<void> {
-  const { error } = await supabase.from("service_areas").delete().eq("barangay", barangay);
+  const { error } = await supabase
+    .from("service_areas")
+    .delete()
+    .eq("barangay", barangay);
   if (error) throw new Error(error.message);
 }

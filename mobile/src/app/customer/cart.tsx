@@ -42,7 +42,7 @@ const PAYMENTS: {
 }[] = [
   { key: "cash", label: "Cash on delivery", icon: "cash-outline" },
   // GCash (e_wallet) is not offered: there is no payment gateway yet, and the
-  // rider-QR workaround left the customer paying a person, not KFD. The server
+  // rider-QR workaround left the customer paying a person, not Meriendash. The server
   // still accepts it, so it can come back here once a gateway exists.
 ];
 
@@ -65,7 +65,7 @@ export default function CustomerCartScreen() {
   // added and edited only in Delivery addresses. The number is sent with the
   // order (0098) rather than written onto the account, so choosing an address
   // no longer replaces the customer's own number.
-  // Barangays KFD delivers to. Empty until the owner publishes the list, and
+  // Barangays Meriendash delivers to. Empty until the owner publishes the list, and
   // then the server takes any address, so the picker only shows once it exists.
   const [areas, setAreas] = useState<string[]>([]);
   const [barangay, setBarangay] = useState<string | null>(null);
@@ -467,7 +467,7 @@ export default function CustomerCartScreen() {
           {/* "—" rather than a guess: a stale or assumed figure here is the
               exact failure this screen was rewritten to prevent. */}
           {/* Each line says where its pesos go (panel feedback): the food is the
-              shop's, paid by the rider at pickup (0147); the fees are KFD's. */}
+              shop's, paid by the rider at pickup (0147); the fees are Meriendash's. */}
           <BillLine
             label="Food"
             value={peso(subtotal)}
@@ -491,7 +491,7 @@ export default function CustomerCartScreen() {
           <BillLine
             label="Service fee"
             value={peso(fees?.serviceFee ?? null)}
-            hint="Goes to KFD for running the app and support."
+            hint="Goes to Meriendash for running the app and support."
           />
           <View style={styles.divider} />
           <BillLine

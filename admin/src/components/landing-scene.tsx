@@ -6,7 +6,12 @@ import Link from "next/link";
 import { SignInDropdown } from "@/components/sign-in-dropdown";
 import { LeadForm } from "@/components/lead-form";
 import { TrackReferenceForm } from "@/components/track/track-reference-form";
-import { BikeIcon, MapPinIcon, ReceiptIcon, StoreIcon } from "@/components/ui/icons";
+import {
+  BikeIcon,
+  MapPinIcon,
+  ReceiptIcon,
+  StoreIcon,
+} from "@/components/ui/icons";
 import { primaryButton, secondaryButton } from "@/components/marketing/styles";
 import { PixelRider } from "@/components/pixel/sprites-render";
 import { useLandingMotion } from "@/components/landing-motion";
@@ -65,9 +70,12 @@ const MARQUEE = ["Inasal", "Piaya", "Kansi", "Napoleones", "Pabakal"] as const;
 /** The gallery's layout: the first dish leads, larger. */
 const GALLERY_ORDER = ["Inasal", "Piaya", "Kansi", "Napoleones"] as const;
 
-const SECTION = "relative mx-auto w-full max-w-6xl scroll-mt-24 px-4 py-16 sm:px-6 sm:py-24";
-const H2 = "font-display text-3xl font-bold tracking-tight text-foreground sm:text-4xl";
-const LEAD = "mt-3 max-w-[60ch] text-base leading-relaxed text-muted-foreground";
+const SECTION =
+  "relative mx-auto w-full max-w-6xl scroll-mt-24 px-4 py-16 sm:px-6 sm:py-24";
+const H2 =
+  "font-display text-3xl font-bold tracking-tight text-foreground sm:text-4xl";
+const LEAD =
+  "mt-3 max-w-[60ch] text-base leading-relaxed text-muted-foreground";
 const LIFT =
   "transition-[transform,box-shadow] duration-300 ease-out hover:-translate-y-1 hover:shadow-[0_18px_40px_-20px_color-mix(in_srgb,var(--primary)_45%,transparent)]";
 
@@ -83,7 +91,10 @@ export function LandingScene() {
   useLandingMotion(scope);
 
   return (
-    <div ref={scope} className="landing min-h-dvh overflow-x-clip bg-background text-foreground">
+    <div
+      ref={scope}
+      className="landing min-h-dvh overflow-x-clip bg-background text-foreground"
+    >
       <a
         href="#main"
         className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-full focus:bg-card focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:shadow"
@@ -102,10 +113,15 @@ export function LandingScene() {
               height={36}
               className="h-9 w-9"
             />
-            <span className="font-display text-xl font-bold tracking-tight text-foreground">KFD</span>
+            <span className="font-display text-xl font-bold tracking-tight text-foreground">
+              Meriendash
+            </span>
           </a>
 
-          <nav aria-label="Sections" className="hidden items-center gap-7 lg:flex">
+          <nav
+            aria-label="Sections"
+            className="hidden items-center gap-7 lg:flex"
+          >
             {NAV.map((item) => (
               <a
                 key={item.href}
@@ -119,7 +135,11 @@ export function LandingScene() {
 
           <div className="flex items-center gap-2">
             <SignInDropdown />
-            <a href="#track" data-magnet className={`${primaryButton} px-4 py-2`}>
+            <a
+              href="#track"
+              data-magnet
+              className={`${primaryButton} px-4 py-2`}
+            >
               Track order
             </a>
           </div>
@@ -133,11 +153,23 @@ export function LandingScene() {
       <main id="main">
         {/* ---------- hero ---------- */}
         <section id="top" className="landing-hero-bg relative isolate">
-          <div aria-hidden="true" className="landing-dots absolute inset-0 -z-10" />
+          <div
+            aria-hidden="true"
+            className="landing-dots absolute inset-0 -z-10"
+          />
           {/* Soft brand light that drifts behind the hero. */}
-          <div aria-hidden="true" className="absolute inset-0 -z-10 overflow-hidden">
-            <span data-orb className="absolute -top-24 right-[-10%] h-112 w-md rounded-full bg-primary/20 blur-3xl" />
-            <span data-orb className="absolute bottom-[-20%] left-[-10%] h-96 w-96 rounded-full bg-secondary/15 blur-3xl" />
+          <div
+            aria-hidden="true"
+            className="absolute inset-0 -z-10 overflow-hidden"
+          >
+            <span
+              data-orb
+              className="absolute -top-24 right-[-10%] h-112 w-md rounded-full bg-primary/20 blur-3xl"
+            />
+            <span
+              data-orb
+              className="absolute bottom-[-20%] left-[-10%] h-96 w-96 rounded-full bg-secondary/15 blur-3xl"
+            />
           </div>
           <div className="mx-auto grid w-full max-w-6xl items-center gap-12 px-4 pt-12 pb-20 sm:px-6 md:grid-cols-[1.05fr_0.95fr] md:pt-20 md:pb-28">
             <div data-hero-copy className="flex min-w-0 flex-col gap-6">
@@ -169,10 +201,13 @@ export function LandingScene() {
                 className="enter max-w-[38ch] text-lg leading-relaxed text-muted-foreground"
                 style={turn(2)}
               >
-                Order from local kitchens, pay cash when it arrives, and
-                follow every step of your order.
+                Order from local kitchens, pay cash when it arrives, and follow
+                every step of your order.
               </p>
-              <div className="enter flex flex-wrap items-center gap-3" style={turn(3)}>
+              <div
+                className="enter flex flex-wrap items-center gap-3"
+                style={turn(3)}
+              >
                 <a href="#app" data-magnet className={primaryButton}>
                   Get the app
                 </a>
@@ -182,7 +217,7 @@ export function LandingScene() {
               </div>
             </div>
 
-            {/* The delivery run: from the KFD shop (top left) down a winding road
+            {/* The delivery run: from the Meriendash shop (top left) down a winding road
                 to the customer's door. The rider carries one dish per run; at
                 the door the pin bounces and a "Delivered" note shows, then the
                 next dish goes out. Static, the rider waits mid-road with the
@@ -192,7 +227,10 @@ export function LandingScene() {
               data-route-stage
               className="relative mx-auto aspect-square w-full max-w-sm min-w-0 select-none sm:max-w-120 md:mr-0"
             >
-              <div aria-hidden="true" className="absolute inset-[18%] rounded-full bg-primary/15 blur-3xl" />
+              <div
+                aria-hidden="true"
+                className="absolute inset-[18%] rounded-full bg-primary/15 blur-3xl"
+              />
 
               {/* The road, in a 100 x 100 box so its points are percentages of the stage. */}
               <svg
@@ -205,7 +243,10 @@ export function LandingScene() {
                   fill="none"
                   strokeWidth={9}
                   strokeLinecap="round"
-                  style={{ stroke: "color-mix(in srgb, var(--foreground) 14%, transparent)" }}
+                  style={{
+                    stroke:
+                      "color-mix(in srgb, var(--foreground) 14%, transparent)",
+                  }}
                 />
                 <path
                   data-route
@@ -233,7 +274,13 @@ export function LandingScene() {
                         data-route-dish
                         className={`absolute inset-0 overflow-hidden rounded-full shadow-lg ring-3 ring-card ${i === 0 ? "" : "invisible opacity-0"}`}
                       >
-                        <Image src={dish.src} alt="" fill sizes="56px" className="object-cover" />
+                        <Image
+                          src={dish.src}
+                          alt=""
+                          fill
+                          sizes="56px"
+                          className="object-cover"
+                        />
                       </span>
                     ))}
                   </span>
@@ -242,10 +289,13 @@ export function LandingScene() {
               </div>
 
               {/* The shop: the badge, which breathes and turns when clicked. */}
-              <div data-badge className="absolute top-[2%] left-[2%] aspect-square w-[42%]">
+              <div
+                data-badge
+                className="absolute top-[2%] left-[2%] aspect-square w-[42%]"
+              >
                 <Image
                   src="/images/kabankalan/badge.png"
-                  alt="Kabankalan Food Delivery"
+                  alt="Meriendash"
                   fill
                   priority
                   sizes="(min-width: 640px) 200px, 40vw"
@@ -282,13 +332,22 @@ export function LandingScene() {
         </section>
 
         {/* ---------- service facts: true facts only ---------- */}
-        <section aria-label="Service facts" className="border-y border-border bg-card/70">
+        <section
+          aria-label="Service facts"
+          className="border-y border-border bg-card/70"
+        >
           <ul className="mx-auto grid w-full max-w-6xl grid-cols-2 gap-x-6 gap-y-5 px-4 py-7 sm:px-6 md:grid-cols-4">
             {SERVICE_FACTS.map((fact, i) => {
               const Icon = FACT_ICONS[i % FACT_ICONS.length];
               return (
-                <li key={fact} className="flex items-center gap-3 text-sm font-semibold">
-                  <span data-fact-icon className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-primary/10 text-primary">
+                <li
+                  key={fact}
+                  className="flex items-center gap-3 text-sm font-semibold"
+                >
+                  <span
+                    data-fact-icon
+                    className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-primary/10 text-primary"
+                  >
                     <Icon className="h-4 w-4" aria-hidden="true" />
                   </span>
                   {fact}
@@ -299,19 +358,30 @@ export function LandingScene() {
         </section>
 
         {/* ---------- dish names: one strip, steered by the scroll ---------- */}
-        <div aria-hidden="true" className="overflow-hidden border-b border-border py-6 sm:py-8">
+        <div
+          aria-hidden="true"
+          className="overflow-hidden border-b border-border py-6 sm:py-8"
+        >
           <div data-marquee-track className="flex w-max items-center">
             {[0, 1].map((copy) =>
               MARQUEE.map((word, i) => (
                 <span key={`${copy}-${word}`} className="flex items-center">
                   <span
                     className={`px-6 font-display text-4xl font-bold tracking-tight whitespace-nowrap sm:px-8 sm:text-6xl ${
-                      i % 2 ? "text-transparent [-webkit-text-stroke:1.5px_var(--primary)]" : "text-foreground"
+                      i % 2
+                        ? "text-transparent [-webkit-text-stroke:1.5px_var(--primary)]"
+                        : "text-foreground"
                     }`}
                   >
                     {word}
                   </span>
-                  <Image src="/images/kabankalan/badge.png" alt="" width={48} height={48} className="h-10 w-10 sm:h-12 sm:w-12" />
+                  <Image
+                    src="/images/kabankalan/badge.png"
+                    alt=""
+                    width={48}
+                    height={48}
+                    className="h-10 w-10 sm:h-12 sm:w-12"
+                  />
                 </span>
               )),
             )}
@@ -323,11 +393,17 @@ export function LandingScene() {
           <section id="how" data-reveal className={SECTION}>
             <div className="grid gap-10 md:grid-cols-[0.9fr_1.1fr]">
               <div>
-                <h2 data-words className={H2}>How it works</h2>
-                <p className={LEAD}>Tatlong hakbang lang: pumili, magbayad, at hintayin.</p>
+                <h2 data-words className={H2}>
+                  How it works
+                </h2>
+                <p className={LEAD}>
+                  Tatlong hakbang lang: pumili, magbayad, at hintayin.
+                </p>
                 {DELIVERY.areas.length > 0 ? (
                   <p className="mt-6 text-sm text-muted-foreground">
-                    <span className="font-semibold text-foreground">We deliver to </span>
+                    <span className="font-semibold text-foreground">
+                      We deliver to{" "}
+                    </span>
                     {DELIVERY.areas.join(", ")}.
                   </p>
                 ) : null}
@@ -340,10 +416,15 @@ export function LandingScene() {
                 />
                 {HOW_IT_WORKS.map((step, i) => (
                   <li key={step.key} data-stagger className="relative">
-                    <span data-step className="absolute -left-12.5 grid h-9 w-9 place-items-center rounded-full bg-primary text-sm font-bold text-primary-foreground ring-4 ring-background">
+                    <span
+                      data-step
+                      className="absolute -left-12.5 grid h-9 w-9 place-items-center rounded-full bg-primary text-sm font-bold text-primary-foreground ring-4 ring-background"
+                    >
                       {i + 1}
                     </span>
-                    <h3 className="font-display text-2xl font-bold text-foreground">{step.title}</h3>
+                    <h3 className="font-display text-2xl font-bold text-foreground">
+                      {step.title}
+                    </h3>
                     <p className="mt-1 text-base leading-relaxed text-muted-foreground">
                       {step.body}
                     </p>
@@ -361,27 +442,36 @@ export function LandingScene() {
           className="mx-auto w-full max-w-6xl scroll-mt-24 px-4 py-10 sm:px-6"
         >
           <div className="relative pt-12">
-          {/* The rider rides the band's top edge; zoom keeps the box the sprite's size. */}
-          <span aria-hidden="true" data-rider className="absolute top-0 left-6 block">
-            <span className="block">
-              <PixelRider style={{ zoom: 0.75 }} />
+            {/* The rider rides the band's top edge; zoom keeps the box the sprite's size. */}
+            <span
+              aria-hidden="true"
+              data-rider
+              className="absolute top-0 left-6 block"
+            >
+              <span className="block">
+                <PixelRider style={{ zoom: 0.75 }} />
+              </span>
             </span>
-          </span>
-          <div data-spotlight className="landing-band relative grid gap-8 overflow-hidden rounded-3xl bg-primary p-8 text-primary-foreground shadow-[0_30px_70px_-35px_color-mix(in_srgb,var(--primary)_70%,transparent)] sm:p-12 md:grid-cols-2 md:items-center">
-            <div>
-              <h2 className="font-display text-3xl font-bold tracking-tight sm:text-4xl">Track your order</h2>
-              <p className="mt-3 max-w-[44ch] text-base leading-relaxed opacity-90">
-                Paste the reference from your receipt. It looks like{" "}
-                <code className="whitespace-nowrap rounded-md bg-primary-foreground/15 px-1.5 py-0.5 font-mono text-sm">
-                  #KFD-XXXXXXXXXXXX
-                </code>
-                .
-              </p>
+            <div
+              data-spotlight
+              className="landing-band relative grid gap-8 overflow-hidden rounded-3xl bg-primary p-8 text-primary-foreground shadow-[0_30px_70px_-35px_color-mix(in_srgb,var(--primary)_70%,transparent)] sm:p-12 md:grid-cols-2 md:items-center"
+            >
+              <div>
+                <h2 className="font-display text-3xl font-bold tracking-tight sm:text-4xl">
+                  Track your order
+                </h2>
+                <p className="mt-3 max-w-[44ch] text-base leading-relaxed opacity-90">
+                  Paste the reference from your receipt. It looks like{" "}
+                  <code className="whitespace-nowrap rounded-md bg-primary-foreground/15 px-1.5 py-0.5 font-mono text-sm">
+                    #KFD-XXXXXXXXXXXX
+                  </code>
+                  .
+                </p>
+              </div>
+              <div className="rounded-2xl bg-card p-4 text-foreground shadow-lg sm:p-5">
+                <TrackReferenceForm />
+              </div>
             </div>
-            <div className="rounded-2xl bg-card p-4 text-foreground shadow-lg sm:p-5">
-              <TrackReferenceForm />
-            </div>
-          </div>
           </div>
         </section>
 
@@ -389,8 +479,12 @@ export function LandingScene() {
         <section id="restaurants" data-reveal className={SECTION}>
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div>
-              <h2 data-words className={H2}>Local food, local kitchens</h2>
-              <p className={LEAD}>The dishes Negros is known for, from Kabankalan kitchens.</p>
+              <h2 data-words className={H2}>
+                Local food, local kitchens
+              </h2>
+              <p className={LEAD}>
+                The dishes Negros is known for, from Kabankalan kitchens.
+              </p>
             </div>
           </div>
 
@@ -403,18 +497,26 @@ export function LandingScene() {
                   className={`rounded-2xl border border-border bg-card p-6 ${LIFT}`}
                 >
                   <h3 className="text-lg font-bold">{r.name}</h3>
-                  <p className="mt-1 text-sm text-muted-foreground">{r.specialty}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {r.specialty}
+                  </p>
                 </li>
               ))}
             </ul>
           ) : (
             <ul className="mt-10 grid auto-rows-50 grid-cols-2 gap-3 sm:auto-rows-55 sm:gap-4 md:grid-cols-4">
-              {GALLERY_ORDER.filter((dish) => LOCAL_SPECIALTIES.includes(dish)).map((dish, i) => (
+              {GALLERY_ORDER.filter((dish) =>
+                LOCAL_SPECIALTIES.includes(dish),
+              ).map((dish, i) => (
                 <li
                   key={dish}
                   data-tile
                   className={`group relative isolate overflow-hidden rounded-3xl ${
-                    i === 0 ? "col-span-2 row-span-2" : i === 1 ? "col-span-2" : ""
+                    i === 0
+                      ? "col-span-2 row-span-2"
+                      : i === 1
+                        ? "col-span-2"
+                        : ""
                   }`}
                 >
                   <span
@@ -427,7 +529,11 @@ export function LandingScene() {
                       src={DISH_PHOTOS[dish]}
                       alt={`${dish}, a Negros Occidental specialty`}
                       fill
-                      sizes={i === 0 ? "(min-width: 768px) 560px, 100vw" : "(min-width: 768px) 280px, 50vw"}
+                      sizes={
+                        i === 0
+                          ? "(min-width: 768px) 560px, 100vw"
+                          : "(min-width: 768px) 280px, 50vw"
+                      }
                       className="object-cover transition-transform duration-1200 ease-out group-hover:scale-110"
                     />
                   </div>
@@ -457,14 +563,20 @@ export function LandingScene() {
         <section id="pabakal" data-reveal className={SECTION}>
           <div className="grid items-center gap-12 md:grid-cols-[0.95fr_1.05fr]">
             <div>
-              <h2 data-words className={H2}>Pabakal. Just say what you need.</h2>
+              <h2 data-words className={H2}>
+                Pabakal. Just say what you need.
+              </h2>
               <p className={LEAD}>
-                Message what to buy and where. A rider shops for you and brings it
-                to your door.
+                Message what to buy and where. A rider shops for you and brings
+                it to your door.
               </p>
               <ul className="mt-8 flex flex-col gap-4">
                 {PABAKAL.points.map((point, i) => (
-                  <li key={point} data-stagger className="flex items-start gap-3 text-base">
+                  <li
+                    key={point}
+                    data-stagger
+                    className="flex items-start gap-3 text-base"
+                  >
                     <span className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-primary/10 text-sm font-bold text-primary">
                       {i + 1}
                     </span>
@@ -472,7 +584,12 @@ export function LandingScene() {
                   </li>
                 ))}
               </ul>
-              <a href="#app" data-stagger data-magnet className={`${secondaryButton} mt-8`}>
+              <a
+                href="#app"
+                data-stagger
+                data-magnet
+                className={`${secondaryButton} mt-8`}
+              >
                 Get the app
               </a>
             </div>
@@ -482,7 +599,9 @@ export function LandingScene() {
               data-chat
               className="relative rounded-4xl border border-border bg-card p-5 shadow-[0_40px_80px_-50px_color-mix(in_srgb,var(--primary)_55%,transparent)] sm:p-7"
             >
-              <figcaption className="sr-only">An example Pabakal chat</figcaption>
+              <figcaption className="sr-only">
+                An example Pabakal chat
+              </figcaption>
               <div className="flex flex-col gap-4">
                 <p
                   data-chat-part="ask"
@@ -491,42 +610,58 @@ export function LandingScene() {
                   {PABAKAL.example}
                 </p>
                 <div className="relative">
-                <div
-                  data-chat-part="typing"
-                  aria-hidden="true"
-                  className="invisible absolute top-0 left-0 flex w-16 gap-1.5 rounded-3xl rounded-bl-md bg-muted px-4 py-3 opacity-0"
-                >
-                  {[0, 1, 2].map((d) => (
-                    <span key={d} data-dot className="h-2 w-2 rounded-full bg-muted-foreground/60" />
-                  ))}
-                </div>
-                <div
-                  data-chat-part="reply"
-                  className="mr-auto w-full max-w-[85%] rounded-3xl rounded-bl-md bg-muted p-4 text-sm"
-                >
-                  <p className="font-semibold text-foreground">Got it. Your list:</p>
-                  <ul className="mt-3 flex flex-col gap-2">
-                    {PABAKAL.stops.flatMap((stop) =>
-                      stop.items.map((item) => (
-                        <li
-                          key={`${stop.store}-${item.name}`}
-                          data-chat-part="row"
-                          className="flex items-center justify-between gap-3 rounded-2xl bg-card px-3 py-2"
-                        >
-                          <span className="flex items-center gap-2">
-                            <StoreIcon className="h-4 w-4 text-primary" aria-hidden="true" />
-                            <span className="font-semibold">{item.name}</span>
-                            <span className="text-muted-foreground">at {stop.store}</span>
-                          </span>
-                          <span className="font-mono font-semibold">×{item.quantity}</span>
-                        </li>
-                      )),
-                    )}
-                  </ul>
-                  <p data-chat-part="fee" className="mt-3 text-xs text-muted-foreground">
-                    {PABAKAL.fee}
-                  </p>
-                </div>
+                  <div
+                    data-chat-part="typing"
+                    aria-hidden="true"
+                    className="invisible absolute top-0 left-0 flex w-16 gap-1.5 rounded-3xl rounded-bl-md bg-muted px-4 py-3 opacity-0"
+                  >
+                    {[0, 1, 2].map((d) => (
+                      <span
+                        key={d}
+                        data-dot
+                        className="h-2 w-2 rounded-full bg-muted-foreground/60"
+                      />
+                    ))}
+                  </div>
+                  <div
+                    data-chat-part="reply"
+                    className="mr-auto w-full max-w-[85%] rounded-3xl rounded-bl-md bg-muted p-4 text-sm"
+                  >
+                    <p className="font-semibold text-foreground">
+                      Got it. Your list:
+                    </p>
+                    <ul className="mt-3 flex flex-col gap-2">
+                      {PABAKAL.stops.flatMap((stop) =>
+                        stop.items.map((item) => (
+                          <li
+                            key={`${stop.store}-${item.name}`}
+                            data-chat-part="row"
+                            className="flex items-center justify-between gap-3 rounded-2xl bg-card px-3 py-2"
+                          >
+                            <span className="flex items-center gap-2">
+                              <StoreIcon
+                                className="h-4 w-4 text-primary"
+                                aria-hidden="true"
+                              />
+                              <span className="font-semibold">{item.name}</span>
+                              <span className="text-muted-foreground">
+                                at {stop.store}
+                              </span>
+                            </span>
+                            <span className="font-mono font-semibold">
+                              ×{item.quantity}
+                            </span>
+                          </li>
+                        )),
+                      )}
+                    </ul>
+                    <p
+                      data-chat-part="fee"
+                      className="mt-3 text-xs text-muted-foreground"
+                    >
+                      {PABAKAL.fee}
+                    </p>
+                  </div>
                 </div>
               </div>
               <div className="mt-4 flex justify-end">
@@ -544,8 +679,15 @@ export function LandingScene() {
         </section>
 
         {/* ---------- get the app: the brand red, as the app's own splash ---------- */}
-        <section id="app" data-reveal className="mx-auto w-full max-w-6xl scroll-mt-24 px-4 py-10 sm:px-6">
-          <div data-spotlight className="landing-band relative grid overflow-hidden rounded-4xl bg-primary text-primary-foreground shadow-[0_30px_70px_-35px_color-mix(in_srgb,var(--primary)_70%,transparent)] md:grid-cols-[1.15fr_0.85fr]">
+        <section
+          id="app"
+          data-reveal
+          className="mx-auto w-full max-w-6xl scroll-mt-24 px-4 py-10 sm:px-6"
+        >
+          <div
+            data-spotlight
+            className="landing-band relative grid overflow-hidden rounded-4xl bg-primary text-primary-foreground shadow-[0_30px_70px_-35px_color-mix(in_srgb,var(--primary)_70%,transparent)] md:grid-cols-[1.15fr_0.85fr]"
+          >
             <div className="flex flex-col items-start gap-5 p-8 sm:p-12">
               <Image
                 src="/images/kabankalan/badge.png"
@@ -556,21 +698,30 @@ export function LandingScene() {
                 className="h-20 w-20 drop-shadow-lg sm:h-24 sm:w-24"
               />
               <h2 className="font-display text-3xl font-bold tracking-tight sm:text-4xl">
-                Get the KFD app
+                Get the Meriendash app
               </h2>
               {APP_DOWNLOADS.android || APP_DOWNLOADS.iphone ? (
                 <>
                   <p className="max-w-[44ch] text-base leading-relaxed opacity-90">
-                    Order, pay and follow every step of your order from your phone.
+                    Order, pay and follow every step of your order from your
+                    phone.
                   </p>
                   <div className="flex flex-wrap gap-3">
                     {APP_DOWNLOADS.android ? (
-                      <a href={APP_DOWNLOADS.android} data-magnet className={whiteButton}>
+                      <a
+                        href={APP_DOWNLOADS.android}
+                        data-magnet
+                        className={whiteButton}
+                      >
                         Download for Android
                       </a>
                     ) : null}
                     {APP_DOWNLOADS.iphone ? (
-                      <a href={APP_DOWNLOADS.iphone} data-magnet className={whiteButton}>
+                      <a
+                        href={APP_DOWNLOADS.iphone}
+                        data-magnet
+                        className={whiteButton}
+                      >
                         Get it on iPhone
                       </a>
                     ) : null}
@@ -583,7 +734,10 @@ export function LandingScene() {
                     email and we will tell you the moment you can download it.
                   </p>
                   <div className="w-full max-w-md rounded-2xl bg-card p-4 text-left text-foreground shadow-lg sm:p-5">
-                    <LeadForm kind="waitlist" submitLabel="Tell me when it is ready" />
+                    <LeadForm
+                      kind="waitlist"
+                      submitLabel="Tell me when it is ready"
+                    />
                   </div>
                 </>
               )}
@@ -603,7 +757,9 @@ export function LandingScene() {
 
         {/* ---------- partners ---------- */}
         <section data-reveal className={SECTION}>
-          <h2 data-words className={H2}>Grow with KFD</h2>
+          <h2 data-words className={H2}>
+            Grow with Meriendash
+          </h2>
           <div className="mt-10 grid gap-6 md:grid-cols-2">
             <article
               id="sell"
@@ -613,8 +769,12 @@ export function LandingScene() {
               <span className="grid h-11 w-11 place-items-center rounded-full bg-card text-primary">
                 <StoreIcon className="h-5 w-5" aria-hidden="true" />
               </span>
-              <h3 className="mt-4 font-display text-2xl font-bold tracking-tight">Sell on KFD</h3>
-              <p className="mt-2 text-base text-foreground">{PARTNER_TERMS.restaurant.blurb}</p>
+              <h3 className="mt-4 font-display text-2xl font-bold tracking-tight">
+                Sell on Meriendash
+              </h3>
+              <p className="mt-2 text-base text-foreground">
+                {PARTNER_TERMS.restaurant.blurb}
+              </p>
               <p className="mt-2 mb-6 text-sm text-muted-foreground">
                 {PARTNER_TERMS.restaurant.terms}
               </p>
@@ -635,8 +795,12 @@ export function LandingScene() {
               <span className="grid h-11 w-11 place-items-center rounded-full bg-primary/10 text-primary">
                 <BikeIcon className="h-5 w-5" aria-hidden="true" />
               </span>
-              <h3 className="mt-4 font-display text-2xl font-bold tracking-tight">Drive with KFD</h3>
-              <p className="mt-2 text-base text-foreground">{PARTNER_TERMS.rider.blurb}</p>
+              <h3 className="mt-4 font-display text-2xl font-bold tracking-tight">
+                Drive with Meriendash
+              </h3>
+              <p className="mt-2 text-base text-foreground">
+                {PARTNER_TERMS.rider.blurb}
+              </p>
               <p className="mt-2 mb-6 text-sm text-muted-foreground">
                 {PARTNER_TERMS.rider.terms}
               </p>
@@ -666,7 +830,9 @@ export function LandingScene() {
         {/* ---------- FAQ ---------- */}
         <section id="faq" data-reveal className={SECTION}>
           <div className="mx-auto max-w-3xl">
-            <h2 data-words className={H2}>Questions</h2>
+            <h2 data-words className={H2}>
+              Questions
+            </h2>
             <div className="mt-8 divide-y divide-border border-y border-border">
               {FAQ.map((item) => (
                 <details key={item.q} data-stagger className="group py-5">
@@ -690,7 +856,10 @@ export function LandingScene() {
                 <ul className="flex flex-col gap-2">
                   {CONTACT.messengerUrl ? (
                     <li>
-                      <a href={CONTACT.messengerUrl} className="font-semibold text-primary underline underline-offset-2">
+                      <a
+                        href={CONTACT.messengerUrl}
+                        className="font-semibold text-primary underline underline-offset-2"
+                      >
                         Message us on Messenger
                       </a>
                     </li>
@@ -701,14 +870,16 @@ export function LandingScene() {
               ) : null}
               <p className="text-muted-foreground">
                 Something else?{" "}
-                <Link href="/support" className="font-semibold text-primary underline underline-offset-2">
+                <Link
+                  href="/support"
+                  className="font-semibold text-primary underline underline-offset-2"
+                >
                   Visit the support page
                 </Link>
               </p>
             </div>
           </div>
         </section>
-
       </main>
 
       {/* ---------- footer ---------- */}
@@ -723,48 +894,76 @@ export function LandingScene() {
                 height={32}
                 className="h-8 w-8"
               />
-              <span className="font-display text-xl font-bold">KFD</span>
+              <span className="font-display text-xl font-bold">Meriendash</span>
             </span>
-            <span className="text-sm text-muted-foreground">{BUSINESS.name}</span>
+            <span className="text-sm text-muted-foreground">
+              {BUSINESS.name}
+            </span>
           </div>
 
           <nav aria-label="Company" className="flex flex-col gap-2 text-sm">
             <span className="font-semibold text-foreground">Company</span>
-            <Link href="/privacy" className="text-muted-foreground hover:text-foreground">
+            <Link
+              href="/privacy"
+              className="text-muted-foreground hover:text-foreground"
+            >
               Privacy Policy
             </Link>
-            <Link href="/terms" className="text-muted-foreground hover:text-foreground">
+            <Link
+              href="/terms"
+              className="text-muted-foreground hover:text-foreground"
+            >
               Terms &amp; Conditions
             </Link>
-            <Link href="/support" className="text-muted-foreground hover:text-foreground">
+            <Link
+              href="/support"
+              className="text-muted-foreground hover:text-foreground"
+            >
               Support
             </Link>
-            <Link href="/track" className="text-muted-foreground hover:text-foreground">
+            <Link
+              href="/track"
+              className="text-muted-foreground hover:text-foreground"
+            >
               Track an order
             </Link>
           </nav>
 
           {hasContactDetails() || SOCIALS.length > 0 ? (
-          <div className="flex flex-col gap-2 text-sm">
-            <span className="font-semibold text-foreground">Contact</span>
-            {CONTACT.messengerUrl ? (
-              <a href={CONTACT.messengerUrl} className="text-muted-foreground hover:text-foreground">
-                Messenger
-              </a>
-            ) : null}
-            {CONTACT.phone ? <span className="text-muted-foreground">{CONTACT.phone}</span> : null}
-            {CONTACT.email ? <span className="text-muted-foreground">{CONTACT.email}</span> : null}
-            {SOCIALS.map((s) => (
-              <a key={s.href} href={s.href} className="text-muted-foreground hover:text-foreground">
-                {s.label}
-              </a>
-            ))}
-          </div>
+            <div className="flex flex-col gap-2 text-sm">
+              <span className="font-semibold text-foreground">Contact</span>
+              {CONTACT.messengerUrl ? (
+                <a
+                  href={CONTACT.messengerUrl}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  Messenger
+                </a>
+              ) : null}
+              {CONTACT.phone ? (
+                <span className="text-muted-foreground">{CONTACT.phone}</span>
+              ) : null}
+              {CONTACT.email ? (
+                <span className="text-muted-foreground">{CONTACT.email}</span>
+              ) : null}
+              {SOCIALS.map((s) => (
+                <a
+                  key={s.href}
+                  href={s.href}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  {s.label}
+                </a>
+              ))}
+            </div>
           ) : null}
 
           <div className="flex flex-col items-start gap-3 text-sm">
             <span className="font-semibold text-foreground">For staff</span>
-            <Link href="/login?next=%2Fmerchant" className="text-muted-foreground hover:text-foreground">
+            <Link
+              href="/login?next=%2Fmerchant"
+              className="text-muted-foreground hover:text-foreground"
+            >
               Open the merchant portal
             </Link>
           </div>
@@ -773,18 +972,26 @@ export function LandingScene() {
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-3 px-4 pb-10 sm:px-6">
           <p className="text-xs text-muted-foreground">
             © {new Date().getFullYear()} {BUSINESS.name}
-            {BUSINESS.registrationNumber ? `, Reg. No. ${BUSINESS.registrationNumber}` : null}
+            {BUSINESS.registrationNumber
+              ? `, Reg. No. ${BUSINESS.registrationNumber}`
+              : null}
           </p>
           {/* CC BY-SA asks for the author, the licence and the source. */}
           <p className="text-[11px] leading-relaxed text-muted-foreground">
             Food photos from Wikimedia Commons:{" "}
             {PHOTO_CREDITS.map((c, i) => (
               <span key={c.source}>
-                <a href={c.source} className="underline underline-offset-2 hover:text-foreground">
+                <a
+                  href={c.source}
+                  className="underline underline-offset-2 hover:text-foreground"
+                >
                   {c.subject}
                 </a>{" "}
                 by {c.author} (
-                <a href={c.licenseUrl} className="underline underline-offset-2 hover:text-foreground">
+                <a
+                  href={c.licenseUrl}
+                  className="underline underline-offset-2 hover:text-foreground"
+                >
                   {c.license}
                 </a>
                 ){i < PHOTO_CREDITS.length - 1 ? "; " : "."}
@@ -796,9 +1003,9 @@ export function LandingScene() {
         <div aria-hidden="true" className="overflow-hidden px-4 sm:px-6">
           <p
             data-wordmark
-            className="mx-auto max-w-6xl text-center font-display text-[30vw] leading-[0.78] font-extrabold tracking-tighter text-primary select-none lg:text-[22rem]"
+            className="mx-auto max-w-6xl text-center font-display text-[15vw] leading-[0.78] font-extrabold tracking-tighter text-primary select-none lg:text-[10rem]"
           >
-            KFD
+            Meriendash
           </p>
         </div>
       </footer>

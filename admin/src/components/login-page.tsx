@@ -101,8 +101,14 @@ export function LoginPage({
       });
 
       if (window.matchMedia("(pointer: fine)").matches) {
-        const toX = gsap.quickTo("[data-orb='c']", "x", { duration: 0.9, ease: "power3.out" });
-        const toY = gsap.quickTo("[data-orb='c']", "y", { duration: 0.9, ease: "power3.out" });
+        const toX = gsap.quickTo("[data-orb='c']", "x", {
+          duration: 0.9,
+          ease: "power3.out",
+        });
+        const toY = gsap.quickTo("[data-orb='c']", "y", {
+          duration: 0.9,
+          ease: "power3.out",
+        });
         scope.current?.addEventListener("mousemove", (e) => {
           const r = scope.current!.getBoundingClientRect();
           const x = ((e.clientX - r.left) / r.width - 0.5) * 36;
@@ -116,10 +122,19 @@ export function LoginPage({
   );
 
   return (
-    <div ref={scope} className="relative min-h-screen overflow-hidden bg-background">
+    <div
+      ref={scope}
+      className="relative min-h-screen overflow-hidden bg-background"
+    >
       {/* Curtain entrance */}
-      <div data-curtain="top" className="fixed inset-x-0 top-0 z-50 h-1/2 bg-muted" />
-      <div data-curtain="bottom" className="fixed inset-x-0 bottom-0 z-50 h-1/2 bg-muted" />
+      <div
+        data-curtain="top"
+        className="fixed inset-x-0 top-0 z-50 h-1/2 bg-muted"
+      />
+      <div
+        data-curtain="bottom"
+        className="fixed inset-x-0 bottom-0 z-50 h-1/2 bg-muted"
+      />
 
       {/* ---- Full-page live backdrop ---- */}
       <div data-reveal="backdrop" className="absolute inset-0">
@@ -141,12 +156,24 @@ export function LoginPage({
           }}
         />
 
-        <div data-orb="a" className="pointer-events-none absolute -left-16 top-1/3 h-72 w-72 rounded-full bg-amber-400/10 blur-3xl" />
-        <div data-orb="b" className="pointer-events-none absolute -right-10 bottom-1/4 h-80 w-80 rounded-full bg-orange-500/10 blur-3xl" />
-        <div data-orb="c" className="pointer-events-none absolute right-1/4 top-1/5 h-64 w-64 rounded-full bg-amber-400/10 blur-3xl" />
+        <div
+          data-orb="a"
+          className="pointer-events-none absolute -left-16 top-1/3 h-72 w-72 rounded-full bg-amber-400/10 blur-3xl"
+        />
+        <div
+          data-orb="b"
+          className="pointer-events-none absolute -right-10 bottom-1/4 h-80 w-80 rounded-full bg-orange-500/10 blur-3xl"
+        />
+        <div
+          data-orb="c"
+          className="pointer-events-none absolute right-1/4 top-1/5 h-64 w-64 rounded-full bg-amber-400/10 blur-3xl"
+        />
 
         <div className="pointer-events-none absolute right-[12%] top-[14%] h-14 w-14">
-          <div data-radar className="absolute inset-0 rounded-full border border-primary/50" />
+          <div
+            data-radar
+            className="absolute inset-0 rounded-full border border-primary/50"
+          />
           <div className="absolute inset-0 flex items-center justify-center rounded-full bg-primary/10">
             <span className="block h-2.5 w-2.5 rounded-full bg-primary shadow-[0_0_16px_var(--primary)]" />
           </div>
@@ -167,7 +194,8 @@ export function LoginPage({
             className="h-11 w-11 rounded-xl bg-white/90 object-contain p-1 shadow-lg shadow-black/50"
           />
           <span className="text-xl font-bold tracking-tight text-white">
-            KFD <span className="font-medium text-amber-300">Portal</span>
+            Meriendash{" "}
+            <span className="font-medium text-amber-300">Portal</span>
           </span>
         </div>
 
@@ -181,8 +209,8 @@ export function LoginPage({
               Welcome back
             </h1>
             <p className="mt-2 text-sm text-muted-foreground">
-              Sign in to the Kabankalan Food Delivery console. You will land on
-              the dashboard that matches your account.
+              Sign in to the Meriendash console. You will land on the dashboard
+              that matches your account.
             </p>
 
             <div className="mt-8">
@@ -199,16 +227,19 @@ export function LoginPage({
           </div>
         </div>
 
-        <p data-reveal="footer" className="mt-6 text-center text-xs text-white/60">
-          © {new Date().getFullYear()} KFD — Kabankalan City Proper, Negros
-          Occidental
+        <p
+          data-reveal="footer"
+          className="mt-6 text-center text-xs text-white/60"
+        >
+          © {new Date().getFullYear()} Meriendash — Kabankalan City Proper,
+          Negros Occidental
         </p>
         <p data-reveal="footer" className="mt-3 text-center text-xs">
           <Link
             href="/welcome"
             className="text-white/60 underline underline-offset-4 transition-colors hover:text-white"
           >
-            New here? See what KFD does
+            New here? See what Meriendash does
           </Link>
         </p>
       </div>

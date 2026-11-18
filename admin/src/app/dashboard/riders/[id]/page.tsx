@@ -529,7 +529,7 @@ export default function RiderDetailPage() {
           </div>
         </Card>
 
-        {/* What KFD owes the rider: settled payouts not yet sent. The money
+        {/* What Meriendash owes the rider: settled payouts not yet sent. The money
             goes out by GCash or cash; "Mark as paid" is the record of it. */}
         <Card className="mt-4 p-5">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">

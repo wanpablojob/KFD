@@ -43,7 +43,7 @@ const EASE = "power3.out";
  *   data-hero-copy      the hero text, which lifts and fades as you scroll away
  *   data-fact-icon      a service-fact icon that spins in
  *   data-spotlight      a red band with a light that follows the mouse
- *   data-wordmark       the footer KFD, rising letter by letter
+ *   data-wordmark       the footer Meriendash, rising letter by letter
  */
 export function useLandingMotion(
   scope: React.RefObject<HTMLDivElement | null>,
@@ -319,7 +319,7 @@ export function useLandingMotion(
           });
         }
 
-        // Pabakal: the customer types, KFD reads it back as a shopping list.
+        // Pabakal: the customer types, Meriendash reads it back as a shopping list.
         const chat = q("[data-chat]")[0];
         if (chat) {
           const part = (name: string) =>

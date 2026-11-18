@@ -262,7 +262,7 @@ export default function MerchantAccountScreen() {
 
       <MerchantSection label="More">
         <Text style={ui.muted}>
-          Add menu items, change prices and download sales on the KFD web portal.
+          Add menu items, change prices and download sales on the Meriendash web portal.
         </Text>
         <View style={styles.links}>
           <Pressable onPress={() => openLegal("support")} accessibilityRole="link">

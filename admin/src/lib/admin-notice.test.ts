@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { applicationNotice, refundNotice, suspensionNotice } from "./admin-notice.ts";
 
 test("an applicant hears the outcome, and nothing while pending", () => {
-  assert.equal(applicationNotice({ status: "approved", decision_note: null })?.title, "You're a KFD rider");
+  assert.equal(applicationNotice({ status: "approved", decision_note: null })?.title, "You're a Meriendash rider");
   assert.equal(
     applicationNotice({ status: "rejected", decision_note: " Blurry licence " })?.body,
     "Your rider application was not approved. Note: Blurry licence",

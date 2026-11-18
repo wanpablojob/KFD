@@ -17,11 +17,13 @@ export function applicationNotice(row: {
   status: string;
   decision_note: string | null;
 }): Notice | null {
-  const note = row.decision_note?.trim() ? ` Note: ${row.decision_note.trim()}` : "";
+  const note = row.decision_note?.trim()
+    ? ` Note: ${row.decision_note.trim()}`
+    : "";
   if (row.status === "approved") {
     return {
-      title: "You're a KFD rider",
-      body: "Your application was approved. Open the KFD app to start riding.",
+      title: "You're a Meriendash rider",
+      body: "Your application was approved. Open the Meriendash app to start riding.",
       data: {},
     };
   }
@@ -53,10 +55,12 @@ export function suspensionNotice(row: {
   suspended_reason: string | null;
 }): Notice {
   if (row.suspended_at) {
-    const reason = row.suspended_reason?.trim() ? ` Reason: ${row.suspended_reason.trim()}` : "";
+    const reason = row.suspended_reason?.trim()
+      ? ` Reason: ${row.suspended_reason.trim()}`
+      : "";
     return {
       title: "Rider account paused",
-      body: `You won't get delivery offers for now. Contact KFD support.${reason}`,
+      body: `You won't get delivery offers for now. Contact Meriendash support.${reason}`,
       data: {},
     };
   }

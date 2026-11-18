@@ -79,7 +79,7 @@ const hasBlanks = (stops: StopDraft[]) =>
 
 /**
  * Pabakal is a chat: the customer says what to buy the way they would on
- * KFD's Messenger, and the reply is the list, read by AI (with a rule-based
+ * Meriendash's Messenger, and the reply is the list, read by AI (with a rule-based
  * fallback on the phone). Fill only: the chat never sends anything until the
  * customer taps Send pabakal, which is where the server validates and places it.
  */
@@ -590,7 +590,7 @@ function Chip({
   );
 }
 
-/** The list as KFD read it, store by store. */
+/** The list as Meriendash read it, store by store. */
 function ListSummary({ stops }: { stops: StopDraft[] }) {
   return (
     <View style={[styles.card, styles.listCard]}>

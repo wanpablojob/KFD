@@ -22,15 +22,19 @@ const DEFAULT_FEE = "45";
 /** A fee as typed: a non-negative peso amount, or null when it is not one. */
 function parseFee(text: string): number | null {
   const value = Number(text.trim());
-  return text.trim() !== "" && Number.isFinite(value) && value >= 0 ? value : null;
+  return text.trim() !== "" && Number.isFinite(value) && value >= 0
+    ? value
+    : null;
 }
 
 function feeLabel(area: ServiceArea): string {
   if (area.delivery_fee !== null) return formatCurrency(area.delivery_fee);
-  return area.fee_agreed_in_person ? "Agreed at the door" : "No fee set — orders refused";
+  return area.fee_agreed_in_person
+    ? "Agreed at the door"
+    : "No fee set — orders refused";
 }
 
-/** Admins publish the barangays KFD delivers to (0077) and their fees (0080). */
+/** Admins publish the barangays Meriendash delivers to (0077) and their fees (0080). */
 export default function ServiceAreasPage() {
   const areas = useAsyncData(() => fetchServiceAreas());
   const [name, setName] = useState("");
@@ -59,7 +63,7 @@ export default function ServiceAreasPage() {
   function changeFee(area: ServiceArea) {
     const answer = window.prompt(
       `Delivery fee for ${area.barangay} in pesos. Leave empty to agree it at the door.`,
-      area.delivery_fee === null ? "" : String(area.delivery_fee)
+      area.delivery_fee === null ? "" : String(area.delivery_fee),
     );
     if (answer === null) return;
     const atDoor = answer.trim() === "";
@@ -113,7 +117,10 @@ export default function ServiceAreasPage() {
             className="w-28"
           />
           <label className="flex items-center gap-2 pb-2 text-sm text-muted-foreground">
-            <Checkbox checked={agreed} onChange={(e) => setAgreed(e.target.checked)} />
+            <Checkbox
+              checked={agreed}
+              onChange={(e) => setAgreed(e.target.checked)}
+            />
             Agree the fee at the door
           </label>
           <Button type="submit" disabled={busy || !canAdd} loading={busy}>
@@ -142,11 +149,14 @@ export default function ServiceAreasPage() {
                     key={area.barangay}
                     className="flex flex-wrap items-center justify-between gap-4 px-5 py-3 text-sm"
                   >
-                    <span className="text-card-foreground">{area.barangay}</span>
+                    <span className="text-card-foreground">
+                      {area.barangay}
+                    </span>
                     <span className="ml-auto flex items-center gap-2">
                       <span
                         className={
-                          area.delivery_fee === null && !area.fee_agreed_in_person
+                          area.delivery_fee === null &&
+                          !area.fee_agreed_in_person
                             ? "text-destructive"
                             : "text-muted-foreground"
                         }
@@ -169,7 +179,7 @@ export default function ServiceAreasPage() {
                           if (
                             rows.length === 1 &&
                             !window.confirm(
-                              "Removing the last barangay lets customers order to any address again. Continue?"
+                              "Removing the last barangay lets customers order to any address again. Continue?",
                             )
                           ) {
                             return;

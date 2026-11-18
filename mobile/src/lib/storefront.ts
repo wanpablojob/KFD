@@ -1467,7 +1467,7 @@ export async function submitRiderApplication(args: {
   return String(data ?? "");
 }
 
-/** Barangays KFD delivers to. Empty while the owner has not published the list (0077). */
+/** Barangays Meriendash delivers to. Empty while the owner has not published the list (0077). */
 export async function fetchServiceAreas(): Promise<string[]> {
   const { data, error } = await supabase
     .from("service_areas")

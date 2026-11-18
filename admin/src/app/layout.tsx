@@ -28,15 +28,15 @@ const bricolage = Bricolage_Grotesque({
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
-  title: "KFD Admin — Kabankalan Food Delivery",
+  title: "Meriendash Admin",
   description:
     "Operations dashboard for the Kabankalan City Food Delivery platform.",
-  applicationName: "KFD Admin",
+  applicationName: "Meriendash Admin",
   // Icons come from the app/ file conventions: favicon.ico, icon.png, apple-icon.png.
   openGraph: {
-    title: "KFD Admin",
-    description: "Operations dashboard for KFD.",
-    siteName: "KFD Admin",
+    title: "Meriendash Admin",
+    description: "Operations dashboard for Meriendash.",
+    siteName: "Meriendash Admin",
     type: "website",
   },
 };

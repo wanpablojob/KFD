@@ -16,7 +16,7 @@ import { AuthField } from "../components/AuthField";
 import { colors, radius, shadow, spacing, type } from "../lib/theme";
 
 /**
- * Shared sign-in for the KFD mobile app, pixel theme to match the landing.
+ * Shared sign-in for the Meriendash mobile app, pixel theme to match the landing.
  *
  * One account serves every role: a rider signs in to the rider surface, a
  * customer to the storefront, an admin/merchant sees the web-console notice.
@@ -78,8 +78,8 @@ export function LoginScreen({ onBack }: { onBack?: () => void }) {
         <View style={styles.brand}>
           <Image source={require("../../assets/logo.png")} style={styles.logo} />
           <View>
-            <Text style={styles.title}>KFD</Text>
-            <Text style={styles.subtitle}>Kabankalan Food Delivery</Text>
+            <Text style={styles.title}>Meriendash</Text>
+            <Text style={styles.subtitle}>Food delivery in Kabankalan</Text>
           </View>
         </View>
 
@@ -191,7 +191,7 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
   },
-  title: { fontSize: 28, fontWeight: "800", letterSpacing: 3, color: colors.primary },
+  title: { fontSize: 26, fontWeight: "800", letterSpacing: 1.5, color: colors.primary },
   subtitle: {
     fontSize: 10,
     letterSpacing: 1.5,

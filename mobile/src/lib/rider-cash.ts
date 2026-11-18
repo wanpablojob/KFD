@@ -58,7 +58,7 @@ export function cashOnHandLabel(onHand: number): {
   };
 }
 
-/** What KFD still owes the rider, what is in review, and the last payment (0134). */
+/** What Meriendash still owes the rider, what is in review, and the last payment (0134). */
 export interface RiderPayoutPosition {
   owed: number;
   inReview: number;

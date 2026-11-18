@@ -107,7 +107,7 @@ export default function RiderProfileRoute() {
   function confirmDeletionRequest() {
     Alert.alert(
       "Delete your account?",
-      "KFD will settle any payouts and cash you hold, then delete your account and personal details. You can keep delivering until then.",
+      "Meriendash will settle any payouts and cash you hold, then delete your account and personal details. You can keep delivering until then.",
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -118,7 +118,7 @@ export default function RiderProfileRoute() {
               .then((at) =>
                 Alert.alert(
                   "Request received",
-                  `We recorded your request on ${new Date(at).toLocaleDateString()}. KFD will contact you to settle up.`
+                  `We recorded your request on ${new Date(at).toLocaleDateString()}. Meriendash will contact you to settle up.`
                 )
               )
               .catch((cause: unknown) =>

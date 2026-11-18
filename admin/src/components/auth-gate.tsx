@@ -22,7 +22,13 @@ import { useUserRole } from "@/lib/use-user-role";
 export function AuthGate({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { user, loading: authLoading } = useSessionUser();
-  const { loading: roleLoading, isAdmin, isMerchant, provisioned, error } = useUserRole();
+  const {
+    loading: roleLoading,
+    isAdmin,
+    isMerchant,
+    provisioned,
+    error,
+  } = useUserRole();
 
   useEffect(() => {
     if (authLoading) return;
@@ -57,7 +63,16 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
 
     void signOut().catch(() => {});
     router.replace("/login?error=not-provisioned");
-  }, [authLoading, user, roleLoading, isAdmin, isMerchant, provisioned, error, router]);
+  }, [
+    authLoading,
+    user,
+    roleLoading,
+    isAdmin,
+    isMerchant,
+    provisioned,
+    error,
+    router,
+  ]);
 
   if (authLoading || (user && roleLoading)) {
     return (
@@ -65,7 +80,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
         <div className="flex flex-col items-center gap-3">
           <Image
             src="/images/kabankalan/logo.jpg"
-            alt="Kabankalan Food Delivery"
+            alt="Meriendash"
             width={48}
             height={48}
             className="animate-pulse"

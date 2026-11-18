@@ -10,7 +10,7 @@ import { primaryButton, secondaryButton } from "@/components/marketing/styles";
 export default function NotFound() {
   return (
     <main className="flex min-h-dvh flex-col items-center justify-center gap-8 bg-background px-6 text-center text-foreground">
-      <Image src="/images/kabankalan/badge.png" alt="" width={120} height={120} className="h-28 w-28" />
+      <Image src="/images/brand/mascot.png" alt="" width={160} height={160} className="h-40 w-40 rounded-2xl" />
       <div className="flex flex-col gap-3">
         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">Error 404</p>
         <h1 className="font-display text-3xl font-bold tracking-tight sm:text-4xl">

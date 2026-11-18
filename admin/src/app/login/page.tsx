@@ -2,7 +2,7 @@ import { LoginPage as LoginScene } from "@/components/login-page";
 import { safeNextPath } from "@/lib/safe-next";
 
 export const metadata = {
-  title: "Sign in — KFD",
+  title: "Sign in — Meriendash",
 };
 
 /**
@@ -12,11 +12,11 @@ export const metadata = {
  */
 const MESSAGES: Record<string, string> = {
   "not-provisioned":
-    "That account is not linked to an admin or a restaurant yet. Contact the KFD team to have it set up.",
+    "That account is not linked to an admin or a restaurant yet. Contact the Meriendash team to have it set up.",
   "not-an-operator":
-    "That account is a customer or rider account. The web portal is for admins and merchants — use the KFD app for ordering and deliveries.",
+    "That account is a customer or rider account. The web portal is for admins and merchants — use the Meriendash app for ordering and deliveries.",
   "no-restaurant":
-    "Your merchant account has no restaurant attached. Contact the KFD team.",
+    "Your merchant account has no restaurant attached. Contact the Meriendash team.",
   "lookup-failed":
     "We could not verify your access just now. Check your connection and try again.",
   "oauth-failed":
@@ -30,6 +30,9 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   const message = code ? (MESSAGES[code] ?? null) : null;
 
   return (
-    <LoginScene next={safeNextPath(params.next as string | undefined)} message={message} />
+    <LoginScene
+      next={safeNextPath(params.next as string | undefined)}
+      message={message}
+    />
   );
 }

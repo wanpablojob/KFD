@@ -4,17 +4,17 @@ import { DriveApplication } from "@/components/drive-application";
 import "../landing.css";
 
 /**
- * Drive with KFD: the real rider application, on the website.
+ * Drive with Meriendash: the real rider application, on the website.
  *
- * The landing page's "Drive with KFD" card links here. The visitor signs in
+ * The landing page's "Drive with Meriendash" card links here. The visitor signs in
  * or creates an account, applies, and the application lands in the same
  * review queue as one sent from the app (Riders, Applications). Approval is
  * still an admin's decision; this page only shows where it stands.
  */
 export const metadata: Metadata = {
-  title: "Drive with KFD — Kabankalan Food Delivery",
+  title: "Drive with Meriendash",
   description:
-    "Apply to deliver for KFD in Kabankalan City. Create an account, send your details, and we review your application.",
+    "Apply to deliver for Meriendash in Kabankalan City. Create an account, send your details, and we review your application.",
 };
 
 export default function DrivePage() {

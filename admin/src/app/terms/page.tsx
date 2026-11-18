@@ -4,8 +4,8 @@ import { ContactDetails } from "@/components/contact-details";
 import { BUSINESS, LEGAL_UPDATED } from "@/lib/site-content";
 
 export const metadata: Metadata = {
-  title: "Terms & Conditions — KFD",
-  description: "The terms for using Kabankalan Food Delivery.",
+  title: "Terms & Conditions — Meriendash",
+  description: "The terms for using Meriendash.",
   alternates: { canonical: "/terms" },
 };
 
@@ -32,9 +32,9 @@ export default function TermsPage() {
       <div className="mt-8 flex flex-col gap-6 text-sm leading-relaxed">
         <Section title="1. About these terms">
           <p>
-            KFD connects customers in Kabankalan City with local restaurants and
-            the riders who deliver for them. By creating an account or placing
-            an order you agree to these terms. Our{" "}
+            Meriendash connects customers in Kabankalan City with local
+            restaurants and the riders who deliver for them. By creating an
+            account or placing an order you agree to these terms. Our{" "}
             <Link
               href="/privacy"
               className="font-semibold text-primary underline underline-offset-2"
@@ -64,7 +64,9 @@ export default function TermsPage() {
 
         <Section title="3. Placing an order">
           <ul className="list-disc pl-5">
-            <li>Menus and prices come from each restaurant, not from KFD.</li>
+            <li>
+              Menus and prices come from each restaurant, not from Meriendash.
+            </li>
             <li>
               Before you confirm, you see the full total: the food, the delivery
               fee for your barangay, and a service fee. In some barangays the
@@ -100,8 +102,8 @@ export default function TermsPage() {
               your order.
             </li>
             <li>
-              After that, contact KFD support as soon as you can. Once the food
-              is being prepared, cancelling may not be possible.
+              After that, contact Meriendash support as soon as you can. Once
+              the food is being prepared, cancelling may not be possible.
             </li>
             <li>
               A restaurant may cancel an order it cannot fulfil, for example if
@@ -120,11 +122,11 @@ export default function TermsPage() {
             <li>
               Please be reachable at your contact number. If the rider cannot
               reach you or the address, they may report the delivery as failed
-              and KFD will follow up.
+              and Meriendash will follow up.
             </li>
             <li>
               The rider takes a photo when handing over the order, as proof of
-              delivery. It is seen only by the rider and KFD staff.
+              delivery. It is seen only by the rider and Meriendash staff.
             </li>
           </ul>
         </Section>
@@ -162,12 +164,12 @@ export default function TermsPage() {
         <Section title="8. Problems and refunds">
           <ul className="list-disc pl-5">
             <li>
-              If something is wrong with an order, contact KFD support with your
-              order reference.
+              If something is wrong with an order, contact Meriendash support
+              with your order reference.
             </li>
             <li>
-              KFD staff review each request. An approved refund is paid in cash
-              or by GCash, and never more than you paid for that order.
+              Meriendash staff review each request. An approved refund is paid
+              in cash or by GCash, and never more than you paid for that order.
             </li>
             <li>Refunds on an order are shown to you in the app.</li>
           </ul>
@@ -185,14 +187,13 @@ export default function TermsPage() {
             Restaurants are independent businesses and are responsible for the
             food they prepare, including its ingredients and allergens. Ask the
             restaurant if you have an allergy. Restaurants and riders work with
-            KFD under separate partner terms.
+            Meriendash under separate partner terms.
           </p>
           <p>
             The rider pays the restaurant for the food when collecting it, and
             you pay the rider in cash on delivery. The delivery and service fees
-            go to KFD, which pays the rider for the trip. While a
-            rider is delivering your order, you can see where they are in the
-            app.
+            go to Meriendash, which pays the rider for the trip. While a rider
+            is delivering your order, you can see where they are in the app.
           </p>
         </Section>
 
@@ -208,25 +209,26 @@ export default function TermsPage() {
           <p>
             Customers can delete their account from the app at any time, except
             while an order is on the way. Riders can request deletion from the
-            app; KFD closes the account after settling any payouts and cash.
+            app; Meriendash closes the account after settling any payouts and
+            cash.
           </p>
         </Section>
 
         <Section title="13. Liability">
           <p>
-            KFD runs the platform with reasonable care. To the extent Philippine
-            law allows, KFD is not responsible for losses caused by restaurants
-            or by events outside its control. Nothing in these terms limits
-            rights you have under Philippine consumer law.
+            Meriendash runs the platform with reasonable care. To the extent
+            Philippine law allows, Meriendash is not responsible for losses
+            caused by restaurants or by events outside its control. Nothing in
+            these terms limits rights you have under Philippine consumer law.
           </p>
         </Section>
 
         <Section title="14. Changes">
           <p>
-            KFD is a pilot. Coverage, fees and features may change. When these
-            terms change, the date at the top changes too, and continuing to use
-            KFD means you accept the new terms. These terms are governed by the
-            laws of the Philippines.
+            Meriendash is a pilot. Coverage, fees and features may change. When
+            these terms change, the date at the top changes too, and continuing
+            to use Meriendash means you accept the new terms. These terms are
+            governed by the laws of the Philippines.
           </p>
         </Section>
 

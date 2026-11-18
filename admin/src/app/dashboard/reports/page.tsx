@@ -57,7 +57,9 @@ const DAY_COLUMNS: CsvColumn<ReportDay>[] = [
  * report-metrics.ts.
  */
 export default function ReportsPage() {
-  const [range, setRange] = useState<RangeValue>(() => presetRange(30, new Date()));
+  const [range, setRange] = useState<RangeValue>(() =>
+    presetRange(30, new Date()),
+  );
 
   const report = useAsyncData(async () => {
     // One day either side of the chosen range. The Supabase bound is a
@@ -111,8 +113,8 @@ export default function ReportsPage() {
               <Section aria-label="Empty period">
                 <div className="flex flex-wrap items-center justify-between gap-3 rounded-(--radius-card) border border-border bg-muted/30 p-4 text-sm">
                   <p className="text-muted-foreground">
-                    No delivered orders in this period. Only delivered orders count
-                    as revenue, so every total below is zero.
+                    No delivered orders in this period. Only delivered orders
+                    count as revenue, so every total below is zero.
                   </p>
                   <Button
                     variant="outline"
@@ -159,7 +161,7 @@ export default function ReportsPage() {
                 />
                 <StatCard
                   kpi={{
-                    label: "KFD fees",
+                    label: "Meriendash fees",
                     value: formatCurrency(data.totals.kfdFees),
                     hint: "delivery and service fees · the rider hands these in",
                   }}
@@ -168,7 +170,7 @@ export default function ReportsPage() {
                   kpi={{
                     label: "Paid to shops at pickup",
                     value: formatCurrency(data.totals.paidToShops),
-                    hint: "food the riders paid for · KFD owes shops nothing",
+                    hint: "food the riders paid for · Meriendash owes shops nothing",
                   }}
                 />
               </StatGrid>
@@ -240,7 +242,7 @@ export default function ReportsPage() {
               <Card>
                 <CardHeader
                   title="By restaurant"
-                  subtitle="Riders pay each shop for the food at pickup, so nothing here is owed by KFD."
+                  subtitle="Riders pay each shop for the food at pickup, so nothing here is owed by Meriendash."
                   action={
                     <Button
                       variant="outline"
@@ -263,10 +265,18 @@ export default function ReportsPage() {
                     <thead>
                       <tr className="text-left text-muted-foreground">
                         <th className="py-2 pr-4 font-medium">Shop</th>
-                        <th className="py-2 px-3 text-right font-medium">Orders</th>
-                        <th className="py-2 px-3 text-right font-medium">Gross</th>
-                        <th className="py-2 px-3 text-right font-medium">Refunds</th>
-                        <th className="py-2 pl-3 text-right font-medium">Paid at pickup</th>
+                        <th className="py-2 px-3 text-right font-medium">
+                          Orders
+                        </th>
+                        <th className="py-2 px-3 text-right font-medium">
+                          Gross
+                        </th>
+                        <th className="py-2 px-3 text-right font-medium">
+                          Refunds
+                        </th>
+                        <th className="py-2 pl-3 text-right font-medium">
+                          Paid at pickup
+                        </th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border">

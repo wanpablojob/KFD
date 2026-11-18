@@ -22,7 +22,7 @@ import { colors, radius, shadow, spacing, type } from "../lib/theme";
 export type LandingAction = "login" | "signup" | "track";
 
 /**
- * Signed-out landing: what KFD is, and one obvious way in.
+ * Signed-out landing: what Meriendash is, and one obvious way in.
  *
  * A food photo under a red band carries the brand; the cream sheet below asks
  * one question (new or returning?) with Google as the fastest path. Tracking
@@ -85,8 +85,8 @@ export function LandingScreen({
           <View style={styles.heroShade} />
           <Animated.View style={[styles.brand, riseStyle]}>
             <Image source={require("../../assets/logo.png")} style={styles.logo} />
-            <Text style={styles.title}>KFD</Text>
-            <Text style={styles.subtitle}>Kabankalan Food Delivery</Text>
+            <Text style={styles.title}>Meriendash</Text>
+            <Text style={styles.subtitle}>Food delivery in Kabankalan</Text>
           </Animated.View>
         </ImageBackground>
 
@@ -155,7 +155,7 @@ export function LandingScreen({
               style={styles.link}
             >
               <Ionicons name="bicycle-outline" size={16} color={colors.secondary} />
-              <Text style={styles.linkLabel}>Ride with KFD</Text>
+              <Text style={styles.linkLabel}>Ride with Meriendash</Text>
             </Pressable>
           </View>
 
@@ -187,9 +187,9 @@ const styles = StyleSheet.create({
   brand: { alignItems: "center", gap: spacing.xs },
   logo: { width: 104, height: 104, marginBottom: spacing.sm },
   title: {
-    fontSize: 40,
+    fontSize: 32,
     fontWeight: "900",
-    letterSpacing: 5,
+    letterSpacing: 2,
     color: colors.textInverse,
   },
   subtitle: {

@@ -25,7 +25,7 @@ import {
 initSentry();
 
 /**
- * Root navigator for the KFD mobile app (Expo Router, SDK 57).
+ * Root navigator for the Meriendash mobile app (Expo Router, SDK 57).
  *
  * Route guard model: every screen is declared with a Stack.Protected guard so
  * the router redirects away from screens a given session or role must not see,

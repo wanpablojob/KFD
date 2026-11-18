@@ -34,7 +34,9 @@ export function LeadForm({
   const [note, setNote] = useState("");
   const [consent, setConsent] = useState(false);
   const [honeypot, setHoneypot] = useState("");
-  const [state, setState] = useState<"idle" | "sending" | "done" | "error">("idle");
+  const [state, setState] = useState<"idle" | "sending" | "done" | "error">(
+    "idle",
+  );
   const [message, setMessage] = useState("");
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -76,13 +78,19 @@ export function LeadForm({
       setConsent(false);
     } catch {
       setState("error");
-      setMessage("We could not save that just now. Please try again in a moment.");
+      setMessage(
+        "We could not save that just now. Please try again in a moment.",
+      );
     }
   }
 
   if (state === "done") {
     return (
-      <p role="status" className="rounded-2xl border border-border bg-card p-5 text-sm text-foreground" data-lead-state="done">
+      <p
+        role="status"
+        className="rounded-2xl border border-border bg-card p-5 text-sm text-foreground"
+        data-lead-state="done"
+      >
         {message}
       </p>
     );
@@ -101,7 +109,10 @@ export function LeadForm({
       noValidate
     >
       <div className="flex flex-col gap-1.5">
-        <label htmlFor={`${id}-name`} className="text-sm font-semibold text-foreground">
+        <label
+          htmlFor={`${id}-name`}
+          className="text-sm font-semibold text-foreground"
+        >
           Name
         </label>
         <input
@@ -117,7 +128,10 @@ export function LeadForm({
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <label htmlFor={`${id}-contact`} className="text-sm font-semibold text-foreground">
+        <label
+          htmlFor={`${id}-contact`}
+          className="text-sm font-semibold text-foreground"
+        >
           Phone or email
         </label>
         <input
@@ -135,7 +149,10 @@ export function LeadForm({
 
       {withNote ? (
         <div className="flex flex-col gap-1.5">
-          <label htmlFor={`${id}-note`} className="text-sm font-semibold text-foreground">
+          <label
+            htmlFor={`${id}-note`}
+            className="text-sm font-semibold text-foreground"
+          >
             Note (optional)
           </label>
           <textarea
@@ -152,7 +169,10 @@ export function LeadForm({
       ) : null}
 
       {/* Honeypot. Hidden from sight and from assistive tech, never tabbable. */}
-      <div aria-hidden="true" className="absolute -left-[9999px] h-px w-px overflow-hidden">
+      <div
+        aria-hidden="true"
+        className="absolute -left-[9999px] h-px w-px overflow-hidden"
+      >
         <label htmlFor={`${id}-company`}>Company</label>
         <input
           id={`${id}-company`}
@@ -173,8 +193,8 @@ export function LeadForm({
           required
         />
         <span className="text-xs text-muted-foreground">
-          I agree to be contacted about KFD. We will only use this to reach you
-          about your signup.
+          I agree to be contacted about Meriendash. We will only use this to
+          reach you about your signup.
         </span>
       </label>
 
@@ -187,7 +207,11 @@ export function LeadForm({
       </button>
 
       {state === "error" ? (
-        <p role="alert" className="text-sm text-destructive" data-lead-state="error">
+        <p
+          role="alert"
+          className="text-sm text-destructive"
+          data-lead-state="error"
+        >
           {message}
         </p>
       ) : null}

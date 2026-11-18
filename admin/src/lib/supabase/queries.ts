@@ -1149,7 +1149,7 @@ export async function fetchRiderCashPositions(): Promise<RiderCashPosition[]> {
   );
 }
 
-/** One delivery behind a rider's unpaid balance: KFD's 20.00 for it (0151). */
+/** One delivery behind a rider's unpaid balance: Meriendash's 20.00 for it (0151). */
 export interface RiderCashOrder {
   riderId: string;
   reference: string;
@@ -1157,7 +1157,7 @@ export interface RiderCashOrder {
   amount: number;
 }
 
-/** The deliveries each rider still owes KFD for, newest first. */
+/** The deliveries each rider still owes Meriendash for, newest first. */
 export async function fetchRiderCashOrders(): Promise<RiderCashOrder[]> {
   const { data, error } = await supabase.rpc("admin_rider_cash_orders");
   if (error) throw new Error(error.message);

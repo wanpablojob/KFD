@@ -14,9 +14,9 @@ import {
 import type { RiderCashPosition } from "@/lib/types";
 
 /**
- * Who owes KFD cash, for which deliveries, and the button to mark it handed in.
+ * Who owes Meriendash cash, for which deliveries, and the button to mark it handed in.
  *
- * A rider owes KFD 20.00 per cash delivery (0151): of the 50.00 in fees they
+ * A rider owes Meriendash 20.00 per cash delivery (0151): of the 50.00 in fees they
  * keep 25.00 and the 5.00 service fee is the royalty. Each rider's block lists
  * the deliveries behind their balance; "Collected" records the whole balance as
  * one handover, the same record the rider's page shows.
@@ -77,7 +77,7 @@ export function CashToCollectDialog({
       <div className="space-y-4">
         <p className="text-sm text-muted-foreground">
           {rows.length === 0
-            ? "No rider owes KFD cash right now."
+            ? "No rider owes Meriendash cash right now."
             : `${rows.length === 1 ? "One rider owes" : `${rows.length} riders owe`} ${formatCurrency(total)}: ₱20 for each delivery. Riders keep ₱25 of the fees; the ₱5 service fee is the royalty.`}
         </p>
 

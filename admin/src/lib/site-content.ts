@@ -48,7 +48,8 @@ export const HOW_IT_WORKS = [
  * plus 10 per extra store, at most 5 stores.
  */
 export const PABAKAL = {
-  example: "Maayong aga! Mapabakal ko tani duwa ka Biogesic sa Mercury kag isa ka Bear Brand sa 7-Eleven",
+  example:
+    "Maayong aga! Mapabakal ko tani duwa ka Biogesic sa Mercury kag isa ka Bear Brand sa 7-Eleven",
   stops: [
     { store: "Mercury", items: [{ name: "Biogesic", quantity: 2 }] },
     { store: "7-Eleven", items: [{ name: "Bear Brand", quantity: 1 }] },
@@ -65,11 +66,16 @@ export const PABAKAL = {
  * Local dishes worth featuring once partner restaurants are confirmed.
  * Presented as "coming from our kitchens", never as an on-menu promise.
  */
-export const LOCAL_SPECIALTIES = ["Piaya", "Inasal", "Kansi", "Napoleones"] as const;
+export const LOCAL_SPECIALTIES = [
+  "Piaya",
+  "Inasal",
+  "Kansi",
+  "Napoleones",
+] as const;
 
 /**
  * Photos of those dishes, from Wikimedia Commons under free licences. They show
- * the dish, not a KFD partner: captions name the food only, and photos that
+ * the dish, not a Meriendash partner: captions name the food only, and photos that
  * show a business's name or branding were left out. Replace with the owner's
  * own photos of partner kitchens once they exist.
  *
@@ -84,13 +90,15 @@ export const DISH_PHOTOS: Record<(typeof LOCAL_SPECIALTIES)[number], string> = {
 };
 
 /** One line on what each dish is. General food facts, not menu promises. */
-export const DISH_DETAILS: Record<(typeof LOCAL_SPECIALTIES)[number], string> = {
-  Inasal:
-    "Chicken marinated in calamansi, vinegar, lemongrass and annatto, grilled over charcoal.",
-  Piaya: "Flat, unleavened bread filled with muscovado sugar and toasted on a griddle.",
-  Kansi: "Beef shank and bone marrow soup, soured with batwan fruit.",
-  Napoleones: "Flaky puff pastry layered with custard under a sugar glaze.",
-};
+export const DISH_DETAILS: Record<(typeof LOCAL_SPECIALTIES)[number], string> =
+  {
+    Inasal:
+      "Chicken marinated in calamansi, vinegar, lemongrass and annatto, grilled over charcoal.",
+    Piaya:
+      "Flat, unleavened bread filled with muscovado sugar and toasted on a griddle.",
+    Kansi: "Beef shank and bone marrow soup, soured with batwan fruit.",
+    Napoleones: "Flaky puff pastry layered with custard under a sugar glaze.",
+  };
 
 /** A 4:5 centre crop of the Commons boodle-fight photo; one of the dishes circling the hero badge. */
 export const FEAST_PHOTO = "/images/food/hero-boodle.jpg";
@@ -117,7 +125,8 @@ export const KITCHEN_PHOTO = "/images/food/inasal-plate.jpg";
  */
 export const APP_DOWNLOADS = {
   android:
-    "https://expo.dev/artifacts/eas/H3cJMhvDuUii5p5TSpoxr7WF7uzV48phCPJMQX0E1mw.apk" as string | null,
+    "https://expo.dev/artifacts/eas/H3cJMhvDuUii5p5TSpoxr7WF7uzV48phCPJMQX0E1mw.apk" as
+      string | null,
   iphone: null as string | null,
 } as const;
 
@@ -129,21 +138,24 @@ export const PHOTO_CREDITS = [
     author: "Ej Afable",
     license: "CC BY-SA 4.0",
     licenseUrl: BY_SA_4,
-    source: "https://commons.wikimedia.org/wiki/File:Boodle_fight_(kamayan)_01.jpg",
+    source:
+      "https://commons.wikimedia.org/wiki/File:Boodle_fight_(kamayan)_01.jpg",
   },
   {
     subject: "Chicken inasal with rice",
     author: "Roderick Suñaz Sumalinog",
     license: "CC BY-SA 4.0",
     licenseUrl: BY_SA_4,
-    source: "https://commons.wikimedia.org/wiki/File:Chicken_inasal_with_rice.jpg",
+    source:
+      "https://commons.wikimedia.org/wiki/File:Chicken_inasal_with_rice.jpg",
   },
   {
     subject: "Chicken inasal meal",
     author: "Ralff Nestor Nacor",
     license: "CC BY-SA 4.0",
     licenseUrl: BY_SA_4,
-    source: "https://commons.wikimedia.org/wiki/File:Bacolod%27s_Chicken_Inasal_Meal,_Sep_2026.jpg",
+    source:
+      "https://commons.wikimedia.org/wiki/File:Bacolod%27s_Chicken_Inasal_Meal,_Sep_2026.jpg",
   },
   {
     subject: "Piaya",
@@ -202,7 +214,7 @@ export const CONTACT = {
 export const LEGAL_UPDATED = "23 October 2026";
 
 export const BUSINESS = {
-  name: "Kabankalan Food Delivery",
+  name: "Meriendash",
   /** TODO(owner): DTI/SEC registration number once available. */
   registrationNumber: null as string | null,
 } as const;
@@ -226,13 +238,13 @@ export const PARTNER_RESTAURANTS = [] as {
 export const PARTNER_TERMS = {
   restaurant: {
     blurb:
-      "Sell on KFD and reach Kabankalan customers without building your own delivery.",
+      "Sell on Meriendash and reach Kabankalan customers without building your own delivery.",
     terms:
-      "The rider pays you for the food when collecting it, so your sales are in your hands the same day, not owed by KFD.",
+      "The rider pays you for the food when collecting it, so your sales are in your hands the same day, not owed by Meriendash.",
   },
   rider: {
     blurb:
-      "Drive with KFD and earn on your own schedule around Kabankalan.",
+      "Drive with Meriendash and earn on your own schedule around Kabankalan.",
     terms:
       "Rider terms are being finalised. Apply and we will explain payouts and requirements before you start.",
   },
@@ -246,7 +258,7 @@ export const PARTNER_TERMS = {
 export const FAQ = [
   {
     q: "Paano ako magbabayad?",
-    a: "Pay the rider in cash when your food arrives. KFD does not take card or online payments yet.",
+    a: "Pay the rider in cash when your food arrives. Meriendash does not take card or online payments yet.",
   },
   {
     q: "How long does delivery take?",
@@ -254,7 +266,7 @@ export const FAQ = [
   },
   {
     q: "Can I cancel my order?",
-    a: "Yes, from the app, until the restaurant accepts it. After that, contact the restaurant or KFD support as soon as you can; once the food is being prepared it may not be possible.",
+    a: "Yes, from the app, until the restaurant accepts it. After that, contact the restaurant or Meriendash support as soon as you can; once the food is being prepared it may not be possible.",
   },
   {
     q: "How do I track my order?",

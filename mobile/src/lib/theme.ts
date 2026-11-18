@@ -1,6 +1,6 @@
 /**
  * Customer-facing design tokens: a warm, appetising palette drawn from the
- * Kabankalan Food Delivery logo (red -> orange -> gold -> cream).
+ * Meriendash logo (red -> orange -> gold -> cream).
  *
  * The app previously hardcoded ~19 hex values per screen in a cold navy/blue
  * "pixel" theme. That made the customer half read as an arcade cabinet and made

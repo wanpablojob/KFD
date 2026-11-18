@@ -1,8 +1,8 @@
 import { OrderTracker } from "@/components/track/order-tracker";
 
 export const metadata = {
-  title: "Track your order — KFD",
-  description: "Check the live status of your KFD order.",
+  title: "Track your order — Meriendash",
+  description: "Check the live status of your Meriendash order.",
   robots: { index: false, follow: false },
 };
 
@@ -19,7 +19,9 @@ export const metadata = {
  * only secret here, so it is never echoed back into a link, an analytics call,
  * or a heading that a referrer header could leak.
  */
-export default async function TrackPage({ params }: PageProps<"/track/[reference]">) {
+export default async function TrackPage({
+  params,
+}: PageProps<"/track/[reference]">) {
   const { reference } = await params;
   const clean = decodeURIComponent(reference).trim();
 
@@ -27,7 +29,7 @@ export default async function TrackPage({ params }: PageProps<"/track/[reference
     <main className="mx-auto flex min-h-dvh w-full max-w-lg flex-col justify-center gap-8 px-4 py-12">
       <header className="space-y-1">
         <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          Kabankalan Food Delivery
+          Meriendash
         </p>
         <h1 className="text-2xl font-semibold text-card-foreground">
           Track your order
@@ -38,15 +40,18 @@ export default async function TrackPage({ params }: PageProps<"/track/[reference
         {clean ? (
           <OrderTracker reference={clean} />
         ) : (
-          <p className="text-sm text-muted-foreground" data-tracking-state="missing">
+          <p
+            className="text-sm text-muted-foreground"
+            data-tracking-state="missing"
+          >
             No reference was given.
           </p>
         )}
       </section>
 
       <p className="text-xs text-muted-foreground">
-        Anyone with this reference can see this page, so treat it like a password
-        and do not post it publicly.
+        Anyone with this reference can see this page, so treat it like a
+        password and do not post it publicly.
       </p>
     </main>
   );

@@ -39,7 +39,7 @@ function escapeHtml(value: unknown): string {
     (c) =>
       ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[
         c
-      ] as string
+      ] as string,
   );
 }
 
@@ -52,12 +52,12 @@ function layout(title: string, inner: string): string {
 <html>
   <body style="margin:0;background:#fafafa;font-family:system-ui,-apple-system,'Segoe UI',sans-serif;color:#27272a">
     <div style="max-width:560px;margin:0 auto;padding:24px">
-      <div style="background:#b90e1f;color:#fff;padding:14px 20px;border-radius:8px 8px 0 0;font-weight:700">KFD</div>
+      <div style="background:#b90e1f;color:#fff;padding:14px 20px;border-radius:8px 8px 0 0;font-weight:700">Meriendash</div>
       <div style="background:#fff;padding:20px;border:1px solid #e4e4e7;border-top:0;border-radius:0 0 8px 8px">
         <h1 style="margin:0 0 12px;font-size:18px">${escapeHtml(title)}</h1>
         ${inner}
       </div>
-      <p style="margin:16px 0 0;font-size:12px;color:#a1a1aa">KFD · Kabankalan Food Delivery</p>
+      <p style="margin:16px 0 0;font-size:12px;color:#a1a1aa">Meriendash · Food delivery in Kabankalan</p>
     </div>
   </body>
 </html>`;
@@ -72,7 +72,7 @@ function itemTable(items: OrderEmailItem[]): string {
         `<li style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #eee">
           <span>${escapeHtml(i.quantity)}&times; ${escapeHtml(i.name)}</span>
           <span>${peso(i.price * i.quantity)}</span>
-        </li>`
+        </li>`,
     )
     .join("")}</ul>`;
 }
@@ -92,7 +92,7 @@ export interface SendResult {
 export async function sendOrderEmail(
   to: string,
   subject: string,
-  html: string
+  html: string,
 ): Promise<SendResult> {
   const apiKey = process.env.RESEND_API_KEY;
 
@@ -106,7 +106,9 @@ export async function sendOrderEmail(
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: process.env.ORDER_EMAIL_FROM ?? "KFD <orders@notifications.kfd.ph>",
+        from:
+          process.env.ORDER_EMAIL_FROM ??
+          "Meriendash <orders@notifications.kfd.ph>",
         to: [to],
         subject,
         html,
@@ -123,7 +125,10 @@ export async function sendOrderEmail(
     return { ok: res.ok, detail: res.ok ? body : `${res.status} ${body}` };
   } catch (err) {
     if (err instanceof Error && err.name === "TimeoutError") {
-      return { ok: false, detail: `Resend did not answer within ${TIMEOUT_MS}ms` };
+      return {
+        ok: false,
+        detail: `Resend did not answer within ${TIMEOUT_MS}ms`,
+      };
     }
     return {
       ok: false,
@@ -140,7 +145,7 @@ export function newOrderEmail(order: OrderEmailData): {
     subject: `New order ${order.reference}`,
     html: layout(
       "New order received",
-      `<p>You have a new order to prepare.</p>${summary(order)}`
+      `<p>You have a new order to prepare.</p>${summary(order)}`,
     ),
   };
 }
@@ -160,7 +165,7 @@ export function orderPlacedEmail(order: OrderEmailData): {
     subject: `Order ${order.reference} received`,
     html: layout(
       "Order received",
-      `<p>Thanks — ${escapeHtml(order.restaurant)} has your order. We will email you again when it is on its way.</p>${summary(order)}`
+      `<p>Thanks — ${escapeHtml(order.restaurant)} has your order. We will email you again when it is on its way.</p>${summary(order)}`,
     ),
   };
 }
@@ -176,7 +181,7 @@ const STATUS_COPY: Record<string, string> = {
 export function orderStatusEmail(
   order: OrderEmailData,
   status: string,
-  reason?: string
+  reason?: string,
 ): { subject: string; html: string } | null {
   const copy = STATUS_COPY[status];
   if (!copy) return null;
@@ -190,7 +195,7 @@ export function orderStatusEmail(
     subject: `Order ${order.reference} — ${copy}`,
     html: layout(
       `Order ${order.reference} update`,
-      `<p>${escapeHtml(copy)}</p>${reasonBlock}${summary(order)}`
+      `<p>${escapeHtml(copy)}</p>${reasonBlock}${summary(order)}`,
     ),
   };
 }
@@ -220,7 +225,7 @@ const TRIP_STATUS_COPY: Record<string, string> = {
 export function tripStatusEmail(
   trip: { reference: string; items: OrderEmailData["items"]; total: number },
   status: string,
-  reason?: string
+  reason?: string,
 ): { subject: string; html: string } | null {
   const copy = TRIP_STATUS_COPY[status];
   if (!copy) return null;
@@ -242,7 +247,7 @@ export function tripStatusEmail(
     subject: `Order ${trip.reference} — ${copy}`,
     html: layout(
       `Order ${trip.reference} update`,
-      `<p>${escapeHtml(copy)}</p>${reasonBlock}${summary(data)}`
+      `<p>${escapeHtml(copy)}</p>${reasonBlock}${summary(data)}`,
     ),
   };
 }

@@ -51,8 +51,8 @@ export default function AccountRoute() {
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.header}>
-          <Text style={styles.title}>KFD</Text>
-          <Text style={styles.subtitle}>Kabankalan Food Delivery</Text>
+          <Text style={styles.title}>Meriendash</Text>
+          <Text style={styles.subtitle}>Food delivery in Kabankalan</Text>
         </View>
 
         <View style={styles.card}>
@@ -63,7 +63,9 @@ export default function AccountRoute() {
           <Text style={styles.roleLabel}>
             Role: <Text style={styles.bold}>{role?.role}</Text>
           </Text>
-          <Text style={styles.muted}>Use the KFD web console for admin work.</Text>
+          <Text style={styles.muted}>
+            Use the Meriendash web console for admin work.
+          </Text>
         </View>
 
         <Pressable style={styles.signOutButton} onPress={() => void signOut()}>

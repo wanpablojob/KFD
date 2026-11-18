@@ -4,9 +4,8 @@ import { ContactDetails } from "@/components/contact-details";
 import { BUSINESS, LEGAL_UPDATED } from "@/lib/site-content";
 
 export const metadata: Metadata = {
-  title: "Privacy Policy — KFD",
-  description:
-    "How Kabankalan Food Delivery collects, uses and protects your information.",
+  title: "Privacy Policy — Meriendash",
+  description: "How Meriendash collects, uses and protects your information.",
   alternates: { canonical: "/privacy" },
 };
 
@@ -19,8 +18,8 @@ export default function PrivacyPage() {
   return (
     <main className="mx-auto w-full max-w-2xl px-6 py-16">
       <p className="mb-6 border-2 border-border bg-muted px-4 py-3 text-sm font-medium">
-        Draft notice: this policy describes how KFD works today and is pending
-        legal review.
+        Draft notice: this policy describes how Meriendash works today and is
+        pending legal review.
       </p>
 
       <h1 className="text-2xl font-bold">Privacy Policy</h1>
@@ -115,22 +114,22 @@ export default function PrivacyPage() {
               name, address and contact number while delivering it.
             </li>
             <li>
-              Delivery photos are seen only by the rider who took them and KFD
-              staff, never by other customers.
+              Delivery photos are seen only by the rider who took them and
+              Meriendash staff, never by other customers.
             </li>
             <li>
-              A Pabakal receipt photo is seen by you, your rider and KFD staff,
-              because it is what you pay for.
+              A Pabakal receipt photo is seen by you, your rider and Meriendash
+              staff, because it is what you pay for.
             </li>
             <li>
               While your order is on its way, you can see your rider&apos;s
               location. Nobody else can, and not once the delivery is done.
             </li>
             <li>
-              Services that run KFD for us store or process it: our database and
-              sign-in provider, our website host, our push notification service,
-              our crash reporting service and Google&apos;s Gemini AI service
-              (see AI features).
+              Services that run Meriendash for us store or process it: our
+              database and sign-in provider, our website host, our push
+              notification service, our crash reporting service and
+              Google&apos;s Gemini AI service (see AI features).
             </li>
           </ul>
         </section>
@@ -163,8 +162,8 @@ export default function PrivacyPage() {
             Data travels over encrypted connections. Access is limited by role:
             customers see their own orders, riders see only the orders assigned
             to them, restaurants see only their own orders, and delivery photos
-            are stored privately. Only KFD staff can see everything, and only to
-            run the service.
+            are stored privately. Only Meriendash staff can see everything, and
+            only to run the service.
           </p>
         </section>
 

@@ -78,7 +78,7 @@ export default function RiderEarningsRoute() {
   const history = useRiderPayoutHistory(limit);
   const cash = useRiderCashPosition();
   // Pabakal is paid by the customer in cash and the rider keeps both fees, so
-  // it is neither ledger earnings nor cash owed to KFD: it gets its own card.
+  // it is neither ledger earnings nor cash owed to Meriendash: it gets its own card.
   const pabakal = useQuery({
     queryKey: ["pabakal", "earnings"],
     queryFn: fetchMyDeliveredPabakal,
@@ -148,7 +148,7 @@ export default function RiderEarningsRoute() {
       </View>
 
       {firstEarned ? <Text style={styles.since}>{firstEarned}</Text> : null}
-      {/* Earnings are what the rider earned; this is whether KFD has sent it (0134). */}
+      {/* Earnings are what the rider earned; this is whether Meriendash has sent it (0134). */}
       {payout.data && payoutLine(payout.data, peso) ? (
         <Text style={styles.since}>{payoutLine(payout.data, peso)}</Text>
       ) : null}
@@ -163,7 +163,7 @@ export default function RiderEarningsRoute() {
           <View style={[styles.cashCard, shadow.card]}>
             <View style={styles.cashHeader}>
               <View style={styles.cashText}>
-                <Text style={type.eyebrow}>To hand in to KFD</Text>
+                <Text style={type.eyebrow}>To hand in to Meriendash</Text>
                 <Text style={styles.cashCaption}>
                   ₱20 for each delivery, not yet handed in. You keep ₱25 of the fees,
                   and the food money already went to the shop at pickup.

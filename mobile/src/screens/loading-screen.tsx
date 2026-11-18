@@ -197,10 +197,10 @@ export function LoadingScreen({ message }: { message?: string }) {
         <Animated.View
           style={{ transform: [{ scale: logoScale }, { rotate: logoTilt }] }}
         >
-          <Image source={require("../../assets/logo.png")} style={styles.logo} />
+          <Image source={require("../../assets/mascot.png")} style={styles.logo} />
         </Animated.View>
-        <Text style={styles.title}>KFD</Text>
-        <Text style={styles.subtitle}>Kabankalan Food Delivery</Text>
+        <Text style={styles.title}>Meriendash</Text>
+        <Text style={styles.subtitle}>Food delivery in Kabankalan</Text>
 
         <View style={styles.track}>
           {/* Static scenery: the sun and a sugarcane field behind the road. */}
@@ -272,13 +272,13 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
   },
   centerStack: { alignItems: "center", gap: spacing.md },
-  logo: { width: 96, height: 96 },
+  logo: { width: 140, height: 140, borderRadius: 20 },
   title: {
     ...type.display,
-    fontSize: 42,
+    fontSize: 32,
     fontWeight: "900",
     color: colors.primary,
-    letterSpacing: 5,
+    letterSpacing: 2,
     textShadowColor: colors.primaryDark,
     textShadowOffset: { width: 3, height: 3 },
     textShadowRadius: 6,

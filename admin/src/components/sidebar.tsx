@@ -137,13 +137,13 @@ export function Sidebar({
           >
             <Image
               src="/images/kabankalan/logo.jpg"
-              alt="Kabankalan Food Delivery"
+              alt="Meriendash"
               width={32}
               height={32}
               className="h-8 w-8 rounded-lg object-contain"
             />
             <span className="text-lg font-bold tracking-tight text-card-foreground">
-              KFD Admin
+              Meriendash Admin
             </span>
           </Link>
           <button

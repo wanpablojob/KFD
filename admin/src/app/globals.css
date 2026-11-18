@@ -3,7 +3,7 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /* ============================================================================
-   Kabankalan Food Delivery — Warm Theme (mirrors mobile app)
+   Meriendash — Warm Theme (mirrors mobile app)
    Palette from mobile/src/lib/theme.ts:
    • Primary (crimson):        #A3130A
    • Primary-dark:             #7E0E07
@@ -53,11 +53,14 @@
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
 
-  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system,
-    "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --font-display: var(--font-bricolage), var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-geist-mono), ui-monospace, "SF Mono", Menlo, Consolas,
-    monospace;
+  --font-sans:
+    var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-display:
+    var(--font-bricolage), var(--font-geist-sans), ui-sans-serif, system-ui,
+    sans-serif;
+  --font-mono:
+    var(--font-geist-mono), ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 
   --radius-card: 0.75rem;
   --radius-input: 0.5rem;
@@ -68,33 +71,33 @@
   color-scheme: light;
 
   /* Brand — crimson primary, burnt orange secondary */
-  --primary: #A3130A;
-  --primary-hover: #7E0E07;
-  --primary-foreground: #FEFEFE;
+  --primary: #a3130a;
+  --primary-hover: #7e0e07;
+  --primary-foreground: #fefefe;
 
-  --secondary: #CD6D18;
-  --secondary-foreground: #FEFEFE;
+  --secondary: #cd6d18;
+  --secondary-foreground: #fefefe;
 
   /* Surfaces — cream background, white cards */
-  --background: #FFF8E7;
-  --foreground: #3A2115;
-  --muted: #FDF3DC;
+  --background: #fff8e7;
+  --foreground: #3a2115;
+  --muted: #fdf3dc;
   --muted-foreground: #795548;
-  --card: #FFFFFF;
-  --card-foreground: #3A2115;
+  --card: #ffffff;
+  --card-foreground: #3a2115;
 
   /* Lines & focus */
-  --border: #EBD9B8;
-  --input: #EBD9B8;
-  --ring: #D59E50;
+  --border: #ebd9b8;
+  --input: #ebd9b8;
+  --ring: #d59e50;
 
   /* Semantic status */
-  --success: #2E7D32;
-  --success-foreground: #FEFEFE;
-  --warning: #CD6D18;
-  --warning-foreground: #FEFEFE;
-  --destructive: #B3261E;
-  --destructive-foreground: #FEFEFE;
+  --success: #2e7d32;
+  --success-foreground: #fefefe;
+  --warning: #cd6d18;
+  --warning-foreground: #fefefe;
+  --destructive: #b3261e;
+  --destructive-foreground: #fefefe;
 
   /* Radius */
   --radius-card: 0.75rem;
@@ -106,33 +109,33 @@
   color-scheme: dark;
 
   /* Brand */
-  --primary: #D59E50;
-  --primary-hover: #ECC97B;
-  --primary-foreground: #3A2115;
+  --primary: #d59e50;
+  --primary-hover: #ecc97b;
+  --primary-foreground: #3a2115;
 
-  --secondary: #CD6D18;
-  --secondary-foreground: #FEFEFE;
+  --secondary: #cd6d18;
+  --secondary-foreground: #fefefe;
 
   /* Surfaces — deep brown */
-  --background: #1A1314;
-  --foreground: #FDF3DC;
-  --muted: #241D1D;
-  --muted-foreground: #A1887F;
-  --card: #1A1314;
-  --card-foreground: #FDF3DC;
+  --background: #1a1314;
+  --foreground: #fdf3dc;
+  --muted: #241d1d;
+  --muted-foreground: #a1887f;
+  --card: #1a1314;
+  --card-foreground: #fdf3dc;
 
   /* Lines & focus */
-  --border: #3A2E2F;
-  --input: #3A2E2F;
-  --ring: #D59E50;
+  --border: #3a2e2f;
+  --input: #3a2e2f;
+  --ring: #d59e50;
 
   /* Semantic status */
-  --success: #34D399;
-  --success-foreground: #052E16;
-  --warning: #FBBF24;
-  --warning-foreground: #451A03;
-  --destructive: #F87171;
-  --destructive-foreground: #450A0A;
+  --success: #34d399;
+  --success-foreground: #052e16;
+  --warning: #fbbf24;
+  --warning-foreground: #451a03;
+  --destructive: #f87171;
+  --destructive-foreground: #450a0a;
 }
 
 html {

@@ -80,7 +80,7 @@ export function MerchantShell({ children }: { children: React.ReactNode }) {
           >
             <Image
               src="/images/kabankalan/logo.jpg"
-              alt="Kabankalan Food Delivery"
+              alt="Meriendash"
               width={32}
               height={32}
               className="h-8 w-8 shrink-0 rounded-lg object-contain"
@@ -90,7 +90,7 @@ export function MerchantShell({ children }: { children: React.ReactNode }) {
                 {title}
               </span>
               <span className="block text-xs text-muted-foreground">
-                KFD merchant
+                Meriendash merchant
               </span>
             </span>
           </Link>
@@ -104,7 +104,10 @@ export function MerchantShell({ children }: { children: React.ReactNode }) {
           </button>
         </div>
 
-        <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4" aria-label="Merchant">
+        <nav
+          className="flex-1 space-y-1 overflow-y-auto px-3 py-4"
+          aria-label="Merchant"
+        >
           {NAV_ITEMS.map((item) => {
             const isActive =
               item.href === "/merchant"

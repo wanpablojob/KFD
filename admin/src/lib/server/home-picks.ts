@@ -116,7 +116,7 @@ const DAYS = [
   "Saturday",
 ];
 
-const SYSTEM_PROMPT = `You pick restaurants for a customer of KFD, a food delivery app in Kabankalan City, Negros Occidental, Philippines.
+const SYSTEM_PROMPT = `You pick restaurants for a customer of Meriendash, a food delivery app in Kabankalan City, Negros Occidental, Philippines.
 You get the current day and hour, the customer's recent delivered orders, their favourite restaurant ids, and the restaurants open right now.
 Choose up to ${MAX_PICKS} restaurants ONLY from the "open" list, by restaurant id. Prefer places they go back to at this time of day or this day of the week, then cuisines and dishes they like, then well-rated places worth trying. Mix in one new place when they have history.
 For each pick write a short, friendly reason (max 60 characters) that refers to their habits or the time of day, e.g. "Your usual Friday lunch" or "You liked inasal; try their lechon".

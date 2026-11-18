@@ -55,7 +55,7 @@ export function DriveApplication() {
               className="h-9 w-9"
             />
             <span className="font-display text-xl font-bold tracking-tight text-foreground">
-              KFD
+              Meriendash
             </span>
           </Link>
           {user ? (
@@ -73,7 +73,7 @@ export function DriveApplication() {
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-10 sm:px-6 sm:py-14">
         <div className="flex flex-col gap-3">
           <h1 className="font-display text-4xl font-bold tracking-tight sm:text-5xl">
-            Drive with KFD
+            Drive with Meriendash
           </h1>
           <p className="max-w-[60ch] text-base leading-relaxed text-muted-foreground">
             {PARTNER_TERMS.rider.blurb} {PARTNER_TERMS.rider.terms}
@@ -157,7 +157,7 @@ function AccountStep() {
         {mode === "create" ? "Create your account" : "Sign in to apply"}
       </h2>
       <p className="mt-1 text-sm text-muted-foreground">
-        Use this same account in the KFD app once you are approved.
+        Use this same account in the Meriendash app once you are approved.
       </p>
 
       <button
@@ -224,7 +224,9 @@ function AccountStep() {
       </form>
 
       <p className="mt-5 text-center text-sm text-muted-foreground">
-        {mode === "create" ? "Already have a KFD account? " : "New to KFD? "}
+        {mode === "create"
+          ? "Already have a Meriendash account? "
+          : "New to Meriendash? "}
         <button
           type="button"
           onClick={() => {
@@ -308,7 +310,7 @@ function Application({ email }: { email: string }) {
       <Status
         title="You're approved"
         tone="good"
-        body={`Welcome to KFD. Download the app and sign in with ${email || "this account"} to go online and take deliveries.`}
+        body={`Welcome to Meriendash. Download the app and sign in with ${email || "this account"} to go online and take deliveries.`}
         app={app}
       >
         {APP_DOWNLOADS.android ? (
@@ -470,7 +472,7 @@ function ApplicationForm({
         <h2 className="font-display text-2xl font-bold">Your application</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           We check these details before approving you. Nothing is shared outside
-          KFD.
+          Meriendash.
         </p>
       </div>
 

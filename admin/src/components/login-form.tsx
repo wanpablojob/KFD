@@ -8,15 +8,22 @@ import { resolveRoleTarget } from "@/lib/role";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/field";
-import { EyeIcon, EyeOffIcon, GoogleIcon, LockIcon, MailIcon, ShieldIcon } from "./ui/icons";
+import {
+  EyeIcon,
+  EyeOffIcon,
+  GoogleIcon,
+  LockIcon,
+  MailIcon,
+  ShieldIcon,
+} from "./ui/icons";
 
 const NOT_PROVISIONED =
-  "This account is not linked to an admin or a restaurant yet. Contact the KFD team.";
+  "This account is not linked to an admin or a restaurant yet. Contact the Meriendash team.";
 const NO_RESTAURANT =
-  "Your merchant account has no restaurant attached. Contact the KFD team.";
+  "Your merchant account has no restaurant attached. Contact the Meriendash team.";
 // A customer or rider is provisioned — just not for the web console.
 const NOT_AN_OPERATOR =
-  "That is a customer or rider account. The web portal is for admins and merchants — use the KFD app.";
+  "That is a customer or rider account. The web portal is for admins and merchants — use the Meriendash app.";
 
 /**
  * One sign-in form for both roles. After the password is accepted it resolves
@@ -99,7 +106,9 @@ export function LoginForm({
       setLoading(false);
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Unable to sign in. Please try again.",
+        err instanceof Error
+          ? err.message
+          : "Unable to sign in. Please try again.",
       );
       setLoading(false);
     }

@@ -104,7 +104,7 @@ export default function CustomerAccountScreen() {
   function confirmDeleteAccount() {
     Alert.alert(
       "Delete your account?",
-      "Your login and saved delivery addresses are removed. Past orders stay in KFD's records without your name. This cannot be undone.",
+      "Your login and saved delivery addresses are removed. Past orders stay in Meriendash's records without your name. This cannot be undone.",
       [
         { text: "Keep account", style: "cancel" },
         {
@@ -230,7 +230,7 @@ export default function CustomerAccountScreen() {
         <View style={styles.divider} />
         <Row
           label="Track by reference"
-          hint="Track any order with its KFD code"
+          hint="Track any order with its Meriendash code"
           onPress={() => router.push("/track" as never)}
         />
         <View style={styles.divider} />
@@ -239,25 +239,25 @@ export default function CustomerAccountScreen() {
             tabs, and submit_rider_application() refuses an existing rider. */}
         <Row
           label="Apply to deliver"
-          hint="Ride with KFD and get paid per delivery"
+          hint="Ride with Meriendash and get paid per delivery"
           onPress={() => router.push("/rider-apply" as never)}
         />
         <View style={styles.divider} />
         <Row
           label="Help & support"
-          hint="Contact KFD about an order or your account"
+          hint="Contact Meriendash about an order or your account"
           onPress={() => openLegal("support")}
         />
         <View style={styles.divider} />
         <Row
           label="Privacy policy"
-          hint="What KFD keeps about you and why"
+          hint="What Meriendash keeps about you and why"
           onPress={() => openLegal("privacy")}
         />
         <View style={styles.divider} />
         <Row
           label="Terms & conditions"
-          hint="The rules for ordering with KFD"
+          hint="The rules for ordering with Meriendash"
           onPress={() => openLegal("terms")}
         />
       </View>
@@ -278,7 +278,7 @@ export default function CustomerAccountScreen() {
         <Text style={styles.deleteAccountLabel}>Delete my account</Text>
       </Pressable>
 
-      <Text style={styles.version}>Kabankalan Food Delivery</Text>
+      <Text style={styles.version}>Meriendash</Text>
     </ScrollView>
   );
 }

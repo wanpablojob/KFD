@@ -282,7 +282,7 @@ export async function enablePush(accessToken: string): Promise<PushStatus> {
       granted: false,
       registered: false,
       error:
-        "Notifications were denied. Allow KFD notifications in system settings to receive order alerts.",
+        "Notifications were denied. Allow Meriendash notifications in system settings to receive order alerts.",
     };
   }
 

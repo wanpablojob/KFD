@@ -13,7 +13,7 @@ export default function OrdersPage() {
     <PageContainer>
       <PageHeader
         title="Orders"
-        description="Track, filter, and manage every order across KFD."
+        description="Track, filter, and manage every order across Meriendash."
       />
       <Section aria-label="Order list">
         {loading ? (

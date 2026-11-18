@@ -10,7 +10,13 @@ import {
   fetchRiders,
 } from "@/lib/supabase/queries";
 import { formatCurrency, formatShortDate } from "@/lib/format";
-import { PageContainer, PageHeader, Section, Stack, StatGrid } from "@/components/layout/page";
+import {
+  PageContainer,
+  PageHeader,
+  Section,
+  Stack,
+  StatGrid,
+} from "@/components/layout/page";
 import { StatCard } from "@/components/ui/stat-card";
 import { Card, CardHeader } from "@/components/ui/card";
 import { RevenueChart } from "@/components/charts/revenue-chart";
@@ -28,7 +34,11 @@ import {
   splitPeriods,
   PERIOD_DAYS,
 } from "@/lib/dashboard-metrics";
-import { attentionItems, liveCounts, topRestaurants } from "@/lib/dashboard-attention";
+import {
+  attentionItems,
+  liveCounts,
+  topRestaurants,
+} from "@/lib/dashboard-attention";
 import { stalledRows } from "@/lib/stuck-orders";
 import { fetchOpenStalls } from "@/lib/supabase/stall-queries";
 import { StalledOrders } from "@/components/stalled-orders";
@@ -65,7 +75,10 @@ export default function OverviewPage() {
   if (loading) {
     return (
       <PageContainer>
-        <PageHeader title="Overview" description="Loading live operations summary…" />
+        <PageHeader
+          title="Overview"
+          description="Loading live operations summary…"
+        />
         <LoadingState label="Loading dashboard…" />
       </PageContainer>
     );
@@ -74,7 +87,10 @@ export default function OverviewPage() {
   if (error) {
     return (
       <PageContainer>
-        <PageHeader title="Overview" description="Live operations summary for KFD across Kabankalan City Proper." />
+        <PageHeader
+          title="Overview"
+          description="Live operations summary for Meriendash across Kabankalan City Proper."
+        />
         <EmptyState title="Could not load dashboard data" description={error} />
       </PageContainer>
     );
@@ -85,8 +101,13 @@ export default function OverviewPage() {
   const riderRows = riders.data ?? [];
 
   const onlineRiders = riderRows.filter((r) => r.status === "online").length;
-  const cashWithRiders = (cash.data ?? []).reduce((sum, r) => sum + r.onHand, 0);
-  const ridersHoldingCash = (cash.data ?? []).filter((r) => r.onHand > 0).length;
+  const cashWithRiders = (cash.data ?? []).reduce(
+    (sum, r) => sum + r.onHand,
+    0,
+  );
+  const ridersHoldingCash = (cash.data ?? []).filter(
+    (r) => r.onHand > 0,
+  ).length;
 
   const deltas = splitPeriods(orderRows, []);
   const live = liveCounts(orderRows);
@@ -139,7 +160,7 @@ export default function OverviewPage() {
     <PageContainer>
       <PageHeader
         title="Overview"
-        description="Live operations summary for KFD across Kabankalan City Proper."
+        description="Live operations summary for Meriendash across Kabankalan City Proper."
       />
 
       <Stack gap={6}>
@@ -159,7 +180,9 @@ export default function OverviewPage() {
             <Card className="h-full">
               <CardHeader
                 title="Needs attention"
-                subtitle={attention.length === 0 ? undefined : "Most urgent first"}
+                subtitle={
+                  attention.length === 0 ? undefined : "Most urgent first"
+                }
               />
               <div className="px-5 pb-4">
                 {attention.length === 0 ? (
@@ -174,9 +197,16 @@ export default function OverviewPage() {
                           href={item.href}
                           className="flex items-center justify-between gap-3 py-2.5 text-sm hover:text-primary"
                         >
-                          <span className="text-card-foreground">{item.label}</span>
+                          <span className="text-card-foreground">
+                            {item.label}
+                          </span>
                           <span className="flex items-center gap-2">
-                            <Badge variant={item.urgent ? "destructive" : "secondary"} size="sm">
+                            <Badge
+                              variant={
+                                item.urgent ? "destructive" : "secondary"
+                              }
+                              size="sm"
+                            >
                               {item.count}
                             </Badge>
                             <ArrowRightIcon className="h-3.5 w-3.5 text-muted-foreground" />
@@ -191,7 +221,9 @@ export default function OverviewPage() {
           </Section>
         </div>
 
-        <StalledOrders stalls={stalledRows(stalls.data ?? [], orderRows, now)} />
+        <StalledOrders
+          stalls={stalledRows(stalls.data ?? [], orderRows, now)}
+        />
 
         <WaitingForRider
           orders={orderRows}
@@ -238,10 +270,15 @@ export default function OverviewPage() {
               />
               <ul className="divide-y divide-border/70 px-5 pb-2">
                 {recentOrders.length === 0 ? (
-                  <li className="py-8 text-center text-sm text-muted-foreground">No orders yet.</li>
+                  <li className="py-8 text-center text-sm text-muted-foreground">
+                    No orders yet.
+                  </li>
                 ) : (
                   recentOrders.map((o) => (
-                    <li key={o.id} className="flex items-center justify-between gap-3 py-3">
+                    <li
+                      key={o.id}
+                      className="flex items-center justify-between gap-3 py-3"
+                    >
                       <span className="flex min-w-0 items-center gap-3">
                         <Avatar name={o.customer} size="sm" />
                         <span className="min-w-0">
@@ -257,7 +294,10 @@ export default function OverviewPage() {
                         <span className="text-sm font-semibold text-card-foreground">
                           {formatCurrency(o.total)}
                         </span>
-                        <StatusBadge status={o.status} readyForPickupAt={o.readyForPickupAt} />
+                        <StatusBadge
+                          status={o.status}
+                          readyForPickupAt={o.readyForPickupAt}
+                        />
                       </span>
                     </li>
                   ))
@@ -287,7 +327,10 @@ export default function OverviewPage() {
                   </li>
                 ) : (
                   top.map((r) => (
-                    <li key={r.name} className="flex items-center justify-between gap-3 py-3">
+                    <li
+                      key={r.name}
+                      className="flex items-center justify-between gap-3 py-3"
+                    >
                       <span className="flex min-w-0 items-center gap-3">
                         <Avatar name={r.name} size="sm" />
                         <span className="min-w-0">
@@ -295,7 +338,8 @@ export default function OverviewPage() {
                             {r.name}
                           </span>
                           <span className="block text-xs text-muted-foreground">
-                            {r.orders} delivered {r.orders === 1 ? "order" : "orders"}
+                            {r.orders} delivered{" "}
+                            {r.orders === 1 ? "order" : "orders"}
                           </span>
                         </span>
                       </span>
@@ -317,7 +361,9 @@ export default function OverviewPage() {
 function LiveCount({ label, value }: { label: string; value: number }) {
   return (
     <div className="rounded-lg bg-muted/50 px-2 py-3">
-      <dd className="text-2xl font-semibold tabular-nums text-card-foreground">{value}</dd>
+      <dd className="text-2xl font-semibold tabular-nums text-card-foreground">
+        {value}
+      </dd>
       <dt className="mt-0.5 text-xs text-muted-foreground">{label}</dt>
     </div>
   );

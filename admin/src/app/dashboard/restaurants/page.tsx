@@ -98,7 +98,11 @@ const FIELDS: DialogField[] = [
   { key: "name", label: "Name", required: true },
   { key: "cuisine", label: "Cuisine", required: true },
   { key: "city", label: "City", required: true },
-  { key: "status", label: "Status", options: ["active", "approval", "suspended"] },
+  {
+    key: "status",
+    label: "Status",
+    options: ["active", "approval", "suspended"],
+  },
 ];
 
 export default function RestaurantsPage() {
@@ -136,7 +140,7 @@ export default function RestaurantsPage() {
     <PageContainer>
       <PageHeader
         title="Restaurants"
-        description="Partner restaurants on the KFD network."
+        description="Partner restaurants on the Meriendash network."
         actions={
           <span className="flex items-center gap-2">
             {archivedCount > 0 ? (
@@ -176,7 +180,9 @@ export default function RestaurantsPage() {
               columns={columns}
               rows={rows}
               searchFields={["name", "cuisine", "city", "id"]}
-              onRowClick={(row) => router.push(`/dashboard/restaurants/${row.id}`)}
+              onRowClick={(row) =>
+                router.push(`/dashboard/restaurants/${row.id}`)
+              }
               emptyTitle="No restaurants found"
               exportName="/dashboard/restaurants"
               exportColumns={[

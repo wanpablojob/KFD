@@ -4,9 +4,9 @@ import { ContactDetails } from "@/components/contact-details";
 import { BUSINESS, DELIVERY } from "@/lib/site-content";
 
 export const metadata: Metadata = {
-  title: "Support — KFD",
+  title: "Support — Meriendash",
   description:
-    "How to reach KFD about an order, your account, or the service in Kabankalan.",
+    "How to reach Meriendash about an order, your account, or the service in Kabankalan.",
   alternates: { canonical: "/support" },
 };
 
@@ -53,16 +53,16 @@ export default function SupportPage() {
         <Section title="Cancelling an order">
           <p>
             You can cancel in the app until the restaurant accepts the order.
-            After that, contact the restaurant or us as soon as you can; once the
-            food is being prepared it may not be possible to cancel.
+            After that, contact the restaurant or us as soon as you can; once
+            the food is being prepared it may not be possible to cancel.
           </p>
         </Section>
 
         <Section title="Something was wrong with my order">
           <p>
-            Contact us with the order reference and what went wrong. KFD staff
-            review every request. If a refund is approved it is paid in cash or
-            by GCash, and it appears on the order in your app.
+            Contact us with the order reference and what went wrong. Meriendash
+            staff review every request. If a refund is approved it is paid in
+            cash or by GCash, and it appears on the order in your app.
           </p>
         </Section>
 
@@ -76,16 +76,25 @@ export default function SupportPage() {
 
         <Section title="Your account">
           <ul className="list-disc pl-5">
-            <li>Forgot your password? On the sign-in screen, tap &ldquo;Forgot password?&rdquo; and we will email you a code.</li>
-            <li>Customers can delete their account in the app under Account, except while an order is on the way.</li>
-            <li>Riders can request deletion in the app under Profile. We close the account after settling any payouts and cash.</li>
+            <li>
+              Forgot your password? On the sign-in screen, tap &ldquo;Forgot
+              password?&rdquo; and we will email you a code.
+            </li>
+            <li>
+              Customers can delete their account in the app under Account,
+              except while an order is on the way.
+            </li>
+            <li>
+              Riders can request deletion in the app under Profile. We close the
+              account after settling any payouts and cash.
+            </li>
           </ul>
         </Section>
 
-        <Section title="Riding or selling with KFD">
+        <Section title="Riding or selling with Meriendash">
           <p>
-            Riders can apply in the KFD app. Restaurants that want to join can
-            contact us using the details above.
+            Riders can apply in the Meriendash app. Restaurants that want to
+            join can contact us using the details above.
           </p>
         </Section>
 
@@ -135,7 +144,13 @@ export default function SupportPage() {
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
   return (
     <section className="flex flex-col gap-2">
       <h2 className="text-base font-semibold">{title}</h2>

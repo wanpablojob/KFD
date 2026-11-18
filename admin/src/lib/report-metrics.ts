@@ -22,7 +22,7 @@ import type { Order, OrderStatus } from "./types";
  * will not resolve an extensionless import. A test pins the restatement to the
  * dashboard's definitions so the two cannot drift apart silently.
  *  * The rider pays the shop the food subtotal at pickup (0147), so a shop is
- *    never owed anything by KFD. What KFD takes in is the rest of the bill:
+ *    never owed anything by Meriendash. What Meriendash takes in is the rest of the bill:
  *    the delivery and service fees.
  *
  * Days are local calendar days, keyed without `toISOString` (the merchant-sales
@@ -112,7 +112,10 @@ export function enumerateDays(from: string, to: string): string[] {
 }
 
 /** The last `days` local days ending today, as date-input values. */
-export function presetRange(days: number, now: Date): { from: string; to: string } {
+export function presetRange(
+  days: number,
+  now: Date,
+): { from: string; to: string } {
   const span = Math.max(1, Math.floor(days));
   const end = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const start = new Date(end);
@@ -158,7 +161,7 @@ export interface ReportTotals {
   /** Food subtotals, paid to shops by riders at pickup (0147). */
   paidToShops: number;
   deliveryFees: number;
-  /** Delivery and service fees: the part of the bill that is KFD's. */
+  /** Delivery and service fees: the part of the bill that is Meriendash's. */
   kfdFees: number;
   averageOrderValue: number;
 }
@@ -312,8 +315,8 @@ export function buildReport(
       };
     }),
     shops: shopRows,
-    statuses: STATUS_ORDER.filter((status) => (statusCounts.get(status) ?? 0) > 0).map(
-      (status) => ({ status, count: statusCounts.get(status) ?? 0 }),
-    ),
+    statuses: STATUS_ORDER.filter(
+      (status) => (statusCounts.get(status) ?? 0) > 0,
+    ).map((status) => ({ status, count: statusCounts.get(status) ?? 0 })),
   };
 }

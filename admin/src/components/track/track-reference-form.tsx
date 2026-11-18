@@ -27,7 +27,9 @@ export function TrackReferenceForm({
     e.preventDefault();
     const reference = normalizeReference(value);
     if (!reference) {
-      setError("That does not look like a KFD reference. It looks like #KFD-XXXXXXXXXXXX.");
+      setError(
+        "That does not look like a Meriendash reference. It looks like #KFD-XXXXXXXXXXXX.",
+      );
       return;
     }
     setError("");
@@ -61,7 +63,11 @@ export function TrackReferenceForm({
         </button>
       </div>
       {error ? (
-        <p role="alert" className="text-sm text-destructive" data-track-form-error>
+        <p
+          role="alert"
+          className="text-sm text-destructive"
+          data-track-form-error
+        >
           {error}
         </p>
       ) : null}
