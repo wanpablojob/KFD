@@ -14,6 +14,9 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Written by scripts/gen-db-types.sh; must stay identical to the mobile copy.
     "src/lib/supabase/database.types.ts",
+    // Third-party source kept verbatim (plus the patch in PATCH.md); it is
+    // maintained upstream, not held to this app's lint rules.
+    "vendor/**",
   ]),
 ]);
 

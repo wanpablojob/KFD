@@ -1,0 +1,19 @@
+{
+  "name": "picomatch",
+  "description": "Blazing fast glob matcher (locally patched 4.0.7; see PATCH.md)",
+  "version": "4.0.8",
+  "homepage": "https://github.com/micromatch/picomatch",
+  "author": "Jon Schlinkert (https://github.com/jonschlinkert)",
+  "license": "MIT",
+  "main": "index.js",
+  "sideEffects": false,
+  "engines": {
+    "node": ">=12"
+  },
+  "files": [
+    "index.js",
+    "posix.js",
+    "lib",
+    "PATCH.md"
+  ]
+}
