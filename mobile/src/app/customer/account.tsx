@@ -29,6 +29,8 @@ import { openLegal } from "../../lib/legal";
 import { shouldUnregisterOnSignOut } from "../../lib/push-signout";
 import { colors, radius, shadow, spacing, type } from "../../lib/theme";
 import { BrandMark } from "../../components/BrandMark";
+import { ProfileEditor } from "../../components/ProfileEditor";
+import { displayNameOf } from "../../lib/my-profile";
 
 /**
  * Customer profile: who you are signed in as, what you have ordered, and the
@@ -45,10 +47,7 @@ export default function CustomerAccountScreen() {
   const { user } = useSession();
 
   const email = user?.email ?? "";
-  const name =
-    typeof user?.user_metadata?.name === "string" && user.user_metadata.name
-      ? user.user_metadata.name
-      : email.split("@")[0] || "Customer";
+  const name = displayNameOf(user);
 
   const [push, setPush] = useState<PushStatus>({ granted: false, registered: false });
   const [pushBusy, setPushBusy] = useState(false);
@@ -181,11 +180,7 @@ export default function CustomerAccountScreen() {
     >
       <BrandMark style={{ marginBottom: spacing.md }} />
       <View style={styles.header}>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>{name.charAt(0).toUpperCase()}</Text>
-        </View>
-        <Text style={type.title}>{name}</Text>
-        {email ? <Text style={type.caption}>{email}</Text> : null}
+        <ProfileEditor name={name} caption={email || undefined} />
         <View style={styles.rolePill}>
           <Text style={styles.roleText}>CUSTOMER</Text>
         </View>
