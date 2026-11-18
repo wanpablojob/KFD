@@ -229,7 +229,7 @@ export default function RiderProfileRoute() {
         contentContainerStyle={[styles.content, { paddingBottom: bottomPadding }]}
       >
         <View style={[styles.header, { paddingTop: spacing.lg + insets.top }]}>
-          <BrandMark style={{ marginBottom: spacing.sm }} />
+          <BrandMark role="rider" style={{ marginBottom: spacing.sm }} />
           <ProfileEditor
             name={profile.name}
             caption={`${profile.city} · ${profile.vehicle}`}

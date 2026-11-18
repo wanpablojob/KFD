@@ -281,6 +281,7 @@ export function RiderOffersScreen({ userId }: { userId: string }) {
         ListHeaderComponent={
           <View>
             <BrandMark
+              role="rider"
               style={{
                 paddingTop: spacing.lg + insets.top,
               }}

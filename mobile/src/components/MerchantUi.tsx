@@ -50,7 +50,7 @@ export function MerchantScreen({
       >
         <View style={ui.headerRow}>
           <View style={ui.header}>
-            <BrandMark style={{ marginBottom: spacing.xs }} />
+            <BrandMark role="merchant" style={{ marginBottom: spacing.xs }} />
             <Text style={ui.title}>{title}</Text>
             {subtitle ? <Text style={ui.subtitle}>{subtitle}</Text> : null}
           </View>

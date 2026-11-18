@@ -486,6 +486,7 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
         ListHeaderComponent={
           <View>
             <BrandMark
+              role="rider"
               style={{
                 paddingTop: spacing.lg + insets.top,
               }}
