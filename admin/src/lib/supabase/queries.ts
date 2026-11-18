@@ -839,16 +839,19 @@ export async function fetchMerchantAccess(): Promise<MerchantAccess[]> {
 
   return requireOk(
     error,
-    ((data ?? []) as Record<string, unknown>[]).map((row) => ({
-      userId: String(row.user_id),
-      email: String(row.email),
-      role: row.role === "admin" ? ("admin" as const) : ("merchant" as const),
-      restaurantId:
-        row.restaurant_id == null ? null : String(row.restaurant_id),
-      restaurantName:
-        row.restaurant_name == null ? null : String(row.restaurant_name),
-      createdAt: String(row.created_at),
-    })),
+    ((data ?? []) as Record<string, unknown>[])
+      // Riders and customers live in app_users too; never show one as a merchant.
+      .filter((row) => row.role === "admin" || row.role === "merchant")
+      .map((row) => ({
+        userId: String(row.user_id),
+        email: String(row.email),
+        role: row.role === "admin" ? ("admin" as const) : ("merchant" as const),
+        restaurantId:
+          row.restaurant_id == null ? null : String(row.restaurant_id),
+        restaurantName:
+          row.restaurant_name == null ? null : String(row.restaurant_name),
+        createdAt: String(row.created_at),
+      })),
   );
 }
 
