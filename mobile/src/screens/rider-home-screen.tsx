@@ -1,6 +1,13 @@
 import { useCallback, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
+  CANCELLATIONS_KEY,
+  cancelBlockedNote,
+  cancelWarning,
+  canCancel,
+  useCancellationStatus,
+} from "../lib/rider-cancellations";
+import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Linking,
@@ -118,6 +125,9 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
   const router = useRouter();
   const connectivity = useConnectivity();
   const queryClient = useQueryClient();
+  // Two cancellations a day (0155): warn before each, then take the button away.
+  const cancels = useCancellationStatus();
+  const allowCancel = canCancel(cancels.data);
   // `isInternetReachable` is deliberately not consulted; see
   // lib/connectivity-state.ts. Treating a failed probe as offline disabled
   // "Complete delivery" on a phone that could reach the server fine.
@@ -360,9 +370,11 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
     setReporting(false);
     if (error) {
       setFetchError(error.message);
+      void queryClient.invalidateQueries({ queryKey: CANCELLATIONS_KEY });
       return;
     }
     closeFailReport();
+    void queryClient.invalidateQueries({ queryKey: CANCELLATIONS_KEY });
     // The order left this rider's list, so page 1 has to be re-read.
     await refetchPage1();
   }
@@ -388,6 +400,7 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
     }
     setReporting(false);
     closeFailReport();
+    void queryClient.invalidateQueries({ queryKey: CANCELLATIONS_KEY });
     await refetchPage1();
   }
 
@@ -538,6 +551,7 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
                   setFailReason("");
                   setFailingTripId(trip.delivery_id);
                 }}
+                cancelBlockedNote={allowCancel ? null : cancelBlockedNote(cancels.data)}
               />
             ))}
           </View>
@@ -741,15 +755,21 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
                 // escape from a job that cannot be completed, and it has to be
                 // as reachable as the lie it replaces.
                 <View style={styles.actions}>
-                  <Pressable
-                    style={[styles.failButton, (busy || offline) && styles.disabled]}
-                    disabled={busy || offline}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Report ${item.reference} as not deliverable`}
-                    onPress={() => openFailReport(item.id)}
-                  >
-                    <Text style={styles.failButtonLabel}>Can&apos;t deliver</Text>
-                  </Pressable>
+                  {allowCancel ? (
+                    <Pressable
+                      style={[styles.failButton, (busy || offline) && styles.disabled]}
+                      disabled={busy || offline}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Report ${item.reference} as not deliverable`}
+                      onPress={() => openFailReport(item.id)}
+                    >
+                      <Text style={styles.failButtonLabel}>Can&apos;t deliver</Text>
+                    </Pressable>
+                  ) : (
+                    <Text style={styles.cancelBlocked}>
+                      {cancelBlockedNote(cancels.data)}
+                    </Text>
+                  )}
 
                   {/* Only once it is picked up (0144); until then the pickup
                       button above is the next step. */}
@@ -828,6 +848,9 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
                 The order goes back to the restaurant to hand to another rider. You earn
                 nothing for it, and the reason is recorded against your name.
               </Text>
+              {cancelWarning(cancels.data) ? (
+                <Text style={styles.cancelWarning}>{cancelWarning(cancels.data)}</Text>
+              ) : null}
 
               <TextInput
                 style={styles.input}
@@ -1102,6 +1125,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: colors.card,
   },
+  cancelWarning: {
+    ...type.label,
+    color: colors.danger,
+    marginBottom: spacing.sm,
+  },
+  cancelBlocked: { ...type.caption, color: colors.danger, flex: 1 },
   failButtonLabel: { ...type.label, color: colors.danger },
 
   backdrop: {

@@ -25,6 +25,7 @@ export function TripCard({
   onPickUp,
   onComplete,
   onReportFailed,
+  cancelBlockedNote,
 }: {
   trip: RiderDelivery;
   busy: boolean;
@@ -34,6 +35,8 @@ export function TripCard({
   onPickUp: (orderId: string) => void;
   onComplete: () => void;
   onReportFailed: () => void;
+  /** Set once the rider has used today's cancellations (0155): shown instead of the button. */
+  cancelBlockedNote?: string | null;
 }) {
   const { data: stops } = useDeliveryStops(trip.delivery_id);
   const list: DeliveryStop[] = useMemo(() => stops ?? [], [stops]);
@@ -191,19 +194,23 @@ export function TripCard({
               Pick up from every shop above, then complete the delivery here.
             </Text>
           )}
-          <Pressable
-            style={({ pressed }) => [
-              styles.secondaryAction,
-              (busy || offline) && styles.disabled,
-              pressed && styles.actionPressed,
-            ]}
-            onPress={onReportFailed}
-            disabled={busy || offline}
-            accessibilityRole="button"
-            accessibilityLabel={`Report a problem with ${trip.reference}`}
-          >
-            <Text style={styles.secondaryActionLabel}>Cannot deliver</Text>
-          </Pressable>
+          {cancelBlockedNote ? (
+            <Text style={styles.cancelBlocked}>{cancelBlockedNote}</Text>
+          ) : (
+            <Pressable
+              style={({ pressed }) => [
+                styles.secondaryAction,
+                (busy || offline) && styles.disabled,
+                pressed && styles.actionPressed,
+              ]}
+              onPress={onReportFailed}
+              disabled={busy || offline}
+              accessibilityRole="button"
+              accessibilityLabel={`Report a problem with ${trip.reference}`}
+            >
+              <Text style={styles.secondaryActionLabel}>Cannot deliver</Text>
+            </Pressable>
+          )}
         </View>
       ) : null}
     </View>
@@ -220,6 +227,7 @@ const TRIP_STATUS: Record<string, string> = {
 };
 
 const styles = StyleSheet.create({
+  cancelBlocked: { ...type.caption, color: colors.danger, textAlign: "center" },
   nextStep: { ...type.caption, flex: 1 },
   readyNote: { ...type.label, color: colors.success },
   card: {

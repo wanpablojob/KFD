@@ -25,6 +25,8 @@ export function RiderSummaryCards({
   cashHolding,
   cashFilterActive = false,
   onOpenCash,
+  cancellations,
+  onOpenCancellations,
 }: {
   rows: RiderOverview[];
   filter: RiderFilter;
@@ -41,6 +43,10 @@ export function RiderSummaryCards({
   cashFilterActive?: boolean;
   /** Opens the list of riders holding cash and how much each holds. */
   onOpenCash?: () => void;
+  /** Rider cancellations today, and how many riders hit the daily limit (0155). */
+  cancellations?: { today: number; atLimit: number };
+  /** Opens the per-rider cancellation list. */
+  onOpenCancellations?: () => void;
 }) {
   const dispatchable = rows.filter((r) => !r.archivedAt && !r.suspendedAt);
   const count = (status: RiderOverview["status"]) =>
@@ -52,11 +58,36 @@ export function RiderSummaryCards({
     value: number;
     hint: string;
   }[] = [
-    { key: "online", label: "Online", value: count("online"), hint: "Can be offered work" },
-    { key: "busy", label: "Busy", value: count("busy"), hint: "On a delivery now" },
-    { key: "offline", label: "Offline", value: count("offline"), hint: "Not taking work" },
-    { key: "archived", label: "Archived", value: rows.filter((r) => r.archivedAt).length, hint: "Hidden from dispatch" },
-    { key: "suspended", label: "Suspended", value: rows.filter((r) => r.suspendedAt).length, hint: "Held, with a reason" },
+    {
+      key: "online",
+      label: "Online",
+      value: count("online"),
+      hint: "Can be offered work",
+    },
+    {
+      key: "busy",
+      label: "Busy",
+      value: count("busy"),
+      hint: "On a delivery now",
+    },
+    {
+      key: "offline",
+      label: "Offline",
+      value: count("offline"),
+      hint: "Not taking work",
+    },
+    {
+      key: "archived",
+      label: "Archived",
+      value: rows.filter((r) => r.archivedAt).length,
+      hint: "Hidden from dispatch",
+    },
+    {
+      key: "suspended",
+      label: "Suspended",
+      value: rows.filter((r) => r.suspendedAt).length,
+      hint: "Held, with a reason",
+    },
   ];
 
   return (
@@ -68,7 +99,11 @@ export function RiderSummaryCards({
       {cards.map((card) => (
         <StatCard
           key={card.key}
-          kpi={{ label: card.label, value: String(card.value), hint: card.hint }}
+          kpi={{
+            label: card.label,
+            value: String(card.value),
+            hint: card.hint,
+          }}
           active={filter === card.key}
           onClick={() => onFilterChange(filter === card.key ? "all" : card.key)}
           className="p-4"
@@ -96,7 +131,9 @@ export function RiderSummaryCards({
           onClick={onOpenCash}
           aria-haspopup="dialog"
           className={`rounded-(--radius-card) border bg-card p-4 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
-            cashFilterActive ? "border-primary ring-1 ring-primary" : "border-border"
+            cashFilterActive
+              ? "border-primary ring-1 ring-primary"
+              : "border-border"
           }`}
         >
           <p className="text-sm text-muted-foreground">Cash to collect</p>
@@ -106,6 +143,34 @@ export function RiderSummaryCards({
           <p className="mt-1 text-xs text-muted-foreground">
             {cashHolding.count === 1 ? "Rider holding" : "Riders holding"}{" "}
             {formatCurrency(cashHolding.total)}
+          </p>
+        </button>
+      ) : null}
+      {cancellations ? (
+        <button
+          type="button"
+          onClick={onOpenCancellations}
+          aria-haspopup="dialog"
+          className={`rounded-(--radius-card) border bg-card p-4 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+            cancellations.atLimit > 0
+              ? "border-destructive/50"
+              : "border-border"
+          }`}
+        >
+          <p className="text-sm text-muted-foreground">Cancellations today</p>
+          <p className="mt-2 text-2xl font-bold tracking-tight text-card-foreground">
+            {cancellations.today}
+          </p>
+          <p
+            className={`mt-1 text-xs ${
+              cancellations.atLimit > 0
+                ? "text-destructive"
+                : "text-muted-foreground"
+            }`}
+          >
+            {cancellations.atLimit > 0
+              ? `${cancellations.atLimit} ${cancellations.atLimit === 1 ? "rider" : "riders"} at the daily limit`
+              : "Jobs riders gave up"}
           </p>
         </button>
       ) : null}
@@ -129,12 +194,19 @@ export function RiderInsightPanels({ rows }: { rows: RiderOverview[] }) {
   const needsAttention = active
     .map((rider) => ({ rider, flags: riderFlags(flagsInput(rider)) }))
     .filter((entry) => entry.flags.length > 0)
-    .sort((a, b) => b.flags.length - a.flags.length || a.rider.name.localeCompare(b.rider.name))
+    .sort(
+      (a, b) =>
+        b.flags.length - a.flags.length ||
+        a.rider.name.localeCompare(b.rider.name),
+    )
     .slice(0, 5);
 
   return (
     <div className="mb-6 grid gap-4 lg:grid-cols-2">
-      <section aria-label="Top riders this week" className="rounded-(--radius-card) border border-border bg-card p-5">
+      <section
+        aria-label="Top riders this week"
+        className="rounded-(--radius-card) border border-border bg-card p-5"
+      >
         <h3 className="text-sm font-semibold text-card-foreground">
           Top riders this week
         </h3>
@@ -148,9 +220,14 @@ export function RiderInsightPanels({ rows }: { rows: RiderOverview[] }) {
         ) : (
           <ol className="mt-4 flex flex-col gap-2">
             {topRiders.map((rider, index) => (
-              <li key={rider.id} className="flex items-baseline justify-between gap-3 text-sm">
+              <li
+                key={rider.id}
+                className="flex items-baseline justify-between gap-3 text-sm"
+              >
                 <span className="flex items-baseline gap-2">
-                  <span className="w-4 text-xs text-muted-foreground">{index + 1}</span>
+                  <span className="w-4 text-xs text-muted-foreground">
+                    {index + 1}
+                  </span>
                   <Link
                     href={`/dashboard/riders/${rider.id}`}
                     className="text-card-foreground underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -167,7 +244,10 @@ export function RiderInsightPanels({ rows }: { rows: RiderOverview[] }) {
         )}
       </section>
 
-      <section aria-label="Needs attention" className="rounded-(--radius-card) border border-border bg-card p-5">
+      <section
+        aria-label="Needs attention"
+        className="rounded-(--radius-card) border border-border bg-card p-5"
+      >
         <h3 className="text-sm font-semibold text-card-foreground">
           Needs attention
         </h3>
@@ -176,12 +256,16 @@ export function RiderInsightPanels({ rows }: { rows: RiderOverview[] }) {
         </p>
         {needsAttention.length === 0 ? (
           <p className="mt-4 text-sm text-muted-foreground">
-            Nothing flagged. Every active rider has an account and a clean record.
+            Nothing flagged. Every active rider has an account and a clean
+            record.
           </p>
         ) : (
           <ul className="mt-4 flex flex-col gap-3">
             {needsAttention.map(({ rider, flags }) => (
-              <li key={rider.id} className="flex flex-wrap items-center justify-between gap-2">
+              <li
+                key={rider.id}
+                className="flex flex-wrap items-center justify-between gap-2"
+              >
                 <Link
                   href={`/dashboard/riders/${rider.id}`}
                   className="text-sm text-card-foreground underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"

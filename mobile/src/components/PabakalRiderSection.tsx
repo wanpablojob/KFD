@@ -18,6 +18,13 @@ import {
 } from "../lib/pabakal";
 import { backoffFor } from "../lib/poll";
 import { colors, radius, spacing, type } from "../lib/theme";
+import {
+  CANCELLATIONS_KEY,
+  cancelBlockedNote,
+  cancelWarning,
+  canCancel,
+  useCancellationStatus,
+} from "../lib/rider-cancellations";
 
 const peso = (n: number) => `₱${n.toFixed(2)}`;
 
@@ -99,6 +106,9 @@ function ActiveJob({
   onError: (e: unknown) => void;
 }) {
   const [amount, setAmount] = useState("");
+  // Giving a pabakal back is one of the rider's two daily cancellations (0155).
+  const cancels = useCancellationStatus();
+  const cancelsClient = useQueryClient();
   const value = Number(amount.trim());
   const valid = amount.trim() !== "" && Number.isFinite(value) && value >= 0;
   // The receipt photo is required to mark it bought (0140).
@@ -122,6 +132,8 @@ function ActiveJob({
     mutationFn: () => releasePabakal(job.id),
     onSuccess: onDone,
     onError,
+    onSettled: () =>
+      void cancelsClient.invalidateQueries({ queryKey: CANCELLATIONS_KEY }),
   });
   const due = pabakalAmountDue(job);
 
@@ -196,26 +208,35 @@ function ActiveJob({
             </Text>
           ) : null}
           {/* Only before buying: after that the rider's own money is spent. */}
-          <MerchantButton
-            label="Can't do it, give it back"
-            tone="danger"
-            busy={release.isPending}
-            disabled={disabled}
-            onPress={() =>
-              Alert.alert(
-                "Give this pabakal back?",
-                "It goes back to the list for another rider.",
-                [
-                  { text: "Keep it", style: "cancel" },
-                  {
-                    text: "Give it back",
-                    style: "destructive",
-                    onPress: () => release.mutate(),
-                  },
-                ]
-              )
-            }
-          />
+          {canCancel(cancels.data) ? (
+            <MerchantButton
+              label="Can't do it, give it back"
+              tone="danger"
+              busy={release.isPending}
+              disabled={disabled}
+              onPress={() =>
+                Alert.alert(
+                  "Give this pabakal back?",
+                  [
+                    "It goes back to the list for another rider.",
+                    cancelWarning(cancels.data),
+                  ]
+                    .filter(Boolean)
+                    .join("\n\n"),
+                  [
+                    { text: "Keep it", style: "cancel" },
+                    {
+                      text: "Give it back",
+                      style: "destructive",
+                      onPress: () => release.mutate(),
+                    },
+                  ]
+                )
+              }
+            />
+          ) : (
+            <Text style={styles.cancelBlocked}>{cancelBlockedNote(cancels.data)}</Text>
+          )}
         </>
       ) : (
         <>
@@ -265,6 +286,7 @@ function Stops({ p }: { p: Pick<Pabakal, "stops" | "store" | "items"> }) {
 }
 
 const styles = StyleSheet.create({
+  cancelBlocked: { ...type.caption, color: colors.danger },
   receipt: { width: "100%", height: 180, borderRadius: radius.md, resizeMode: "cover" },
   section: { gap: spacing.sm, marginBottom: spacing.md },
   heading: { ...type.caption, color: colors.textMuted, textTransform: "uppercase" },

@@ -1,4 +1,5 @@
 import { supabase } from "./client";
+import type { CancellationEntry } from "@/lib/rider-cancellation-summary";
 import { notifyAdminDecision } from "./admin-notify";
 import { anyIlikeFilter } from "./ilike-filter";
 import { riderProfilePatch, type RiderProfileInput } from "@/lib/rider-profile";
@@ -1150,6 +1151,24 @@ export async function fetchRiderCashPositions(): Promise<RiderCashPosition[]> {
     })),
     RIDER_CASH_MIGRATION,
   );
+}
+
+/** Every rider cancellation in the last `days` days, newest first (0155). Admins only. */
+export async function fetchRiderCancellations(
+  days = 7,
+): Promise<CancellationEntry[]> {
+  const { data, error } = await supabase.rpc("admin_rider_cancellations", {
+    p_days: days,
+  });
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((row) => ({
+    riderId: row.rider_id,
+    riderName: row.rider_name,
+    kind: row.kind as CancellationEntry["kind"],
+    reference: row.reference,
+    reason: row.reason,
+    createdAt: row.created_at,
+  }));
 }
 
 /**

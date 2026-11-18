@@ -8,6 +8,7 @@ import {
   fetchRiderApplications,
   fetchRiderOverview,
   fetchRiderCashPositions,
+  fetchRiderCancellations,
   fetchDisputedPayouts,
   resolveDeliveryIssue,
   settleExpiredPayouts,
@@ -28,6 +29,8 @@ import {
   RiderInsightPanels,
   RiderSummaryCards,
 } from "@/components/rider/rider-summary";
+import { RiderCancellationsDialog } from "@/components/rider/rider-cancellations-dialog";
+import { summarizeCancellations } from "@/lib/rider-cancellation-summary";
 import { CashToCollectDialog } from "@/components/rider/cash-to-collect-dialog";
 import { cashOnHandTotal, ridersHoldingCash } from "@/lib/rider-cash";
 import { Card } from "@/components/ui/card";
@@ -77,6 +80,8 @@ export default function RidersPage() {
   // Cash on hand (0079). A separate read so a missing migration leaves the
   // column blank rather than taking the whole fleet list down with it.
   const cash = useAsyncData(() => fetchRiderCashPositions());
+  // Panel feedback: watch the riders who cancel often (0155).
+  const cancellations = useAsyncData(() => fetchRiderCancellations(7));
   const access = useAsyncData(() => fetchRiderAccess());
   // An applicant has no rider row yet, so it cannot appear in the rider list.
   // Fetched unfiltered because the same panel shows reviewed rows underneath
@@ -99,6 +104,7 @@ export default function RidersPage() {
     useState<DisputedPayout | null>(null);
   const [cashOnly, setCashOnly] = useState(false);
   const [cashOpen, setCashOpen] = useState(false);
+  const [cancellationsOpen, setCancellationsOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
   // The queue was one undifferentiated table: pending and long-settled
@@ -158,6 +164,10 @@ export default function RidersPage() {
   const existingEmails = allRiders.map((rider) => rider.email);
   const accountByRiderId = new Map(
     (access.data ?? []).map((row) => [row.riderId, row]),
+  );
+  const cancellationRows = summarizeCancellations(
+    cancellations.data ?? [],
+    new Date(),
   );
   const cashByRiderId = new Map(
     (cash.data ?? []).map((row) => [row.riderId, row]),
@@ -252,6 +262,21 @@ export default function RidersPage() {
         cashHolding={cash.data ? cashHolding : undefined}
         cashFilterActive={cashOnly}
         onOpenCash={() => setCashOpen(true)}
+        cancellations={
+          cancellations.data
+            ? {
+                today: cancellationRows.reduce(
+                  (sum, row) => sum + row.today,
+                  0,
+                ),
+                atLimit: cancellationRows.filter((row) => row.atLimit).length,
+              }
+            : undefined
+        }
+        onOpenCancellations={() => {
+          void cancellations.refetch();
+          setCancellationsOpen(true);
+        }}
       />
       <RiderInsightPanels rows={allRiders} />
 
@@ -548,6 +573,12 @@ export default function RidersPage() {
           </TableBoundary>
         </Section>
       </div>
+
+      <RiderCancellationsDialog
+        open={cancellationsOpen}
+        rows={cancellationRows}
+        onClose={() => setCancellationsOpen(false)}
+      />
 
       <CashToCollectDialog
         open={cashOpen}
