@@ -14,7 +14,11 @@ import { Toolbar, ToolbarSpacer, ToolbarSearch } from "./toolbar";
 import { Select } from "./ui/select";
 import { CalendarIcon } from "./ui/icons";
 import { matchesQuery, useGlobalSearch } from "@/lib/global-search";
-import { endOfLocalDay, isWithinRange, parseLocalDate } from "@/lib/merchant-order-range";
+import {
+  endOfLocalDay,
+  isWithinRange,
+  parseLocalDate,
+} from "@/lib/merchant-order-range";
 import { downloadCsv, timestampedFilename, type CsvColumn } from "@/lib/csv";
 import { Button } from "./ui/button";
 
@@ -40,7 +44,9 @@ const columns: Column<Order>[] = [
   {
     key: "reference",
     header: "Ref",
-    cell: (row) => <span className="font-medium text-card-foreground">{row.reference}</span>,
+    cell: (row) => (
+      <span className="font-medium text-card-foreground">{row.reference}</span>
+    ),
   },
   {
     key: "customer",
@@ -75,9 +81,16 @@ const columns: Column<Order>[] = [
     // view nobody opens before reassigning.
     cell: (row) => (
       <div className="flex flex-col items-start gap-1">
-        <StatusBadge status={row.status} readyForPickupAt={row.readyForPickupAt} />
+        <StatusBadge
+          status={row.status}
+          readyForPickupAt={row.readyForPickupAt}
+        />
         {row.deliveryFailedReason ? (
-          <Badge variant="destructive" size="sm" className="max-w-[22rem] whitespace-normal">
+          <Badge
+            variant="destructive"
+            size="sm"
+            className="max-w-[22rem] whitespace-normal"
+          >
             <span className="line-clamp-2">
               Returned by rider: {row.deliveryFailedReason}
             </span>
@@ -99,7 +112,9 @@ const columns: Column<Order>[] = [
     key: "placedAt",
     header: "Placed",
     cell: (row) => (
-      <span className="whitespace-nowrap text-muted-foreground">{row.placedAt}</span>
+      <span className="whitespace-nowrap text-muted-foreground">
+        {row.placedAt}
+      </span>
     ),
   },
   {
@@ -107,7 +122,9 @@ const columns: Column<Order>[] = [
     header: "Rider",
     cell: (row) =>
       row.rider === "Unassigned" ? (
-        <Badge variant="warning" size="sm">Unassigned</Badge>
+        <Badge variant="warning" size="sm">
+          Unassigned
+        </Badge>
       ) : (
         <span className="text-card-foreground">{row.rider}</span>
       ),
@@ -123,7 +140,14 @@ const ALL_STATUSES: OrderStatus[] = [
   "cancelled",
 ];
 
-export function OrderList({ orders }: { orders: Order[] }) {
+export function OrderList({
+  orders,
+  onChanged,
+}: {
+  orders: Order[];
+  /** Refetch after an order is changed from its detail panel. */
+  onChanged?: () => void;
+}) {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<OrderStatus | "all">("all");
   const [dateRange, setDateRange] = useState<DateRange>({});
@@ -185,21 +209,32 @@ export function OrderList({ orders }: { orders: Order[] }) {
             </option>
           ))}
         </Select>
-        <div className="flex items-center gap-2 hidden sm:flex" aria-label="Date range">
-          <label htmlFor="date-from" className="sr-only">From</label>
+        <div
+          className="flex items-center gap-2 hidden sm:flex"
+          aria-label="Date range"
+        >
+          <label htmlFor="date-from" className="sr-only">
+            From
+          </label>
           <input
             id="date-from"
             type="date"
             value={dateRange.from ?? ""}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDateRange((d) => ({ ...d, from: e.target.value || undefined }))}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+              setDateRange((d) => ({ ...d, from: e.target.value || undefined }))
+            }
             className="h-9 px-3 text-sm border border-input bg-background rounded-md"
           />
-          <label htmlFor="date-to" className="sr-only">To</label>
+          <label htmlFor="date-to" className="sr-only">
+            To
+          </label>
           <input
             id="date-to"
             type="date"
             value={dateRange.to ?? ""}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDateRange((d) => ({ ...d, to: e.target.value || undefined }))}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+              setDateRange((d) => ({ ...d, to: e.target.value || undefined }))
+            }
             className="h-9 px-3 text-sm border border-input bg-background rounded-md"
           />
           {(dateRange.from || dateRange.to) && (
@@ -222,7 +257,11 @@ export function OrderList({ orders }: { orders: Order[] }) {
           size="sm"
           disabled={filtered.length === 0}
           onClick={() =>
-            downloadCsv(timestampedFilename("kfd-orders"), filtered, CSV_COLUMNS)
+            downloadCsv(
+              timestampedFilename("kfd-orders"),
+              filtered,
+              CSV_COLUMNS,
+            )
           }
         >
           Download CSV
@@ -230,11 +269,7 @@ export function OrderList({ orders }: { orders: Order[] }) {
       </Toolbar>
 
       <div className="rounded-(--radius-card) border border-border bg-card shadow-sm overflow-hidden">
-        <DataTable
-          columns={columns}
-          rows={pageRows}
-          onRowClick={setSelected}
-        />
+        <DataTable columns={columns} rows={pageRows} onRowClick={setSelected} />
         <Pagination
           page={page}
           pageSize={PAGE_SIZE}
@@ -248,7 +283,15 @@ export function OrderList({ orders }: { orders: Order[] }) {
         onClose={() => setSelected(null)}
         title={selected ? `Order ${selected.reference}` : "Order"}
       >
-        {selected ? <OrderDetail order={selected} /> : null}
+        {selected ? (
+          <OrderDetail
+            order={selected}
+            onChanged={() => {
+              setSelected(null);
+              onChanged?.();
+            }}
+          />
+        ) : null}
       </Dialog>
     </div>
   );

@@ -8,6 +8,7 @@ import { Avatar } from "./ui/avatar";
 import { BikeIcon, MapPinIcon, UserIcon } from "./ui/icons";
 import { cn } from "@/lib/utils";
 import { OrderRefunds } from "./order-refunds";
+import { AdminCancelOrder } from "./admin-cancel-order";
 
 const timelineSteps: OrderStatus[] = [
   "pending",
@@ -23,7 +24,14 @@ const paymentLabels: Record<Order["payment"], string> = {
   e_wallet: "E-wallet",
 };
 
-export function OrderDetail({ order }: { order: Order }) {
+export function OrderDetail({
+  order,
+  onChanged,
+}: {
+  order: Order;
+  /** After the order changes here (an admin cancellation), so the list can refresh. */
+  onChanged?: () => void;
+}) {
   const currentIndex =
     order.status === "cancelled" ? -1 : timelineSteps.indexOf(order.status);
 
@@ -206,6 +214,7 @@ export function OrderDetail({ order }: { order: Order }) {
         )}
       </div>
       <OrderRefunds orderId={order.id} total={order.total} />
+      <AdminCancelOrder order={order} onCancelled={onChanged} />
     </div>
   );
 }

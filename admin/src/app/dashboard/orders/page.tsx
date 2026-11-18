@@ -7,7 +7,7 @@ import { LoadingState, EmptyState } from "@/components/ui/status";
 import { useAsyncData } from "@/lib/use-async-data";
 
 export default function OrdersPage() {
-  const { data, loading, error } = useAsyncData(() => fetchOrders());
+  const { data, loading, error, refetch } = useAsyncData(() => fetchOrders());
 
   return (
     <PageContainer>
@@ -21,7 +21,7 @@ export default function OrdersPage() {
         ) : error ? (
           <EmptyState title="Could not load orders" description={error} />
         ) : (
-          <OrderList orders={data ?? []} />
+          <OrderList orders={data ?? []} onChanged={refetch} />
         )}
       </Section>
     </PageContainer>

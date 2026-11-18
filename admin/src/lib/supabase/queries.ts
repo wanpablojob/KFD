@@ -1152,6 +1152,22 @@ export async function fetchRiderCashPositions(): Promise<RiderCashPosition[]> {
   );
 }
 
+/**
+ * Cancel an order that is not delivered or already cancelled (0154). Admins
+ * only, enforced in the database; the reason is required and shown to the
+ * customer and the shop.
+ */
+export async function adminCancelOrder(
+  orderId: string,
+  reason: string,
+): Promise<void> {
+  const { error } = await supabase.rpc("admin_cancel_order", {
+    p_order_id: orderId,
+    p_reason: reason,
+  });
+  if (error) throw new Error(error.message);
+}
+
 /** One delivery behind a rider's unpaid balance: Meriendash's 20.00 for it (0151). */
 export interface RiderCashOrder {
   riderId: string;
