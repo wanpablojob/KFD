@@ -17,7 +17,7 @@ const title = "Meriendash | Food delivery sa Kabankalan City";
 // app has yet. Saying otherwise on the front page is a promise the app cannot
 // keep.
 const description =
-  "Order from local Kabankalan kitchens, pay cash or GCash on delivery, and follow every step of your order. Pili, bayad, hintay.";
+  "Merienda to meals, dashed to you. Order from local Kabankalan kitchens, pay cash on delivery, and follow every step of your order.";
 
 export const metadata: Metadata = {
   title,

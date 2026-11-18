@@ -9,7 +9,7 @@ import { ImageResponse } from "next/og";
  * crisp at any size: brand red with the round badge, the same pairing the app
  * opens on, so a shared link already looks like Meriendash.
  */
-export const alt = "Meriendash: Pagkaing Kabankalan, hatid sa pinto mo.";
+export const alt = "Meriendash: Merienda to meals, dashed to you.";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -40,10 +40,10 @@ export default async function OpengraphImage() {
 
       <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
         <div style={{ fontSize: 72, fontWeight: 700, lineHeight: 1.05 }}>
-          Pagkaing Kabankalan,
+          Merienda to meals,
         </div>
         <div style={{ fontSize: 72, fontWeight: 700, lineHeight: 1.05 }}>
-          hatid sa pinto mo.
+          dashed to you.
         </div>
       </div>
 
@@ -55,7 +55,7 @@ export default async function OpengraphImage() {
           color: "#F6DDD6",
         }}
       >
-        <span>Cash or GCash on delivery</span>
+        <span>Cash on delivery</span>
         <span>·</span>
         <span>Kabankalan only</span>
         <span>·</span>

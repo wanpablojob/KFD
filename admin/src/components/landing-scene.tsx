@@ -179,16 +179,15 @@ export function LandingScene() {
               >
                 Kabankalan City
               </span>
-              {/* TODO(owner): a Hiligaynon headline, written by a native speaker. */}
               <h1
                 className="enter font-display text-4xl font-bold leading-[1.05] tracking-tight text-foreground sm:text-5xl lg:text-6xl"
                 style={turn(1)}
               >
-                Pagkaing Kabankalan,{" "}
+                Merienda to meals,{" "}
                 <span className="text-primary">
-                  hatid sa{" "}
+                  dashed to{" "}
                   <span className="relative inline-block whitespace-nowrap">
-                    pinto mo.
+                    you.
                     <span
                       aria-hidden="true"
                       data-underline

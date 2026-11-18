@@ -97,8 +97,8 @@ export function LandingScreen({
           {/* TODO(owner): a Hiligaynon line here, written by a native speaker. */}
           <Text style={styles.headline}>Local kitchens, delivered to your door.</Text>
           <Text style={styles.lead}>
-            Order from Kabankalan restaurants, pay cash or GCash when it arrives, and
-            follow every step of your order.
+            Order from Kabankalan restaurants, pay cash when it arrives, and follow
+            every step of your order.
           </Text>
 
           <Pressable
