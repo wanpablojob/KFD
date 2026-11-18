@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Modal,
   Pressable,
   SectionList,
   StyleSheet,
@@ -24,6 +25,7 @@ import {
 import { useFavorites, useToggleFavorite } from "../../lib/hooks";
 import { useCart } from "../../lib/cart-context";
 import { CartButton } from "../../components/CartButton";
+import { groupSizes, type Dish } from "../../lib/menu-sizes";
 import { colors, radius, shadow, spacing, type } from "../../lib/theme";
 
 /**
@@ -111,7 +113,7 @@ export default function CustomerMenuScreen() {
       ) : (
         <SectionList
           sections={sections}
-          keyExtractor={(item) => item.id}
+          keyExtractor={(item) => item.key}
           stickySectionHeadersEnabled
           contentContainerStyle={[styles.list, { paddingBottom: bottomPadding }]}
           ListHeaderComponent={
@@ -192,8 +194,8 @@ export default function CustomerMenuScreen() {
             <Text style={styles.sectionHeader}>{section.title}</Text>
           )}
           renderItem={({ item }) => (
-            <MenuItemCard
-              row={item}
+            <DishCard
+              dish={item}
               restaurantId={restaurantId}
               restaurantName={restaurantName}
               closed={restaurant ? !restaurant.is_open : false}
@@ -205,7 +207,136 @@ export default function CustomerMenuScreen() {
   );
 }
 
-function MenuItemCard({
+/**
+ * One dish. A dish with one size adds on tap, as before. A dish with sizes
+ * opens a picker instead, with nothing chosen: tapping ADD can never put a
+ * size in the cart the customer did not pick.
+ */
+function DishCard({
+  dish,
+  restaurantId,
+  restaurantName,
+  closed,
+}: {
+  dish: Dish<MenuItemRow>;
+  closed: boolean;
+  restaurantId: string;
+  restaurantName: string;
+}) {
+  const { lines } = useCart();
+  const [picking, setPicking] = useState(false);
+  const first = dish.sizes[0].row;
+
+  if (dish.sizes.length === 1) {
+    return (
+      <View style={[styles.item, shadow.card]}>
+        <MenuItemThumb uri={first.image_url} />
+        <View style={styles.itemBody}>
+          <Text style={styles.itemName}>{first.name}</Text>
+          <Text style={type.price}>₱{first.price.toFixed(2)}</Text>
+        </View>
+        <QtyControl
+          row={first}
+          restaurantId={restaurantId}
+          restaurantName={restaurantName}
+          closed={closed}
+        />
+      </View>
+    );
+  }
+
+  const prices = dish.sizes.map((s) => s.row.price);
+  const low = Math.min(...prices);
+  const high = Math.max(...prices);
+  // What is already in the cart, by size: "M ×1 · L ×2".
+  const chosen = dish.sizes
+    .map((s) => ({
+      label: s.label,
+      qty: lines.find((l) => l.menu_item_id === s.row.id)?.quantity ?? 0,
+    }))
+    .filter((s) => s.qty > 0);
+
+  return (
+    <View style={[styles.item, shadow.card]}>
+      <MenuItemThumb
+        uri={dish.sizes.find((s) => s.row.image_url)?.row.image_url ?? null}
+      />
+      <View style={styles.itemBody}>
+        <Text style={styles.itemName}>{dish.name}</Text>
+        <Text style={type.price}>
+          ₱{low.toFixed(2)}
+          {high > low ? ` – ₱${high.toFixed(2)}` : ""}
+        </Text>
+        <Text style={styles.sizeHint}>
+          {chosen.length > 0
+            ? `In cart: ${chosen.map((c) => `${c.label} ×${c.qty}`).join(" · ")}`
+            : `${dish.sizes.length} sizes: ${dish.sizes.map((s) => s.label).join(", ")}`}
+        </Text>
+      </View>
+      <Pressable
+        style={({ pressed }) => [
+          styles.addBtn,
+          closed && styles.addBtnClosed,
+          pressed && !closed && styles.addBtnPressed,
+        ]}
+        onPress={() => setPicking(true)}
+        disabled={closed}
+        accessibilityLabel={
+          closed ? `${dish.name}, restaurant closed` : `Choose a size of ${dish.name}`
+        }
+        accessibilityState={{ disabled: closed }}
+      >
+        <Text style={styles.addLabel}>
+          {closed ? "CLOSED" : chosen.length > 0 ? "EDIT" : "ADD"}
+        </Text>
+      </Pressable>
+
+      {picking ? (
+        <Modal
+          visible
+          transparent
+          animationType="fade"
+          onRequestClose={() => setPicking(false)}
+        >
+          <Pressable
+            style={styles.backdrop}
+            accessibilityLabel="Close"
+            onPress={() => setPicking(false)}
+          >
+            <Pressable style={styles.sheet} onPress={() => {}}>
+              <Text style={styles.sheetTitle}>{dish.name}</Text>
+              <Text style={type.caption}>Choose a size</Text>
+              {dish.sizes.map((size) => (
+                <View key={size.row.id} style={styles.sizeRow}>
+                  <View style={styles.itemBody}>
+                    <Text style={styles.itemName}>{size.label}</Text>
+                    <Text style={type.price}>₱{size.row.price.toFixed(2)}</Text>
+                  </View>
+                  <QtyControl
+                    row={size.row}
+                    restaurantId={restaurantId}
+                    restaurantName={restaurantName}
+                    closed={closed}
+                  />
+                </View>
+              ))}
+              <Pressable
+                style={styles.doneBtn}
+                onPress={() => setPicking(false)}
+                accessibilityRole="button"
+              >
+                <Text style={styles.addLabel}>DONE</Text>
+              </Pressable>
+            </Pressable>
+          </Pressable>
+        </Modal>
+      ) : null}
+    </View>
+  );
+}
+
+/** ADD, or the quantity stepper once that item is in the cart. */
+function QtyControl({
   row,
   restaurantId,
   restaurantName,
@@ -243,68 +374,63 @@ function MenuItemCard({
     }
   };
 
-  return (
-    <View style={[styles.item, shadow.card]}>
-      <MenuItemThumb uri={row.image_url} />
-      <View style={styles.itemBody}>
-        <Text style={styles.itemName}>{row.name}</Text>
-        <Text style={type.price}>₱{row.price.toFixed(2)}</Text>
-      </View>
-      {inCart > 0 && !closed ? (
-        // Once it is in the cart, show how many and let the customer change it
-        // here instead of bouncing to the cart screen.
-        <View style={styles.stepper}>
-          <Pressable
-            style={styles.stepBtn}
-            onPress={() => setQuantity(row.id, inCart - 1)}
-            hitSlop={6}
-            accessibilityRole="button"
-            accessibilityLabel={
-              inCart === 1 ? `Remove ${row.name}` : `One less ${row.name}`
-            }
-          >
-            <Ionicons
-              name={inCart === 1 ? "trash-outline" : "remove"}
-              size={18}
-              color={colors.primary}
-            />
-          </Pressable>
-          <Text style={styles.stepCount} accessibilityLabel={`${inCart} in cart`}>
-            {inCart}
-          </Text>
-          <Pressable
-            style={styles.stepBtn}
-            onPress={handleAdd}
-            disabled={inCart >= MAX_QUANTITY}
-            hitSlop={6}
-            accessibilityRole="button"
-            accessibilityLabel={`One more ${row.name}`}
-          >
-            <Ionicons
-              name="add"
-              size={18}
-              color={inCart >= MAX_QUANTITY ? colors.textFaint : colors.primary}
-            />
-          </Pressable>
-        </View>
-      ) : (
+  if (inCart > 0 && !closed) {
+    // Once it is in the cart, show how many and let the customer change it
+    // here instead of bouncing to the cart screen.
+    return (
+      <View style={styles.stepper}>
         <Pressable
-          style={({ pressed }) => [
-            styles.addBtn,
-            closed && styles.addBtnClosed,
-            pressed && !closed && styles.addBtnPressed,
-          ]}
-          onPress={handleAdd}
-          disabled={closed}
+          style={styles.stepBtn}
+          onPress={() => setQuantity(row.id, inCart - 1)}
+          hitSlop={6}
+          accessibilityRole="button"
           accessibilityLabel={
-            closed ? `${row.name}, restaurant closed` : `Add ${row.name} to cart`
+            inCart === 1 ? `Remove ${row.name}` : `One less ${row.name}`
           }
-          accessibilityState={{ disabled: closed }}
         >
-          <Text style={styles.addLabel}>{closed ? "CLOSED" : "ADD"}</Text>
+          <Ionicons
+            name={inCart === 1 ? "trash-outline" : "remove"}
+            size={18}
+            color={colors.primary}
+          />
         </Pressable>
-      )}
-    </View>
+        <Text style={styles.stepCount} accessibilityLabel={`${inCart} in cart`}>
+          {inCart}
+        </Text>
+        <Pressable
+          style={styles.stepBtn}
+          onPress={handleAdd}
+          disabled={inCart >= MAX_QUANTITY}
+          hitSlop={6}
+          accessibilityRole="button"
+          accessibilityLabel={`One more ${row.name}`}
+        >
+          <Ionicons
+            name="add"
+            size={18}
+            color={inCart >= MAX_QUANTITY ? colors.textFaint : colors.primary}
+          />
+        </Pressable>
+      </View>
+    );
+  }
+
+  return (
+    <Pressable
+      style={({ pressed }) => [
+        styles.addBtn,
+        closed && styles.addBtnClosed,
+        pressed && !closed && styles.addBtnPressed,
+      ]}
+      onPress={handleAdd}
+      disabled={closed}
+      accessibilityLabel={
+        closed ? `${row.name}, restaurant closed` : `Add ${row.name} to cart`
+      }
+      accessibilityState={{ disabled: closed }}
+    >
+      <Text style={styles.addLabel}>{closed ? "CLOSED" : "ADD"}</Text>
+    </Pressable>
   );
 }
 
@@ -322,7 +448,11 @@ function groupByCategory(rows: MenuItemRow[]) {
     if (bucket) bucket.push(row);
     else byName.set(title, [row]);
   }
-  return [...byName.entries()].map(([title, data]) => ({ title, data }));
+  // Sizes of one dish fold into one card (menu-sizes.ts).
+  return [...byName.entries()].map(([title, data]) => ({
+    title,
+    data: groupSizes(data),
+  }));
 }
 
 const styles = StyleSheet.create({
@@ -406,6 +536,36 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   stepBtn: { padding: 4 },
+  sizeHint: { ...type.caption, color: colors.textMuted },
+  backdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    justifyContent: "flex-end",
+  },
+  sheet: {
+    backgroundColor: colors.card,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
+    padding: spacing.lg,
+    gap: spacing.sm,
+    maxHeight: "85%",
+  },
+  sheetTitle: { ...type.title, fontSize: 18 },
+  sizeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    paddingVertical: spacing.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+  },
+  doneBtn: {
+    marginTop: spacing.sm,
+    alignItems: "center",
+    paddingVertical: spacing.md,
+    borderRadius: radius.md,
+    backgroundColor: colors.primary,
+  },
   stepCount: { ...type.label, color: colors.text, minWidth: 18, textAlign: "center" },
   metaDot: { fontSize: 12, color: colors.textFaint },
   closedText: { ...type.caption, fontWeight: "700", color: colors.danger },
