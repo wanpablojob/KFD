@@ -7,7 +7,7 @@ import * as Notifications from "expo-notifications";
 import { SessionProvider, useSession } from "../lib/session-context";
 import { useSessionUser } from "../lib/auth";
 import { LoadingScreen } from "../screens/loading-screen";
-import { queryClient, persister, PersistQueryClientProvider } from "../lib/queryClient";
+import { queryClient, QueryClientProvider } from "../lib/queryClient";
 import { ConnectivityProvider, ConnectivityBanner } from "../lib/connectivity-context";
 import { initSentry, setSentryUser, clearSentryUser } from "../lib/sentry";
 import { ErrorBoundary } from "../components/ErrorBoundary";
@@ -241,7 +241,7 @@ export default function RootLayout() {
   // on session change without imperative clears. useSessionUser is cheap here —
   // it reads the same client singleton the provider uses — and lets us key it.
   return (
-    <PersistQueryClientProvider client={queryClient} persistOptions={{ persister }}>
+    <QueryClientProvider client={queryClient}>
       <SessionProvider key={user?.id ?? "anon"}>
         <SafeAreaProvider>
           <ConnectivityProvider>
@@ -251,7 +251,7 @@ export default function RootLayout() {
           </ConnectivityProvider>
         </SafeAreaProvider>
       </SessionProvider>
-    </PersistQueryClientProvider>
+    </QueryClientProvider>
   );
 }
 

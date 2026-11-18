@@ -1,20 +1,17 @@
-import { QueryClient, focusManager, onlineManager } from "@tanstack/react-query";
 import {
-  PersistQueryClientProvider,
-  Persister,
-  experimental_createQueryPersister,
-} from "@tanstack/react-query-persist-client";
+  QueryClient,
+  QueryClientProvider,
+  focusManager,
+  onlineManager,
+} from "@tanstack/react-query";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AppState } from "react-native";
 import NetInfo from "@react-native-community/netinfo";
 import { focusFromAppState, onlineFromNetInfo } from "./connectivity-manager";
 
 /**
- * Query client with persistent cache for offline-first experience.
- *
- * Persists to AsyncStorage (expo-secure-store is for credentials only).
- * Stale-while-revalidate means the UI renders cached data immediately
- * while a fresh fetch runs in the background.
+ * Query client. Cached data shows immediately while a fresh fetch runs in the
+ * background (stale-while-revalidate), in memory.
  */
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -29,9 +26,11 @@ const queryClient = new QueryClient({
       refetchOnWindowFocus: false,
       refetchOnReconnect: "always",
     },
+    // A button's write is never retried by itself: three retries with backoff
+    // held a failed tap for ~7 s before its error showed, and could send a
+    // write (accept, give back, pay) twice. The person taps again if they want.
     mutations: {
-      retry: 3,
-      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+      retry: 0,
     },
   },
 });
@@ -49,30 +48,13 @@ const queryClient = new QueryClient({
 focusManager.setEventListener(focusFromAppState(AppState));
 onlineManager.setEventListener(onlineFromNetInfo(NetInfo));
 
-// Experimental persister from TanStack Query v5
-const experimentalPersister = experimental_createQueryPersister({
-  storage: AsyncStorage,
-  maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
-  serialize: (data) => JSON.stringify(data),
-  deserialize: (data) => JSON.parse(data),
-});
+// The cache used to be saved to AsyncStorage through an adapter whose restore
+// returned nothing: the whole cache was serialised and written on every change
+// (and polls change it every 10-20 s), on the JS thread, and never read back.
+// It is gone; this clears what it left behind, once, in the background.
+void AsyncStorage.getAllKeys()
+  .then((keys) => keys.filter((k) => k.startsWith("tanstack-query")))
+  .then((stale) => (stale.length ? AsyncStorage.multiRemove(stale) : undefined))
+  .catch(() => undefined);
 
-/**
- * Adapter to make experimental persister compatible with PersistQueryClientProvider's
- * Persister interface (persistClient, restoreClient, removeClient).
- */
-const persister: Persister = {
-  persistClient: async (persistedClient) => {
-    await experimentalPersister.persistQuery?.(persistedClient as any);
-  },
-  restoreClient: async () => {
-    // The experimental persister restores automatically via persisterFn
-    // This is called during app startup - return undefined to skip manual restore
-    return undefined;
-  },
-  removeClient: async () => {
-    await experimentalPersister.removeQueries?.({});
-  },
-};
-
-export { queryClient, persister, PersistQueryClientProvider };
+export { queryClient, QueryClientProvider };

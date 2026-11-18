@@ -89,10 +89,13 @@ function RiderTabBar({ pathname }: { pathname: string }) {
   // One shared tick, the same one the offer cards use, so the badge and the
   // countdowns agree on what has expired.
   const [now, setNow] = useState(() => Date.now());
+  const hasOffers = (offers?.length ?? 0) > 0;
   useEffect(() => {
+    // Only while there is something to count down: no offers, no ticking.
+    if (!hasOffers) return;
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
-  }, []);
+  }, [hasOffers]);
 
   const claimable = countClaimableOffers(offers ?? [], now);
   const tabs = TABS.map((tab) =>
