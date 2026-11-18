@@ -46,6 +46,7 @@ import {
 import { fetchRiderOrdersPage, reportFailedDeliveryTrip } from "../lib/storefront";
 import { colors, radius, spacing, type } from "../lib/theme";
 import { NotificationBell } from "../components/NotificationBell";
+import { BrandMark } from "../components/BrandMark";
 
 type AssignedOrder = RiderOrderPageResult["items"][0];
 
@@ -471,9 +472,12 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
         )}
         ListHeaderComponent={
           <View>
-            <View
-              style={[styles.sectionHeader, { paddingTop: spacing.lg + insets.top }]}
-            >
+            <BrandMark
+              style={{
+                paddingTop: spacing.lg + insets.top,
+              }}
+            />
+            <View style={[styles.sectionHeader, { paddingTop: spacing.sm }]}>
               <Text style={styles.sectionTitle}>Your deliveries</Text>
               {loadingMore && (
                 <ActivityIndicator size="small" color={colors.secondary} />

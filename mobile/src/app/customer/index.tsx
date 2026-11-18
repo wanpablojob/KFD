@@ -21,6 +21,7 @@ import { buildTasteProfile, fetchHomePicks, greetingFor } from "../../lib/home-p
 import type { RestaurantRow } from "../../lib/storefront";
 import { colors, radius, shadow, spacing, type } from "../../lib/theme";
 import { statusLabel } from "../../lib/order-status";
+import { BrandMark } from "../../components/BrandMark";
 
 const STATUS_COPY: Record<string, string> = {
   pending: "Waiting for the restaurant to accept",
@@ -103,7 +104,7 @@ export default function CustomerHomeScreen() {
       >
         <View style={styles.header}>
           <View style={styles.headerText}>
-            <Text style={styles.brand}>KABANKALAN FOOD DELIVERY</Text>
+            <BrandMark />
             <Text style={type.display}>{name ? `Hi, ${name}!` : "Hi there!"}</Text>
             <Text style={styles.greeting}>
               {picks.data?.greeting ?? greetingFor(now.getHours())}

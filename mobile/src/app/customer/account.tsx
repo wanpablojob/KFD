@@ -19,6 +19,7 @@ import { clearAddresses, loadAddresses } from "../../lib/addresses";
 import { openLegal } from "../../lib/legal";
 import { shouldUnregisterOnSignOut } from "../../lib/push-signout";
 import { colors, radius, shadow, spacing, type } from "../../lib/theme";
+import { BrandMark } from "../../components/BrandMark";
 
 /**
  * Customer profile: who you are signed in as, what you have ordered, and the
@@ -169,6 +170,7 @@ export default function CustomerAccountScreen() {
         { paddingTop: spacing.lg + insets.top, paddingBottom: bottomPadding },
       ]}
     >
+      <BrandMark style={{ marginBottom: spacing.md }} />
       <View style={styles.header}>
         <View style={styles.avatar}>
           <Text style={styles.avatarText}>{name.charAt(0).toUpperCase()}</Text>

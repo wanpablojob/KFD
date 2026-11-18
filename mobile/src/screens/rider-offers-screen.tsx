@@ -34,6 +34,7 @@ import type { RiderOffer } from "../lib/hooks";
 import type { RiderProfile } from "../lib/storefront";
 import { NotificationBell } from "../components/NotificationBell";
 import { PabakalRiderSection } from "../components/PabakalRiderSection";
+import { BrandMark } from "../components/BrandMark";
 
 const STATUS_LABEL: Record<string, string> = {
   pending: "Pending",
@@ -279,9 +280,12 @@ export function RiderOffersScreen({ userId }: { userId: string }) {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}
         ListHeaderComponent={
           <View>
-            <View
-              style={[styles.sectionHeader, { paddingTop: spacing.lg + insets.top }]}
-            >
+            <BrandMark
+              style={{
+                paddingTop: spacing.lg + insets.top,
+              }}
+            />
+            <View style={[styles.sectionHeader, { paddingTop: spacing.sm }]}>
               <View>
                 <Text style={styles.sectionTitle}>Available</Text>
                 <Text style={styles.subtitle}>

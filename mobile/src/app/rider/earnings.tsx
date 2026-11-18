@@ -30,6 +30,7 @@ import {
 } from "../../lib/payout-groups";
 import { useSession } from "../../lib/session-context";
 import { colors, radius, shadow, spacing, type } from "../../lib/theme";
+import { BrandMark } from "../../components/BrandMark";
 
 /**
  * Earnings tab.
@@ -127,6 +128,7 @@ export default function RiderEarningsRoute() {
       contentContainerStyle={{ paddingBottom: bottomPadding }}
     >
       <View style={[styles.header, { paddingTop: spacing.lg + insets.top }]}>
+        <BrandMark style={{ marginBottom: spacing.sm }} />
         <Text style={type.eyebrow}>Earnings</Text>
         <Text style={styles.today}>{peso(totals?.earned_today ?? 0)}</Text>
         <Text style={type.caption}>Earned today</Text>

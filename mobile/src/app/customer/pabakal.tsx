@@ -48,6 +48,7 @@ import { shortTimestamp } from "../../lib/order-timestamp";
 import { chatIntent, type ChatIntent } from "../../lib/pabakal-parse";
 import { correctStops, describeCorrections } from "../../lib/spelling";
 import { colors, radius, shadow, spacing, type } from "../../lib/theme";
+import { BrandMark } from "../../components/BrandMark";
 
 const peso = (n: number) => `₱${n.toFixed(2)}`;
 const blankItem = () => ({ name: "", quantity: "1" });
@@ -265,6 +266,7 @@ export default function PabakalScreen() {
   return (
     <View style={styles.screen}>
       <View style={[styles.header, { paddingTop: insets.top + spacing.md }]}>
+        <BrandMark style={{ marginBottom: spacing.sm }} />
         <View style={styles.rowBetween}>
           <View style={styles.row}>
             <View style={styles.avatarLarge}>

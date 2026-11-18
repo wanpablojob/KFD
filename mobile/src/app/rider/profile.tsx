@@ -35,6 +35,7 @@ import { shouldUnregisterOnSignOut } from "../../lib/push-signout";
 import { riderProfileGate } from "../../lib/rider-profile-gate";
 import type { RiderProfile } from "../../lib/storefront";
 import { colors, radius, shadow, spacing, type } from "../../lib/theme";
+import { BrandMark } from "../../components/BrandMark";
 
 /**
  * Profile tab. Availability is the one write a rider makes about themselves,
@@ -226,6 +227,7 @@ export default function RiderProfileRoute() {
         contentContainerStyle={[styles.content, { paddingBottom: bottomPadding }]}
       >
         <View style={[styles.header, { paddingTop: spacing.lg + insets.top }]}>
+          <BrandMark style={{ marginBottom: spacing.sm }} />
           <Text style={styles.title}>{profile.name}</Text>
           <Text style={styles.subtitle}>
             {profile.city} · {profile.vehicle}

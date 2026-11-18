@@ -31,6 +31,7 @@ import type { MenuItemSearchRow } from "../../lib/storefront";
 import { colors, radius, shadow, spacing, type } from "../../lib/theme";
 import { NotificationBell } from "../../components/NotificationBell";
 import { CartButton } from "../../components/CartButton";
+import { BrandMark } from "../../components/BrandMark";
 
 export default function CustomerShopsScreen() {
   const insets = useSafeAreaInsets();
@@ -105,7 +106,7 @@ export default function CustomerShopsScreen() {
             {/* The brand name, not the customer's location: the app has no
                 location permission and must not imply it knows where they are. */}
             <View style={styles.brandRow}>
-              <Text style={styles.brand}>KABANKALAN FOOD DELIVERY</Text>
+              <BrandMark />
               <View style={styles.headerActions}>
                 <CartButton />
                 <NotificationBell />

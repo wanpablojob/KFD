@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useScrollBottomPadding } from "./TabBarInset";
 import { colors, radius, shadow, spacing, type } from "../lib/theme";
 import { NotificationBell } from "./NotificationBell";
+import { BrandMark } from "./BrandMark";
 
 /** One merchant tab: a scrolling page with a title, pull-to-refresh and room for the tab bar. */
 export function MerchantScreen({
@@ -49,6 +50,7 @@ export function MerchantScreen({
       >
         <View style={ui.headerRow}>
           <View style={ui.header}>
+            <BrandMark style={{ marginBottom: spacing.xs }} />
             <Text style={ui.title}>{title}</Text>
             {subtitle ? <Text style={ui.subtitle}>{subtitle}</Text> : null}
           </View>
