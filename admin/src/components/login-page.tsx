@@ -187,7 +187,7 @@ export function LoginPage({
       <div className="relative z-10 flex min-h-screen flex-col items-center justify-center px-6 py-12 sm:px-12">
         <div className="flex items-center gap-3">
           <Image
-            src="/images/kabankalan/logo.jpg"
+            src="/images/brand/logo.jpg"
             alt=""
             width={44}
             height={44}

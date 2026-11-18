@@ -136,7 +136,7 @@ export function Sidebar({
             className="flex items-center gap-2.5"
           >
             <Image
-              src="/images/kabankalan/logo.jpg"
+              src="/images/brand/logo.jpg"
               alt="Meriendash"
               width={32}
               height={32}

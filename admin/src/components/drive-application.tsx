@@ -48,7 +48,7 @@ export function DriveApplication() {
         <div className="mx-auto flex h-16 w-full max-w-3xl items-center justify-between px-4 sm:px-6">
           <Link href="/" className="flex items-center gap-2.5 no-underline">
             <Image
-              src="/images/kabankalan/badge.png"
+              src="/images/brand/logo.png"
               alt=""
               width={36}
               height={36}
