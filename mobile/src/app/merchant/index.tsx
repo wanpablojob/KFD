@@ -288,9 +288,18 @@ const styles = StyleSheet.create({
   cardTop: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "flex-start",
+    gap: spacing.sm,
   },
-  referenceRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  // Shrinks and wraps (the READY FOR PICKUP tag drops to a second line) so the
+  // minutes never get pushed off a narrow phone.
+  referenceRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+    flexShrink: 1,
+  },
   reference: { ...type.heading },
   newTag: {
     backgroundColor: colors.primary,
@@ -306,7 +315,7 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   readyTagText: { color: colors.success, fontSize: 11, fontWeight: "800" },
-  age: { ...type.caption, color: colors.textMuted },
+  age: { ...type.caption, color: colors.textMuted, flexShrink: 0, marginTop: 4 },
   ageOverdue: { color: colors.danger, fontWeight: "700" },
   actions: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.xs },
   backdrop: {
