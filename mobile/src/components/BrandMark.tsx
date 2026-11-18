@@ -19,7 +19,7 @@ export function BrandMark({ style }: { style?: StyleProp<ViewStyle> }) {
       accessibilityRole="header"
       accessibilityLabel="Meriendash"
     >
-      <Image source={require("../../assets/logo.png")} style={styles.logo} />
+      <Image source={require("../../assets/rider-logo.png")} style={styles.logo} />
       <Text style={styles.name}>MERIENDASH</Text>
     </View>
   );

@@ -136,7 +136,7 @@ export function Sidebar({
             className="flex items-center gap-2.5"
           >
             <Image
-              src="/images/brand/logo.jpg"
+              src="/images/brand/rider.png"
               alt="Meriendash"
               width={32}
               height={32}

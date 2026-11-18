@@ -107,7 +107,7 @@ export function LandingScene() {
         <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
           <a href="#top" className="flex items-center gap-2.5 no-underline">
             <Image
-              src="/images/brand/logo.png"
+              src="/images/brand/rider.png"
               alt=""
               width={36}
               height={36}
@@ -294,7 +294,7 @@ export function LandingScene() {
                 className="absolute top-[2%] left-[2%] aspect-square w-[42%]"
               >
                 <Image
-                  src="/images/brand/logo.png"
+                  src="/images/brand/rider.png"
                   alt="Meriendash"
                   fill
                   priority
@@ -376,7 +376,7 @@ export function LandingScene() {
                     {word}
                   </span>
                   <Image
-                    src="/images/brand/logo.png"
+                    src="/images/brand/rider.png"
                     alt=""
                     width={48}
                     height={48}
@@ -690,7 +690,7 @@ export function LandingScene() {
           >
             <div className="flex flex-col items-start gap-5 p-8 sm:p-12">
               <Image
-                src="/images/brand/logo.png"
+                src="/images/brand/rider.png"
                 alt=""
                 width={96}
                 height={96}
@@ -888,7 +888,7 @@ export function LandingScene() {
           <div className="flex flex-col gap-3">
             <span className="flex items-center gap-2.5">
               <Image
-                src="/images/brand/logo.png"
+                src="/images/brand/rider.png"
                 alt=""
                 width={32}
                 height={32}

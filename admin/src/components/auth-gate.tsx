@@ -79,7 +79,7 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-3">
           <Image
-            src="/images/brand/logo.jpg"
+            src="/images/brand/rider.png"
             alt="Meriendash"
             width={48}
             height={48}

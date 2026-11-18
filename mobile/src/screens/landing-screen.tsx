@@ -84,7 +84,10 @@ export function LandingScreen({
         >
           <View style={styles.heroShade} />
           <Animated.View style={[styles.brand, riseStyle]}>
-            <Image source={require("../../assets/logo.png")} style={styles.logo} />
+            <Image
+              source={require("../../assets/rider-logo.png")}
+              style={styles.logo}
+            />
             <Text style={styles.title}>Meriendash</Text>
             <Text style={styles.subtitle}>Food delivery in Kabankalan</Text>
           </Animated.View>

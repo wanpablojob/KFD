@@ -187,11 +187,11 @@ export function LoginPage({
       <div className="relative z-10 flex min-h-screen flex-col items-center justify-center px-6 py-12 sm:px-12">
         <div className="flex items-center gap-3">
           <Image
-            src="/images/brand/logo.jpg"
+            src="/images/brand/rider.png"
             alt=""
             width={44}
             height={44}
-            className="h-11 w-11 rounded-xl bg-white/90 object-contain p-1 shadow-lg shadow-black/50"
+            className="h-11 w-11 object-contain drop-shadow-lg"
           />
           <span className="text-xl font-bold tracking-tight text-white">
             Meriendash{" "}

@@ -15,7 +15,7 @@ export const contentType = "image/png";
 
 export default async function OpengraphImage() {
   const badge = await readFile(
-    join(process.cwd(), "public/images/brand/logo.png"),
+    join(process.cwd(), "public/images/brand/rider.png"),
   );
   const badgeSrc = `data:image/png;base64,${badge.toString("base64")}`;
   return new ImageResponse(
