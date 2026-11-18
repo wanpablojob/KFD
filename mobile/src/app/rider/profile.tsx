@@ -5,6 +5,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   View,
 } from "react-native";
@@ -297,14 +298,17 @@ export default function RiderProfileRoute() {
             <Text style={styles.meta}>
               {push.granted && push.registered ? "On" : "Off"}
             </Text>
-            <View
-              style={[
-                styles.switchTrack,
-                push.granted && push.registered && styles.switchTrackOn,
-              ]}
-            >
-              <Text style={styles.switchHint}>{pushBusy ? "…" : ""}</Text>
-            </View>
+            {pushBusy ? (
+              <ActivityIndicator color={colors.primary} />
+            ) : (
+              // The platform's own switch: a sliding knob, so on and off read at a glance.
+              <Switch
+                value={push.granted && push.registered}
+                onValueChange={() => void togglePush()}
+                trackColor={{ true: colors.primary, false: colors.border }}
+                accessibilityLabel="Notifications"
+              />
+            )}
           </Pressable>
           {push.error ? <Text style={styles.error}>{push.error}</Text> : null}
         </View>
@@ -412,17 +416,6 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
   },
   pushRowPressed: { opacity: 0.6 },
-  switchTrack: {
-    minWidth: 46,
-    height: 26,
-    borderRadius: radius.pill,
-    backgroundColor: colors.border,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: spacing.sm,
-  },
-  switchTrackOn: { backgroundColor: colors.primary },
-  switchHint: { ...type.caption, color: colors.textInverse },
   meta: { ...type.body, color: colors.textMuted },
   metaHint: { ...type.caption, color: colors.textFaint },
   statusHint: { ...type.caption, color: colors.textMuted },

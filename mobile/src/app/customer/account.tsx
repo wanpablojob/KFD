@@ -1,6 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  View,
+} from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useScrollBottomPadding } from "../../components/TabBarInset";
@@ -211,14 +220,17 @@ export default function CustomerAccountScreen() {
           <Text style={styles.pushState}>
             {push.granted && push.registered ? "On" : "Off"}
           </Text>
-          <View
-            style={[
-              styles.switchTrack,
-              push.granted && push.registered && styles.switchTrackOn,
-            ]}
-          >
-            <Text style={styles.switchHint}>{pushBusy ? "…" : ""}</Text>
-          </View>
+          {pushBusy ? (
+            <ActivityIndicator color={colors.primary} />
+          ) : (
+            // The platform's own switch: a sliding knob, so on and off read at a glance.
+            <Switch
+              value={push.granted && push.registered}
+              onValueChange={() => void togglePush()}
+              trackColor={{ true: colors.primary, false: colors.border }}
+              accessibilityLabel="Notifications"
+            />
+          )}
         </Pressable>
         {push.error ? <Text style={styles.pushError}>{push.error}</Text> : null}
       </View>
@@ -363,17 +375,6 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
   },
   pushState: { ...type.body, color: colors.textMuted },
-  switchTrack: {
-    minWidth: 46,
-    height: 26,
-    borderRadius: radius.pill,
-    backgroundColor: colors.border,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: spacing.sm,
-  },
-  switchTrackOn: { backgroundColor: colors.primary },
-  switchHint: { ...type.caption, color: colors.textInverse },
   pushError: { ...type.caption, color: colors.danger },
   deleteAccount: { alignItems: "center", paddingVertical: spacing.md },
   deleteAccountLabel: {
