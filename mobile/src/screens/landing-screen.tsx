@@ -19,7 +19,7 @@ import { signInWithProvider } from "../lib/auth";
 import { collapseAuthError } from "../lib/auth-errors";
 import { colors, radius, shadow, spacing, type } from "../lib/theme";
 
-export type LandingAction = "login" | "signup" | "track";
+export type LandingAction = "login" | "signup" | "track" | "ride";
 
 /**
  * Signed-out landing: what Meriendash is, and one obvious way in.
@@ -152,7 +152,7 @@ export function LandingScreen({
               <Text style={styles.linkLabel}>Track an order</Text>
             </Pressable>
             <Pressable
-              onPress={() => onAction("signup")}
+              onPress={() => onAction("ride")}
               accessibilityRole="link"
               hitSlop={8}
               style={styles.link}

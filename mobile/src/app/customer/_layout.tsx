@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Stack, usePathname, useRouter } from "expo-router";
@@ -8,6 +9,7 @@ import { TabBarInsetProvider } from "../../components/TabBarInset";
 import { TAB_ICONS } from "../../components/tab-icons";
 import { resolveTabIndex } from "../../lib/tab-bar";
 import { colors } from "../../lib/theme";
+import { takePendingIntent } from "../../lib/pending-intent";
 
 /**
  * Customer surface, guarded as a group in the root layout (role === "customer").
@@ -19,6 +21,12 @@ import { colors } from "../../lib/theme";
  * Five tabs: Home, Shops, Pabakal, Cart (with the item count) and Account. The chrome lives here so the screens stay about their content.
  */
 export default function CustomerLayout() {
+  const intentRouter = useRouter();
+  useEffect(() => {
+    // Came from "Ride with Meriendash" on the landing: go to the application.
+    if (takePendingIntent() === "rider-apply")
+      intentRouter.push("/rider-apply" as never);
+  }, [intentRouter]);
   const { user } = useSession();
   // The root navigator only mounts this group for a signed-in customer, so this
   // is a type guard rather than a state the customer can reach.

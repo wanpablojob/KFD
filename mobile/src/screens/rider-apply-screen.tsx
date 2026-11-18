@@ -12,6 +12,7 @@ import {
 import { StatusBar } from "expo-status-bar";
 import { useRouter } from "expo-router";
 import { useMyRiderApplication, useSubmitRiderApplication } from "../lib/hooks";
+import { useSession } from "../lib/session-context";
 import { colors, radius, spacing, type } from "../lib/theme";
 
 const VEHICLES = [
@@ -67,6 +68,7 @@ export function RiderApplyScreen() {
   const router = useRouter();
   const { data: application, isLoading } = useMyRiderApplication();
   const submit = useSubmitRiderApplication();
+  const { user } = useSession();
 
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
@@ -243,6 +245,16 @@ export function RiderApplyScreen() {
             </Text>
           </View>
 
+          {/* Read-only: the application belongs to this signed-in account, and
+              approving it makes this email the rider login. Shown so the
+              applicant knows which email the admin will see and attach. */}
+          <Field
+            label="EMAIL (YOUR RIDER LOGIN)"
+            value={user?.email ?? ""}
+            editable={false}
+            selectTextOnFocus={false}
+            accessibilityHint="The email of the account you are signed in with"
+          />
           <Field
             label="FULL NAME"
             value={fullName}
