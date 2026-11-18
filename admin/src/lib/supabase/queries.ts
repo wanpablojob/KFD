@@ -474,6 +474,7 @@ function toOrder(o: Tables<"orders">, refunded = 0): Order {
       typeof o.delivery_failed_at === "string" ? o.delivery_failed_at : null,
     readyForPickupAt:
       typeof o.ready_for_pickup_at === "string" ? o.ready_for_pickup_at : null,
+    deliveredAt: typeof o.delivered_at === "string" ? o.delivered_at : null,
     refunded,
   };
 }

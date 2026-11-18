@@ -20,6 +20,8 @@ import {
 import { StatCard } from "@/components/ui/stat-card";
 import { Card, CardHeader } from "@/components/ui/card";
 import { RevenueChart } from "@/components/charts/revenue-chart";
+import { RiderForecastCard } from "@/components/charts/rider-forecast-chart";
+import { forecastRiders } from "@/lib/rider-forecast";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -242,6 +244,21 @@ export default function OverviewPage() {
             ))}
           </StatGrid>
         </Section>
+
+        {orders.data ? (
+          <Section aria-label="Riders needed today">
+            <RiderForecastCard
+              forecast={forecastRiders(orders.data, now)}
+              onDuty={
+                (riders.data ?? []).filter(
+                  (r) =>
+                    !r.archivedAt && !r.suspendedAt && r.status !== "offline",
+                ).length
+              }
+              now={now}
+            />
+          </Section>
+        ) : null}
 
         <Section aria-label="Revenue">
           <Card>

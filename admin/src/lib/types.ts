@@ -50,6 +50,8 @@ export interface Order {
   deliveryFailedAt: string | null;
   /** When the shop marked it packed and waiting for the rider (0146). */
   readyForPickupAt?: string | null;
+  /** When it was handed over. Measures how long a delivery takes (rider forecast). */
+  deliveredAt?: string | null;
   /**
    * Total refunded against this order (0084), as a positive number. Revenue is
    * reported net of it. Optional because only the revenue queries join the
