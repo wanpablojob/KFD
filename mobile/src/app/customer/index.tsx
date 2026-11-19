@@ -22,6 +22,7 @@ import type { RestaurantRow } from "../../lib/storefront";
 import { colors, radius, shadow, spacing, type } from "../../lib/theme";
 import { statusLabel } from "../../lib/order-status";
 import { BrandMark } from "../../components/BrandMark";
+import { DishBrowser } from "../../components/DishBrowser";
 
 const STATUS_COPY: Record<string, string> = {
   pending: "Waiting for the restaurant to accept",
@@ -152,6 +153,9 @@ export default function CustomerHomeScreen() {
             <Ionicons name="chevron-forward" size={20} color={colors.textInverse} />
           </Pressable>
         ) : null}
+
+        {/* Food first, the way food apps lead: dishes by kind, across shops. */}
+        <DishBrowser restaurants={restaurants.data ?? []} onOpen={openRestaurant} />
 
         <Row
           title="Picked for you"

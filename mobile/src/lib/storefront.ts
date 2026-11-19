@@ -113,6 +113,24 @@ export async function searchMenuItems(
   return (data ?? []) as MenuItemSearchRow[];
 }
 
+/**
+ * Every available item of the listed shops, in one request, for browsing
+ * dishes by kind on the home screen (food-groups.ts).
+ */
+export async function fetchMenusFor(restaurantIds: string[]): Promise<MenuItemRow[]> {
+  if (restaurantIds.length === 0) return [];
+  const { data, error } = await supabase
+    .from("menu_items")
+    .select(
+      "id, restaurant, restaurant_id, name, category, price, available, image_url"
+    )
+    .in("restaurant_id", restaurantIds)
+    .eq("available", true)
+    .order("name");
+  if (error) throw error;
+  return data ?? [];
+}
+
 /** Menu for one restaurant: available items only (RLS enforces). */
 export async function fetchMenu(restaurantId: string): Promise<MenuItemRow[]> {
   const { data, error } = await supabase
