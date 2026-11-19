@@ -209,7 +209,18 @@ async function register(accessToken: string, timeoutMs: number): Promise<boolean
 export async function getPushStatus(): Promise<PushStatus> {
   const { status } = await Notifications.getPermissionsAsync();
   const granted = status === "granted";
-  const registered = (await SecureStore.getItemAsync(REGISTERED_KEY)) === "1";
+  // The flag holds the account the device was registered for, not just "yes":
+  // a phone that switches accounts (one person testing customer, rider and
+  // merchant) kept "registered" while the server token still pointed at the
+  // previous account, so its offers arrived as pushes the signed-in rider could
+  // not see. A different account now reads as unregistered, and the automatic
+  // re-register moves the token to it.
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  const registered =
+    !!session?.user.id &&
+    (await SecureStore.getItemAsync(REGISTERED_KEY)) === session.user.id;
 
   // A granted permission is not the whole story on Android: the user can also
   // mute the offers channel itself, which silences new jobs while the app-level
@@ -297,7 +308,10 @@ export async function enablePush(accessToken: string): Promise<PushStatus> {
 
   // The user asked for alerts, so the device-level opt-out no longer applies.
   await SecureStore.deleteItemAsync(OPTED_OUT_KEY).catch(() => {});
-  await SecureStore.setItemAsync(REGISTERED_KEY, "1");
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  await SecureStore.setItemAsync(REGISTERED_KEY, session?.user.id ?? "");
   return { granted: true, registered: true };
 }
 

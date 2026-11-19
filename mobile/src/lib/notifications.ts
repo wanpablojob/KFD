@@ -81,3 +81,22 @@ export function useMarkRead() {
     onSettled: () => queryClient.invalidateQueries({ queryKey: KEY }),
   });
 }
+
+/** An offer lives five minutes (offer_order_to_riders). */
+export const OFFER_LIFETIME_MS = 5 * 60 * 1000;
+
+/**
+ * An offer alert whose offer can no longer be live. Opening it used to land on
+ * an empty Available screen, which read as the tap doing nothing.
+ */
+export function isEndedOffer(
+  data: unknown,
+  createdAt: string,
+  now: number = Date.now()
+): boolean {
+  const type =
+    data && typeof data === "object" ? (data as { type?: unknown }).type : undefined;
+  if (type !== "dispatch_offer") return false;
+  const sent = new Date(createdAt).getTime();
+  return Number.isFinite(sent) && now - sent > OFFER_LIFETIME_MS;
+}

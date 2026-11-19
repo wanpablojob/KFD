@@ -1,6 +1,7 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Pressable,
   RefreshControl,
@@ -17,6 +18,7 @@ import {
   useInbox,
   useMarkRead,
   type InboxItem,
+  isEndedOffer,
 } from "../lib/notifications";
 import { pathForRoute, routeForNotification } from "../lib/notification-routing";
 import { colors, radius, shadow, spacing, type } from "../lib/theme";
@@ -53,6 +55,13 @@ export default function NotificationsScreen() {
 
   function open(item: InboxItem) {
     if (!item.readAt) markRead.mutate([item.id]);
+    if (isEndedOffer(item.data, item.createdAt)) {
+      Alert.alert(
+        "This offer has ended",
+        "Offers last 5 minutes and go to the first rider who accepts. New ones appear on Available while you're online."
+      );
+      return;
+    }
     const route = routeForNotification(item.data, role?.role ?? null);
     if (route) router.push(pathForRoute(route) as never);
   }
