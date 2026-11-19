@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { Stack, router } from "expo-router";
+import { Stack, router, usePathname, useRootNavigationState } from "expo-router";
+import { landingFor } from "../lib/session-landing";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import * as Notifications from "expo-notifications";
@@ -125,6 +126,22 @@ function RootNavigator() {
     // Registers once, and reads everything it needs through navRef, so a late
     // role change needs no re-subscribe.
   }, []);
+
+  // Land on the person's own home once per sign-in (session-landing.ts). Runs
+  // before the notification replay below, so a tapped alert still opens its order.
+  const pathname = usePathname();
+  const navReady = !!useRootNavigationState()?.key;
+  const landedFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!user) {
+      landedFor.current = null;
+      return;
+    }
+    if (!settled || !role?.role || !navReady || landedFor.current === user.id) return;
+    landedFor.current = user.id;
+    const home = landingFor(role.role, pathname);
+    if (home) router.replace(home as never);
+  }, [user, settled, role, navReady, pathname]);
 
   // Replay whatever the cold-start tap parked. `role` is a dependency because it
   // is the input that was missing; without it this would run once and drop it.
