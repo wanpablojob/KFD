@@ -995,7 +995,13 @@ export function LandingScene() {
                 </a>
                 ){i < PHOTO_CREDITS.length - 1 ? "; " : "."}
               </span>
-            ))}
+            ))}{" "}
+            <a
+              href="/photo-credits"
+              className="underline underline-offset-2 hover:text-foreground"
+            >
+              Menu photo credits
+            </a>
           </p>
         </div>
         {/* The brand, large, rising letter by letter as the page ends. */}
