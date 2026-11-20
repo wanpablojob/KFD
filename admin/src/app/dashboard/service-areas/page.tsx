@@ -63,17 +63,24 @@ export default function ServiceAreasPage() {
     }
   }
 
-  // The barangays whose fee the modal is changing: one row, or all of them.
-  const [editing, setEditing] = useState<ServiceArea[] | null>(null);
+  // The fee modal: which barangays are ticked (null while closed), and a filter
+  // over the list. A row's Change fee opens it with that row ticked.
+  const [picked, setPicked] = useState<string[] | null>(null);
+  const [filter, setFilter] = useState("");
   const [editFee, setEditFee] = useState(DEFAULT_FEE);
   const [editAgreed, setEditAgreed] = useState(false);
   const editValue = parseFee(editFee);
-  const canSaveFee = editAgreed || editValue !== null;
+  const shown = rows.filter((a) =>
+    a.barangay.toLowerCase().includes(filter.trim().toLowerCase()),
+  );
+  const canSaveFee =
+    !!picked?.length && (editAgreed || editValue !== null);
 
   function openFee(targets: ServiceArea[]) {
     const first = targets[0];
     setError(null);
-    setEditing(targets);
+    setFilter("");
+    setPicked(targets.map((a) => a.barangay));
     setEditFee(
       targets.length === 1 && first.delivery_fee !== null
         ? String(first.delivery_fee)
@@ -82,14 +89,20 @@ export default function ServiceAreasPage() {
     setEditAgreed(targets.length === 1 && first.fee_agreed_in_person);
   }
 
+  function togglePick(barangay: string, on: boolean) {
+    setPicked((p) =>
+      on ? [...(p ?? []), barangay] : (p ?? []).filter((b) => b !== barangay),
+    );
+  }
+
   function saveFee() {
-    const targets = editing;
+    const targets = picked;
     if (!targets || !canSaveFee) return;
     void run(async () => {
-      for (const area of targets) {
-        await setServiceArea(area.barangay, editValue, editAgreed);
+      for (const barangay of targets) {
+        await setServiceArea(barangay, editValue, editAgreed);
       }
-      setEditing(null);
+      setPicked(null);
     });
   }
 
@@ -144,14 +157,14 @@ export default function ServiceAreasPage() {
           <Button type="submit" disabled={busy || !canAdd} loading={busy}>
             {names.length > 1 ? `Add ${names.length} barangays` : "Add barangay"}
           </Button>
-          {rows.length > 1 ? (
+          {rows.length > 0 ? (
             <Button
               type="button"
               variant="outline"
               disabled={busy}
-              onClick={() => openFee(rows)}
+              onClick={() => openFee([])}
             >
-              Change all fees
+              Change fees
             </Button>
           ) : null}
         </form>
@@ -231,13 +244,9 @@ export default function ServiceAreasPage() {
       </Section>
 
       <Dialog
-        open={editing !== null}
-        onClose={() => !busy && setEditing(null)}
-        title={
-          editing?.length === 1
-            ? `Delivery fee for ${editing[0].barangay}`
-            : `Delivery fee for all ${editing?.length ?? 0} barangays`
-        }
+        open={picked !== null}
+        onClose={() => !busy && setPicked(null)}
+        title="Change delivery fees"
       >
         <form
           className="space-y-4"
@@ -246,14 +255,65 @@ export default function ServiceAreasPage() {
             saveFee();
           }}
         >
+          <div className="flex flex-wrap items-center gap-2">
+            <Input
+              aria-label="Filter barangays"
+              placeholder="Filter barangays"
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              className="min-w-40 flex-1"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                setPicked((p) => [
+                  ...new Set([...(p ?? []), ...shown.map((a) => a.barangay)]),
+                ])
+              }
+            >
+              Select shown
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setPicked([])}
+            >
+              Clear
+            </Button>
+          </div>
+          <ul className="max-h-64 divide-y divide-border overflow-y-auto rounded-md border border-border">
+            {shown.map((area) => (
+              <li key={area.barangay}>
+                <label className="flex items-center gap-3 px-3 py-2 text-sm">
+                  <Checkbox
+                    checked={picked?.includes(area.barangay) ?? false}
+                    onChange={(e) =>
+                      togglePick(area.barangay, e.target.checked)
+                    }
+                  />
+                  <span className="text-card-foreground">{area.barangay}</span>
+                  <span className="ml-auto text-muted-foreground">
+                    {feeLabel(area)}
+                  </span>
+                </label>
+              </li>
+            ))}
+            {shown.length === 0 ? (
+              <li className="px-3 py-2 text-sm text-muted-foreground">
+                No barangay matches.
+              </li>
+            ) : null}
+          </ul>
           <Input
-            aria-label="Delivery fee in pesos"
+            aria-label="New delivery fee in pesos"
             inputMode="decimal"
-            placeholder="Fee, e.g. 45"
+            placeholder="New fee, e.g. 45"
             value={editAgreed ? "" : editFee}
             disabled={editAgreed}
             onChange={(e) => setEditFee(e.target.value)}
-            autoFocus
           />
           <label className="flex items-center gap-2 text-sm text-muted-foreground">
             <Checkbox
@@ -272,12 +332,14 @@ export default function ServiceAreasPage() {
               type="button"
               variant="outline"
               disabled={busy}
-              onClick={() => setEditing(null)}
+              onClick={() => setPicked(null)}
             >
               Cancel
             </Button>
             <Button type="submit" disabled={busy || !canSaveFee} loading={busy}>
-              Save fee
+              {picked?.length
+                ? `Save fee for ${picked.length} barangay${picked.length === 1 ? "" : "s"}`
+                : "Tick a barangay"}
             </Button>
           </div>
         </form>
