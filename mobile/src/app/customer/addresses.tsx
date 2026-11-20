@@ -170,7 +170,7 @@ export default function CustomerAddressesScreen() {
                 <Text style={styles.addressLabel}>{row.label}</Text>
                 <Text style={styles.addressText}>{row.address}</Text>
                 {row.barangay ? (
-                  <Text style={styles.addressArea}>Barangay {row.barangay}</Text>
+                  <Text style={styles.addressArea}>{row.barangay}</Text>
                 ) : null}
                 <View style={styles.phoneRow}>
                   <Ionicons

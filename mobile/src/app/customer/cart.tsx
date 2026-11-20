@@ -46,6 +46,9 @@ const PAYMENTS: {
   // still accepts it, so it can come back here once a gateway exists.
 ];
 
+const NO_BARANGAY =
+  "This address has no barangay. Delete it and add it again in Delivery addresses.";
+
 /** Review -> address -> pay -> place. Every peso shown here comes from the server. */
 export default function CustomerCartScreen() {
   const router = useRouter();
@@ -114,8 +117,8 @@ export default function CustomerCartScreen() {
   const completedAddress = completeAddress(address, barangay);
   const addressProblem = address.trim() ? validateAddress(completedAddress) : null;
   const selectedSaved = addresses.find((a) => a.address === address.trim()) ?? null;
-  // A saved address already knows its area; do not offer a second, conflicting
-  // answer. An older saved address without one still shows the picker.
+  // The barangay comes from the saved address, picked once in Delivery
+  // addresses; the cart does not ask again.
   const lockedBarangay = selectedSaved?.barangay ?? null;
   const phone = selectedSaved?.phone?.trim() ?? "";
   const phoneProblem = selectedSaved
@@ -183,7 +186,7 @@ export default function CustomerCartScreen() {
       return;
     }
     if (areas.length > 0 && !barangay) {
-      setError("Choose your barangay.");
+      setError(NO_BARANGAY);
       return;
     }
     const newPhone = phone.trim();
@@ -386,40 +389,13 @@ export default function CustomerCartScreen() {
         {addressProblem ? (
           <Text style={styles.error}>{addressProblem.message}</Text>
         ) : null}
-        {areas.length > 0 && !barangay ? (
-          <Text style={styles.hint}>
-            Pick your barangay so the delivery fee is right.
-          </Text>
-        ) : null}
-
         {areas.length > 0 && lockedBarangay ? (
           <View style={styles.lockedArea}>
             <Ionicons name="location-outline" size={16} color={colors.textMuted} />
-            <Text style={type.caption}>Delivering to Barangay {lockedBarangay}.</Text>
+            <Text style={type.caption}>Delivering to {lockedBarangay}.</Text>
           </View>
-        ) : areas.length > 0 ? (
-          <>
-            <Text style={styles.fieldLabel}>BARANGAY</Text>
-            <View style={styles.areas}>
-              {areas.map((area) => {
-                const active = barangay === area;
-                return (
-                  <Pressable
-                    key={area}
-                    style={[styles.area, active && styles.areaActive]}
-                    onPress={() => setBarangay(active ? null : area)}
-                    disabled={placing}
-                    accessibilityRole="radio"
-                    accessibilityState={{ selected: active }}
-                  >
-                    <Text style={[styles.areaLabel, active && styles.areaLabelActive]}>
-                      {area}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </>
+        ) : areas.length > 0 && selectedSaved ? (
+          <Text style={styles.error}>{NO_BARANGAY}</Text>
         ) : null}
 
         {phoneProblem ? (
@@ -648,18 +624,6 @@ const styles = StyleSheet.create({
   },
   remove: { fontSize: 12, fontWeight: "600", color: colors.danger },
   fieldLabel: { ...type.eyebrow, marginTop: spacing.sm },
-  areas: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
-  area: {
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.card,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-  },
-  areaActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  areaLabel: { ...type.label, color: colors.text },
-  areaLabelActive: { color: colors.textInverse },
   payRow: { flexDirection: "row", gap: spacing.sm },
   savedAddresses: { gap: spacing.sm },
   savedChip: {
@@ -686,7 +650,6 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
   },
   addAddressLabel: { ...type.label, color: colors.secondary },
-  hint: { ...type.caption, color: colors.textFaint },
   lockedArea: {
     flexDirection: "row",
     alignItems: "center",
