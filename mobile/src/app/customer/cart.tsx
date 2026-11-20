@@ -47,7 +47,7 @@ const PAYMENTS: {
 ];
 
 const NO_BARANGAY =
-  "This address has no barangay. Delete it and add it again in Delivery addresses.";
+  "This address has no barangay. Edit it in Delivery addresses to pick one.";
 
 /** Review -> address -> pay -> place. Every peso shown here comes from the server. */
 export default function CustomerCartScreen() {
@@ -71,7 +71,10 @@ export default function CustomerCartScreen() {
   // Barangays Meriendash delivers to. Empty until the owner publishes the list, and
   // then the server takes any address, so the picker only shows once it exists.
   const [areas, setAreas] = useState<string[]>([]);
-  const [barangay, setBarangay] = useState<string | null>(null);
+  // The barangay is the one saved with the chosen address (picked once in
+  // Delivery addresses), so an edit there shows up here on return.
+  const barangay =
+    addresses.find((a) => a.address === address.trim())?.barangay ?? null;
   // Priced for the chosen barangay so the preview matches the zonal fee charged (0080).
   const { quote, loading: quoting, error: quoteError } = useCartQuote(barangay);
   // The idempotency key comes from the cart context, not this screen: it has to
@@ -103,7 +106,6 @@ export default function CustomerCartScreen() {
         setAddress((prev) =>
           rows.some((r) => r.address === prev) ? prev : rows[0]?.address || ""
         );
-        setBarangay((prev) => prev ?? rows[0]?.barangay ?? null);
       });
       return () => {
         active = false;
@@ -117,14 +119,12 @@ export default function CustomerCartScreen() {
   const completedAddress = completeAddress(address, barangay);
   const addressProblem = address.trim() ? validateAddress(completedAddress) : null;
   const selectedSaved = addresses.find((a) => a.address === address.trim()) ?? null;
-  // The barangay comes from the saved address, picked once in Delivery
-  // addresses; the cart does not ask again.
-  const lockedBarangay = selectedSaved?.barangay ?? null;
+  const lockedBarangay = barangay;
   const phone = selectedSaved?.phone?.trim() ?? "";
   const phoneProblem = selectedSaved
     ? phone
       ? contactPhoneProblem(phone)
-      : "This address has no contact number. Delete it and add it again in Delivery addresses."
+      : "This address has no contact number. Edit it in Delivery addresses to add one."
     : null;
 
   async function handleDeleteAddress(id: string) {
@@ -134,7 +134,6 @@ export default function CustomerCartScreen() {
 
   function handleSelectAddress(row: SavedAddress) {
     setAddress(row.address);
-    setBarangay(row.barangay ?? null);
     setError(null);
   }
 

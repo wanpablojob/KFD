@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import {
   ActivityIndicator,
@@ -6,6 +6,7 @@ import {
   KeyboardAvoidingView,
   Pressable,
   ScrollView,
+  type ScrollViewInstance,
   StyleSheet,
   Text,
   TextInput,
@@ -21,6 +22,7 @@ import {
   deleteAddress,
   loadAddresses,
   saveAddress,
+  updateAddress,
   validateAddress,
   type SavedAddress,
 } from "../../lib/addresses";
@@ -57,6 +59,9 @@ export default function CustomerAddressesScreen() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  // The saved address the form is editing, or null when it adds a new one.
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const scroll = useRef<ScrollViewInstance>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -82,7 +87,7 @@ export default function CustomerAddressesScreen() {
   const canSave =
     !!user &&
     !saving &&
-    !atLimit &&
+    (!atLimit || editingId !== null) &&
     address.trim().length > 0 &&
     addressProblem === null &&
     phone.trim().length > 0 &&
@@ -95,6 +100,19 @@ export default function CustomerAddressesScreen() {
     setBarangay(null);
     setPhone("");
     setError(null);
+    setEditingId(null);
+  }
+
+  function startEdit(row: SavedAddress) {
+    setEditingId(row.id);
+    setLabel(row.label);
+    setAddress(row.address);
+    // An area the owner has since removed is dropped so a valid one is picked.
+    setBarangay(row.barangay && areas.includes(row.barangay) ? row.barangay : null);
+    setPhone(row.phone ?? "");
+    setError(null);
+    setNotice(null);
+    scroll.current?.scrollToEnd({ animated: true });
   }
 
   async function handleSave() {
@@ -103,10 +121,12 @@ export default function CustomerAddressesScreen() {
     setError(null);
     setNotice(null);
     try {
-      const next = await saveAddress(user.id, completed, label, barangay, phone);
+      const next = editingId
+        ? await updateAddress(user.id, editingId, completed, label, barangay, phone)
+        : await saveAddress(user.id, completed, label, barangay, phone);
       setAddresses(next);
       resetForm();
-      setNotice("Saved. You can pick it at checkout.");
+      setNotice(editingId ? "Changes saved." : "Saved. You can pick it at checkout.");
     } catch {
       setError("Could not save this address. Try again.");
     } finally {
@@ -122,6 +142,7 @@ export default function CustomerAddressesScreen() {
         style: "destructive",
         onPress: () => {
           if (!user) return;
+          if (editingId === row.id) resetForm();
           void deleteAddress(user.id, row.id).then(setAddresses);
         },
       },
@@ -143,6 +164,7 @@ export default function CustomerAddressesScreen() {
       </View>
 
       <ScrollView
+        ref={scroll}
         contentContainerStyle={[styles.list, { paddingBottom: bottomPadding }]}
         keyboardShouldPersistTaps="handled"
       >
@@ -179,11 +201,18 @@ export default function CustomerAddressesScreen() {
                     color={row.phone ? colors.textMuted : colors.danger}
                   />
                   <Text style={row.phone ? styles.addressArea : styles.phoneMissing}>
-                    {row.phone ??
-                      "No contact number. Delete and add it again with one."}
+                    {row.phone ?? "No contact number. Tap edit to add one."}
                   </Text>
                 </View>
               </View>
+              <Pressable
+                onPress={() => startEdit(row)}
+                hitSlop={8}
+                accessibilityLabel={`Edit ${row.label}`}
+                style={styles.deleteBtn}
+              >
+                <Ionicons name="create-outline" size={20} color={colors.textFaint} />
+              </Pressable>
               <Pressable
                 onPress={() => confirmDelete(row)}
                 hitSlop={8}
@@ -196,7 +225,7 @@ export default function CustomerAddressesScreen() {
           ))
         )}
 
-        {!loading && atLimit ? (
+        {!loading && atLimit && !editingId ? (
           <View style={[styles.card, shadow.card]}>
             <Text style={styles.cardTitle}>Address book full</Text>
             <Text style={type.body}>
@@ -205,12 +234,14 @@ export default function CustomerAddressesScreen() {
           </View>
         ) : null}
 
-        {!loading && !atLimit ? (
+        {!loading && (!atLimit || editingId) ? (
           <View style={[styles.card, shadow.card]}>
             <Text style={styles.cardTitle}>
-              {addresses.length === 0
-                ? "Add your first address"
-                : "Add another address"}
+              {editingId
+                ? "Edit address"
+                : addresses.length === 0
+                  ? "Add your first address"
+                  : "Add another address"}
             </Text>
 
             <Text style={styles.fieldLabel}>LABEL (OPTIONAL)</Text>
@@ -301,9 +332,19 @@ export default function CustomerAddressesScreen() {
               accessibilityRole="button"
             >
               <Text style={styles.saveLabel}>
-                {saving ? "Saving…" : "Save address"}
+                {saving ? "Saving…" : editingId ? "Save changes" : "Save address"}
               </Text>
             </Pressable>
+            {editingId ? (
+              <Pressable
+                style={styles.cancelEdit}
+                onPress={resetForm}
+                disabled={saving}
+                accessibilityRole="button"
+              >
+                <Text style={styles.cancelEditLabel}>Cancel</Text>
+              </Pressable>
+            ) : null}
           </View>
         ) : null}
       </ScrollView>
@@ -348,6 +389,8 @@ const styles = StyleSheet.create({
   addressText: { ...type.body, fontWeight: "600", color: colors.text },
   addressArea: { ...type.caption, color: colors.textMuted },
   deleteBtn: { padding: 2 },
+  cancelEdit: { alignItems: "center", paddingVertical: spacing.md },
+  cancelEditLabel: { ...type.label, color: colors.textMuted },
   fieldLabel: { ...type.eyebrow, marginTop: spacing.sm },
   input: {
     backgroundColor: colors.background,

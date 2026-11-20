@@ -80,6 +80,32 @@ export async function saveAddress(
   return next;
 }
 
+/** Change a saved address in place, keeping its id and position. */
+export async function updateAddress(
+  userId: string,
+  id: string,
+  address: string,
+  label?: string,
+  barangay?: string | null,
+  phone?: string | null
+): Promise<SavedAddress[]> {
+  const trimmed = normaliseAddress(address);
+  const area = (barangay ?? "").trim();
+  const next = (await loadAddresses(userId)).map((a) =>
+    a.id === id
+      ? {
+          id,
+          label: label?.trim() || addressLabelFor(trimmed),
+          address: trimmed,
+          barangay: area || undefined,
+          phone: phone?.trim() || undefined,
+        }
+      : a
+  );
+  await persist(userId, next);
+  return next;
+}
+
 export async function deleteAddress(
   userId: string,
   id: string
