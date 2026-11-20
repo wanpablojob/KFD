@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { PageContainer, PageHeader, Section } from "@/components/layout/page";
 import { Card } from "@/components/ui/card";
+import { Dialog } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -62,35 +63,33 @@ export default function ServiceAreasPage() {
     }
   }
 
-  function changeFee(area: ServiceArea) {
-    const answer = window.prompt(
-      `Delivery fee for ${area.barangay} in pesos. Leave empty to agree it at the door.`,
-      area.delivery_fee === null ? "" : String(area.delivery_fee),
+  // The barangays whose fee the modal is changing: one row, or all of them.
+  const [editing, setEditing] = useState<ServiceArea[] | null>(null);
+  const [editFee, setEditFee] = useState(DEFAULT_FEE);
+  const [editAgreed, setEditAgreed] = useState(false);
+  const editValue = parseFee(editFee);
+  const canSaveFee = editAgreed || editValue !== null;
+
+  function openFee(targets: ServiceArea[]) {
+    const first = targets[0];
+    setError(null);
+    setEditing(targets);
+    setEditFee(
+      targets.length === 1 && first.delivery_fee !== null
+        ? String(first.delivery_fee)
+        : DEFAULT_FEE,
     );
-    if (answer === null) return;
-    const atDoor = answer.trim() === "";
-    const next = parseFee(answer);
-    if (!atDoor && next === null) {
-      setError("Enter the fee as a number of pesos, or leave it empty.");
-      return;
-    }
-    void run(() => setServiceArea(area.barangay, next, atDoor));
+    setEditAgreed(targets.length === 1 && first.fee_agreed_in_person);
   }
 
-  function changeAllFees() {
-    const answer = window.prompt(
-      `Delivery fee for all ${rows.length} barangays in pesos. Leave empty to agree it at the door.`,
-      DEFAULT_FEE,
-    );
-    if (answer === null) return;
-    const atDoor = answer.trim() === "";
-    const next = parseFee(answer);
-    if (!atDoor && next === null) {
-      setError("Enter the fee as a number of pesos, or leave it empty.");
-      return;
-    }
+  function saveFee() {
+    const targets = editing;
+    if (!targets || !canSaveFee) return;
     void run(async () => {
-      for (const area of rows) await setServiceArea(area.barangay, next, atDoor);
+      for (const area of targets) {
+        await setServiceArea(area.barangay, editValue, editAgreed);
+      }
+      setEditing(null);
     });
   }
 
@@ -150,7 +149,7 @@ export default function ServiceAreasPage() {
               type="button"
               variant="outline"
               disabled={busy}
-              onClick={changeAllFees}
+              onClick={() => openFee(rows)}
             >
               Change all fees
             </Button>
@@ -200,7 +199,7 @@ export default function ServiceAreasPage() {
                         variant="outline"
                         size="sm"
                         disabled={busy}
-                        onClick={() => changeFee(area)}
+                        onClick={() => openFee([area])}
                       >
                         Change fee
                       </Button>
@@ -230,6 +229,59 @@ export default function ServiceAreasPage() {
           ) : null}
         </TableBoundary>
       </Section>
+
+      <Dialog
+        open={editing !== null}
+        onClose={() => !busy && setEditing(null)}
+        title={
+          editing?.length === 1
+            ? `Delivery fee for ${editing[0].barangay}`
+            : `Delivery fee for all ${editing?.length ?? 0} barangays`
+        }
+      >
+        <form
+          className="space-y-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            saveFee();
+          }}
+        >
+          <Input
+            aria-label="Delivery fee in pesos"
+            inputMode="decimal"
+            placeholder="Fee, e.g. 45"
+            value={editAgreed ? "" : editFee}
+            disabled={editAgreed}
+            onChange={(e) => setEditFee(e.target.value)}
+            autoFocus
+          />
+          <label className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Checkbox
+              checked={editAgreed}
+              onChange={(e) => setEditAgreed(e.target.checked)}
+            />
+            Agree the fee at the door
+          </label>
+          {error ? (
+            <p className="text-sm text-destructive" role="alert">
+              {error}
+            </p>
+          ) : null}
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={busy}
+              onClick={() => setEditing(null)}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={busy || !canSaveFee} loading={busy}>
+              Save fee
+            </Button>
+          </div>
+        </form>
+      </Dialog>
     </PageContainer>
   );
 }
