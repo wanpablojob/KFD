@@ -26,6 +26,12 @@ export default function TrackRoute() {
         else router.replace(HOME[role?.role ?? ""] ?? "/");
       }}
       initialReference={typeof ref === "string" ? ref : undefined}
+      onRate={
+        role?.role === "customer"
+          ? (reference) =>
+              router.push({ pathname: "/customer/orders", params: { rate: reference } })
+          : undefined
+      }
     />
   );
 }

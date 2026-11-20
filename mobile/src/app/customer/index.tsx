@@ -15,7 +15,12 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { NotificationBell } from "../../components/NotificationBell";
 import { useScrollBottomPadding } from "../../components/TabBarInset";
 import { useSession } from "../../lib/session-context";
-import { useActiveRestaurants, useFavorites, useMyOrders } from "../../lib/hooks";
+import {
+  useActiveRestaurants,
+  useFavorites,
+  useMyOrders,
+  useMyRatings,
+} from "../../lib/hooks";
 import { homeSections } from "../../lib/customer-home";
 import { buildTasteProfile, fetchHomePicks, greetingFor } from "../../lib/home-picks";
 import type { RestaurantRow } from "../../lib/storefront";
@@ -80,6 +85,18 @@ export default function CustomerHomeScreen() {
   const reasons = new Map(
     (picks.data?.picks ?? []).map((p) => [p.restaurant_id, p.reason])
   );
+
+  // The latest delivery from the last two days that has no rating yet.
+  const ratings = useMyRatings();
+  const rated = new Set((ratings.data ?? []).map((r) => r.order_id));
+  const toRate = ratings.isSuccess
+    ? (orders.data ?? []).find(
+        (o) =>
+          o.status === "delivered" &&
+          !rated.has(o.id) &&
+          now.getTime() - new Date(o.placed_at).getTime() < 2 * 24 * 60 * 60 * 1000
+      )
+    : undefined;
 
   const openRestaurant = (id: string) =>
     router.push({ pathname: "/customer/restaurant", params: { id } });
@@ -151,6 +168,27 @@ export default function CustomerHomeScreen() {
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color={colors.textInverse} />
+          </Pressable>
+        ) : null}
+
+        {toRate ? (
+          <Pressable
+            style={[styles.rate, shadow.card]}
+            onPress={() =>
+              router.push({
+                pathname: "/customer/orders",
+                params: { rate: toRate.reference },
+              })
+            }
+            accessibilityRole="button"
+            accessibilityLabel={`Rate your order from ${toRate.restaurant}`}
+          >
+            <Ionicons name="star" size={24} color={colors.accent} />
+            <View style={styles.activeText}>
+              <Text style={type.heading}>How was {toRate.restaurant}?</Text>
+              <Text style={type.caption}>Tap to rate the food and your rider</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={colors.textFaint} />
           </Pressable>
         ) : null}
 
@@ -297,6 +335,14 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
   },
   searchText: { ...type.body, color: colors.textFaint },
+  rate: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+  },
   active: {
     flexDirection: "row",
     alignItems: "center",

@@ -64,9 +64,12 @@ const TRIP_STATUS_LABEL: Record<string, string> = {
 export function TrackOrderScreen({
   onBack,
   initialReference,
+  onRate,
 }: {
   onBack: () => void;
   initialReference?: string;
+  /** Signed-in customers only: open the rating for a delivered order. */
+  onRate?: (reference: string) => void;
 }) {
   const insets = useSafeAreaInsets();
   const [reference, setReference] = useState(initialReference ?? "");
@@ -241,6 +244,21 @@ export function TrackOrderScreen({
           reference={submitted}
           enabled={enabled && status === "out_for_delivery"}
         />
+
+        {/* The moment the food arrives is when a rating is fresh. */}
+        {onRate && status === "delivered" ? (
+          <Pressable
+            style={({ pressed }) => [
+              styles.button,
+              shadow.card,
+              pressed && styles.buttonPressed,
+            ]}
+            onPress={() => onRate(submitted)}
+            accessibilityRole="button"
+          >
+            <Text style={styles.buttonLabel}>★ Rate your order</Text>
+          </Pressable>
+        ) : null}
 
         {!delivery && order ? (
           <OrderCard

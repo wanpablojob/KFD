@@ -13,7 +13,7 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { useFocusEffect, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useScrollBottomPadding } from "../../components/TabBarInset";
 import {
@@ -33,6 +33,7 @@ import { buildReorder } from "../../lib/reorder";
 import { supabase } from "../../lib/supabase";
 import { colors, radius, shadow, spacing, type } from "../../lib/theme";
 import { statusLabel } from "../../lib/order-status";
+import { ratingTargetFor } from "../../lib/rating-target";
 
 const STATUS_LABEL: Record<string, string> = {
   pending: "Order placed",
@@ -214,6 +215,18 @@ export default function CustomerOrdersScreen() {
     setRiderStars(existing?.rider_rating ?? 0);
     setComment(existing?.comment ?? "");
     setRatingTarget(order);
+  }
+
+  // Sent here to rate (?rate=<reference>, from tracking or home): open the
+  // form once, as soon as the order and the ratings have loaded.
+  const { rate: rateRef } = useLocalSearchParams<{ rate?: string }>();
+  const [autoOpened, setAutoOpened] = useState<string | null>(null);
+  if (rateRef && autoOpened !== rateRef && ratings) {
+    const target = ratingTargetFor(entries, new Set(ratingByOrder.keys()), rateRef);
+    if (target) {
+      setAutoOpened(rateRef);
+      openRating(target);
+    }
   }
 
   function closeRating() {
