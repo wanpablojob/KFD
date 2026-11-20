@@ -7,6 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { TableBoundary } from "@/components/ui/table-boundary";
+import { parseBarangayNames } from "@/lib/barangay-names";
 import { formatCurrency } from "@/lib/format";
 import { useAsyncData } from "@/lib/use-async-data";
 import {
@@ -45,7 +46,8 @@ export default function ServiceAreasPage() {
 
   const rows = areas.data ?? [];
   const feeValue = parseFee(fee);
-  const canAdd = !!name.trim() && (agreed || feeValue !== null);
+  const names = parseBarangayNames(name);
+  const canAdd = names.length > 0 && (agreed || feeValue !== null);
 
   async function run(action: () => Promise<void>) {
     setBusy(true);
@@ -75,6 +77,23 @@ export default function ServiceAreasPage() {
     void run(() => setServiceArea(area.barangay, next, atDoor));
   }
 
+  function changeAllFees() {
+    const answer = window.prompt(
+      `Delivery fee for all ${rows.length} barangays in pesos. Leave empty to agree it at the door.`,
+      DEFAULT_FEE,
+    );
+    if (answer === null) return;
+    const atDoor = answer.trim() === "";
+    const next = parseFee(answer);
+    if (!atDoor && next === null) {
+      setError("Enter the fee as a number of pesos, or leave it empty.");
+      return;
+    }
+    void run(async () => {
+      for (const area of rows) await setServiceArea(area.barangay, next, atDoor);
+    });
+  }
+
   return (
     <PageContainer>
       <PageHeader
@@ -93,7 +112,7 @@ export default function ServiceAreasPage() {
             e.preventDefault();
             if (!canAdd) return;
             void run(async () => {
-              await setServiceArea(name, feeValue, agreed);
+              for (const n of names) await setServiceArea(n, feeValue, agreed);
               setName("");
               setFee(DEFAULT_FEE);
               setAgreed(false);
@@ -102,10 +121,10 @@ export default function ServiceAreasPage() {
         >
           <Input
             aria-label="Barangay name"
-            placeholder="Barangay name, e.g. Poblacion"
+            placeholder="e.g. Poblacion, or Barangay 1-9"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="w-64"
+            className="w-72"
           />
           <Input
             aria-label="Delivery fee in pesos"
@@ -124,9 +143,23 @@ export default function ServiceAreasPage() {
             Agree the fee at the door
           </label>
           <Button type="submit" disabled={busy || !canAdd} loading={busy}>
-            Add barangay
+            {names.length > 1 ? `Add ${names.length} barangays` : "Add barangay"}
           </Button>
+          {rows.length > 1 ? (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={busy}
+              onClick={changeAllFees}
+            >
+              Change all fees
+            </Button>
+          ) : null}
         </form>
+        <p className="-mt-2 mb-4 text-xs text-muted-foreground">
+          Add several at once with commas, or a range like Barangay 1-9. Adding
+          one that is already listed updates its fee.
+        </p>
         {error ? (
           <p className="mb-3 text-sm text-destructive" role="alert">
             {error}
