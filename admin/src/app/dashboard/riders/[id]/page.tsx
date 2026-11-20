@@ -75,6 +75,9 @@ const WINDOW_DAYS = 30;
 /** Server-side page size for the delivery history. The pager asks for more. */
 const DELIVERY_PAGE_SIZE = 25;
 
+/** Activity entries shown before "See all activity". */
+const ACTIVITY_PREVIEW = 5;
+
 export default function RiderDetailPage() {
   const params = useParams();
   const riderId = params.id as string;
@@ -88,6 +91,7 @@ export default function RiderDetailPage() {
   // sliced in the browser, so a rider with hundreds of deliveries does not pull
   // all of them to show the first page.
   const [deliveryPage, setDeliveryPage] = useState(1);
+  const [allActivity, setAllActivity] = useState(false);
 
   const riderQuery = useAsyncData(() => fetchRiderById(riderId), riderId);
   const orders = useAsyncData(
@@ -229,6 +233,7 @@ export default function RiderDetailPage() {
   });
 
   const events = sortActivity(activity.data ?? []);
+  const shownEvents = allActivity ? events : events.slice(0, ACTIVITY_PREVIEW);
   // deliveredCount / failedCount come from the same payout summary the cards
   // above use, not from zero. Passing zero made hasHighFailureRate() always
   // false, so this page could never show the "High failures" flag the list page
@@ -689,7 +694,7 @@ export default function RiderDetailPage() {
                 </p>
               ) : (
                 <ol className="flex flex-col">
-                  {events.map((event, index) => {
+                  {shownEvents.map((event, index) => {
                     const described = describeEvent(event);
                     return (
                       <li key={event.id} className="flex gap-3">
@@ -701,7 +706,7 @@ export default function RiderDetailPage() {
                                 : "bg-primary"
                             }`}
                           />
-                          {index < events.length - 1 ? (
+                          {index < shownEvents.length - 1 ? (
                             <span className="w-px flex-1 bg-border" />
                           ) : null}
                         </div>
@@ -724,6 +729,18 @@ export default function RiderDetailPage() {
                   })}
                 </ol>
               )}
+              {events.length > ACTIVITY_PREVIEW ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setAllActivity((v) => !v)}
+                  aria-expanded={allActivity}
+                >
+                  {allActivity
+                    ? "Show less"
+                    : `See all activity (${events.length})`}
+                </Button>
+              ) : null}
             </TableBoundary>
           </div>
         </Card>
