@@ -11,21 +11,41 @@ import type { Order } from "@/lib/types";
  * The admin's way out for an order that is stuck: no rider for hours, a shop
  * that closed, a customer who cannot be reached. Any order that is not
  * delivered or already cancelled can be cancelled here, with a reason
- * (admin_cancel_order, 0154).
+ * (admin_cancel_order, 0154). Also the stop for an order that looks like a
+ * scam: a fake name, an address that does not exist, a prank.
  */
+
+/** Reasons an admin picks most; one tap fills the box, still editable. */
+const QUICK_REASONS = [
+  "Suspected scam or fake order",
+  "Customer cannot be reached",
+  "No rider available",
+  "Shop is closed",
+];
+
+export function canAdminCancel(order: Pick<Order, "status">): boolean {
+  return order.status !== "delivered" && order.status !== "cancelled";
+}
+
 export function AdminCancelOrder({
   order,
   onCancelled,
+  startOpen = false,
+  onDismiss,
 }: {
   order: Order;
   onCancelled?: () => void;
+  /** Open on the reason form (from the order list's Cancel button). */
+  startOpen?: boolean;
+  /** "Keep order" when the form is all there is, e.g. its own dialog. */
+  onDismiss?: () => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(startOpen);
   const [reason, setReason] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  if (order.status === "delivered" || order.status === "cancelled") return null;
+  if (!canAdminCancel(order)) return null;
 
   // Once a rider has it, they may already have paid the shop for the food at
   // pickup (0147); that money has to be settled with them by hand.
@@ -86,10 +106,27 @@ export function AdminCancelOrder({
           that with them.
         </p>
       ) : null}
+      <div className="flex flex-wrap gap-2" aria-label="Common reasons">
+        {QUICK_REASONS.map((r) => (
+          <Button
+            key={r}
+            type="button"
+            size="sm"
+            variant={reason === r ? "primary" : "outline"}
+            disabled={saving}
+            onClick={() => {
+              setReason(r);
+              setError(null);
+            }}
+          >
+            {r}
+          </Button>
+        ))}
+      </div>
       <Textarea
         value={reason}
         onChange={(e) => setReason(e.target.value)}
-        placeholder="Why it is being cancelled, e.g. no rider available, shop closed"
+        placeholder="Why it is being cancelled. The customer and the shop see this."
         aria-label="Reason for cancelling"
         rows={3}
         disabled={saving}
@@ -103,7 +140,7 @@ export function AdminCancelOrder({
         <Button
           variant="outline"
           disabled={saving}
-          onClick={() => setOpen(false)}
+          onClick={() => (onDismiss ? onDismiss() : setOpen(false))}
         >
           Keep order
         </Button>

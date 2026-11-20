@@ -10,6 +10,7 @@ import { Pagination } from "./ui/pagination";
 import { StatusBadge } from "./ui/status-badge";
 import { Dialog } from "./ui/dialog";
 import { OrderDetail } from "./order-detail";
+import { AdminCancelOrder, canAdminCancel } from "./admin-cancel-order";
 import { Toolbar, ToolbarSpacer, ToolbarSearch } from "./toolbar";
 import { Select } from "./ui/select";
 import { CalendarIcon } from "./ui/icons";
@@ -40,7 +41,7 @@ type OrderStatus = Order["status"];
 
 const PAGE_SIZE = 10;
 
-const columns: Column<Order>[] = [
+const baseColumns: Column<Order>[] = [
   {
     key: "reference",
     header: "Ref",
@@ -153,6 +154,33 @@ export function OrderList({
   const [dateRange, setDateRange] = useState<DateRange>({});
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Order | null>(null);
+  // An order opened straight into its cancel form (the row's Cancel button).
+  const [cancelling, setCancelling] = useState<Order | null>(null);
+  const columns = useMemo<Column<Order>[]>(
+    () => [
+      ...baseColumns,
+      {
+        key: "actions",
+        header: "",
+        align: "right",
+        cell: (row) =>
+          canAdminCancel(row) ? (
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation(); // not the row's open-details click
+                setCancelling(row);
+              }}
+              aria-label={`Cancel order ${row.reference}`}
+            >
+              Cancel
+            </Button>
+          ) : null,
+      },
+    ],
+    [],
+  );
   const globalQuery = useGlobalSearch();
 
   const filtered = useMemo(() => {
@@ -288,6 +316,24 @@ export function OrderList({
             order={selected}
             onChanged={() => {
               setSelected(null);
+              onChanged?.();
+            }}
+          />
+        ) : null}
+      </Dialog>
+
+      <Dialog
+        open={cancelling !== null}
+        onClose={() => setCancelling(null)}
+        title={cancelling ? `Cancel order ${cancelling.reference}` : "Cancel order"}
+      >
+        {cancelling ? (
+          <AdminCancelOrder
+            order={cancelling}
+            startOpen
+            onDismiss={() => setCancelling(null)}
+            onCancelled={() => {
+              setCancelling(null);
               onChanged?.();
             }}
           />
