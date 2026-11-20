@@ -125,7 +125,7 @@ export const KITCHEN_PHOTO = "/images/food/inasal-plate.jpg";
  */
 export const APP_DOWNLOADS = {
   android:
-    "https://expo.dev/artifacts/eas/H3cJMhvDuUii5p5TSpoxr7WF7uzV48phCPJMQX0E1mw.apk" as
+    "https://expo.dev/artifacts/eas/vPROB9FTpyxnbblSKuMG19ZvWwrOzQvGqSJFq6rbY1A.apk" as
       string | null,
   iphone: null as string | null,
 } as const;
