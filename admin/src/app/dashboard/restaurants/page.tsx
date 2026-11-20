@@ -16,6 +16,7 @@ import { Card } from "@/components/ui/card";
 import { PaginatedDataTable } from "@/components/ui/paginated-data-table";
 import { EntityDialog, type DialogField } from "@/components/ui/entity-dialog";
 import { ArchiveButton } from "@/components/ui/archive-button";
+import { RevokeRestaurantAccess } from "@/components/revoke-restaurant-access";
 import { Button } from "@/components/ui/button";
 import { PlusIcon } from "@/components/ui/icons";
 import type { Column } from "@/components/ui/data-table";
@@ -124,14 +125,23 @@ export default function RestaurantsPage() {
       header: "",
       align: "right",
       cell: (row) => (
-        <ArchiveButton
-          name={row.name}
-          archived={Boolean(row.archivedAt)}
-          onChange={async (archived) => {
-            await setRestaurantArchived(row.id, archived);
-            refetch();
-          }}
-        />
+        <span className="flex items-center justify-end gap-2">
+          {row.archivedAt ? null : (
+            <RevokeRestaurantAccess
+              restaurantId={row.id}
+              name={row.name}
+              onDone={refetch}
+            />
+          )}
+          <ArchiveButton
+            name={row.name}
+            archived={Boolean(row.archivedAt)}
+            onChange={async (archived) => {
+              await setRestaurantArchived(row.id, archived);
+              refetch();
+            }}
+          />
+        </span>
       ),
     },
   ];
