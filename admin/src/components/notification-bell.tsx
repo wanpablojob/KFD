@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { playChime } from "@/lib/chime";
 import { BellIcon } from "./ui/icons";
 import { StatusBadge } from "./ui/status-badge";
 import { formatShortDate } from "@/lib/format";
@@ -53,6 +54,15 @@ export function NotificationBell({
 
   const updates = orders.filter((o) => LIVE_STATUSES.includes(o.status)).slice(0, 6);
   const unreadCount = updates.filter((o) => isUnread(o.placedAt)).length;
+
+  // Chime when the unread count goes up, never for what was already unread
+  // when the page loaded.
+  const lastUnread = useRef<number | null>(null);
+  useEffect(() => {
+    if (!readStateLoaded) return;
+    if (lastUnread.current !== null && unreadCount > lastUnread.current) playChime();
+    lastUnread.current = unreadCount;
+  }, [unreadCount, readStateLoaded]);
 
   // Move focus to first link on open; restore on close
   useEffect(() => {

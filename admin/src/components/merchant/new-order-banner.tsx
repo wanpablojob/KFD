@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import type { NewOrderAlert } from "@/lib/use-order-notifications";
 import { formatCurrency } from "@/lib/format";
+import { playChime } from "@/lib/chime";
 
 /**
  * New-order alert for the merchant portal.
@@ -26,6 +27,7 @@ export function NewOrderBanner({
 }) {
   useEffect(() => {
     if (!alert) return;
+    playChime();
     const timer = setTimeout(onDismiss, durationMs);
     return () => clearTimeout(timer);
   }, [alert, onDismiss, durationMs]);
