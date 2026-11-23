@@ -168,3 +168,76 @@ export async function fetchRatings(range?: DateRange): Promise<ReviewEntry[]> {
     createdAt: row.created_at,
   }));
 }
+
+/** A customer's refund request waiting for an admin (0159). */
+export interface RefundRequestEntry {
+  id: number;
+  orderId: string;
+  reference: string;
+  customer: string;
+  restaurant: string;
+  total: number;
+  payment: string;
+  reason: string;
+  createdAt: string;
+}
+
+type RefundRequestRow = {
+  id: number;
+  order_id: string;
+  reason: string;
+  created_at: string;
+  orders: {
+    reference: string;
+    customer: string;
+    restaurant: string;
+    total: number;
+    payment: string;
+  } | null;
+};
+
+/** Open refund requests, oldest first, so the longest wait is answered first. */
+export async function fetchPendingRefundRequests(): Promise<RefundRequestEntry[]> {
+  const { data, error } = await supabase
+    .from("refund_requests")
+    .select(
+      "id, order_id, reason, created_at, orders(reference, customer, restaurant, total, payment)",
+    )
+    .eq("status", "pending")
+    .order("created_at")
+    .returns<RefundRequestRow[]>();
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((row) => ({
+    id: row.id,
+    orderId: row.order_id,
+    reference: row.orders?.reference ?? row.order_id,
+    customer: row.orders?.customer ?? "—",
+    restaurant: row.orders?.restaurant ?? "—",
+    total: Number(row.orders?.total ?? 0),
+    payment: row.orders?.payment ?? "cash",
+    reason: row.reason,
+    createdAt: row.created_at,
+  }));
+}
+
+/**
+ * Approve (recording the refund, capped at the order total) or decline with a
+ * note the customer sees (0159). An approval tells the customer like any refund.
+ */
+export async function resolveRefundRequest(args: {
+  id: number;
+  approve: boolean;
+  amount?: number;
+  method?: "cash" | "gcash";
+  note?: string;
+}): Promise<void> {
+  const { data, error } = await supabase.rpc("admin_resolve_refund_request", {
+    p_request_id: args.id,
+    p_approve: args.approve,
+    p_amount: args.amount,
+    p_method: args.method,
+    p_note: args.note,
+  });
+  if (error) throw new Error(error.message);
+  if (args.approve && data != null) void notifyAdminDecision("refund", data);
+}

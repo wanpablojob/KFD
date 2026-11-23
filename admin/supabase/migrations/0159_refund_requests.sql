@@ -119,7 +119,7 @@ create or replace function public.admin_resolve_refund_request(
   p_method text default null,
   p_note text default null
 )
-returns void
+returns bigint
 language plpgsql
 security definer
 set search_path = public
@@ -127,6 +127,7 @@ as $$
 declare
   v_req refund_requests;
   v_note text := nullif(btrim(coalesce(p_note, '')), '');
+  v_refund_id bigint;
 begin
   if not public.is_platform_admin() then
     raise exception 'Admins only.' using errcode = '42501';
@@ -142,8 +143,9 @@ begin
 
   if p_approve then
     -- Checks the amount, the method and the order-total cap, and writes the ledger.
-    perform public.admin_record_refund(
-      v_req.order_id, p_amount, p_method, coalesce(v_note, v_req.reason));
+    select r.id into v_refund_id
+      from public.admin_record_refund(
+        v_req.order_id, p_amount, p_method, coalesce(v_note, v_req.reason)) r;
   elsif v_note is null then
     raise exception 'Say why it is declined. The customer sees it.' using errcode = '22023';
   end if;
@@ -165,6 +167,9 @@ begin
                              'method', case when p_approve then p_method end,
                              'note', v_note),
           auth.uid());
+
+  -- The new order_refunds id on approval, so the caller can tell the customer.
+  return v_refund_id;
 end;
 $$;
 
