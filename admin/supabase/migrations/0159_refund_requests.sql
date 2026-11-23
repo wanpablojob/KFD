@@ -49,6 +49,10 @@ drop policy if exists "customers read own refund requests" on public.refund_requ
 create policy "customers read own refund requests"
   on public.refund_requests for select to authenticated
   using (customer_user_id = (select auth.uid()));
+-- Supabase grants ALL on new public tables to anon and authenticated by
+-- default (0088/0089). RLS blocks DML, but TRUNCATE ignores RLS, and anon must
+-- not see customers' refund reasons at all: keep only the SELECT the UI needs.
+revoke all on table public.refund_requests from anon, authenticated;
 grant select on public.refund_requests to authenticated;
 
 create or replace function public.request_refund(p_order_id text, p_reason text)
