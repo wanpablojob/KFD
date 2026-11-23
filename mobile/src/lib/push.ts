@@ -20,6 +20,17 @@ import { supabase } from "./supabase";
 // The admin app's base URL. Public by necessity -- a device has to reach it.
 const apiUrl = Constants.expoConfig?.extra?.apiUrl as string | undefined;
 
+function isSafeApiUrl(base: string): boolean {
+  try {
+    const url = new URL(base);
+    if (url.protocol === "https:") return true;
+    // Allow plain HTTP only in development (e.g. local/LAN admin server).
+    return __DEV__ && url.protocol === "http:";
+  } catch {
+    return false;
+  }
+}
+
 // The EAS project id is what Expo uses to attribute a push token to this app.
 // Reading it from the app config keeps Expo Go / EAS builds working without a
 // second secret.
@@ -43,8 +54,12 @@ const OPTED_OUT_KEY = "kfd.push.optedOut";
  * `orders` is the app.json `defaultChannel`, so anything that does not name a
  * channel lands there. Order-status alerts keep using it.
  */
-export const ORDERS_CHANNEL_ID = "orders";
-export const OFFERS_CHANNEL_ID = "offers";
+// The "-sound" twins carry the Meriendash sound (assets/sounds, 0160). Android
+// fixes a channel's sound when it is created, so a new sound needs new ids;
+// the server sends to them only for installs that registered with customSound.
+export const ORDERS_CHANNEL_ID = "orders-sound";
+export const OFFERS_CHANNEL_ID = "offers-sound";
+const CUSTOM_SOUND = "meriendash.wav";
 
 /**
  * Creates both Android channels. Called on app start rather than only when the
@@ -72,6 +87,9 @@ export async function ensureNotificationChannels(): Promise<void> {
     await Notifications.setNotificationChannelAsync(ORDERS_CHANNEL_ID, {
       name: "Order alerts",
       importance: AndroidImportance.HIGH,
+      sound: CUSTOM_SOUND,
+      enableVibrate: true,
+      lockscreenVisibility: AndroidNotificationVisibility.PUBLIC,
     });
     // Offers live 5 minutes and are worth real money, so this channel is HIGH
     // with sound and vibration. MAX would head-up every offer; that is too
@@ -80,7 +98,7 @@ export async function ensureNotificationChannels(): Promise<void> {
       name: "Delivery offers",
       description: "New delivery jobs you can accept before they expire.",
       importance: AndroidImportance.HIGH,
-      sound: "default",
+      sound: CUSTOM_SOUND,
       enableVibrate: true,
       lightColor: "#ffd23f",
       lockscreenVisibility: AndroidNotificationVisibility.PUBLIC,
@@ -176,7 +194,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promi
 }
 
 async function register(accessToken: string, timeoutMs: number): Promise<boolean> {
-  if (!apiUrl || !projectId) return false;
+  if (!apiUrl || !isSafeApiUrl(apiUrl) || !projectId) return false;
   const token = await withTimeout(
     Notifications.getExpoPushTokenAsync({ projectId }),
     TOKEN_TIMEOUT_MS,
@@ -197,6 +215,7 @@ async function register(accessToken: string, timeoutMs: number): Promise<boolean
         deviceId,
         token: token.data,
         platform: pushPlatform(),
+        customSound: true,
       }),
       signal: controller.signal,
     });
@@ -367,7 +386,7 @@ export async function disablePush(
   const deviceId = await SecureStore.getItemAsync(DEVICE_ID_KEY);
   await SecureStore.deleteItemAsync(REGISTERED_KEY);
 
-  if (!apiUrl || !deviceId) return;
+  if (!apiUrl || !isSafeApiUrl(apiUrl) || !deviceId) return;
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REGISTER_TIMEOUT_MS);
@@ -412,7 +431,7 @@ export async function notifyRiderDelivered(
   accessToken: string,
   orderId: string
 ): Promise<void> {
-  if (!apiUrl) return;
+  if (!apiUrl || !isSafeApiUrl(apiUrl)) return;
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REGISTER_TIMEOUT_MS);

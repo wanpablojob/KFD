@@ -10,6 +10,17 @@ import { supabase } from "./supabase";
  */
 const apiUrl = Constants.expoConfig?.extra?.apiUrl as string | undefined;
 
+function isSafeApiUrl(base: string): boolean {
+  try {
+    const url = new URL(base);
+    if (url.protocol === "https:") return true;
+    // Allow plain HTTP only in development (e.g. local/LAN admin server).
+    return __DEV__ && url.protocol === "http:";
+  } catch {
+    return false;
+  }
+}
+
 /**
  * POST to the admin app's API with the signed-in user's token.
  *
@@ -26,7 +37,7 @@ export async function postApi(
     const {
       data: { session },
     } = await supabase.auth.getSession();
-    if (!apiUrl || !session?.access_token) return false;
+    if (!apiUrl || !isSafeApiUrl(apiUrl) || !session?.access_token) return false;
     const res = await fetch(`${apiUrl.replace(/\/+$/, "")}${path}`, {
       method: "POST",
       headers: {
@@ -62,7 +73,7 @@ export async function postApiJson<T>(
     const {
       data: { session },
     } = await supabase.auth.getSession();
-    if (!apiUrl || !session?.access_token) return null;
+    if (!apiUrl || !isSafeApiUrl(apiUrl) || !session?.access_token) return null;
     const res = await fetch(`${apiUrl.replace(/\/+$/, "")}${path}`, {
       method: "POST",
       headers: {

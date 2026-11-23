@@ -196,7 +196,17 @@ export default function PabakalOrderScreen() {
           <Section title="Receipt" icon="receipt-outline">
             {receipt.data ? (
               <Pressable
-                onPress={() => void Linking.openURL(receipt.data as string)}
+                onPress={() => {
+                  const url = receipt.data;
+                  if (typeof url !== "string" || !/^https:\/\//i.test(url)) {
+                    Alert.alert(
+                      "Cannot open receipt",
+                      "This receipt link does not look safe to open."
+                    );
+                    return;
+                  }
+                  void Linking.openURL(url);
+                }}
                 accessibilityRole="imagebutton"
                 accessibilityLabel="Open the receipt photo"
               >
