@@ -87,16 +87,16 @@ export async function sendMerchantOrderPush(
 
   const { data: tokens, error: tokensError } = await supabase
     .from("push_tokens")
-    .select("token")
+    .select("token, custom_sound")
     .in("user_id", userIds);
 
   if (tokensError) {
     return { ok: false, sent: 0, detail: tokensError.message };
   }
 
-  const validTokens = (tokens ?? [])
-    .map((t) => t.token as string)
-    .filter((token) => Expo.isExpoPushToken(token));
+  const validTokens = (tokens ?? []).filter((t) =>
+    Expo.isExpoPushToken(t.token as string),
+  );
 
   if (validTokens.length === 0) {
     return {
@@ -106,10 +106,9 @@ export async function sendMerchantOrderPush(
     };
   }
 
-  const messages: ExpoPushMessage[] = validTokens.map((to) => ({
-    to,
-    sound: "default",
-    channelId: "orders",
+  const messages: ExpoPushMessage[] = validTokens.map((t) => ({
+    to: t.token as string,
+    ...soundFor(t.custom_sound === true, ORDERS_CHANNEL_ID),
     title: message.title,
     body: message.body,
     // A new order is the alert a restaurant cannot afford to read late: high
@@ -209,6 +208,25 @@ export async function sendMerchantOrderPush(
 export const ORDERS_CHANNEL_ID = "orders";
 export const OFFERS_CHANNEL_ID = "offers";
 
+/** The bundled sound, in mobile/assets/sounds (0160). */
+export const CUSTOM_SOUND = "meriendash.wav";
+
+/**
+ * Sound and Android channel for one install. An install with the Meriendash
+ * sound gets it on the "-sound" twin of the channel (Android fixes a channel's
+ * sound at creation, so the sound needs new channels); an older install keeps
+ * the old channel and the default sound, since a push to a channel it never
+ * created would be dropped.
+ */
+export function soundFor(
+  customSound: boolean,
+  channelId: string,
+): { sound: string; channelId: string } {
+  return customSound
+    ? { sound: CUSTOM_SOUND, channelId: `${channelId}-sound` }
+    : { sound: "default", channelId };
+}
+
 export async function sendUserPush(
   supabase: ServiceClient,
   userId: string,
@@ -222,16 +240,16 @@ export async function sendUserPush(
 
   const { data: tokens, error: tokensError } = await supabase
     .from("push_tokens")
-    .select("token")
+    .select("token, custom_sound")
     .eq("user_id", userId);
 
   if (tokensError) {
     return { ok: false, sent: 0, detail: tokensError.message };
   }
 
-  const validTokens = (tokens ?? [])
-    .map((t) => t.token as string)
-    .filter((token) => Expo.isExpoPushToken(token));
+  const validTokens = (tokens ?? []).filter((t) =>
+    Expo.isExpoPushToken(t.token as string),
+  );
 
   if (validTokens.length === 0) {
     return { ok: false, sent: 0, skipped: "no push tokens for this rider" };
@@ -245,10 +263,9 @@ export async function sendUserPush(
   // the alert under the lock screen's summary (iOS-only, ignored for Android
   // tokens; without the Time Sensitive entitlement iOS still delivers it at the
   // normal level).
-  const messages: ExpoPushMessage[] = validTokens.map((to) => ({
-    to,
-    sound: "default",
-    channelId,
+  const messages: ExpoPushMessage[] = validTokens.map((t) => ({
+    to: t.token as string,
+    ...soundFor(t.custom_sound === true, channelId),
     title,
     body,
     priority: "high",

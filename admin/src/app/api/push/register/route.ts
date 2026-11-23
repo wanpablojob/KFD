@@ -37,6 +37,8 @@ interface RegisterBody {
   deviceId?: string;
   token?: string;
   platform?: string;
+  /** Sent true by builds that ship the Meriendash sound channels (0160). */
+  customSound?: boolean;
 }
 
 export const runtime = "nodejs";
@@ -167,7 +169,13 @@ export async function POST(req: Request) {
   }
 
   const { error: upsertError } = await client.from("push_tokens").upsert(
-    { id: deviceId, user_id: callerId, token, platform },
+    {
+      id: deviceId,
+      user_id: callerId,
+      token,
+      platform,
+      custom_sound: body.customSound === true,
+    },
     { onConflict: "token", ignoreDuplicates: false }
   );
 
