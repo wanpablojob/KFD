@@ -24,11 +24,15 @@ import {
   useRateOrder,
   type CustomerDelivery,
   type CustomerOrder,
+  type RefundRequest,
   useMyRefunds,
+  useMyRefundRequests,
+  useRequestRefund,
 } from "../../lib/hooks";
 import { useSession } from "../../lib/session-context";
 import { useCart } from "../../lib/cart-context";
 import { fetchMenu } from "../../lib/storefront";
+import { canAskRefund } from "../../lib/refund-eligibility";
 import { buildReorder } from "../../lib/reorder";
 import { supabase } from "../../lib/supabase";
 import { colors, radius, shadow, spacing, type } from "../../lib/theme";
@@ -60,9 +64,13 @@ function OrderActions({
   onCancel,
   cancelling,
   onRate,
+  refundRequest,
+  onRequestRefund,
 }: {
   order: CustomerOrder;
   refunded: number;
+  refundRequest: RefundRequest | undefined;
+  onRequestRefund: (order: CustomerOrder) => void;
   rating: { restaurant_rating: number; rider_rating: number | null } | undefined;
   onReorder: (order: CustomerOrder) => void;
   reordering: boolean;
@@ -79,6 +87,8 @@ function OrderActions({
   // confirmed the moment it is placed but the kitchen has not touched it yet
   // (0121).
   const canCancel = order.status === "pending" || order.status === "confirmed";
+  const pendingRefund = refundRequest?.status === "pending";
+  const canRequestRefund = !pendingRefund && canAskRefund(order, refunded);
 
   return (
     <>
@@ -148,6 +158,30 @@ function OrderActions({
           </Pressable>
         )
       ) : null}
+
+      {pendingRefund ? (
+        <Text style={styles.refundNote}>
+          Refund requested. An admin will review it and reply here.
+        </Text>
+      ) : refundRequest?.status === "declined" ? (
+        <Text style={styles.refundNote}>
+          Refund declined
+          {refundRequest.admin_note ? `: ${refundRequest.admin_note}` : "."}
+        </Text>
+      ) : refundRequest?.status === "approved" && refundRequest.admin_note ? (
+        <Text style={styles.refundNote}>
+          Refund approved: {refundRequest.admin_note}
+        </Text>
+      ) : null}
+      {canRequestRefund ? (
+        <Pressable
+          onPress={() => onRequestRefund(order)}
+          accessibilityRole="button"
+          accessibilityLabel={`Request a refund for ${order.restaurant}`}
+        >
+          <Text style={styles.refundLink}>Request refund</Text>
+        </Pressable>
+      ) : null}
     </>
   );
 }
@@ -204,17 +238,33 @@ export default function CustomerOrdersScreen() {
   const rate = useRateOrder();
   const ratingByOrder = new Map((ratings ?? []).map((r) => [r.order_id, r]));
 
-  const [ratingTarget, setRatingTarget] = useState<CustomerOrder | null>(null);
-  const [restaurantStars, setRestaurantStars] = useState(0);
+  // The delivered shops being rated together. A delivery from several shops
+  // is rated in one go: stars for each shop, and the rider -- one person, one
+  // trip -- rated once, on a single shop's rating, so a three-shop trip does
+  // not count as three rider ratings.
+  const [ratingTarget, setRatingTarget] = useState<CustomerOrder[] | null>(null);
+  const [shopStars, setShopStars] = useState<Record<string, number>>({});
   const [riderStars, setRiderStars] = useState(0);
   const [comment, setComment] = useState("");
+  const riderPart = ratingTarget
+    ? (ratingTarget.find((p) => ratingByOrder.get(p.id)?.rider_rating) ??
+      ratingTarget.find((p) => p.rider_id) ??
+      null)
+    : null;
 
   function openRating(order: CustomerOrder) {
-    const existing = ratingByOrder.get(order.id);
-    setRestaurantStars(existing?.restaurant_rating ?? 0);
-    setRiderStars(existing?.rider_rating ?? 0);
-    setComment(existing?.comment ?? "");
-    setRatingTarget(order);
+    const entry = entries.find((e) => e.parts.some((p) => p.id === order.id));
+    const parts = (entry?.parts ?? [order]).filter((p) => p.status === "delivered");
+    const stars: Record<string, number> = {};
+    for (const p of parts)
+      stars[p.id] = ratingByOrder.get(p.id)?.restaurant_rating ?? 0;
+    const existingRider = parts
+      .map((p) => ratingByOrder.get(p.id)?.rider_rating)
+      .find((n) => n);
+    setShopStars(stars);
+    setRiderStars(existingRider ?? 0);
+    setComment(parts.map((p) => ratingByOrder.get(p.id)?.comment).find((c) => c) ?? "");
+    setRatingTarget(parts);
   }
 
   // Sent here to rate (?rate=<reference>, from tracking or home): open the
@@ -231,30 +281,71 @@ export default function CustomerOrdersScreen() {
 
   function closeRating() {
     setRatingTarget(null);
-    setRestaurantStars(0);
+    setShopStars({});
     setRiderStars(0);
     setComment("");
   }
 
-  function submitRating() {
+  async function submitRating() {
     if (!ratingTarget) return;
-    if (restaurantStars < 1) {
-      Alert.alert("Add a rating", "Tap a star to rate the restaurant.");
+    if (ratingTarget.some((p) => !shopStars[p.id])) {
+      Alert.alert(
+        "Add a rating",
+        ratingTarget.length > 1
+          ? "Tap a star for each restaurant."
+          : "Tap a star to rate the restaurant."
+      );
       return;
     }
-    rate.mutate(
+    try {
+      for (const part of ratingTarget) {
+        await rate.mutateAsync({
+          orderId: part.id,
+          restaurantRating: shopStars[part.id],
+          // Sent once per delivery; ignored server-side when there was no rider.
+          riderRating: part.id === riderPart?.id ? riderStars || null : null,
+          comment: comment.trim() || null,
+        });
+      }
+      closeRating();
+    } catch (cause) {
+      Alert.alert(
+        "Could not save rating",
+        cause instanceof Error ? cause.message : "Try again."
+      );
+    }
+  }
+
+  // Asking for money back on one shop's order (0159).
+  const { data: refundRequests } = useMyRefundRequests();
+  const askRefund = useRequestRefund();
+  const [refundTarget, setRefundTarget] = useState<CustomerOrder | null>(null);
+  const [refundReason, setRefundReason] = useState("");
+
+  function openRefund(order: CustomerOrder) {
+    setRefundReason("");
+    setRefundTarget(order);
+  }
+
+  function submitRefund() {
+    if (!refundTarget) return;
+    if (!refundReason.trim()) {
+      Alert.alert("Tell us what went wrong", "Say what happened with this order.");
+      return;
+    }
+    askRefund.mutate(
+      { orderId: refundTarget.id, reason: refundReason.trim() },
       {
-        orderId: ratingTarget.id,
-        restaurantRating: restaurantStars,
-        // Ignored server-side when the order had no rider; sent only when it did.
-        riderRating: ratingTarget.rider_id ? riderStars || null : null,
-        comment: comment.trim() || null,
-      },
-      {
-        onSuccess: closeRating,
+        onSuccess: () => {
+          setRefundTarget(null);
+          Alert.alert(
+            "Refund requested",
+            "An admin will review it. You will see the answer on this order."
+          );
+        },
         onError: (cause) =>
           Alert.alert(
-            "Could not save rating",
+            "Could not request a refund",
             cause instanceof Error ? cause.message : "Try again."
           ),
       }
@@ -461,6 +552,8 @@ export default function CustomerOrdersScreen() {
               ratings={ratingByOrder}
               onRate={openRating}
               refunds={refunds}
+              refundRequests={refundRequests}
+              onRequestRefund={openRefund}
             />
           ) : (
             <OrderCard
@@ -472,6 +565,10 @@ export default function CustomerOrdersScreen() {
               rating={item.parts[0] ? ratingByOrder.get(item.parts[0].id) : undefined}
               onRate={openRating}
               refunded={item.parts[0] ? (refunds?.[item.parts[0].id] ?? 0) : 0}
+              refundRequest={
+                item.parts[0] ? refundRequests?.[item.parts[0].id] : undefined
+              }
+              onRequestRefund={openRefund}
             />
           )
         }
@@ -497,11 +594,26 @@ export default function CustomerOrdersScreen() {
           >
             <KeyboardAvoidingView behavior="padding">
               <Text style={styles.sheetTitle}>
-                Rate {ratingTarget?.restaurant ?? "your order"}
+                {ratingTarget && ratingTarget.length > 1
+                  ? "Rate your delivery"
+                  : `Rate ${ratingTarget?.[0]?.restaurant ?? "your order"}`}
               </Text>
-              <Text style={styles.sheetLabel}>The restaurant</Text>
-              <StarRow value={restaurantStars} onChange={setRestaurantStars} />
-              {ratingTarget?.rider_id ? (
+              {(ratingTarget ?? []).map((part) => (
+                <View key={part.id}>
+                  <Text style={styles.sheetLabel}>
+                    {ratingTarget && ratingTarget.length > 1
+                      ? part.restaurant
+                      : "The restaurant"}
+                  </Text>
+                  <StarRow
+                    value={shopStars[part.id] ?? 0}
+                    onChange={(n) =>
+                      setShopStars((prev) => ({ ...prev, [part.id]: n }))
+                    }
+                  />
+                </View>
+              ))}
+              {riderPart ? (
                 <>
                   <Text style={styles.sheetLabel}>Your rider</Text>
                   <StarRow value={riderStars} onChange={setRiderStars} />
@@ -528,13 +640,77 @@ export default function CustomerOrdersScreen() {
                 </Pressable>
                 <Pressable
                   style={[styles.sheetSubmit, rate.isPending && styles.reorderDisabled]}
-                  onPress={submitRating}
+                  onPress={() => void submitRating()}
                   disabled={rate.isPending}
                 >
                   {rate.isPending ? (
                     <ActivityIndicator color={colors.textInverse} size="small" />
                   ) : (
                     <Text style={styles.sheetSubmitLabel}>Submit</Text>
+                  )}
+                </Pressable>
+              </View>
+            </KeyboardAvoidingView>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      <Modal
+        visible={refundTarget !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setRefundTarget(null)}
+      >
+        <Pressable
+          style={styles.backdrop}
+          accessibilityLabel="Dismiss"
+          onPress={() => !askRefund.isPending && setRefundTarget(null)}
+        >
+          <Pressable
+            style={[styles.sheet, { paddingBottom: spacing.xl + insets.bottom }]}
+            onPress={() => undefined}
+          >
+            <KeyboardAvoidingView behavior="padding">
+              <Text style={styles.sheetTitle}>Request a refund</Text>
+              <Text style={type.caption}>
+                {refundTarget?.restaurant} · ₱
+                {Number(refundTarget?.total ?? 0).toFixed(2)}. An admin reviews every
+                request and replies on this order.
+              </Text>
+              <TextInput
+                style={styles.commentInput}
+                value={refundReason}
+                onChangeText={setRefundReason}
+                placeholder="What went wrong? e.g. missing item, wrong order, never arrived"
+                placeholderTextColor={colors.textFaint}
+                multiline
+                numberOfLines={3}
+                maxLength={500}
+                editable={!askRefund.isPending}
+              />
+              <View style={styles.sheetActions}>
+                <Pressable
+                  style={[
+                    styles.sheetCancel,
+                    askRefund.isPending && styles.reorderDisabled,
+                  ]}
+                  onPress={() => setRefundTarget(null)}
+                  disabled={askRefund.isPending}
+                >
+                  <Text style={styles.sheetCancelLabel}>Cancel</Text>
+                </Pressable>
+                <Pressable
+                  style={[
+                    styles.sheetSubmit,
+                    askRefund.isPending && styles.reorderDisabled,
+                  ]}
+                  onPress={submitRefund}
+                  disabled={askRefund.isPending}
+                >
+                  {askRefund.isPending ? (
+                    <ActivityIndicator color={colors.textInverse} size="small" />
+                  ) : (
+                    <Text style={styles.sheetSubmitLabel}>Send request</Text>
                   )}
                 </Pressable>
               </View>
@@ -583,11 +759,15 @@ function OrderCard({
   rating,
   onRate,
   refunded,
+  refundRequest,
+  onRequestRefund,
 }: {
   order: CustomerOrder;
   /** The trip this order is part of, when it is one shop of a basket. */
   trip?: CustomerDelivery;
   refunded: number;
+  refundRequest: RefundRequest | undefined;
+  onRequestRefund: (order: CustomerOrder) => void;
   onReorder: (order: CustomerOrder) => void;
   reordering: boolean;
   onCancel: (order: CustomerOrder) => void;
@@ -665,6 +845,8 @@ function OrderCard({
         onCancel={onCancel}
         cancelling={cancelling}
         onRate={onRate}
+        refundRequest={refundRequest}
+        onRequestRefund={onRequestRefund}
       />
     </Pressable>
   );
@@ -688,6 +870,8 @@ function TripCard({
   ratings,
   onRate,
   refunds,
+  refundRequests,
+  onRequestRefund,
 }: {
   trip: CustomerDelivery;
   parts: CustomerOrder[];
@@ -698,6 +882,8 @@ function TripCard({
   ratings: Map<string, { restaurant_rating: number; rider_rating: number | null }>;
   onRate: (order: CustomerOrder) => void;
   refunds?: Record<string, number>;
+  refundRequests?: Record<string, RefundRequest>;
+  onRequestRefund: (order: CustomerOrder) => void;
 }) {
   const router = useRouter();
   const total = parts.reduce((sum, p) => sum + Number(p.total), 0);
@@ -774,6 +960,8 @@ function TripCard({
             onCancel={onCancel}
             cancelling={cancellingId === part.id}
             onRate={onRate}
+            refundRequest={refundRequests?.[part.id]}
+            onRequestRefund={onRequestRefund}
           />
         </View>
       ))}
@@ -790,6 +978,14 @@ function TripCard({
 
 const styles = StyleSheet.create({
   refunded: { ...type.caption, color: colors.success, fontWeight: "700" },
+  refundNote: { ...type.caption, color: colors.textMuted, marginTop: spacing.xs },
+  refundLink: {
+    ...type.caption,
+    color: colors.primary,
+    fontWeight: "700",
+    marginTop: spacing.xs,
+    paddingVertical: spacing.xs,
+  },
   screen: { flex: 1, backgroundColor: colors.background },
   center: { alignItems: "center", justifyContent: "center", gap: spacing.md },
   header: { gap: 2, paddingBottom: spacing.sm },

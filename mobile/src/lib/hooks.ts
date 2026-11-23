@@ -9,6 +9,8 @@ import {
   fetchMyOrders,
   fetchFavorites,
   fetchMyRefunds,
+  fetchMyRefundRequests,
+  requestRefund,
   fetchRiderContact,
   setFavorite,
   placeCustomerOrder,
@@ -41,6 +43,7 @@ import {
   type MenuItemRow,
   type CustomerDelivery,
   type CustomerOrder,
+  type RefundRequest,
   type PlaceOrderResult,
   type PlaceOrderItem,
   type PaymentChoice,
@@ -464,6 +467,7 @@ export type {
   MenuItemRow,
   CustomerOrder,
   CustomerDelivery,
+  RefundRequest,
   PlaceOrderResult,
   PlaceOrderItem,
   PaymentChoice,
@@ -512,6 +516,20 @@ export function useRiderContact(reference: string, enabled: boolean) {
 /** Refunded totals per order for the order list (0078). */
 export function useMyRefunds() {
   return useQuery({ queryKey: ["myRefunds"], queryFn: fetchMyRefunds });
+}
+
+/** The newest refund request per order (0159). */
+export function useMyRefundRequests() {
+  return useQuery({ queryKey: ["myRefundRequests"], queryFn: fetchMyRefundRequests });
+}
+
+export function useRequestRefund() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (args: { orderId: string; reason: string }) =>
+      requestRefund(args.orderId, args.reason),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["myRefundRequests"] }),
+  });
 }
 
 export function useFavorites() {

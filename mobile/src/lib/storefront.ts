@@ -1549,6 +1549,40 @@ export async function fetchMyRefunds(): Promise<Record<string, number>> {
   return totals;
 }
 
+export interface RefundRequest {
+  order_id: string;
+  status: "pending" | "approved" | "declined";
+  amount: number | null;
+  admin_note: string | null;
+}
+
+/** The newest refund request per order id, for the signed-in customer (RLS, 0159). */
+export async function fetchMyRefundRequests(): Promise<Record<string, RefundRequest>> {
+  const { data, error } = await supabase
+    .from("refund_requests")
+    .select("order_id, status, amount, admin_note, created_at")
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+  const latest: Record<string, RefundRequest> = {};
+  for (const r of data ?? [])
+    latest[r.order_id] = {
+      order_id: r.order_id,
+      status: r.status as RefundRequest["status"],
+      amount: r.amount === null ? null : Number(r.amount),
+      admin_note: r.admin_note,
+    };
+  return latest;
+}
+
+/** Ask for a refund on one shop's order; the server checks it is eligible (0159). */
+export async function requestRefund(orderId: string, reason: string): Promise<void> {
+  const { error } = await supabase.rpc("request_refund", {
+    p_order_id: orderId,
+    p_reason: reason,
+  });
+  if (error) throw new Error(error.message);
+}
+
 /** Restaurant ids the signed-in customer saved (0078). */
 export async function fetchFavorites(): Promise<string[]> {
   const { data, error } = await supabase
