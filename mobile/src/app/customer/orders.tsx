@@ -951,6 +951,11 @@ function TripCard({
           {part.status === "delivered" ? (
             <Text style={styles.tripNote}>{part.delivery_failed_reason ?? null}</Text>
           ) : null}
+          {refunds?.[part.id] ? (
+            <Text style={styles.refunded}>
+              Refunded ₱{(refunds[part.id] ?? 0).toFixed(2)}
+            </Text>
+          ) : null}
           <OrderActions
             order={part}
             refunded={refunds?.[part.id] ?? 0}
