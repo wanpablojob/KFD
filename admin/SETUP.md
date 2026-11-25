@@ -111,9 +111,9 @@ To tell the two apart in a live build, the value is public, so you can read
 it straight out of the shipped JavaScript:
 
 ```sh
-curl -s https://kfd-one.vercel.app/login \
+curl -s https://meriendash.vercel.app/login \
   | grep -oE 'src="[^"]+\.js"' | sed 's/src="//;s/"//' | sort -u \
-  | while read -r c; do curl -s "https://kfd-one.vercel.app$c"; done \
+  | while read -r c; do curl -s "https://meriendash.vercel.app$c"; done \
   | grep -oE '"https://ijeqwbrrgfsmymsektih\.supabase\.co[^"]*"' | sort -u
 ```
 

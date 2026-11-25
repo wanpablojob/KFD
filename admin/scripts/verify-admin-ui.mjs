@@ -22,7 +22,7 @@ import { spawn } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { setTimeout as sleep } from "node:timers/promises";
 
-const BASE = (process.env.BASE_URL ?? "https://kfd-one.vercel.app").replace(/\/$/, "");
+const BASE = (process.env.BASE_URL ?? "https://meriendash.vercel.app").replace(/\/$/, "");
 const USER = process.env.ADMIN_USER;
 const PASS = process.env.ADMIN_PASSWORD;
 const ART = new URL("../.verify-artifacts/", import.meta.url).pathname;
