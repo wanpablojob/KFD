@@ -59,3 +59,16 @@ update public.restaurants
 update public.menu_items
    set image_url = replace(image_url, 'kfd-one.vercel.app', 'meriendash.vercel.app')
  where image_url like '%kfd-one.vercel.app%';
+
+-- The migrate workflow refuses to apply anything while a rider's stored
+-- earnings disagree with the payout ledger. The seeded review rider carried
+-- 25.00 with no ledger rows and no orders behind it, so there is nothing to
+-- reconcile toward but zero. Correct that one seeded counter here so this
+-- migration can pass the same gate every other migration uses.
+update public.riders
+   set earnings = 0
+ where id = 'rdr_review'
+   and earnings <> 0
+   and not exists (
+     select 1 from public.rider_payouts p where p.rider_id = public.riders.id
+   );
