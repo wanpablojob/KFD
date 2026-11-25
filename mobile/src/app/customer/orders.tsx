@@ -583,76 +583,84 @@ export default function CustomerOrdersScreen() {
         animationType="fade"
         onRequestClose={closeRating}
       >
-        <Pressable
-          style={styles.backdrop}
-          accessibilityLabel="Dismiss"
-          onPress={closeRating}
-        >
+        <KeyboardAvoidingView style={styles.keyboard} behavior="padding">
           <Pressable
-            style={[styles.sheet, { paddingBottom: spacing.xl + insets.bottom }]}
-            onPress={() => undefined}
+            style={styles.backdrop}
+            accessibilityLabel="Dismiss"
+            onPress={closeRating}
           >
-            <KeyboardAvoidingView behavior="padding">
-              <Text style={styles.sheetTitle}>
-                {ratingTarget && ratingTarget.length > 1
-                  ? "Rate your delivery"
-                  : `Rate ${ratingTarget?.[0]?.restaurant ?? "your order"}`}
-              </Text>
-              {(ratingTarget ?? []).map((part) => (
-                <View key={part.id}>
-                  <Text style={styles.sheetLabel}>
-                    {ratingTarget && ratingTarget.length > 1
-                      ? part.restaurant
-                      : "The restaurant"}
-                  </Text>
-                  <StarRow
-                    value={shopStars[part.id] ?? 0}
-                    onChange={(n) =>
-                      setShopStars((prev) => ({ ...prev, [part.id]: n }))
-                    }
-                  />
+            <Pressable
+              style={[styles.sheet, { paddingBottom: spacing.xl + insets.bottom }]}
+              onPress={() => undefined}
+            >
+              <View>
+                <Text style={styles.sheetTitle}>
+                  {ratingTarget && ratingTarget.length > 1
+                    ? "Rate your delivery"
+                    : `Rate ${ratingTarget?.[0]?.restaurant ?? "your order"}`}
+                </Text>
+                {(ratingTarget ?? []).map((part) => (
+                  <View key={part.id}>
+                    <Text style={styles.sheetLabel}>
+                      {ratingTarget && ratingTarget.length > 1
+                        ? part.restaurant
+                        : "The restaurant"}
+                    </Text>
+                    <StarRow
+                      value={shopStars[part.id] ?? 0}
+                      onChange={(n) =>
+                        setShopStars((prev) => ({ ...prev, [part.id]: n }))
+                      }
+                    />
+                  </View>
+                ))}
+                {riderPart ? (
+                  <>
+                    <Text style={styles.sheetLabel}>Your rider</Text>
+                    <StarRow value={riderStars} onChange={setRiderStars} />
+                  </>
+                ) : null}
+                <TextInput
+                  style={styles.commentInput}
+                  value={comment}
+                  onChangeText={setComment}
+                  placeholder="Leave a comment (optional)"
+                  placeholderTextColor={colors.textFaint}
+                  multiline
+                  numberOfLines={3}
+                  maxLength={500}
+                  editable={!rate.isPending}
+                />
+                <View style={styles.sheetActions}>
+                  <Pressable
+                    style={[
+                      styles.sheetCancel,
+                      rate.isPending && styles.reorderDisabled,
+                    ]}
+                    onPress={closeRating}
+                    disabled={rate.isPending}
+                  >
+                    <Text style={styles.sheetCancelLabel}>Cancel</Text>
+                  </Pressable>
+                  <Pressable
+                    style={[
+                      styles.sheetSubmit,
+                      rate.isPending && styles.reorderDisabled,
+                    ]}
+                    onPress={() => void submitRating()}
+                    disabled={rate.isPending}
+                  >
+                    {rate.isPending ? (
+                      <ActivityIndicator color={colors.textInverse} size="small" />
+                    ) : (
+                      <Text style={styles.sheetSubmitLabel}>Submit</Text>
+                    )}
+                  </Pressable>
                 </View>
-              ))}
-              {riderPart ? (
-                <>
-                  <Text style={styles.sheetLabel}>Your rider</Text>
-                  <StarRow value={riderStars} onChange={setRiderStars} />
-                </>
-              ) : null}
-              <TextInput
-                style={styles.commentInput}
-                value={comment}
-                onChangeText={setComment}
-                placeholder="Leave a comment (optional)"
-                placeholderTextColor={colors.textFaint}
-                multiline
-                numberOfLines={3}
-                maxLength={500}
-                editable={!rate.isPending}
-              />
-              <View style={styles.sheetActions}>
-                <Pressable
-                  style={[styles.sheetCancel, rate.isPending && styles.reorderDisabled]}
-                  onPress={closeRating}
-                  disabled={rate.isPending}
-                >
-                  <Text style={styles.sheetCancelLabel}>Cancel</Text>
-                </Pressable>
-                <Pressable
-                  style={[styles.sheetSubmit, rate.isPending && styles.reorderDisabled]}
-                  onPress={() => void submitRating()}
-                  disabled={rate.isPending}
-                >
-                  {rate.isPending ? (
-                    <ActivityIndicator color={colors.textInverse} size="small" />
-                  ) : (
-                    <Text style={styles.sheetSubmitLabel}>Submit</Text>
-                  )}
-                </Pressable>
               </View>
-            </KeyboardAvoidingView>
+            </Pressable>
           </Pressable>
-        </Pressable>
+        </KeyboardAvoidingView>
       </Modal>
 
       <Modal
@@ -661,62 +669,64 @@ export default function CustomerOrdersScreen() {
         animationType="fade"
         onRequestClose={() => setRefundTarget(null)}
       >
-        <Pressable
-          style={styles.backdrop}
-          accessibilityLabel="Dismiss"
-          onPress={() => !askRefund.isPending && setRefundTarget(null)}
-        >
+        <KeyboardAvoidingView style={styles.keyboard} behavior="padding">
           <Pressable
-            style={[styles.sheet, { paddingBottom: spacing.xl + insets.bottom }]}
-            onPress={() => undefined}
+            style={styles.backdrop}
+            accessibilityLabel="Dismiss"
+            onPress={() => !askRefund.isPending && setRefundTarget(null)}
           >
-            <KeyboardAvoidingView behavior="padding">
-              <Text style={styles.sheetTitle}>Request a refund</Text>
-              <Text style={type.caption}>
-                {refundTarget?.restaurant} · ₱
-                {Number(refundTarget?.total ?? 0).toFixed(2)}. An admin reviews every
-                request and replies on this order.
-              </Text>
-              <TextInput
-                style={styles.commentInput}
-                value={refundReason}
-                onChangeText={setRefundReason}
-                placeholder="What went wrong? e.g. missing item, wrong order, never arrived"
-                placeholderTextColor={colors.textFaint}
-                multiline
-                numberOfLines={3}
-                maxLength={500}
-                editable={!askRefund.isPending}
-              />
-              <View style={styles.sheetActions}>
-                <Pressable
-                  style={[
-                    styles.sheetCancel,
-                    askRefund.isPending && styles.reorderDisabled,
-                  ]}
-                  onPress={() => setRefundTarget(null)}
-                  disabled={askRefund.isPending}
-                >
-                  <Text style={styles.sheetCancelLabel}>Cancel</Text>
-                </Pressable>
-                <Pressable
-                  style={[
-                    styles.sheetSubmit,
-                    askRefund.isPending && styles.reorderDisabled,
-                  ]}
-                  onPress={submitRefund}
-                  disabled={askRefund.isPending}
-                >
-                  {askRefund.isPending ? (
-                    <ActivityIndicator color={colors.textInverse} size="small" />
-                  ) : (
-                    <Text style={styles.sheetSubmitLabel}>Send request</Text>
-                  )}
-                </Pressable>
+            <Pressable
+              style={[styles.sheet, { paddingBottom: spacing.xl + insets.bottom }]}
+              onPress={() => undefined}
+            >
+              <View>
+                <Text style={styles.sheetTitle}>Request a refund</Text>
+                <Text style={type.caption}>
+                  {refundTarget?.restaurant} · ₱
+                  {Number(refundTarget?.total ?? 0).toFixed(2)}. An admin reviews every
+                  request and replies on this order.
+                </Text>
+                <TextInput
+                  style={styles.commentInput}
+                  value={refundReason}
+                  onChangeText={setRefundReason}
+                  placeholder="What went wrong? e.g. missing item, wrong order, never arrived"
+                  placeholderTextColor={colors.textFaint}
+                  multiline
+                  numberOfLines={3}
+                  maxLength={500}
+                  editable={!askRefund.isPending}
+                />
+                <View style={styles.sheetActions}>
+                  <Pressable
+                    style={[
+                      styles.sheetCancel,
+                      askRefund.isPending && styles.reorderDisabled,
+                    ]}
+                    onPress={() => setRefundTarget(null)}
+                    disabled={askRefund.isPending}
+                  >
+                    <Text style={styles.sheetCancelLabel}>Cancel</Text>
+                  </Pressable>
+                  <Pressable
+                    style={[
+                      styles.sheetSubmit,
+                      askRefund.isPending && styles.reorderDisabled,
+                    ]}
+                    onPress={submitRefund}
+                    disabled={askRefund.isPending}
+                  >
+                    {askRefund.isPending ? (
+                      <ActivityIndicator color={colors.textInverse} size="small" />
+                    ) : (
+                      <Text style={styles.sheetSubmitLabel}>Send request</Text>
+                    )}
+                  </Pressable>
+                </View>
               </View>
-            </KeyboardAvoidingView>
+            </Pressable>
           </Pressable>
-        </Pressable>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
@@ -1101,6 +1111,7 @@ const styles = StyleSheet.create({
   ratedText: { ...type.caption, color: colors.textMuted, flex: 1 },
   ratedEdit: { ...type.label, color: colors.primary, fontWeight: "700" },
   starRow: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.xs },
+  keyboard: { flex: 1 },
   backdrop: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.45)",

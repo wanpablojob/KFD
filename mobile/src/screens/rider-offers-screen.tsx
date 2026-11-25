@@ -8,6 +8,7 @@ import {
   StyleSheet,
   Text,
   View,
+  KeyboardAvoidingView,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -272,7 +273,7 @@ export function RiderOffersScreen({ userId }: { userId: string }) {
   const profile = gate.profile as RiderProfile;
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView style={styles.container} behavior="padding">
       <FlatList
         data={offers ?? []}
         keyExtractor={(o) => String(o.offerId)}
@@ -526,7 +527,7 @@ export function RiderOffersScreen({ userId }: { userId: string }) {
         }
       />
       <StatusBar style="dark" />
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 

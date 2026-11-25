@@ -7,6 +7,7 @@ import {
   StyleSheet,
   Text,
   View,
+  KeyboardAvoidingView,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -32,7 +33,7 @@ export function MerchantScreen({
   const insets = useSafeAreaInsets();
   const bottomPadding = useScrollBottomPadding();
   return (
-    <View style={ui.container}>
+    <KeyboardAvoidingView style={ui.container} behavior="padding">
       <ScrollView
         contentContainerStyle={[
           ui.content,
@@ -59,7 +60,7 @@ export function MerchantScreen({
         {children}
       </ScrollView>
       <StatusBar style="dark" />
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 

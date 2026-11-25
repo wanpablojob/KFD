@@ -9,6 +9,7 @@ import {
   Switch,
   Text,
   View,
+  KeyboardAvoidingView,
 } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -171,124 +172,126 @@ export default function CustomerAccountScreen() {
   }
 
   return (
-    <ScrollView
-      style={styles.screen}
-      contentContainerStyle={[
-        styles.list,
-        { paddingTop: spacing.lg + insets.top, paddingBottom: bottomPadding },
-      ]}
-    >
-      <BrandMark style={{ marginBottom: spacing.md }} />
-      <View style={styles.header}>
-        <ProfileEditor name={name} caption={email || undefined} />
-        <View style={styles.rolePill}>
-          <Text style={styles.roleText}>CUSTOMER</Text>
+    <KeyboardAvoidingView style={styles.keyboard} behavior="padding">
+      <ScrollView
+        style={styles.screen}
+        contentContainerStyle={[
+          styles.list,
+          { paddingTop: spacing.lg + insets.top, paddingBottom: bottomPadding },
+        ]}
+      >
+        <BrandMark style={{ marginBottom: spacing.md }} />
+        <View style={styles.header}>
+          <ProfileEditor name={name} caption={email || undefined} />
+          <View style={styles.rolePill}>
+            <Text style={styles.roleText}>CUSTOMER</Text>
+          </View>
         </View>
-      </View>
 
-      <View style={[styles.card, shadow.card]}>
-        <Row
-          label="Delivery addresses"
-          hint={
-            addressCount > 0
-              ? `${addressCount} saved, each with the number your rider calls.`
-              : "Save your address and contact number so checkout is one tap."
-          }
-          onPress={() => router.push("/customer/addresses" as never)}
-        />
-      </View>
-
-      <View style={[styles.card, shadow.card, styles.pushCard]}>
-        <View style={styles.fieldHead}>
-          <Text style={styles.rowLabel}>Order notifications</Text>
-          <Text style={styles.hint}>
-            A push when your order is confirmed, on the way, or delivered.
-          </Text>
+        <View style={[styles.card, shadow.card]}>
+          <Row
+            label="Delivery addresses"
+            hint={
+              addressCount > 0
+                ? `${addressCount} saved, each with the number your rider calls.`
+                : "Save your address and contact number so checkout is one tap."
+            }
+            onPress={() => router.push("/customer/addresses" as never)}
+          />
         </View>
-        <Pressable
-          style={({ pressed }) => [styles.pushRow, pressed && styles.rowPressed]}
-          onPress={() => void togglePush()}
-          disabled={pushBusy}
-          accessibilityRole="switch"
-          accessibilityState={{ checked: push.granted && push.registered }}
-        >
-          <Text style={styles.pushState}>
-            {push.granted && push.registered ? "On" : "Off"}
-          </Text>
-          {pushBusy ? (
-            <ActivityIndicator color={colors.primary} />
-          ) : (
-            // The platform's own switch: a sliding knob, so on and off read at a glance.
-            <Switch
-              value={push.granted && push.registered}
-              onValueChange={() => void togglePush()}
-              trackColor={{ true: colors.primary, false: colors.border }}
-              accessibilityLabel="Notifications"
-            />
-          )}
-        </Pressable>
-        {push.error ? <Text style={styles.pushError}>{push.error}</Text> : null}
-      </View>
 
-      <View style={[styles.card, shadow.card]}>
-        <Row
-          label="Your orders"
-          hint="Track a past or active order"
-          onPress={() => router.push("/customer/orders" as never)}
-        />
-        <View style={styles.divider} />
-        <Row
-          label="Track by reference"
-          hint="Track any order with its Meriendash code"
-          onPress={() => router.push("/track" as never)}
-        />
-        <View style={styles.divider} />
-        {/* The earning side of the app, reached from the customer account. A
+        <View style={[styles.card, shadow.card, styles.pushCard]}>
+          <View style={styles.fieldHead}>
+            <Text style={styles.rowLabel}>Order notifications</Text>
+            <Text style={styles.hint}>
+              A push when your order is confirmed, on the way, or delivered.
+            </Text>
+          </View>
+          <Pressable
+            style={({ pressed }) => [styles.pushRow, pressed && styles.rowPressed]}
+            onPress={() => void togglePush()}
+            disabled={pushBusy}
+            accessibilityRole="switch"
+            accessibilityState={{ checked: push.granted && push.registered }}
+          >
+            <Text style={styles.pushState}>
+              {push.granted && push.registered ? "On" : "Off"}
+            </Text>
+            {pushBusy ? (
+              <ActivityIndicator color={colors.primary} />
+            ) : (
+              // The platform's own switch: a sliding knob, so on and off read at a glance.
+              <Switch
+                value={push.granted && push.registered}
+                onValueChange={() => void togglePush()}
+                trackColor={{ true: colors.primary, false: colors.border }}
+                accessibilityLabel="Notifications"
+              />
+            )}
+          </Pressable>
+          {push.error ? <Text style={styles.pushError}>{push.error}</Text> : null}
+        </View>
+
+        <View style={[styles.card, shadow.card]}>
+          <Row
+            label="Your orders"
+            hint="Track a past or active order"
+            onPress={() => router.push("/customer/orders" as never)}
+          />
+          <View style={styles.divider} />
+          <Row
+            label="Track by reference"
+            hint="Track any order with its Meriendash code"
+            onPress={() => router.push("/track" as never)}
+          />
+          <View style={styles.divider} />
+          {/* The earning side of the app, reached from the customer account. A
             signed-in rider never sees this row because /rider protects its own
             tabs, and submit_rider_application() refuses an existing rider. */}
-        <Row
-          label="Apply to deliver"
-          hint="Ride with Meriendash and get paid per delivery"
-          onPress={() => router.push("/rider-apply" as never)}
-        />
-        <View style={styles.divider} />
-        <Row
-          label="Help & support"
-          hint="Contact Meriendash about an order or your account"
-          onPress={() => openLegal("support")}
-        />
-        <View style={styles.divider} />
-        <Row
-          label="Privacy policy"
-          hint="What Meriendash keeps about you and why"
-          onPress={() => openLegal("privacy")}
-        />
-        <View style={styles.divider} />
-        <Row
-          label="Terms & conditions"
-          hint="The rules for ordering with Meriendash"
-          onPress={() => openLegal("terms")}
-        />
-      </View>
+          <Row
+            label="Apply to deliver"
+            hint="Ride with Meriendash and get paid per delivery"
+            onPress={() => router.push("/rider-apply" as never)}
+          />
+          <View style={styles.divider} />
+          <Row
+            label="Help & support"
+            hint="Contact Meriendash about an order or your account"
+            onPress={() => openLegal("support")}
+          />
+          <View style={styles.divider} />
+          <Row
+            label="Privacy policy"
+            hint="What Meriendash keeps about you and why"
+            onPress={() => openLegal("privacy")}
+          />
+          <View style={styles.divider} />
+          <Row
+            label="Terms & conditions"
+            hint="The rules for ordering with Meriendash"
+            onPress={() => openLegal("terms")}
+          />
+        </View>
 
-      <Pressable
-        style={({ pressed }) => [styles.signOut, pressed && styles.signOutPressed]}
-        onPress={() => void signOutAndUnregister()}
-        accessibilityRole="button"
-      >
-        <Text style={styles.signOutLabel}>Sign out</Text>
-      </Pressable>
+        <Pressable
+          style={({ pressed }) => [styles.signOut, pressed && styles.signOutPressed]}
+          onPress={() => void signOutAndUnregister()}
+          accessibilityRole="button"
+        >
+          <Text style={styles.signOutLabel}>Sign out</Text>
+        </Pressable>
 
-      <Pressable
-        style={styles.deleteAccount}
-        onPress={confirmDeleteAccount}
-        accessibilityRole="button"
-      >
-        <Text style={styles.deleteAccountLabel}>Delete my account</Text>
-      </Pressable>
+        <Pressable
+          style={styles.deleteAccount}
+          onPress={confirmDeleteAccount}
+          accessibilityRole="button"
+        >
+          <Text style={styles.deleteAccountLabel}>Delete my account</Text>
+        </Pressable>
 
-      <Text style={styles.version}>Meriendash</Text>
-    </ScrollView>
+        <Text style={styles.version}>Meriendash</Text>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -317,6 +320,7 @@ function Row({
 }
 
 const styles = StyleSheet.create({
+  keyboard: { flex: 1 },
   screen: { flex: 1, backgroundColor: colors.background },
   list: { padding: spacing.lg, gap: spacing.lg, paddingBottom: spacing.xxl },
   header: { alignItems: "center", gap: spacing.xs, paddingVertical: spacing.lg },

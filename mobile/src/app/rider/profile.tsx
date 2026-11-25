@@ -8,6 +8,7 @@ import {
   Switch,
   Text,
   View,
+  KeyboardAvoidingView,
 } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -224,7 +225,7 @@ export default function RiderProfileRoute() {
   const profile = gate.profile as RiderProfile;
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView style={styles.container} behavior="padding">
       <ScrollView
         contentContainerStyle={[styles.content, { paddingBottom: bottomPadding }]}
       >
@@ -364,7 +365,7 @@ export default function RiderProfileRoute() {
         </Pressable>
       </ScrollView>
       <StatusBar style="dark" />
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 

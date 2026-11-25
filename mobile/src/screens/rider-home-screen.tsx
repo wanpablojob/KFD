@@ -833,73 +833,77 @@ export function RiderHomeScreen({ userId }: { userId: string }) {
         animationType="fade"
         onRequestClose={closeFailReport}
       >
-        <Pressable
-          style={styles.backdrop}
-          accessibilityLabel="Dismiss"
-          onPress={closeFailReport}
-        >
-          {/* Stops a tap inside the sheet from dismissing it. */}
+        <KeyboardAvoidingView style={styles.keyboard} behavior="padding">
           <Pressable
-            style={[styles.sheet, { paddingBottom: spacing.xl + insets.bottom }]}
-            onPress={() => undefined}
+            style={styles.backdrop}
+            accessibilityLabel="Dismiss"
+            onPress={closeFailReport}
           >
-            <KeyboardAvoidingView behavior="padding">
-              <Text style={styles.sheetTitle}>Why can&apos;t you deliver this?</Text>
-              <Text style={styles.sheetBody}>
-                The order goes back to the restaurant to hand to another rider. You earn
-                nothing for it, and the reason is recorded against your name.
-              </Text>
-              {cancelWarning(cancels.data) ? (
-                <Text style={styles.cancelWarning}>{cancelWarning(cancels.data)}</Text>
-              ) : null}
+            {/* Stops a tap inside the sheet from dismissing it. */}
+            <Pressable
+              style={[styles.sheet, { paddingBottom: spacing.xl + insets.bottom }]}
+              onPress={() => undefined}
+            >
+              <View>
+                <Text style={styles.sheetTitle}>Why can&apos;t you deliver this?</Text>
+                <Text style={styles.sheetBody}>
+                  The order goes back to the restaurant to hand to another rider. You
+                  earn nothing for it, and the reason is recorded against your name.
+                </Text>
+                {cancelWarning(cancels.data) ? (
+                  <Text style={styles.cancelWarning}>
+                    {cancelWarning(cancels.data)}
+                  </Text>
+                ) : null}
 
-              <TextInput
-                style={styles.input}
-                value={failReason}
-                onChangeText={setFailReason}
-                placeholder="Customer not answering, address not found, order already cancelled…"
-                placeholderTextColor={colors.textFaint}
-                multiline
-                numberOfLines={3}
-                maxLength={500}
-                autoFocus
-                editable={!reporting}
-                accessibilityLabel="Reason the delivery could not be completed"
-              />
-              <Text style={styles.counter}>{failReason.trim().length}/500</Text>
+                <TextInput
+                  style={styles.input}
+                  value={failReason}
+                  onChangeText={setFailReason}
+                  placeholder="Customer not answering, address not found, order already cancelled…"
+                  placeholderTextColor={colors.textFaint}
+                  multiline
+                  numberOfLines={3}
+                  maxLength={500}
+                  autoFocus
+                  editable={!reporting}
+                  accessibilityLabel="Reason the delivery could not be completed"
+                />
+                <Text style={styles.counter}>{failReason.trim().length}/500</Text>
 
-              <View style={styles.sheetActions}>
-                <Pressable
-                  style={[styles.secondaryButton, reporting && styles.disabled]}
-                  disabled={reporting}
-                  onPress={closeFailReport}
-                >
-                  <Text style={styles.secondaryButtonLabel}>Keep the order</Text>
-                </Pressable>
-                <Pressable
-                  style={[
-                    styles.failButton,
-                    (!failReason.trim() || reporting) && styles.disabled,
-                  ]}
-                  disabled={!failReason.trim() || reporting}
-                  onPress={() =>
-                    failingTripId
-                      ? void reportFailedTrip(failingTripId)
-                      : failingId && void reportFailed(failingId)
-                  }
-                >
-                  {reporting ? (
-                    <ActivityIndicator color={colors.textInverse} size="small" />
-                  ) : (
-                    <Text style={styles.failButtonLabel}>
-                      {failingTripId ? "Return the trip" : "Return to restaurant"}
-                    </Text>
-                  )}
-                </Pressable>
+                <View style={styles.sheetActions}>
+                  <Pressable
+                    style={[styles.secondaryButton, reporting && styles.disabled]}
+                    disabled={reporting}
+                    onPress={closeFailReport}
+                  >
+                    <Text style={styles.secondaryButtonLabel}>Keep the order</Text>
+                  </Pressable>
+                  <Pressable
+                    style={[
+                      styles.failButton,
+                      (!failReason.trim() || reporting) && styles.disabled,
+                    ]}
+                    disabled={!failReason.trim() || reporting}
+                    onPress={() =>
+                      failingTripId
+                        ? void reportFailedTrip(failingTripId)
+                        : failingId && void reportFailed(failingId)
+                    }
+                  >
+                    {reporting ? (
+                      <ActivityIndicator color={colors.textInverse} size="small" />
+                    ) : (
+                      <Text style={styles.failButtonLabel}>
+                        {failingTripId ? "Return the trip" : "Return to restaurant"}
+                      </Text>
+                    )}
+                  </Pressable>
+                </View>
               </View>
-            </KeyboardAvoidingView>
+            </Pressable>
           </Pressable>
-        </Pressable>
+        </KeyboardAvoidingView>
       </Modal>
 
       <StatusBar style="dark" />
@@ -1134,6 +1138,7 @@ const styles = StyleSheet.create({
   cancelBlocked: { ...type.caption, color: colors.danger, flex: 1 },
   failButtonLabel: { ...type.label, color: colors.danger },
 
+  keyboard: { flex: 1 },
   backdrop: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.45)",

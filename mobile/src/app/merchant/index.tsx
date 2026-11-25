@@ -1,5 +1,13 @@
 import { useEffect, useState } from "react";
-import { Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import {
+  Modal,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  KeyboardAvoidingView,
+} from "react-native";
 import { Link } from "expo-router";
 import {
   MerchantButton,
@@ -241,38 +249,41 @@ function CancelDialog({
       animationType="fade"
       onRequestClose={close}
     >
-      <Pressable style={styles.backdrop} onPress={close} accessibilityLabel="Dismiss">
-        <Pressable style={styles.dialog} onPress={() => {}}>
-          <Text style={type.heading}>Cancel {order?.reference}?</Text>
-          <Text style={ui.muted}>Tell the customer why. They will see this.</Text>
-          <TextInput
-            value={reason}
-            onChangeText={setReason}
-            placeholder="e.g. Out of chicken today"
-            placeholderTextColor={colors.textFaint}
-            style={styles.input}
-            autoFocus
-          />
-          <View style={styles.actions}>
-            <MerchantButton label="Keep order" tone="outline" onPress={close} />
-            <MerchantButton
-              label="Cancel order"
-              tone="danger"
-              disabled={!reason.trim()}
-              onPress={() => {
-                const text = reason.trim();
-                setReason("");
-                onConfirm(text);
-              }}
+      <KeyboardAvoidingView style={styles.keyboard} behavior="padding">
+        <Pressable style={styles.backdrop} onPress={close} accessibilityLabel="Dismiss">
+          <Pressable style={styles.dialog} onPress={() => {}}>
+            <Text style={type.heading}>Cancel {order?.reference}?</Text>
+            <Text style={ui.muted}>Tell the customer why. They will see this.</Text>
+            <TextInput
+              value={reason}
+              onChangeText={setReason}
+              placeholder="e.g. Out of chicken today"
+              placeholderTextColor={colors.textFaint}
+              style={styles.input}
+              autoFocus
             />
-          </View>
+            <View style={styles.actions}>
+              <MerchantButton label="Keep order" tone="outline" onPress={close} />
+              <MerchantButton
+                label="Cancel order"
+                tone="danger"
+                disabled={!reason.trim()}
+                onPress={() => {
+                  const text = reason.trim();
+                  setReason("");
+                  onConfirm(text);
+                }}
+              />
+            </View>
+          </Pressable>
         </Pressable>
-      </Pressable>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
+  keyboard: { flex: 1 },
   closed: {
     backgroundColor: colors.dangerSoft,
     borderRadius: radius.md,

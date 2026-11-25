@@ -8,6 +8,7 @@ import {
   Text,
   TextInput,
   View,
+  KeyboardAvoidingView,
 } from "react-native";
 import { pickPhoto } from "../lib/pick-photo";
 
@@ -177,104 +178,107 @@ export function CompleteDeliverySheet({ order, riderId, onCancel, onDone }: Prop
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={close}>
-      <Pressable style={styles.backdrop} accessibilityLabel="Dismiss" onPress={close}>
-        <Pressable style={styles.sheet} onPress={() => {}}>
-          <Text style={styles.sheetTitle}>Complete delivery</Text>
-          <Text style={styles.sheetBody}>
-            {order.reference} · {order.restaurant}. This records your fee and cannot be
-            undone.
-          </Text>
+      <KeyboardAvoidingView style={styles.keyboard} behavior="padding">
+        <Pressable style={styles.backdrop} accessibilityLabel="Dismiss" onPress={close}>
+          <Pressable style={styles.sheet} onPress={() => {}}>
+            <Text style={styles.sheetTitle}>Complete delivery</Text>
+            <Text style={styles.sheetBody}>
+              {order.reference} · {order.restaurant}. This records your fee and cannot
+              be undone.
+            </Text>
 
-          <ScrollView
-            style={styles.scroll}
-            contentContainerStyle={styles.scrollBody}
-            keyboardShouldPersistTaps="handled"
-          >
-            {/* Proof. Required on every order, cash or not. */}
-            <Text style={styles.label}>Photo of the delivery</Text>
-            {photoUri ? (
-              <Pressable onPress={takePhoto}>
-                <Image source={{ uri: photoUri }} style={styles.preview} />
-                <Text style={styles.retake}>Tap to change the photo</Text>
-              </Pressable>
-            ) : (
-              <Pressable style={styles.photoButton} onPress={takePhoto}>
-                <Text style={styles.photoButtonLabel}>Add photo</Text>
-              </Pressable>
-            )}
-
-            {needsCash && (
-              <>
-                <Text style={styles.label}>Cash collected</Text>
-                <View style={styles.collectRow}>
-                  <Text style={styles.currency}>₱</Text>
-                  <TextInput
-                    style={styles.amountInput}
-                    value={cash}
-                    onChangeText={setCash}
-                    keyboardType="decimal-pad"
-                    placeholder={order.total.toFixed(2)}
-                    placeholderTextColor={colors.textFaint}
-                    accessibilityLabel="Cash collected"
-                  />
-                </View>
-                <Text style={styles.hint}>
-                  Order total is {order.total.toFixed(2)}. Enter what the customer
-                  actually handed you — a different amount is saved and flagged, not
-                  blocked.
-                </Text>
-              </>
-            )}
-
-            {needsReference && (
-              <>
-                <Text style={styles.label}>GCash reference</Text>
-                <TextInput
-                  style={styles.textInput}
-                  value={reference}
-                  onChangeText={setReference}
-                  autoCapitalize="characters"
-                  autoCorrect={false}
-                  placeholder="Optional — leave blank if you have none"
-                  placeholderTextColor={colors.textFaint}
-                  accessibilityLabel="GCash reference"
-                />
-                <Text style={styles.hint}>
-                  The customer paid your GCash QR directly. Adding the reference lets an
-                  operator settle a dispute later.
-                </Text>
-              </>
-            )}
-
-            {fieldError && <Text style={styles.warning}>{fieldError}</Text>}
-            {submitError && <Text style={styles.error}>{submitError}</Text>}
-          </ScrollView>
-
-          <View style={styles.actions}>
-            <Pressable style={styles.secondary} onPress={close} disabled={submitting}>
-              <Text style={styles.secondaryLabel}>Cancel</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.primary, submitting && styles.disabled]}
-              onPress={submit}
-              disabled={submitting || !riderId}
+            <ScrollView
+              style={styles.scroll}
+              contentContainerStyle={styles.scrollBody}
+              keyboardShouldPersistTaps="handled"
             >
-              <Text style={styles.primaryLabel}>
-                {submitting
-                  ? "Uploading…"
-                  : confirmedWarning
-                    ? "Complete anyway"
-                    : "Complete"}
-              </Text>
-            </Pressable>
-          </View>
+              {/* Proof. Required on every order, cash or not. */}
+              <Text style={styles.label}>Photo of the delivery</Text>
+              {photoUri ? (
+                <Pressable onPress={takePhoto}>
+                  <Image source={{ uri: photoUri }} style={styles.preview} />
+                  <Text style={styles.retake}>Tap to change the photo</Text>
+                </Pressable>
+              ) : (
+                <Pressable style={styles.photoButton} onPress={takePhoto}>
+                  <Text style={styles.photoButtonLabel}>Add photo</Text>
+                </Pressable>
+              )}
+
+              {needsCash && (
+                <>
+                  <Text style={styles.label}>Cash collected</Text>
+                  <View style={styles.collectRow}>
+                    <Text style={styles.currency}>₱</Text>
+                    <TextInput
+                      style={styles.amountInput}
+                      value={cash}
+                      onChangeText={setCash}
+                      keyboardType="decimal-pad"
+                      placeholder={order.total.toFixed(2)}
+                      placeholderTextColor={colors.textFaint}
+                      accessibilityLabel="Cash collected"
+                    />
+                  </View>
+                  <Text style={styles.hint}>
+                    Order total is {order.total.toFixed(2)}. Enter what the customer
+                    actually handed you — a different amount is saved and flagged, not
+                    blocked.
+                  </Text>
+                </>
+              )}
+
+              {needsReference && (
+                <>
+                  <Text style={styles.label}>GCash reference</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    value={reference}
+                    onChangeText={setReference}
+                    autoCapitalize="characters"
+                    autoCorrect={false}
+                    placeholder="Optional — leave blank if you have none"
+                    placeholderTextColor={colors.textFaint}
+                    accessibilityLabel="GCash reference"
+                  />
+                  <Text style={styles.hint}>
+                    The customer paid your GCash QR directly. Adding the reference lets
+                    an operator settle a dispute later.
+                  </Text>
+                </>
+              )}
+
+              {fieldError && <Text style={styles.warning}>{fieldError}</Text>}
+              {submitError && <Text style={styles.error}>{submitError}</Text>}
+            </ScrollView>
+
+            <View style={styles.actions}>
+              <Pressable style={styles.secondary} onPress={close} disabled={submitting}>
+                <Text style={styles.secondaryLabel}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.primary, submitting && styles.disabled]}
+                onPress={submit}
+                disabled={submitting || !riderId}
+              >
+                <Text style={styles.primaryLabel}>
+                  {submitting
+                    ? "Uploading…"
+                    : confirmedWarning
+                      ? "Complete anyway"
+                      : "Complete"}
+                </Text>
+              </Pressable>
+            </View>
+          </Pressable>
         </Pressable>
-      </Pressable>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
+  keyboard: { flex: 1 },
   backdrop: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.45)",
