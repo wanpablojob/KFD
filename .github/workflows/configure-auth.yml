@@ -149,7 +149,7 @@ jobs:
             // reset link opened nothing. The workflow now owns the field: every
             // run sets it, and the apply step refuses to finish if the project
             // does not come back with exactly this value.
-            site_url: "https://kfd-one.vercel.app",
+            site_url: "https://meriendash.vercel.app",
             // The code the app types, and how long it lives.
             mailer_otp_length: 6,
             mailer_otp_exp: 3600,
@@ -292,8 +292,8 @@ jobs:
                 // The field this workflow exists to pin. A link that opens
                 // localhost is a reset that cannot be used, so a wrong value
                 // here fails the run rather than shipping quietly.
-                if (c.site_url !== "https://kfd-one.vercel.app") {
-                  console.error(`::error::site_url is ${JSON.stringify(c.site_url)}, expected "https://kfd-one.vercel.app"`);
+                if (c.site_url !== "https://meriendash.vercel.app") {
+                  console.error(`::error::site_url is ${JSON.stringify(c.site_url)}, expected "https://meriendash.vercel.app"`);
                   process.exit(1);
                 }
               });
@@ -412,7 +412,7 @@ jobs:
                 headers: { apikey: pub, "Content-Type": "application/json" },
                 body: JSON.stringify({
                   email: "appreview.customer@kfd.ph",
-                  redirect_to: "https://kfd-one.vercel.app/support",
+                  redirect_to: "https://meriendash.vercel.app/support",
                 }),
               }
             );

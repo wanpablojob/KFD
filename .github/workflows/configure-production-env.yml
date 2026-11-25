@@ -317,7 +317,7 @@ jobs:
             },
             {
               key: "NEXT_PUBLIC_SITE_URL",
-              value: "https://kfd-one.vercel.app",
+              value: "https://meriendash.vercel.app",
               type: "plain",
             },
             {

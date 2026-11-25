@@ -28,16 +28,16 @@ update public.restaurants
 
 -- 2. The ten shops ----------------------------------------------------------
 insert into public.restaurants (id, name, cuisine, city, status, is_open, image_url) values
-  ('rst_alonsos', 'Alonso''s Cansi & Sizzling House', 'Cansi, inasal & sizzling', 'Kabankalan City Proper', 'active', true, 'https://kfd-one.vercel.app/images/shops/alonsos.jpg'),
-  ('rst_avbean', 'Avbean Bakehouse', 'Coffee, matcha & drinks', 'Kabankalan City Proper', 'active', true, 'https://kfd-one.vercel.app/images/shops/avbean.jpg'),
-  ('rst_cafenoy', 'CafeNoy', 'Café, rice meals & drinks', 'Kabankalan City Proper', 'active', true, 'https://kfd-one.vercel.app/images/shops/cafenoy.jpg'),
-  ('rst_castanos', 'Castaño''s Dine and Drink', 'Inasal, talaba & unli rice', 'Kabankalan City Proper', 'active', true, 'https://kfd-one.vercel.app/images/shops/castanos.jpg'),
-  ('rst_granjeros', 'Granjeros Cafe', 'Coffee & pastries', 'Kabankalan City Proper', 'active', true, 'https://kfd-one.vercel.app/images/shops/granjeros.jpg'),
-  ('rst_hide_and_seek', 'Hide & Seek Cafe', 'Snacks, burgers & shawarma', 'Kabankalan City Proper', 'active', true, 'https://kfd-one.vercel.app/images/shops/hide-and-seek.jpg'),
-  ('rst_pikons', 'Pikon''s Sizzling Hub', 'Sizzling plates & rice bowls', 'Kabankalan City Proper', 'active', true, 'https://kfd-one.vercel.app/images/shops/pikons.jpg'),
-  ('rst_reginas', 'Regina''s Cafe', 'Coffee, kakanin & silog', 'Kabankalan City Proper', 'active', true, 'https://kfd-one.vercel.app/images/shops/reginas.jpg'),
-  ('rst_sols', 'Sol''s Garden Café', 'Café, pasta, pizza & Cebuano', 'Kabankalan City Proper', 'active', true, 'https://kfd-one.vercel.app/images/shops/sols.jpg'),
-  ('rst_tito_tat', 'Tito Tat Palamunitan and Seafoods', 'Seafood & Bisaya manok', 'Kabankalan City Proper', 'active', true, 'https://kfd-one.vercel.app/images/shops/tito-tat.jpg')
+  ('rst_alonsos', 'Alonso''s Cansi & Sizzling House', 'Cansi, inasal & sizzling', 'Kabankalan City Proper', 'active', true, 'https://meriendash.vercel.app/images/shops/alonsos.jpg'),
+  ('rst_avbean', 'Avbean Bakehouse', 'Coffee, matcha & drinks', 'Kabankalan City Proper', 'active', true, 'https://meriendash.vercel.app/images/shops/avbean.jpg'),
+  ('rst_cafenoy', 'CafeNoy', 'Café, rice meals & drinks', 'Kabankalan City Proper', 'active', true, 'https://meriendash.vercel.app/images/shops/cafenoy.jpg'),
+  ('rst_castanos', 'Castaño''s Dine and Drink', 'Inasal, talaba & unli rice', 'Kabankalan City Proper', 'active', true, 'https://meriendash.vercel.app/images/shops/castanos.jpg'),
+  ('rst_granjeros', 'Granjeros Cafe', 'Coffee & pastries', 'Kabankalan City Proper', 'active', true, 'https://meriendash.vercel.app/images/shops/granjeros.jpg'),
+  ('rst_hide_and_seek', 'Hide & Seek Cafe', 'Snacks, burgers & shawarma', 'Kabankalan City Proper', 'active', true, 'https://meriendash.vercel.app/images/shops/hide-and-seek.jpg'),
+  ('rst_pikons', 'Pikon''s Sizzling Hub', 'Sizzling plates & rice bowls', 'Kabankalan City Proper', 'active', true, 'https://meriendash.vercel.app/images/shops/pikons.jpg'),
+  ('rst_reginas', 'Regina''s Cafe', 'Coffee, kakanin & silog', 'Kabankalan City Proper', 'active', true, 'https://meriendash.vercel.app/images/shops/reginas.jpg'),
+  ('rst_sols', 'Sol''s Garden Café', 'Café, pasta, pizza & Cebuano', 'Kabankalan City Proper', 'active', true, 'https://meriendash.vercel.app/images/shops/sols.jpg'),
+  ('rst_tito_tat', 'Tito Tat Palamunitan and Seafoods', 'Seafood & Bisaya manok', 'Kabankalan City Proper', 'active', true, 'https://meriendash.vercel.app/images/shops/tito-tat.jpg')
 on conflict (id) do update set
   name        = excluded.name,
   cuisine     = excluded.cuisine,
