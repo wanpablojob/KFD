@@ -1,0 +1,100 @@
+# Retire the old Vercel alias, and nothing else.
+#
+# The site moved to meriendash.vercel.app. kfd.ph stays as the reachable
+# custom domain; kfd-one.vercel.app is the alias being retired. The MCP tools
+# can add and inspect project domains but cannot remove one, so this uses the
+# same Vercel API token the deploy workflows already use.
+#
+# workflow_dispatch only. A dry run is the default. A real removal also needs
+# confirm=true and checks that meriendash.vercel.app is still attached before
+# it deletes the old alias.
+
+name: Retire Vercel alias
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Preview only -- list the domains, delete nothing"
+        type: boolean
+        required: true
+        default: true
+      confirm:
+        description: "Required for a real removal"
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: read
+
+env:
+  VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+  VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+  VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+  OLD_ALIAS: kfd-one.vercel.app
+  NEW_ALIAS: meriendash.vercel.app
+
+jobs:
+  retire:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check the token and the project
+        run: |
+          set -euo pipefail
+          if [ -z "${VERCEL_TOKEN:-}" ] || [ -z "${VERCEL_PROJECT_ID:-}" ]; then
+            echo "::error::VERCEL_TOKEN or VERCEL_PROJECT_ID is not set"
+            exit 1
+          fi
+          if [ "${VERCEL_PROJECT_ID}" != "prj_k3erUguSa2AVpdf6swAFKWOp4q4U" ]; then
+            echo "::error::Refusing to touch project ${VERCEL_PROJECT_ID}; expected the kfd project"
+            exit 1
+          fi
+          echo "Project checked. Token present."
+
+      - name: List the project domains
+        run: |
+          set -euo pipefail
+          url="https://api.vercel.com/v9/projects/${VERCEL_PROJECT_ID}/domains"
+          [ -n "${VERCEL_ORG_ID:-}" ] && url="${url}?teamId=${VERCEL_ORG_ID}"
+          curl -fsS "$url" -H "Authorization: Bearer ${VERCEL_TOKEN}" \
+            > domains.json
+          jq -r '.domains[] | "\(.name) verified=\(.verified)"' domains.json
+
+      - name: Refuse to remove the site address
+        if: ${{ !inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          if ! jq -e --arg name "$NEW_ALIAS" \
+               '.domains[] | select(.name == $name and .verified == true)' \
+               domains.json > /dev/null; then
+            echo "::error::${NEW_ALIAS} is not a verified domain on this project. Nothing was removed."
+            exit 1
+          fi
+          if [ "${{ inputs.confirm }}" != "true" ]; then
+            echo "::error::confirm=true is required for a real removal"
+            exit 1
+          fi
+          echo "Site address is still attached; removal confirmed."
+
+      - name: Remove the old alias
+        if: ${{ !inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          url="https://api.vercel.com/v9/projects/${VERCEL_PROJECT_ID}/domains/${OLD_ALIAS}"
+          [ -n "${VERCEL_ORG_ID:-}" ] && url="${url}?teamId=${VERCEL_ORG_ID}"
+          curl -fsS -X DELETE "$url" \
+            -H "Authorization: Bearer ${VERCEL_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d '{"removeRedirects":false}'
+          echo ""
+          echo "Removed ${OLD_ALIAS}."
+
+      - name: List the project domains after
+        if: ${{ !inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          url="https://api.vercel.com/v9/projects/${VERCEL_PROJECT_ID}/domains"
+          [ -n "${VERCEL_ORG_ID:-}" ] && url="${url}?teamId=${VERCEL_ORG_ID}"
+          curl -fsS "$url" -H "Authorization: Bearer ${VERCEL_TOKEN}" \
+            | jq -r '.domains[] | "\(.name) verified=\(.verified)"'
