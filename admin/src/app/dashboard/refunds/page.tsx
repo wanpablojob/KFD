@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react";
 import { fetchRefunds } from "@/lib/supabase/feedback-queries";
-import { RefundRequests } from "@/components/refund-requests";
 import { useAsyncData } from "@/lib/use-async-data";
 import {
   PageContainer,
@@ -148,7 +147,6 @@ export default function RefundsPage() {
       />
 
       <Stack gap={6}>
-        <RefundRequests onResolved={refunds.refetch} />
         <Section aria-label="Filters">
           <Toolbar className="mb-0">
             <RangeFilter

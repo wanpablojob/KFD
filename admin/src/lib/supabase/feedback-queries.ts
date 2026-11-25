@@ -30,24 +30,6 @@ export async function fetchOrderRefunds(orderId: string): Promise<Refund[]> {
   );
 }
 
-/** The server refuses anything that would refund more than the order total. */
-export async function recordRefund(
-  orderId: string,
-  amount: number,
-  method: Refund["method"],
-  reason: string,
-): Promise<void> {
-  const { data, error } = await supabase.rpc("admin_record_refund", {
-    p_order_id: orderId,
-    p_amount: amount,
-    p_method: method,
-    p_reason: reason,
-  });
-  if (error) throw new Error(error.message);
-  const refundId = data?.[0]?.id;
-  if (refundId !== undefined) void notifyAdminDecision("refund", refundId);
-}
-
 export interface Rating {
   order_id: string;
   restaurant_rating: number;

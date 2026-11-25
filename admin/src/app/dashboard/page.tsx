@@ -44,6 +44,8 @@ import {
 import { stalledRows } from "@/lib/stuck-orders";
 import { fetchOpenStalls } from "@/lib/supabase/stall-queries";
 import { StalledOrders } from "@/components/stalled-orders";
+import { RefundRequests } from "@/components/refund-requests";
+import { fetchPendingRefundRequests } from "@/lib/supabase/feedback-queries";
 import { WaitingForRider } from "@/components/waiting-for-rider";
 import { fetchPendingDeliveries } from "@/lib/supabase/dispatch-queries";
 import type { Kpi } from "@/lib/types";
@@ -70,6 +72,8 @@ export default function OverviewPage() {
   // deployment where the migration is not applied yet the item is simply
   // absent instead of taking the overview down.
   const stalls = useAsyncData(() => fetchOpenStalls());
+  // Customers' refund requests (0159), answered right in Needs attention.
+  const refundRequests = useAsyncData(() => fetchPendingRefundRequests());
 
   const loading = orders.loading || riders.loading;
   const error = orders.error ?? riders.error;
@@ -111,6 +115,7 @@ export default function OverviewPage() {
     (r) => r.onHand > 0,
   ).length;
 
+  const pendingRefunds = refundRequests.data ?? [];
   const deltas = splitPeriods(orderRows, []);
   const live = liveCounts(orderRows);
   const attention = attentionItems(
@@ -187,11 +192,11 @@ export default function OverviewPage() {
                 }
               />
               <div className="px-5 pb-4">
-                {attention.length === 0 ? (
+                {attention.length === 0 && pendingRefunds.length === 0 ? (
                   <p className="py-4 text-sm text-muted-foreground">
                     All clear. Nothing is waiting on staff.
                   </p>
-                ) : (
+                ) : attention.length === 0 ? null : (
                   <ul className="divide-y divide-border/70">
                     {attention.map((item) => (
                       <li key={item.key}>
@@ -218,6 +223,10 @@ export default function OverviewPage() {
                     ))}
                   </ul>
                 )}
+                <RefundRequests
+                  rows={pendingRefunds}
+                  onResolved={() => void refundRequests.refetch()}
+                />
               </div>
             </Card>
           </Section>

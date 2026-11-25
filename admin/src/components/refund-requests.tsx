@@ -1,16 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { Card, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { formatCurrency, formatShortDate } from "@/lib/format";
-import { useAsyncData } from "@/lib/use-async-data";
 import {
-  fetchPendingRefundRequests,
   resolveRefundRequest,
   type RefundRequestEntry,
 } from "@/lib/supabase/feedback-queries";
@@ -18,11 +15,17 @@ import {
 type Decision = { row: RefundRequestEntry; approve: boolean };
 
 /**
- * Customers' refund requests waiting for an answer (0159). Approving records
- * the refund in the ledger below; declining needs a note the customer reads.
+ * Customers' refund requests waiting for an answer (0159), shown in the
+ * Overview's Needs attention card. Approving records the refund; declining
+ * needs a note the customer reads. A request is the only way to refund.
  */
-export function RefundRequests({ onResolved }: { onResolved: () => void }) {
-  const requests = useAsyncData(() => fetchPendingRefundRequests());
+export function RefundRequests({
+  rows,
+  onResolved,
+}: {
+  rows: RefundRequestEntry[];
+  onResolved: () => void;
+}) {
   const [decision, setDecision] = useState<Decision | null>(null);
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState<"cash" | "gcash">("cash");
@@ -30,8 +33,7 @@ export function RefundRequests({ onResolved }: { onResolved: () => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const rows = requests.data ?? [];
-  if (rows.length === 0 && !requests.error) return null;
+  if (rows.length === 0) return null;
 
   function open(row: RefundRequestEntry, approve: boolean) {
     setDecision({ row, approve });
@@ -63,7 +65,6 @@ export function RefundRequests({ onResolved }: { onResolved: () => void }) {
         note: note.trim() || undefined,
       });
       setDecision(null);
-      requests.refetch();
       onResolved();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Could not save.");
@@ -73,19 +74,13 @@ export function RefundRequests({ onResolved }: { onResolved: () => void }) {
   }
 
   return (
-    <Card>
-      <CardHeader
-        title={`Refund requests (${rows.length})`}
-        subtitle="Customers asking for money back. Approving records the refund below."
-      />
-      {requests.error ? (
-        <p className="px-5 pb-5 text-sm text-destructive">
-          Could not load refund requests: {requests.error}
-        </p>
-      ) : (
-        <ul className="divide-y divide-border">
+    <div>
+      <p className="pt-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        Refund requests ({rows.length})
+      </p>
+      <ul className="divide-y divide-border/70">
           {rows.map((row) => (
-            <li key={row.id} className="flex flex-wrap items-start gap-3 px-5 py-3 text-sm">
+            <li key={row.id} className="flex flex-wrap items-start gap-3 py-2.5 text-sm">
               <div className="min-w-0 flex-1">
                 <p className="font-medium text-card-foreground">
                   {row.reference} · {row.restaurant} · {formatCurrency(row.total)}
@@ -107,8 +102,7 @@ export function RefundRequests({ onResolved }: { onResolved: () => void }) {
               </span>
             </li>
           ))}
-        </ul>
-      )}
+      </ul>
 
       <Dialog
         open={decision !== null}
@@ -182,6 +176,6 @@ export function RefundRequests({ onResolved }: { onResolved: () => void }) {
           </div>
         </form>
       </Dialog>
-    </Card>
+    </div>
   );
 }
