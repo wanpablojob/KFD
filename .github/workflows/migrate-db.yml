@@ -874,22 +874,25 @@ jobs:
                   failures.append("%s cannot call track_order" % label)
 
           # The function must actually refuse, not merely be un-granted. This
-          # connection is an unentitled caller (no JWT), and every seeded
-          # reference is a legacy sequential one, so a row here means the
-          # entropy check is not being enforced.
-          legacy = query(
-              "select reference from orders order by placed_at limit 1"
-          )
+          # connection is an unentitled caller (no JWT). A legacy reference is
+          # only readable by an entitled caller, so a row here means the
+          # entropy check is not being enforced. Production may have no legacy
+          # order left -- real orders now carry 48 bits of entropy -- so the
+          # probe brings its own inside a rolled-back transaction. Picking the
+          # oldest order instead mistook a public high-entropy reference for
+          # a leak once real orders arrived.
+          legacy = query("""
+          begin;
+          insert into public.orders (reference, customer, restaurant)
+            values ('#KFD-LEGACY-PROBE', 'RLS probe', 'RLS probe');
+          select * from public.track_order('#KFD-LEGACY-PROBE');
+          rollback;
+          """)
           if legacy:
-              leaked = query(
-                  "select * from public.track_order(%s)"
-                  % ("'" + legacy[0]["reference"].replace("'", "''") + "'")
+              failures.append(
+                  "track_order returned a row for a legacy reference to an "
+                  "unentitled caller"
               )
-              if leaked:
-                  failures.append(
-                      "track_order returned a row for the sequential reference %s "
-                      "to an unentitled caller" % legacy[0]["reference"]
-                  )
 
           # The reference has to carry the entropy the public path depends on.
           # A silent change here -- a shorter suffix, a sequential generator --
@@ -991,15 +994,21 @@ jobs:
 
           # A real merchant, so the jwt.claims path -- and the RLS that reads
           # it through auth.uid() -- is exercised exactly as a browser session
-          # would. Prefer the restaurant that owns the fixture (rst_01; seeded
-          # merchant in 0004): it lets the isolation check also prove positive
-          # access to a reference-bearing order, not just absence of leaks.
+          # would. Pick one whose restaurant actually has a reference-bearing
+          # order: the seeded rst_01 merchant has no orders in production,
+          # which made the positive half of the check impossible to satisfy
+          # while still counting as a failure.
           merch = query(
               """
-              select user_id::text as uid, restaurant_id
-                from app_users
-               where role = 'merchant' and restaurant_id is not null
-               order by (restaurant_id = 'rst_01') desc, restaurant_id
+              select u.user_id::text as uid, u.restaurant_id
+                from app_users u
+               where u.role = 'merchant' and u.restaurant_id is not null
+                 and exists (
+                   select 1 from orders o
+                    where o.restaurant_id = u.restaurant_id
+                      and o.reference is not null
+                 )
+               order by u.restaurant_id
                limit 1
               """
           )
@@ -1029,9 +1038,17 @@ jobs:
                   'authenticated',
                   now()
                 );
-              update orders
-                 set customer_user_id = '99999999-9999-9999-9999-999999999999'
-               where reference = '#KFD-7A3F9C1E5B20';
+              -- Bring the linked order too. The old probe only relabelled a
+              -- seeded fixture that production has since outgrown, so it
+              -- proved nothing when the fixture was absent.
+              insert into public.orders
+                (reference, customer, restaurant, customer_user_id)
+                values (
+                  public.mint_order_reference(),
+                  'RLS probe',
+                  'RLS probe',
+                  '99999999-9999-9999-9999-999999999999'
+                );
               select set_config('request.jwt.claims',
                 '{"sub": "99999999-9999-9999-9999-999999999999", "role": "authenticated"}',
                 true);
