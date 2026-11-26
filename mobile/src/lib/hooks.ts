@@ -44,6 +44,7 @@ import {
   type CustomerDelivery,
   type CustomerOrder,
   type RefundRequest,
+  type RefundAgainst,
   type PlaceOrderResult,
   type PlaceOrderItem,
   type PaymentChoice,
@@ -526,8 +527,12 @@ export function useMyRefundRequests() {
 export function useRequestRefund() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (args: { orderId: string; reason: string }) =>
-      requestRefund(args.orderId, args.reason),
+    mutationFn: (args: {
+      orderId: string;
+      reason: string;
+      against: RefundAgainst;
+      photoUri: string;
+    }) => requestRefund(args.orderId, args.reason, args.against, args.photoUri),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["myRefundRequests"] }),
   });
 }

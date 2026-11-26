@@ -91,6 +91,16 @@ export function RefundRequests({
                 <p className="mt-1 whitespace-pre-wrap text-card-foreground">
                   “{row.reason}”
                 </p>
+                {row.photoUrl ? (
+                  <a href={row.photoUrl} target="_blank" rel="noreferrer">
+                    {/* eslint-disable-next-line @next/next/no-img-element -- short-lived signed URL */}
+                    <img
+                      src={row.photoUrl}
+                      alt={`Customer's photo for ${row.reference}`}
+                      className="mt-2 h-28 w-auto rounded-md border border-border object-cover"
+                    />
+                  </a>
+                ) : null}
               </div>
               <span className="flex gap-2">
                 <Button size="sm" onClick={() => open(row, true)}>

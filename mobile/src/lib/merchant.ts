@@ -383,6 +383,91 @@ export function useMerchantOrders() {
   });
 }
 
+/** A customer's refund request about this shop's food, waiting for an answer (0163). */
+export interface MerchantRefundRequest {
+  id: number;
+  orderId: string;
+  reference: string;
+  customer: string;
+  total: number;
+  payment: string;
+  reason: string;
+  createdAt: string;
+  /** Short-lived link to the customer's photo, or null if it could not be signed. */
+  photoUrl: string | null;
+}
+
+export async function fetchMerchantRefundRequests(): Promise<MerchantRefundRequest[]> {
+  // RLS returns only requests against this shop, for its own orders (0163).
+  const { data, error } = await supabase
+    .from("refund_requests")
+    .select(
+      "id, order_id, reason, photo_path, created_at, orders(reference, customer, total, payment)"
+    )
+    .eq("status", "pending")
+    .eq("against", "merchant")
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+  return Promise.all(
+    (data ?? []).map(async (r) => {
+      const order = Array.isArray(r.orders) ? r.orders[0] : r.orders;
+      const signed = r.photo_path
+        ? await supabase.storage
+            .from("refund-photos")
+            .createSignedUrl(r.photo_path, 600)
+        : null;
+      return {
+        id: r.id,
+        orderId: r.order_id,
+        reference: order?.reference ?? r.order_id,
+        customer: order?.customer ?? "",
+        total: Number(order?.total ?? 0),
+        payment: order?.payment ?? "cash",
+        reason: r.reason,
+        createdAt: r.created_at,
+        photoUrl: signed?.data?.signedUrl ?? null,
+      };
+    })
+  );
+}
+
+export async function resolveMerchantRefundRequest(args: {
+  id: number;
+  approve: boolean;
+  amount?: number;
+  method?: "cash" | "gcash";
+  note?: string;
+}): Promise<void> {
+  const { error } = await supabase.rpc("merchant_resolve_refund_request", {
+    p_request_id: args.id,
+    p_approve: args.approve,
+    p_amount: args.amount,
+    p_method: args.method,
+    p_note: args.note,
+  });
+  if (error) throw new Error(error.message);
+}
+
+export function useMerchantRefundRequests() {
+  return useQuery({
+    queryKey: ["merchantRefundRequests"],
+    queryFn: fetchMerchantRefundRequests,
+    refetchInterval: (query) => backoffFor(60_000, query.state.fetchFailureCount),
+    refetchOnWindowFocus: true,
+  });
+}
+
+export function useResolveMerchantRefundRequest() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: resolveMerchantRefundRequest,
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ["merchantRefundRequests"] });
+      void queryClient.invalidateQueries({ queryKey: ["merchantRefunds"] });
+    },
+  });
+}
+
 export function useMerchantRefunds() {
   return useQuery({ queryKey: ["merchantRefunds"], queryFn: fetchMerchantRefunds });
 }

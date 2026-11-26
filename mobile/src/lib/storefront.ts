@@ -1,6 +1,8 @@
 import { supabase } from "./supabase";
 import { postApi } from "./admin-api";
 import { missingMigrationMessage } from "./missing-migration";
+import { uploadLocalImage } from "./image-upload";
+import { gcashQrFile } from "./gcash-qr";
 
 type VehicleType = "bicycle" | "scooter" | "motorcycle" | "car";
 
@@ -1549,8 +1551,12 @@ export async function fetchMyRefunds(): Promise<Record<string, number>> {
   return totals;
 }
 
+/** Who a refund request is against: the shop (food) or the rider (delivery), 0163. */
+export type RefundAgainst = "merchant" | "rider";
+
 export interface RefundRequest {
   order_id: string;
+  against: RefundAgainst;
   status: "pending" | "approved" | "declined";
   amount: number | null;
   admin_note: string | null;
@@ -1560,13 +1566,14 @@ export interface RefundRequest {
 export async function fetchMyRefundRequests(): Promise<Record<string, RefundRequest>> {
   const { data, error } = await supabase
     .from("refund_requests")
-    .select("order_id, status, amount, admin_note, created_at")
+    .select("order_id, against, status, amount, admin_note, created_at")
     .order("created_at", { ascending: true });
   if (error) throw error;
   const latest: Record<string, RefundRequest> = {};
   for (const r of data ?? [])
     latest[r.order_id] = {
       order_id: r.order_id,
+      against: r.against as RefundAgainst,
       status: r.status as RefundRequest["status"],
       amount: r.amount === null ? null : Number(r.amount),
       admin_note: r.admin_note,
@@ -1574,11 +1581,43 @@ export async function fetchMyRefundRequests(): Promise<Record<string, RefundRequ
   return latest;
 }
 
-/** Ask for a refund on one shop's order; the server checks it is eligible (0159). */
-export async function requestRefund(orderId: string, reason: string): Promise<void> {
+/**
+ * Ask for a refund on one shop's order, with a photo of the problem. The photo
+ * is uploaded first to the customer's own folder; the server checks it is
+ * there and that the order is eligible (0159, 0163).
+ */
+export async function requestRefund(
+  orderId: string,
+  reason: string,
+  against: RefundAgainst,
+  photoUri: string
+): Promise<void> {
+  const { data: auth } = await supabase.auth.getUser();
+  const uid = auth.user?.id;
+  if (!uid) throw new Error("Sign in to ask for a refund.");
+  const { ext, contentType } = gcashQrFile(photoUri);
+  const path = `${uid}/${orderId}-${Date.now()}.${ext}`;
+  const upload = await uploadLocalImage({
+    bucket: "refund-photos",
+    path,
+    uri: photoUri,
+    contentType,
+    maxBytes: 5 * 1024 * 1024,
+  });
+  if (!upload.ok) {
+    throw new Error(
+      upload.failure.kind === "too-large"
+        ? "That photo is too large. Choose a smaller one."
+        : upload.failure.kind === "unreadable"
+          ? "Could not read that photo. Add it again."
+          : "Could not upload the photo. Check your connection and try again."
+    );
+  }
   const { error } = await supabase.rpc("request_refund", {
     p_order_id: orderId,
     p_reason: reason,
+    p_against: against,
+    p_photo_path: path,
   });
   if (error) throw new Error(error.message);
 }

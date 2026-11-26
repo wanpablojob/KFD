@@ -4,6 +4,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Image,
   KeyboardAvoidingView,
   Modal,
   Pressable,
@@ -33,6 +34,8 @@ import { useSession } from "../../lib/session-context";
 import { useCart } from "../../lib/cart-context";
 import { fetchMenu } from "../../lib/storefront";
 import { canAskRefund } from "../../lib/refund-eligibility";
+import { pickPhoto } from "../../lib/pick-photo";
+import type { RefundAgainst } from "../../lib/storefront";
 import { buildReorder } from "../../lib/reorder";
 import { supabase } from "../../lib/supabase";
 import { colors, radius, shadow, spacing, type } from "../../lib/theme";
@@ -161,7 +164,9 @@ function OrderActions({
 
       {pendingRefund ? (
         <Text style={styles.refundNote}>
-          Refund requested. An admin will review it and reply here.
+          {refundRequest?.against === "rider"
+            ? "Refund requested. Meriendash will review it and reply here."
+            : "Refund requested. The shop will review it and reply here."}
         </Text>
       ) : refundRequest?.status === "declined" ? (
         <Text style={styles.refundNote}>
@@ -321,10 +326,24 @@ export default function CustomerOrdersScreen() {
   const askRefund = useRequestRefund();
   const [refundTarget, setRefundTarget] = useState<CustomerOrder | null>(null);
   const [refundReason, setRefundReason] = useState("");
+  const [refundAgainst, setRefundAgainst] = useState<RefundAgainst>("merchant");
+  const [refundPhoto, setRefundPhoto] = useState<string | null>(null);
 
   function openRefund(order: CustomerOrder) {
     setRefundReason("");
+    setRefundAgainst("merchant");
+    setRefundPhoto(null);
     setRefundTarget(order);
+  }
+
+  async function addRefundPhoto() {
+    const picked = await pickPhoto(
+      "Photo of the problem",
+      "Show what went wrong, e.g. the food or the package.",
+      [4, 3]
+    );
+    if (picked.error) Alert.alert("No photo", picked.error);
+    else if (picked.uri) setRefundPhoto(picked.uri);
   }
 
   function submitRefund() {
@@ -333,14 +352,26 @@ export default function CustomerOrdersScreen() {
       Alert.alert("Tell us what went wrong", "Say what happened with this order.");
       return;
     }
+    if (!refundPhoto) {
+      Alert.alert("Add a photo", "Attach a photo of the problem so it can be checked.");
+      return;
+    }
+    const against = refundAgainst;
     askRefund.mutate(
-      { orderId: refundTarget.id, reason: refundReason.trim() },
+      {
+        orderId: refundTarget.id,
+        reason: refundReason.trim(),
+        against,
+        photoUri: refundPhoto,
+      },
       {
         onSuccess: () => {
           setRefundTarget(null);
           Alert.alert(
             "Refund requested",
-            "An admin will review it. You will see the answer on this order."
+            against === "rider"
+              ? "Meriendash will review it. You will see the answer on this order."
+              : "The shop will review it. You will see the answer on this order."
           );
         },
         onError: (cause) =>
@@ -683,9 +714,46 @@ export default function CustomerOrdersScreen() {
                 <Text style={styles.sheetTitle}>Request a refund</Text>
                 <Text style={type.caption}>
                   {refundTarget?.restaurant} · ₱
-                  {Number(refundTarget?.total ?? 0).toFixed(2)}. An admin reviews every
-                  request and replies on this order.
+                  {Number(refundTarget?.total ?? 0).toFixed(2)}. You will get the answer
+                  on this order.
                 </Text>
+                <Text style={styles.refundLabel}>What was the problem?</Text>
+                <View style={styles.againstRow}>
+                  {(
+                    [
+                      ["merchant", "The food", "The shop reviews it"],
+                      ["rider", "The delivery", "Meriendash reviews it"],
+                    ] as const
+                  )
+                    // No rider, nothing to blame on the delivery.
+                    .filter(([key]) => key === "merchant" || !!refundTarget?.rider_id)
+                    .map(([key, label, hint]) => {
+                      const active = refundAgainst === key;
+                      return (
+                        <Pressable
+                          key={key}
+                          style={[
+                            styles.againstChip,
+                            active && styles.againstChipActive,
+                          ]}
+                          onPress={() => setRefundAgainst(key)}
+                          disabled={askRefund.isPending}
+                          accessibilityRole="radio"
+                          accessibilityState={{ selected: active }}
+                        >
+                          <Text
+                            style={[
+                              styles.againstLabel,
+                              active && styles.againstLabelActive,
+                            ]}
+                          >
+                            {label}
+                          </Text>
+                          <Text style={type.caption}>{hint}</Text>
+                        </Pressable>
+                      );
+                    })}
+                </View>
                 <TextInput
                   style={styles.commentInput}
                   value={refundReason}
@@ -697,6 +765,22 @@ export default function CustomerOrdersScreen() {
                   maxLength={500}
                   editable={!askRefund.isPending}
                 />
+                <Pressable
+                  style={styles.photoPick}
+                  onPress={() => void addRefundPhoto()}
+                  disabled={askRefund.isPending}
+                  accessibilityRole="button"
+                  accessibilityLabel={refundPhoto ? "Change the photo" : "Add a photo"}
+                >
+                  {refundPhoto ? (
+                    <Image source={{ uri: refundPhoto }} style={styles.photoThumb} />
+                  ) : (
+                    <Ionicons name="camera-outline" size={22} color={colors.primary} />
+                  )}
+                  <Text style={styles.photoPickLabel}>
+                    {refundPhoto ? "Change photo" : "Add a photo (required)"}
+                  </Text>
+                </Pressable>
                 <View style={styles.sheetActions}>
                   <Pressable
                     style={[
@@ -994,6 +1078,35 @@ function TripCard({
 const styles = StyleSheet.create({
   refunded: { ...type.caption, color: colors.success, fontWeight: "700" },
   refundNote: { ...type.caption, color: colors.textMuted, marginTop: spacing.xs },
+  refundLabel: { ...type.label, marginTop: spacing.md },
+  againstRow: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.sm },
+  againstChip: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    gap: 2,
+  },
+  againstChipActive: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primarySoft,
+  },
+  againstLabel: { ...type.body, fontWeight: "700" },
+  againstLabelActive: { color: colors.primary },
+  photoPick: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    marginTop: spacing.md,
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    padding: spacing.md,
+  },
+  photoThumb: { width: 56, height: 42, borderRadius: radius.sm },
+  photoPickLabel: { ...type.body, color: colors.primary, fontWeight: "600" },
   refundLink: {
     ...type.caption,
     color: colors.primary,

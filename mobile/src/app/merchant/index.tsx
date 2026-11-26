@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import {
+  Image,
   Modal,
   Pressable,
   StyleSheet,
@@ -20,6 +21,9 @@ import { useSession } from "../../lib/session-context";
 import {
   useMarkOrderReady,
   useMerchantOrders,
+  useMerchantRefundRequests,
+  useResolveMerchantRefundRequest,
+  type MerchantRefundRequest,
   useSetMerchantOrderStatus,
   useStoreStatus,
   type MerchantOrder,
@@ -171,6 +175,8 @@ export default function MerchantOrdersScreen() {
         )}
       </MerchantSection>
 
+      <RefundRequestsSection />
+
       <CancelDialog
         order={cancelling}
         onCancel={() => setCancelling(null)}
@@ -224,6 +230,168 @@ function OrderCard({
       </Text>
       <View style={styles.actions}>{children}</View>
     </View>
+  );
+}
+
+/**
+ * Customers asking for money back because of this shop's food (0163). The
+ * shop looks at the photo and approves (records the refund it pays back) or
+ * declines with a note the customer reads. Hidden when there are none.
+ */
+function RefundRequestsSection() {
+  const requests = useMerchantRefundRequests();
+  const resolve = useResolveMerchantRefundRequest();
+  const [open, setOpen] = useState<{
+    row: MerchantRefundRequest;
+    approve: boolean;
+  } | null>(null);
+  const [amount, setAmount] = useState("");
+  const [method, setMethod] = useState<"cash" | "gcash">("cash");
+  const [note, setNote] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  const rows = requests.data ?? [];
+  if (rows.length === 0) return null;
+
+  function start(row: MerchantRefundRequest, approve: boolean) {
+    setOpen({ row, approve });
+    setAmount(row.total.toFixed(2));
+    setMethod(row.payment === "cash" ? "cash" : "gcash");
+    setNote("");
+    setError(null);
+  }
+
+  async function submit() {
+    if (!open) return;
+    const value = Number(amount);
+    if (open.approve && !(value > 0)) {
+      setError("Enter the amount to refund.");
+      return;
+    }
+    if (!open.approve && !note.trim()) {
+      setError("Say why it is declined. The customer sees it.");
+      return;
+    }
+    setError(null);
+    try {
+      await resolve.mutateAsync({
+        id: open.row.id,
+        approve: open.approve,
+        amount: open.approve ? value : undefined,
+        method: open.approve ? method : undefined,
+        note: note.trim() || undefined,
+      });
+      setOpen(null);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Could not save.");
+    }
+  }
+
+  const close = () => {
+    if (!resolve.isPending) setOpen(null);
+  };
+
+  return (
+    <MerchantSection label={`Refund requests (${rows.length})`}>
+      {rows.map((row) => (
+        <View key={row.id} style={styles.card}>
+          <Text style={styles.reference}>
+            {row.reference} · {peso(row.total)}
+          </Text>
+          <Text style={ui.muted}>
+            {row.customer} · {new Date(row.createdAt).toLocaleDateString()}
+          </Text>
+          <Text style={type.body}>“{row.reason}”</Text>
+          {row.photoUrl ? (
+            <Image
+              source={{ uri: row.photoUrl }}
+              style={styles.refundPhoto}
+              accessibilityLabel="The customer's photo of the problem"
+            />
+          ) : (
+            <Text style={ui.muted}>The photo could not be loaded.</Text>
+          )}
+          <View style={styles.actions}>
+            <MerchantButton label="Approve" onPress={() => start(row, true)} />
+            <MerchantButton
+              label="Decline"
+              tone="outline"
+              onPress={() => start(row, false)}
+            />
+          </View>
+        </View>
+      ))}
+
+      <Modal
+        visible={open !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={close}
+      >
+        <KeyboardAvoidingView style={styles.keyboard} behavior="padding">
+          <Pressable
+            style={styles.backdrop}
+            onPress={close}
+            accessibilityLabel="Dismiss"
+          >
+            <Pressable style={styles.dialog} onPress={() => {}}>
+              <Text style={type.heading}>
+                {open?.approve ? "Refund" : "Decline"} {open?.row.reference}
+              </Text>
+              {open?.approve ? (
+                <>
+                  <Text style={ui.muted}>
+                    How much you give back, and how. The shop pays the customer.
+                  </Text>
+                  <TextInput
+                    value={amount}
+                    onChangeText={setAmount}
+                    keyboardType="decimal-pad"
+                    style={styles.input}
+                    accessibilityLabel="Amount to refund in pesos"
+                  />
+                  <View style={styles.actions}>
+                    <MerchantButton
+                      label="Cash"
+                      tone={method === "cash" ? "primary" : "outline"}
+                      onPress={() => setMethod("cash")}
+                    />
+                    <MerchantButton
+                      label="GCash"
+                      tone={method === "gcash" ? "primary" : "outline"}
+                      onPress={() => setMethod("gcash")}
+                    />
+                  </View>
+                </>
+              ) : null}
+              <TextInput
+                value={note}
+                onChangeText={setNote}
+                placeholder={
+                  open?.approve
+                    ? "Note for the customer (optional)"
+                    : "Why it is declined. The customer sees this."
+                }
+                placeholderTextColor={colors.textFaint}
+                style={styles.input}
+                multiline
+                maxLength={500}
+              />
+              {error ? <Text style={ui.error}>{error}</Text> : null}
+              <View style={styles.actions}>
+                <MerchantButton label="Back" tone="outline" onPress={close} />
+                <MerchantButton
+                  label={open?.approve ? "Record refund" : "Decline"}
+                  tone={open?.approve ? "primary" : "danger"}
+                  busy={resolve.isPending}
+                  onPress={() => void submit()}
+                />
+              </View>
+            </Pressable>
+          </Pressable>
+        </KeyboardAvoidingView>
+      </Modal>
+    </MerchantSection>
   );
 }
 
@@ -284,6 +452,12 @@ function CancelDialog({
 
 const styles = StyleSheet.create({
   keyboard: { flex: 1 },
+  refundPhoto: {
+    width: "100%",
+    aspectRatio: 4 / 3,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface,
+  },
   closed: {
     backgroundColor: colors.dangerSoft,
     borderRadius: radius.md,

@@ -162,12 +162,15 @@ export interface RefundRequestEntry {
   payment: string;
   reason: string;
   createdAt: string;
+  /** Short-lived link to the customer's photo (0163), or null. */
+  photoUrl: string | null;
 }
 
 type RefundRequestRow = {
   id: number;
   order_id: string;
   reason: string;
+  photo_path: string | null;
   created_at: string;
   orders: {
     reference: string;
@@ -178,18 +181,28 @@ type RefundRequestRow = {
   } | null;
 };
 
-/** Open refund requests, oldest first, so the longest wait is answered first. */
+/**
+ * Open refund requests against a rider, oldest first, so the longest wait is
+ * answered first. Requests about the food go to the shop (0163).
+ */
 export async function fetchPendingRefundRequests(): Promise<RefundRequestEntry[]> {
   const { data, error } = await supabase
     .from("refund_requests")
     .select(
-      "id, order_id, reason, created_at, orders(reference, customer, restaurant, total, payment)",
+      "id, order_id, reason, photo_path, created_at, orders(reference, customer, restaurant, total, payment)",
     )
     .eq("status", "pending")
+    .eq("against", "rider")
     .order("created_at")
     .returns<RefundRequestRow[]>();
   if (error) throw new Error(error.message);
+  const paths = (data ?? []).flatMap((row) => (row.photo_path ? [row.photo_path] : []));
+  const signed = paths.length
+    ? (await supabase.storage.from("refund-photos").createSignedUrls(paths, 600)).data
+    : null;
+  const urls = new Map((signed ?? []).map((s) => [s.path, s.signedUrl]));
   return (data ?? []).map((row) => ({
+    photoUrl: (row.photo_path && urls.get(row.photo_path)) || null,
     id: row.id,
     orderId: row.order_id,
     reference: row.orders?.reference ?? row.order_id,
